@@ -20,6 +20,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B4 | HECHO | e6511d6 | Datos sensibles: ficha de salud cifrada, registro de accesos, redacción en logs, `check:sensibles` y test de fuga |
 | B5 | HECHO | 08fc9eb | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
 | B6 | HECHO | c73d7b9 | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
+| B-fix | HECHO (6 pendientes, 1 decisión) | 25616f5…6a19fad | Correcciones de la auditoría de la etapa B (`docs/auditorias/etapa-B.md`): ver la sección «Correcciones de la auditoría de la etapa B» |
 | C1 | PENDIENTE | | Instructores y salones |
 | C2 | PENDIENTE | | Precios versionados |
 | C3 | PENDIENTE | | Promociones |
@@ -627,3 +628,57 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 **Para Eduardo**
 - **Limpieza de la base de la demo** (no fue por estos bloques): la base `inscripciones` tenía dos organizaciones de prueba vivas, «A 63459c59» y «B 310f5e8f» (creadas a las 07:22 UTC por alguna corrida de pruebas contra la base de la demo), que hacían fallar `demo-preparar` al reconstruir (índice único de bandeja de Chatwoot). Las marqué con `eliminado_en` junto con sus bandejas (sin borrado físico); queda una bandeja huérfana (cuenta 2, bandeja 6) en Chatwoot. Es el mismo tipo de incidente que A3: los tests solo deben correr con `npm run test:int`.
 - Si el backend va detrás de un balanceador, definir `TRUST_PROXY=1` o los límites verán a todos con la IP del balanceador.
+
+## Correcciones de la auditoría de la etapa B
+
+Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe entra en el primer commit). Cuatro commits `B-fix: …`, uno por grupo coherente:
+
+| Commit | Qué |
+|---|---|
+| `25616f5` | EB-09 (denegar por omisión), EB-01 y EB-21 (registro de accesos a salud), EB-02, EB-23 |
+| `25eaf31` | EB-03, EB-11, EB-12, EB-13, EB-14, EB-24, EB-19 |
+| `dbbc5aa` | EB-04, EB-05, EB-17, EB-07, EB-15 |
+| `6a19fad` | EB-06, EB-08, EB-22, EB-25 |
+
+### Estado de cada hallazgo
+
+| EB | Estado | Cómo / por qué |
+|---|---|---|
+| EB-01 | **corregido** | `leerSensible` y `guardarSensible` registran TODA denegación —sin permiso, sujeto inexistente o de otra organización, maestro fuera de su grupo— en lectura y escritura (`registrarDenegado`, en su propia transacción, con la columna nueva `causa`; migración `20261010050000`). La guarda de permiso de la ruta (`requierePermisoConRastro`) registra el intento de un rol sin permiso, que antes ni llegaba al servicio. Un identificador mal formado no tiene a quién atribuirse: 400/403 sin fila. Se reescribió el test que fijaba lo contrario. |
+| EB-02 | **corregido** | `PATCH /api/usuarios/:id` con el id propio y `contrasena` → 400 (usa `POST /api/yo/contrasena`, que pide la actual y pasa por el bloqueo). Un administrador sí restablece la de OTRA persona sin la actual. Test: la 6.ª pega con la actual correcta da 429. No se pidió la actual para crear administradores ni cambiar roles (sigue abierta la decisión 3 del informe). |
+| EB-03 | **corregido** | El bloqueo de login usa `llaveDeIp` (IPv4 o /64 de IPv6) igual que el límite de B6. Test: 20 direcciones del mismo /64 → 5 verificadas y 15 bloqueadas. **No** se agregó el tope por cuenta (correo) independiente de la IP que sugería el informe: bloquearía a la víctima legítima (queda como decisión). |
+| EB-04 | **corregido** | (a) con `NODE_ENV=production` y sin `TRUST_PROXY` el backend loguea una alerta fuerte (`trust_proxy_no_definido`); `docker-compose.yml` lo fija a `false` (test que lo comprueba), `.env.example` y `docs/API.md` documentan `1` para el ALB. (b) Los límites de webhooks se aplican DESPUÉS de verificar la firma, con dos cubetas: los rechazos gastan solo el cupo de fallos y lo firmado solo el techo; 31 firmas inválidas ya no dejan en 429 al tráfico legítimo de la misma IP. Alternativa descartada: negarse a arrancar sin `TRUST_PROXY` (rompería despliegues que ya corren con `NODE_ENV=production` sin balanceador). Costo del diseño: el cuerpo (acotado) se lee y verifica antes de decidir. |
+| EB-05 | **corregido** | `hstsActivo(cookieSegura, env)`: HSTS si la cookie es Secure (misma resolución que la API) o `ORIGEN_PUBLICO` es https. `crearApp` ya no depende de un valor que `server.ts` no pasaba; test con las variables de entorno reales. |
+| EB-06 | **corregido en lo razonable; residual documentado** | `check:sensibles` falla si se llama a `.revelar()` (también `?.revelar`, `["revelar"]`) o se nombra `leerSensible` fuera de `src/sensibles/` y `api/rutas/salud.ts`. Residual (en el encabezado de la guarda y en `docs/API.md`): código nuevo dentro de esas dos rutas, un acceso armado a trozos o un `import()` dinámico no se ven; cada flujo nuevo debe sumarse a `fuga.itest.ts`. |
+| EB-07 | **corregido** | Sin `CLAVE_DATOS_SENSIBLES` el backend NO cifra, salvo `NODE_ENV=development|test` explícito (`npm run dev` lo fija). Formato nuevo `v2.<kid>.<iv>.<tag>.<texto>`; el `kid` son 6 bytes del SHA-256 de la clave. Rotación con `CLAVES_DATOS_SENSIBLES_ANTERIORES`; el formato `v1` se sigue leyendo; un kid desconocido da un error claro. No hay re-cifrado en lote (un registro viejo se re-cifra al guardarse). |
+| EB-08 | **corregido en la base; rol documentado** | Disparadores `BEFORE TRUNCATE … FOR EACH STATEMENT` en `registro_cambio` y `acceso_dato_sensible` (migración `20261010060000`, también en cascada). Verificado además en una base creada sin esa migración: el test falla. `docs/API.md` («Roles de base de datos») documenta las dos cuentas: la de la aplicación no es dueña ni tiene TRUNCATE/ALTER/TRIGGER. El compose de la demo sigue con una sola cuenta (K6 debe crear las dos). |
+| EB-09 | **corregido** | `autenticar` se monta UNA vez en `crearApiRouter`, antes de las rutas protegidas; cada ruta DEBE declarar `requierePermiso(…)` o `soloSesion()` y `contextoDe(res)` lanza (500) si no lo hizo. `src/api/rutas.test.ts` recorre el router REAL de Express y lo compara con una tabla escrita a mano (también lo que no es `/api`). El test de matriz tautológico ahora parte de `src/testutil/permisos-acordados.ts` (escrito a mano) y no de `tienePermiso`. Consecuencia: una ruta desconocida de `/api` da 401 sin sesión y 404 con sesión. |
+| EB-10 | **NO se corrige: decisión de Eduardo** | `DirectorioAgentesChatwoot` llama a la API de Chatwoot con un token de administrador desde `src/mensajeria/` pero fuera de `MessagingProvider`. Por la letra del invariante 4 es una excepción; por su espíritu (no manda mensajes) no. Opciones: ampliar el texto del invariante a «mensajes» y anotar la excepción, o mover el directorio detrás de una interfaz de `MessagingProvider`. Mientras tanto queda anotada aquí como excepción, como la del borde de Twilio. Se agregó el test que faltaba (no sigue redirecciones con el token). |
+| EB-11 | **corregido** | `sesion.itest.ts` crea su segunda organización (no depende de cuántas haya vivas) y `unicaOrganizacion` tiene su prueba pura. `test:int` corrido contra una base NUEVA (ver Verificación). |
+| EB-12 | **corregido (las 4 + M02)** | M12: el login hace el mismo trabajo de scrypt exista o no el usuario (contador `derivacionesHechas`); M70: por HTTP con `trust proxy` el bloqueo usa la IP real; N04: `unicaOrganizacion` con varias → null; N24: el directorio no sigue redirecciones (servidor local que redirige); M02: parámetros por defecto de scrypt. Las demás (M23, M56, M64, N03) siguen sin test: sin semántica de seguridad directa. |
+| EB-13 | **corregido** | `buscarSesionPorHash` exige organización viva. Test (incluye N05, el slug de una organización borrada). |
+| EB-14 | **corregido** | `texto()`/`textoLiteral()` rechazan NUL (400); el manejador mapea cualquier 4xx del parser (gzip/br/deflate rotos → 400; encoding/charset no admitidos → 415) en vez de 500. |
+| EB-15 | **corregido** | Etiqueta GCM de 16 bytes exigida al cifrar y al descifrar (`authTagLength`). Test con etiquetas de 4, 8, 12 y 15 bytes. |
+| EB-16 | **pendiente (documentado)** | Enumeración del slug por tiempo (~5 ms) y por el 429. Un slug no es un secreto; arreglarlo exige gastar el mismo trabajo y contar intentos por organización inexistente. |
+| EB-17 | **corregido (mitigado)** | Al llenarse, el limitador tira la cubeta con MÁS fichas de las 64 más viejas; una inundación de claves nuevas ya no expulsa la cubeta agotada de una IP limitada. Si las 64 están agotadas se tira la más vieja: el tope sigue protegiendo la memoria, no es un cortafuegos. |
+| EB-18 | **pendiente (documentado)** | Costo de CPU/memoria del login anónimo, 100 MB/s teóricos de cuerpo por IP y `/salud` sin límite. Es del balanceador/WAF; el límite por IP y el tope de cuerpo existen. |
+| EB-19 | **corregido en sesiones e intentos** | `purgarCaducados` (`src/auth/retencion.ts`): marca `eliminado_en` en sesiones expiradas/revocadas hace >30 días e intentos de >48 h; idempotente, aislada por organización, invocada por el barrido a lo más una hora (`ciclo.ts`, `retencion: {}` en `server.ts`). **Pendiente, decisión de Eduardo:** cuánto se conserva `acceso_dato_sensible` / `registro_cambio` (solo de anexar). |
+| EB-20 | **pendiente (decisión)** | Contraseñas de la demo publicadas, puerto 3000 en 0.0.0.0, política sin lista de comunes, sin cambio obligatorio. Decisiones 8 del informe. |
+| EB-21 | **corregido en parte** | Nuevo `GET /api/salud-accesos` (administrador): quién vio a quién, con causa de denegación y solo nombres de campos. Queda: `motivo` viaja en la URL del GET y se guarda en claro (documentado: no escribir datos de salud en el motivo). |
+| EB-22 | **documentado** | `docs/API.md` ya no promete «cada escritura»: lista lo que queda fuera (procesos del sistema, `instructor` al promover a un maestro, login/logout). No se registraron esos cambios: exige un `usuario_id` de sistema. |
+| EB-23 | **corregido** | `DELETE /api/usuarios/:id/vincular-chatwoot` (idempotente, con registro) y desactivar a alguien suelta su agente y sus asignaciones. |
+| EB-24 | **corregido** | Cookie `__Host-sesion` con cookie segura (Secure, Path=/, sin Domain); la `sesion` suelta no sirve. |
+| EB-25 | **corregido** | `DELETE /api/sesion` documentado con su 403 anti-CSRF. |
+| EB-26 | **pendiente (documentado)** | 4 avisos altos de `npm audit` en la cadena del CLI de Prisma; `audit fix --force` está prohibido y la imagen necesita el CLI para migrar. K3 (revisión de seguridad) lo retoma. |
+
+### Verificación
+
+- Mutaciones (cada test nuevo falla al quitar su arreglo, una por una; el script y el resultado de cada una están en el historial de la sesión): `autenticar` único, `accesoDeclarado`, quitar un `requierePermiso`, denegación de lectura/escritura registrada, `requierePermisoConRastro`, `esYo && contrasena`, desactivar suelta el agente, `llaveDeIp` en el bloqueo, hash ficticio, IP fija en el login, `trust proxy`, parámetros de scrypt, organización borrada (sesión y slug), NUL, parser 4xx, nombre `__Host-`, `unicaOrganizacion`, redirecciones del directorio, retención (rama de expiradas y llamada del ciclo), cubeta de fallos/techo (dos mutaciones), HSTS, expulsión de cubetas, aviso de `TRUST_PROXY`, `.revelar()` de la guarda. EB-08 se verificó creando una base sin la migración.
+- `npm run validar` → exit 0; `npm run test:int` → exit 0; los conteos del último commit del bloque van en la sección de cierre de la etapa C.
+
+### Para Eduardo
+
+- **Decisión (EB-10):** el directorio de agentes y el invariante 4 (arriba).
+- **Decisiones del informe sin cerrar:** 2FA / reautenticación para crear administradores y cambiar roles (EB-02), tope por cuenta del login (EB-03), retención de los registros solo de anexar (EB-19), qué pasa al dar de baja una organización (sus sesiones ya mueren), contraseñas de la demo y política (EB-20), varias réplicas (el límite vive en memoria), ratificar las excepciones de `sistema.ts` al invariante 1.
+- **Cambios de contrato a tener en cuenta (interfaz J1):** una ruta desconocida de `/api` da 401 sin sesión; la cookie segura se llama `__Host-sesion`; `PATCH /api/usuarios/:id` ya no acepta `contrasena` sobre uno mismo.
+- **Un fallo no reproducido:** en la primera corrida de `test:int` contra una base nueva falló una vez el login de un test de `chatwoot.itest.ts` (404 donde esperaba 201); no se reprodujo en 25 corridas del archivo ni en dos de la suite completa. Si reaparece, mirar primero el reuso de puertos entre servidores de prueba consecutivos.
