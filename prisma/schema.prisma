@@ -1,0 +1,15 @@
+// Esquema de la base. Fase 0 no define tablas: el esquema mínimo es el bloque 1.1 de Fase 1.
+// Los índices únicos parciales (WHERE estatus='activa', teléfono normalizado) no se expresan
+// aquí: van como SQL en la migración (CLAUDE.md, Stack).
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  importFileExtension    = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}

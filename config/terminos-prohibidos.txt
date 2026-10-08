@@ -1,0 +1,19 @@
+# Términos de vertical y de sucursal que no pueden aparecer en código, tests de lógica ni
+# plantillas fijas (CLAUDE.md, invariante 2). Viven en tablas y seeds.
+# Uno por línea. La comparación ignora mayúsculas y acentos, separa camelCase y snake_case
+# y acepta plural (-s, -es). Las líneas que empiezan con # se ignoran.
+
+# Verticales
+karate
+ballet
+baile
+twerk
+
+# Progresión y eventos
+cinturón
+cinta
+recital
+
+# Sucursales
+águilas
+centenario

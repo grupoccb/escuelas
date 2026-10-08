@@ -1,0 +1,38 @@
+# CI mínima (SPEC 0.1). Rojo bloquea el merge.
+# Mismo orden que `npm run validar`: lint, typecheck, check:generico y tests.
+name: CI
+
+"on":
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar:
+    name: Lint, typecheck, check:generico y tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run check:generico
+      - run: npm test
+
+  compose:
+    name: docker compose (backend + Postgres)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build --wait postgres backend
+      - run: curl -fsS http://localhost:3000/salud
+      - if: failure()
+        run: docker compose logs backend

@@ -1,0 +1,506 @@
+{
+  "description": "Escuela multi-vertical | Flujo maestro WhatsApp: captacion, cotizador, agenda de clase muestra y ruteo",
+  "initial_state": "Trigger",
+  "flags": {
+    "allow_concurrent_calls": true
+  },
+  "states": [
+    {
+      "name": "Trigger",
+      "type": "trigger",
+      "properties": {
+        "offset": { "x": 0, "y": 0 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "ContextoEntrante" },
+        { "event": "incomingCall" },
+        { "event": "incomingConversationMessage" },
+        { "event": "incomingRequest" },
+        { "event": "incomingParent" }
+      ]
+    },
+    {
+      "name": "ContextoEntrante",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/whatsapp/inbound",
+        "body": "{\"from\":\"{{trigger.message.From}}\",\"to\":\"{{trigger.message.To}}\",\"body\":\"{{trigger.message.Body}}\",\"profile_name\":\"{{trigger.message.ProfileName}}\",\"message_sid\":\"{{trigger.message.MessageSid}}\",\"execution_sid\":\"{{flow.sid}}\",\"referral\":{{trigger.message.Referral | default: 'null'}}}",
+        "offset": { "x": 0, "y": 200 }
+      },
+      "transitions": [
+        { "event": "success", "next": "RutaPorAccion" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "RutaPorAccion",
+      "type": "split-based-on",
+      "properties": {
+        "input": "{{widgets.ContextoEntrante.parsed.accion}}",
+        "offset": { "x": 0, "y": 400 }
+      },
+      "transitions": [
+        { "event": "noMatch", "next": "Handoff" },
+        {
+          "event": "match",
+          "next": "PreguntaNombre",
+          "conditions": [
+            {
+              "friendly_name": "Lead nuevo o captura incompleta",
+              "arguments": ["{{widgets.ContextoEntrante.parsed.accion}}"],
+              "type": "equal_to",
+              "value": "captacion"
+            }
+          ]
+        },
+        {
+          "event": "match",
+          "next": "ProcesaRespuestaAgenda",
+          "conditions": [
+            {
+              "friendly_name": "Responde a recordatorio de clase muestra",
+              "arguments": ["{{widgets.ContextoEntrante.parsed.accion}}"],
+              "type": "equal_to",
+              "value": "respuesta_agenda"
+            }
+          ]
+        },
+        {
+          "event": "match",
+          "next": "MenuCliente",
+          "conditions": [
+            {
+              "friendly_name": "Ya es tutor de alumno inscrito",
+              "arguments": ["{{widgets.ContextoEntrante.parsed.accion}}"],
+              "type": "equal_to",
+              "value": "cliente_existente"
+            }
+          ]
+        },
+        {
+          "event": "match",
+          "next": "Handoff",
+          "conditions": [
+            {
+              "friendly_name": "Pide asesor humano",
+              "arguments": ["{{widgets.ContextoEntrante.parsed.accion}}"],
+              "type": "equal_to",
+              "value": "handoff"
+            }
+          ]
+        },
+        {
+          "event": "match",
+          "next": "FinSilencioso",
+          "conditions": [
+            {
+              "friendly_name": "Opt-out o conversacion en atencion humana",
+              "arguments": ["{{widgets.ContextoEntrante.parsed.accion}}"],
+              "type": "equal_to",
+              "value": "ignorar"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PreguntaNombre",
+      "type": "send-and-wait-for-reply",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "body": "{{widgets.ContextoEntrante.parsed.saludo}}\n\nPara darte los horarios y costos exactos, ¿cómo se llama tu hijo o hija?",
+        "timeout": "1800",
+        "offset": { "x": -400, "y": 620 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "PreguntaEdad" },
+        { "event": "timeout", "next": "GuardaParcial" },
+        { "event": "deliveryFailure", "next": "GuardaParcial" }
+      ]
+    },
+    {
+      "name": "PreguntaEdad",
+      "type": "send-and-wait-for-reply",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "body": "¡Mucho gusto! ¿Qué edad tiene {{widgets.PreguntaNombre.inbound.Body}}?",
+        "timeout": "1800",
+        "offset": { "x": -400, "y": 840 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "ObtieneSucursales" },
+        { "event": "timeout", "next": "GuardaParcial" },
+        { "event": "deliveryFailure", "next": "GuardaParcial" }
+      ]
+    },
+    {
+      "name": "ObtieneSucursales",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/sucursales/opciones",
+        "body": "{\"lead_id\":\"{{widgets.ContextoEntrante.parsed.lead_id}}\",\"vertical_id\":\"{{widgets.ContextoEntrante.parsed.vertical_id}}\",\"nombre_nino\":\"{{widgets.PreguntaNombre.inbound.Body}}\",\"edad_declarada\":\"{{widgets.PreguntaEdad.inbound.Body}}\"}",
+        "offset": { "x": -400, "y": 1060 }
+      },
+      "transitions": [
+        { "event": "success", "next": "PreguntaSucursal" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "PreguntaSucursal",
+      "type": "send-and-wait-for-reply",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "body": "{{widgets.ObtieneSucursales.parsed.mensaje}}",
+        "timeout": "1800",
+        "offset": { "x": -400, "y": 1280 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "Cotiza" },
+        { "event": "timeout", "next": "GuardaParcial" },
+        { "event": "deliveryFailure", "next": "GuardaParcial" }
+      ]
+    },
+    {
+      "name": "Cotiza",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/cotizador",
+        "body": "{\"lead_id\":\"{{widgets.ContextoEntrante.parsed.lead_id}}\",\"vertical_id\":\"{{widgets.ContextoEntrante.parsed.vertical_id}}\",\"opcion_sucursal\":\"{{widgets.PreguntaSucursal.inbound.Body}}\",\"edad_declarada\":\"{{widgets.PreguntaEdad.inbound.Body}}\"}",
+        "offset": { "x": -400, "y": 1500 }
+      },
+      "transitions": [
+        { "event": "success", "next": "SplitCupo" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "SplitCupo",
+      "type": "split-based-on",
+      "properties": {
+        "input": "{{widgets.Cotiza.parsed.hay_cupo}}",
+        "offset": { "x": -400, "y": 1720 }
+      },
+      "transitions": [
+        { "event": "noMatch", "next": "ListaEspera" },
+        {
+          "event": "match",
+          "next": "OfreceHorarios",
+          "conditions": [
+            {
+              "friendly_name": "Hay grupos con lugar",
+              "arguments": ["{{widgets.Cotiza.parsed.hay_cupo}}"],
+              "type": "equal_to",
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OfreceHorarios",
+      "type": "send-and-wait-for-reply",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "body": "{{widgets.Cotiza.parsed.mensaje_oferta}}",
+        "timeout": "3600",
+        "offset": { "x": -700, "y": 1940 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "AgendaMuestra" },
+        { "event": "timeout", "next": "GuardaParcial" },
+        { "event": "deliveryFailure", "next": "GuardaParcial" }
+      ]
+    },
+    {
+      "name": "AgendaMuestra",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/clase-muestra",
+        "body": "{\"lead_id\":\"{{widgets.ContextoEntrante.parsed.lead_id}}\",\"cotizacion_id\":\"{{widgets.Cotiza.parsed.cotizacion_id}}\",\"opcion_horario\":\"{{widgets.OfreceHorarios.inbound.Body}}\"}",
+        "offset": { "x": -700, "y": 2160 }
+      },
+      "transitions": [
+        { "event": "success", "next": "SplitAgenda" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "SplitAgenda",
+      "type": "split-based-on",
+      "properties": {
+        "input": "{{widgets.AgendaMuestra.parsed.ok}}",
+        "offset": { "x": -700, "y": 2380 }
+      },
+      "transitions": [
+        { "event": "noMatch", "next": "ReintentaHorario" },
+        {
+          "event": "match",
+          "next": "ConfirmaMuestra",
+          "conditions": [
+            {
+              "friendly_name": "Agendado correctamente",
+              "arguments": ["{{widgets.AgendaMuestra.parsed.ok}}"],
+              "type": "equal_to",
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ConfirmaMuestra",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{widgets.AgendaMuestra.parsed.mensaje_confirmacion}}",
+        "offset": { "x": -900, "y": 2600 }
+      },
+      "transitions": [{ "event": "sent" }, { "event": "failed" }]
+    },
+    {
+      "name": "ReintentaHorario",
+      "type": "send-and-wait-for-reply",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "body": "No pude tomar esa opción. {{widgets.AgendaMuestra.parsed.mensaje_error}}",
+        "timeout": "1800",
+        "offset": { "x": -500, "y": 2600 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "AgendaMuestra" },
+        { "event": "timeout", "next": "GuardaParcial" },
+        { "event": "deliveryFailure", "next": "GuardaParcial" }
+      ]
+    },
+    {
+      "name": "ListaEspera",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/lista-espera",
+        "body": "{\"lead_id\":\"{{widgets.ContextoEntrante.parsed.lead_id}}\",\"cotizacion_id\":\"{{widgets.Cotiza.parsed.cotizacion_id}}\"}",
+        "offset": { "x": -100, "y": 1940 }
+      },
+      "transitions": [
+        { "event": "success", "next": "MsgListaEspera" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "MsgListaEspera",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{widgets.ListaEspera.parsed.mensaje}}",
+        "offset": { "x": -100, "y": 2160 }
+      },
+      "transitions": [{ "event": "sent" }, { "event": "failed" }]
+    },
+    {
+      "name": "ProcesaRespuestaAgenda",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/clase-muestra/respuesta",
+        "body": "{\"clase_muestra_id\":\"{{widgets.ContextoEntrante.parsed.clase_muestra_id}}\",\"respuesta\":\"{{trigger.message.Body}}\"}",
+        "offset": { "x": 300, "y": 620 }
+      },
+      "transitions": [
+        { "event": "success", "next": "SplitRespuestaAgenda" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "SplitRespuestaAgenda",
+      "type": "split-based-on",
+      "properties": {
+        "input": "{{widgets.ProcesaRespuestaAgenda.parsed.requiere_reagenda}}",
+        "offset": { "x": 300, "y": 840 }
+      },
+      "transitions": [
+        { "event": "noMatch", "next": "MsgRespuestaAgenda" },
+        {
+          "event": "match",
+          "next": "OfreceReagenda",
+          "conditions": [
+            {
+              "friendly_name": "Quiere otro horario",
+              "arguments": ["{{widgets.ProcesaRespuestaAgenda.parsed.requiere_reagenda}}"],
+              "type": "equal_to",
+              "value": "true"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MsgRespuestaAgenda",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{widgets.ProcesaRespuestaAgenda.parsed.mensaje}}",
+        "offset": { "x": 100, "y": 1060 }
+      },
+      "transitions": [{ "event": "sent" }, { "event": "failed" }]
+    },
+    {
+      "name": "OfreceReagenda",
+      "type": "send-and-wait-for-reply",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "body": "{{widgets.ProcesaRespuestaAgenda.parsed.mensaje}}",
+        "timeout": "3600",
+        "offset": { "x": 500, "y": 1060 }
+      },
+      "transitions": [
+        { "event": "incomingMessage", "next": "ConfirmaReagenda" },
+        { "event": "timeout", "next": "GuardaParcial" },
+        { "event": "deliveryFailure", "next": "GuardaParcial" }
+      ]
+    },
+    {
+      "name": "ConfirmaReagenda",
+      "type": "make-http-request",
+      "properties": {
+        "method": "PATCH",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/clase-muestra/reagendar",
+        "body": "{\"clase_muestra_id\":\"{{widgets.ContextoEntrante.parsed.clase_muestra_id}}\",\"opcion_horario\":\"{{widgets.OfreceReagenda.inbound.Body}}\"}",
+        "offset": { "x": 500, "y": 1280 }
+      },
+      "transitions": [
+        { "event": "success", "next": "MsgReagenda" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "MsgReagenda",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{widgets.ConfirmaReagenda.parsed.mensaje}}",
+        "offset": { "x": 500, "y": 1500 }
+      },
+      "transitions": [{ "event": "sent" }, { "event": "failed" }]
+    },
+    {
+      "name": "MenuCliente",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/conversaciones/handoff",
+        "body": "{\"conversacion_id\":\"{{widgets.ContextoEntrante.parsed.conversacion_id}}\",\"motivo\":\"cliente_existente\"}",
+        "offset": { "x": 700, "y": 620 }
+      },
+      "transitions": [
+        { "event": "success", "next": "MsgMenuCliente" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "MsgMenuCliente",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{widgets.MenuCliente.parsed.mensaje}}",
+        "offset": { "x": 700, "y": 840 }
+      },
+      "transitions": [{ "event": "sent" }, { "event": "failed" }]
+    },
+    {
+      "name": "Handoff",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/conversaciones/handoff",
+        "body": "{\"conversacion_id\":\"{{widgets.ContextoEntrante.parsed.conversacion_id}}\",\"motivo\":\"solicitud_usuario\",\"ultimo_mensaje\":\"{{trigger.message.Body}}\"}",
+        "offset": { "x": 1100, "y": 620 }
+      },
+      "transitions": [
+        { "event": "success", "next": "MsgHandoff" },
+        { "event": "failed", "next": "ErrorTecnico" }
+      ]
+    },
+    {
+      "name": "MsgHandoff",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Con gusto. Ya avisé a un asesor de la escuela, en breve te escribe por aquí mismo. 🙌",
+        "offset": { "x": 1100, "y": 840 }
+      },
+      "transitions": [{ "event": "sent" }, { "event": "failed" }]
+    },
+    {
+      "name": "GuardaParcial",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/leads/captura-parcial",
+        "body": "{\"lead_id\":\"{{widgets.ContextoEntrante.parsed.lead_id}}\",\"motivo\":\"timeout\",\"nombre_nino\":\"{{widgets.PreguntaNombre.inbound.Body}}\",\"edad_declarada\":\"{{widgets.PreguntaEdad.inbound.Body}}\",\"opcion_sucursal\":\"{{widgets.PreguntaSucursal.inbound.Body}}\"}",
+        "offset": { "x": -1200, "y": 1500 }
+      },
+      "transitions": [
+        { "event": "success" },
+        { "event": "failed" }
+      ]
+    },
+    {
+      "name": "FinSilencioso",
+      "type": "set-variables",
+      "properties": {
+        "variables": [
+          { "key": "resultado", "value": "ignorado" }
+        ],
+        "offset": { "x": 1500, "y": 620 }
+      },
+      "transitions": [{ "event": "next" }]
+    },
+    {
+      "name": "ErrorTecnico",
+      "type": "send-message",
+      "properties": {
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Tuvimos un detalle técnico de nuestro lado. Un asesor te contacta en unos minutos para ayudarte personalmente. Disculpa la molestia.",
+        "offset": { "x": 1500, "y": 1060 }
+      },
+      "transitions": [
+        { "event": "sent", "next": "NotificaError" },
+        { "event": "failed", "next": "NotificaError" }
+      ]
+    },
+    {
+      "name": "NotificaError",
+      "type": "make-http-request",
+      "properties": {
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "url": "https://api.TUDOMINIO.com/api/alertas/flow-error",
+        "body": "{\"execution_sid\":\"{{flow.sid}}\",\"from\":\"{{trigger.message.From}}\",\"to\":\"{{trigger.message.To}}\"}",
+        "offset": { "x": 1500, "y": 1280 }
+      },
+      "transitions": [{ "event": "success" }, { "event": "failed" }]
+    }
+  ]
+}
