@@ -6,8 +6,8 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 |---|---|---|---|
 | A0 | HECHO | f987191 | Preparación |
 | A1 | HECHO | ver sección | Auditoría de la primera sesión: 2 ALTA, 9 MEDIA, 7 BAJA |
-| A2 | HECHO | ver sección | Correcciones de A1: las 2 ALTA (F1-02 cierra con A3) y 11 de los demás hallazgos |
-| A3 | HECHO | ver sección | Lead a medias: visible a los 30 min sin marcar atención humana; una persona la toma por asignación o primer mensaje |
+| A2 | HECHO | dae9e9d | Correcciones de A1: las 2 ALTA (F1-02 cierra con A3) y 11 de los demás hallazgos |
+| A3 | HECHO | 8f607f2 | Lead a medias: visible a los 30 min sin marcar atención humana; una persona la toma por asignación o primer mensaje |
 | A4 | PENDIENTE | | Baja que vuelve a escribir |
 | A5 | PENDIENTE | | Entrega fallida |
 | A6 | PENDIENTE | | Frecuencia |
