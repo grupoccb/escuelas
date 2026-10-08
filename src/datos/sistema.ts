@@ -12,6 +12,10 @@
 // Excepción de la landing pública (E1): la URL `/l/:vertical` no trae sesión ni organización; el slug de la vertical (y, si hay
 // ambigüedad, el slug de la organización) es lo único que identifica a quién pertenece la página.
 // - `resolverVerticalPublica`: devuelve la (organización, vertical) SOLO si el slug identifica exactamente una vertical activa.
+//
+// Excepción de los eventos inesperados (WH): una constancia de un evento público que no se pudo atar a ninguna organización (JSON roto, receptor
+// desconocido). No hay alcance que abrir; la fila queda con `organizacion_id` nulo y SOLO se escribe aquí.
+// - `registrarEventoInesperadoSinOrganizacion`: alta idempotente por (origen, clave); un reintento suma `intentos`.
 
 import { clienteSinAlcance, type PrismaRaiz } from "./prisma.ts";
 import { normalizarNumeroWhatsapp } from "../lib/telefono.ts";
@@ -144,4 +148,25 @@ export async function resolverVerticalPublica(raiz: PrismaRaiz, slugVertical: st
   });
   const una = filas.length === 1 ? filas[0] : undefined;
   return una ? { organizacion_id: una.organizacion_id, vertical_id: una.id } : null;
+}
+
+export interface EventoInesperadoSinOrganizacion {
+  origen: "chatwoot" | "twilio_entrante" | "twilio_estado" | "landing" | "barrido_twilio";
+  clave: string;
+  causa: "json_invalido" | "forma_inesperada" | "sin_identificador" | "dato_invalido" | "texto_con_nul" | "restriccion_base" | "registro_inexistente" | "bandeja_sin_aprovisionar" | "reenvio_abandonado" | "error_interno";
+  detalle: string;
+  forma: Record<string, unknown>;
+}
+
+/** Constancia de un evento que no se pudo atar a ninguna organización. Idempotente: devuelve `nuevo` solo la primera vez. */
+export async function registrarEventoInesperadoSinOrganizacion(raiz: PrismaRaiz, e: EventoInesperadoSinOrganizacion): Promise<{ nuevo: boolean }> {
+  const prisma = clienteSinAlcance(raiz);
+  try {
+    await prisma.evento_inesperado.create({ data: { origen: e.origen, clave: e.clave, causa: e.causa, detalle: e.detalle, forma: e.forma as never } });
+    return { nuevo: true };
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== "P2002") throw error;
+  }
+  await prisma.evento_inesperado.updateMany({ where: { organizacion_id: null, origen: e.origen, clave: e.clave, eliminado_en: null }, data: { intentos: { increment: 1 } } });
+  return { nuevo: false };
 }

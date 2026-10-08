@@ -129,11 +129,19 @@ test("eventos que no son mensajes del contacto se ignoran con 200", async () => 
   assert.equal(d.recibidos.length, 0);
 });
 
-test("si el procesamiento falla responde 500 para que Chatwoot reintente", async () => {
-  const d = deps({ procesarEntrante: async () => { throw new Error("base caída"); } });
+/** Una falla del MOMENTO de la infraestructura (WH): el proveedor debe reintentar. */
+const FALLA_DEL_MOMENTO = (): Error => Object.assign(new Error("Timed out fetching a new connection from the connection pool"), { code: "P2024" });
+/** Un error por DATOS (WH): reintentar daría lo mismo; se atrapa, se deja constancia y se responde 2xx. */
+const FALLA_POR_DATOS = (): Error => Object.assign(new Error("Foreign key constraint violated"), { code: "P2003" });
+
+test("WH: si el procesamiento falla por una falla del momento (base saturada) responde 503 para que Chatwoot reintente; por un dato inesperado, 200 (antes 500)", async () => {
   const cuerpo = JSON.stringify(payloadMensajeEntrante({ id: 83 }));
-  const r = await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
-  assert.equal(r.status, 500);
+  const transitoria = await pedir(deps({ procesarEntrante: async () => { throw FALLA_DEL_MOMENTO(); } }), "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
+  assert.deepEqual([transitoria.status, transitoria.body], [503, { ok: false }]);
+  for (const error of [FALLA_POR_DATOS(), new Error("base caída")]) {
+    const r = await pedir(deps({ procesarEntrante: async () => { throw error; } }), "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
+    assert.deepEqual([r.status, r.body], [200, { ok: true, resultado: "inesperado" }]);
+  }
 });
 
 const ESTADO_LEIDO = readFileSync(new URL("../mensajeria/chatwoot/payload-estado-leido.json", import.meta.url), "utf8");
@@ -154,10 +162,11 @@ test("un cambio de estado sin firma válida se rechaza y no se registra (invaria
   assert.equal(d.estados.length, 0);
 });
 
-test("si registrar el estado falla responde 500 para que Chatwoot reintente", async () => {
-  const d = deps({ registrarEstadoEntrega: async () => { throw new Error("base caída"); } });
-  const r = await pedir(d, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO));
-  assert.equal(r.status, 500);
+test("WH: si registrar el estado falla: del momento → 503 para que Chatwoot reintente; por datos → 200", async () => {
+  const transitoria = deps({ registrarEstadoEntrega: async () => { throw FALLA_DEL_MOMENTO(); } });
+  assert.equal((await pedir(transitoria, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO))).status, 503);
+  const datos = deps({ registrarEstadoEntrega: async () => { throw FALLA_POR_DATOS(); } });
+  assert.equal((await pedir(datos, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO))).status, 200);
 });
 
 const fixtureJson = (nombre: string): string => readFileSync(new URL(`../mensajeria/chatwoot/payload-${nombre}.json`, import.meta.url), "utf8");
@@ -193,10 +202,12 @@ test("A3: una toma sin firma válida se rechaza y no apaga al bot (invariante 9)
   assert.equal(d.tomas.length, 0);
 });
 
-test("A3: si registrar la toma falla responde 500 para que Chatwoot reintente", async () => {
-  const d = deps({ registrarTomaDeConversacion: async () => { throw new Error("base caída"); } });
+test("A3 + WH: si registrar la toma falla: del momento → 503 para que Chatwoot reintente; por datos → 200", async () => {
   const cuerpo = fixtureJson("conversacion-asignada");
-  assert.equal((await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 500);
+  const transitoria = deps({ registrarTomaDeConversacion: async () => { throw FALLA_DEL_MOMENTO(); } });
+  assert.equal((await pedir(transitoria, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 503);
+  const datos = deps({ registrarTomaDeConversacion: async () => { throw FALLA_POR_DATOS(); } });
+  assert.equal((await pedir(datos, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 200);
 });
 
 test("B5: quitar el asesor, firmado, registra la desasignación; sin el manejador (o sin firma) no pasa nada", async () => {
@@ -214,8 +225,10 @@ test("B5: quitar el asesor, firmado, registra la desasignación; sin el manejado
   const sin = deps();
   assert.deepEqual((await pedir(sin, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).body, { ok: true, resultado: "ignorado" });
 
-  const falla = deps({ registrarDesasignacion: async () => { throw new Error("base caída"); } });
-  assert.equal((await pedir(falla, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 500);
+  const falla = deps({ registrarDesasignacion: async () => { throw FALLA_DEL_MOMENTO(); } });
+  assert.equal((await pedir(falla, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 503);
+  const datos = deps({ registrarDesasignacion: async () => { throw FALLA_POR_DATOS(); } });
+  assert.equal((await pedir(datos, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 200);
 });
 
 // ── EB-05: HSTS con la configuración REAL (no con un valor que solo el test pasa a mano) ─────────

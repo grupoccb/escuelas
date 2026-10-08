@@ -94,6 +94,12 @@ export function confirmacionBajaA(entranteId: string, cuerpo: string): SalienteD
 /** Un saliente que dice contestar a un entrante que no existe, no es de esa conversación o no es el último. */
 export class ErrorOrigenSaliente extends Error {}
 
+/**
+ * La bandeja de Chatwoot de la conversación no tiene cuenta (todavía no se aprovisiona). No es del momento ni se arregla reintentando: los webhooks
+ * lo tratan como un dato inesperado (constancia + tarea), no como un 500 que el proveedor repetiría sin fin (WH).
+ */
+export class BandejaSinAprovisionar extends Error {}
+
 /** Qué pasó con cada mensaje que se intentó mandar. */
 export interface ResultadoSaliente {
   mensajeId: string;
@@ -589,7 +595,7 @@ export class MessagingProvider {
       },
     });
     const cuenta = conv.bandeja_chatwoot.chatwoot_account_id;
-    if (cuenta === null) throw new Error(`La bandeja de la conversación ${conversacionId} no está aprovisionada`);
+    if (cuenta === null) throw new BandejaSinAprovisionar(`La bandeja de la conversación ${conversacionId} no está aprovisionada`);
     const destino: DestinoConversacion = {
       chatwootAccountId: cuenta,
       chatwootConversacionId: conv.chatwoot_conversacion_id,

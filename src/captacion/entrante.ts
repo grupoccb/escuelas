@@ -5,6 +5,7 @@
 // versión. Si dos mensajes de la misma conversación llegan juntos, uno gana y el otro se
 // repite con el estado nuevo.
 
+import { ErrorTransitorio } from "../lib/transitorio.ts";
 import { InscripcionesActivas, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { registrarAltaDeLead } from "../embudo/historial.ts";
 import { aplicarCodigoAlLead, resolverCodigosDeMensaje, type RastreoDelMensaje } from "./rastreo.ts";
@@ -67,7 +68,8 @@ export interface DepsCaptacion {
   reloj?: () => Date;
 }
 
-class ConflictoVersion extends Error {}
+/** La versión de la conversación cambió bajo la transacción: se repite. Si la contención no cede tras los reintentos, es del momento (WH): el proveedor reintenta. */
+class ConflictoVersion extends ErrorTransitorio {}
 
 /** Postgres no guarda el carácter NUL en un texto: un mensaje con uno hacía fallar la transacción entera (EC-12). */
 const sinNul = (t: string): string => t.replaceAll("\u0000", "");

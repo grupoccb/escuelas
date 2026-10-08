@@ -76,7 +76,8 @@ export interface EventoEntrante {
 type Objeto = Record<string, unknown>;
 
 const objeto = (v: unknown): Objeto | null => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Objeto) : null);
-const entero = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) ? v : null);
+// Enteros SEGUROS: un número como 1e300 «es entero» para JavaScript pero ninguna columna lo guarda (WH).
+const entero = (v: unknown): number | null => (typeof v === "number" && Number.isSafeInteger(v) ? v : null);
 const texto = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
 
 /**
@@ -212,4 +213,34 @@ export function interpretarDesasignacion(payload: unknown): EventoDesasignacion 
   const conversacion = entero(p["id"]);
   if (bandeja === null || conversacion === null) return null;
   return { chatwootAccountId: cuenta, chatwootInboxId: bandeja, chatwootConversacionId: conversacion };
+}
+
+/**
+ * ¿Es un mensaje entrante de un contacto (no privado) que `interpretarEventoChatwoot` NO pudo leer? Es un dato inesperado (faltan campos o traen otro
+ * tipo): ignorarlo en silencio perdería el mensaje de una familia, así que el webhook deja constancia y una tarea (WH).
+ */
+export function esMensajeEntranteIlegible(payload: unknown): boolean {
+  const p = objeto(payload);
+  if (!p || p["event"] !== "message_created" || p["message_type"] !== "incoming" || p["private"] === true) return false;
+  return interpretarEventoChatwoot(payload) === null;
+}
+
+/** Cuenta, bandeja y conversación de un payload de Chatwoot, si vienen como enteros seguros. Para ubicar la organización y la conversación de una constancia. */
+export function contextoChatwootDe(payload: unknown): { cuenta: number; bandeja: number; conversacion?: number } | undefined {
+  const p = objeto(payload);
+  if (!p) return undefined;
+  const cuenta = entero(objeto(p["account"])?.["id"]);
+  const bandeja = entero(objeto(p["inbox"])?.["id"]) ?? entero(p["inbox_id"]);
+  if (cuenta === null || bandeja === null) return undefined;
+  // En `conversation_updated` el id de la conversación es el del propio payload; en un mensaje, el de `conversation`.
+  const conversacion = entero(objeto(p["conversation"])?.["id"]) ?? (p["event"] === "conversation_updated" ? entero(p["id"]) : null);
+  return { cuenta, bandeja, ...(conversacion !== null ? { conversacion } : {}) };
+}
+
+/** Identificador estable de un payload de Chatwoot que no se pudo procesar: el del mensaje si lo trae, o `null` (quien llama usa la huella del cuerpo). */
+export function idDeMensajeChatwoot(payload: unknown): string | null {
+  const p = objeto(payload);
+  if (!p || p["event"] !== "message_created") return null;
+  const id = entero(p["id"]);
+  return id === null ? null : `msg:${id}`;
 }

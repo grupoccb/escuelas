@@ -13,6 +13,7 @@ export {
   ENVIO_INCIERTO,
   ENVIO_INCIERTO_MS,
   PENDIENTE_VIGENCIA_MS,
+  BandejaSinAprovisionar,
   ErrorOrigenSaliente,
   confirmacionBajaA,
   respuestaA,
@@ -59,6 +60,9 @@ export {
   type ResultadoEstado,
 } from "./estados.ts";
 export {
+  contextoChatwootDe,
+  esMensajeEntranteIlegible,
+  idDeMensajeChatwoot,
   interpretarDesasignacion,
   interpretarEventoChatwoot,
   interpretarTomaDeConversacion,

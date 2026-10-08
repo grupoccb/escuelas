@@ -62,6 +62,7 @@ function montar(o: Opciones = {}) {
           return "reenviado";
         },
         reenviarPendientes: async () => ({ reenviados: 0, fallidos: 0, abandonados: 0, errores: 0 }),
+        reenviarSinRegistro: async () => true,
         alertas: { organizacionDesconocida: 0, eventosAbandonados: 0 },
       },
     },

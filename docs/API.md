@@ -455,3 +455,34 @@ puede ser de categoría `marketing` (CHECK `plantilla_mensaje_servicio_no_market
 **Dónde vive:** solo en `MessagingProvider` (`evaluarReglas` / `pasaConAtencionHumana` en `src/mensajeria/reglas.ts`); ninguna automatización pregunta por el estado (hay un test que lo impide). Un aviso de servicio
 con una persona atendiendo sigue sujeto a plantilla aprobada, ventana de servicio, horario 09:00–20:00 de la sucursal, baja TOTAL, frecuencia diaria e idempotencia. La **baja de marketing** bloquea lo
 que declara marketing (aunque su categoría Meta sea `utility`) y no los avisos de servicio; la baja total bloquea todo. Tope de marketing (1 cada 7 días) sigue contando por categoría Meta `marketing`.
+
+## Webhooks y landing: un dato inesperado nunca es un 500 (WH, regla 5 de Eduardo)
+
+Aplica a `POST /webhooks/chatwoot`, `POST /webhooks/twilio/entrantes`, `POST /webhooks/twilio/estados`, `GET|POST /l/:vertical` y al barrido de reenvío del borde de Twilio. La firma sigue
+mandando (401/403/429 sin firma válida, invariante 9); lo de abajo vale para lo **firmado correctamente** cuyo contenido es raro. Código: `src/webhooks/`.
+
+**Clasificación (UNA función: `clasificarError`, `src/webhooks/clasificar.ts`, con pruebas).**
+
+| Clase | Qué es | Respuesta | Constancia |
+|---|---|---|---|
+| **Transitoria** | falla de infraestructura o del momento: base caída o inalcanzable (P1001, P1002, P1008, P1017, ECONNREFUSED…), pool agotado (P2024), transacción (P2028), conflicto de escritura o interbloqueo (P2034, 40P01), fallo de serialización (40001), apagado de la base (57P01…), recursos o conexión (clases SQLSTATE 08, 53, 58, XX), contención que no cede tras los reintentos (`ErrorTransitorio`) | **503** (Chatwoot, Twilio, landing con `Retry-After`) y el proveedor reintenta | ninguna |
+| **Dato inesperado** | todo lo demás: JSON roto o vacío, forma rara, tipos o rangos incorrectos, números enormes, texto con NUL, restricción o llave foránea por datos, registro borrado o inexistente, bandeja sin aprovisionar, un error propio | **2xx** (Chatwoot `{ok:true,resultado:"inesperado"}`; Twilio 200, TwiML en entrantes; landing 422 con el formulario y un mensaje general) | **sí** + tarea |
+
+Ante la duda es un dato inesperado: queda constancia y una persona lo ve. Si la propia constancia no se puede guardar (la base no responde), vuelve a ser transitoria (503): nada se pierde en silencio.
+**Cambios de contrato respecto a antes:** el JSON roto (400) y un `MessageSid` ausente (400) de Twilio responden ahora 200 con constancia; cualquier fallo del procesamiento que daba 500 da 200 (datos) o 503 (momento).
+
+**Constancia:** tabla `evento_inesperado` (migración `20261018010000_evento_inesperado`): `origen` (`chatwoot` | `twilio_entrante` | `twilio_estado` | `landing` | `barrido_twilio`), `clave`,
+`causa`, `detalle`, `forma`, `intentos`, `organizacion_id` (**nulo** si el evento no se pudo atar a ninguna organización: se escribe solo desde `src/datos/sistema.ts`), `lead_id`, `conversacion_id`, `tarea_id`.
+**Idempotente por evento del proveedor:** único por `(organización, origen, clave)`; la clave es el identificador del proveedor (`chatwoot:<id>` / `twilio:<MessageSid>` para un mensaje, `msg:<id>` si no se pudo
+leer, `<MessageSid>[:<estado>]` en Twilio) o, si no hay, el SHA-256 del cuerpo (`sha:…`). Un reintento solo suma `intentos`. **Nunca lleva el contenido del evento:** `forma` es su estructura (claves, tipos, largos; solo
+unas palabras de control como `event` o `message_type` conservan su valor) y `detalle` el nombre y el código del error, sin los valores que cite su mensaje (Prisma cita la consulta entera). El log (`evento_inesperado`) lleva lo mismo.
+
+**Tarea para el asesor:** tipo `evento_inesperado` (nuevo valor de `tipo_tarea_asesor`). Con la conversación conocida, **una pendiente por conversación** (varios eventos raros seguidos no llenan la bandeja) y
+cuelga del lead; sin ella (un contacto nuevo cuyo primer mensaje falló, un `MessageSid` ausente, un envío de la landing) la tarea lleva `lead_id` **nulo** (`tarea_asesor.lead_id` ahora admite nulo) y,
+como el alcance de un asesor se calcula por la sucursal del lead, solo la ve el administrador (`GET /api/tareas?tipo=evento_inesperado`). La descripción no lleva datos del evento (a lo más el número de conversación de Chatwoot).
+
+**Twilio:** si el registro del evento falla por datos (p. ej. un `MessageSid` que la base no guarda), el mensaje se **reenvía igual a Chatwoot, sin registro** (`BordeTwilio.reenviarSinRegistro`) y se deja la
+constancia: un dato raro no cuesta el mensaje de una familia. Si ese reenvío tampoco sale, 502 (Twilio reintenta). **Barrido de reenvío:** un evento que agota `MAX_INTENTOS_REENVIO` reintentos, o cuyos datos hacen
+lanzar al barrido (una restricción de la base), queda `abandonado` con constancia (`barrido_twilio`, clave `evento_twilio:<id>`) y tarea; una falla del momento no lo abandona, se reintenta en el siguiente barrido.
+
+**No cubierto** (documentado): un cuerpo mayor al límite de la ruta responde 413 antes de leerse (no se sabe de qué organización es); y el límite de peticiones (429) sigue siendo del proveedor.

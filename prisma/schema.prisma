@@ -54,6 +54,7 @@ model organizacion {
   automatizaciones           automatizacion[]
   ejecuciones                automatizacion_ejecucion[]
   tareas_asesor              tarea_asesor[]
+  eventos_inesperados evento_inesperado[]
   eventos_entrega_pendientes evento_entrega_pendiente[]
   configuraciones            configuracion_organizacion[]
   eventos_twilio             evento_twilio[]
@@ -425,6 +426,7 @@ model lead {
   conversaciones   conversacion[]
   interacciones    interaccion[]
   tareas_asesor    tarea_asesor[]
+  eventos_inesperados evento_inesperado[]
   cotizaciones     cotizacion[]
   lista_espera     lista_espera[]
   clases_muestra   clase_muestra[]
@@ -589,6 +591,7 @@ model conversacion {
   mensajes         mensaje[]
   interacciones    interaccion[]
   tareas_asesor    tarea_asesor[]
+  eventos_inesperados evento_inesperado[]
   cotizaciones     cotizacion[]
   clases_muestra   clase_muestra[]
 
@@ -882,6 +885,8 @@ enum tipo_tarea_asesor {
   lead_frio
   /// El maestro (o el asesor) marcó que la familia quedó lista para cerrar la inscripción (F6). Una pendiente por lead; se resuelve sola al convertirse.
   listo_para_cerrar
+  /// Llegó por un webhook o la landing algo con datos inesperados que el sistema no pudo procesar (WH). Una pendiente por conversación.
+  evento_inesperado
 }
 
 enum estado_tarea_asesor {
@@ -895,7 +900,8 @@ enum estado_tarea_asesor {
 model tarea_asesor {
   id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizacion_id String              @db.Uuid
-  lead_id         String              @db.Uuid
+  /// Nulo solo en la tarea de un evento inesperado (WH) que no se pudo atar a ningún lead: lo ve el administrador.
+  lead_id         String?             @db.Uuid
   conversacion_id String?             @db.Uuid
   /// Mensaje al que se refiere la tarea (entrega fallida). Una tarea por mensaje y tipo.
   mensaje_id      String?             @db.Uuid
@@ -913,10 +919,11 @@ model tarea_asesor {
   eliminado_en    DateTime?           @db.Timestamptz(6)
 
   organizacion organizacion  @relation(fields: [organizacion_id], references: [id])
-  lead         lead          @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead         lead?         @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   conversacion conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   mensaje      mensaje?      @relation(fields: [mensaje_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   clase_muestra clase_muestra? @relation(fields: [clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  eventos_inesperados evento_inesperado[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2482,4 +2489,57 @@ model inscripcion_movimiento {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([inscripcion_id, secuencia])
+}
+
+// ── WH: un webhook nunca responde 500 por un dato inesperado ─────────────────────────────────────────────
+
+enum origen_evento_inesperado {
+  chatwoot
+  twilio_entrante
+  twilio_estado
+  landing
+  /// El barrido de reenvío del borde de Twilio (un evento que se abandona o que no se deja reenviar por sus datos).
+  barrido_twilio
+}
+
+enum causa_evento_inesperado {
+  json_invalido
+  forma_inesperada
+  sin_identificador
+  dato_invalido
+  texto_con_nul
+  restriccion_base
+  registro_inexistente
+  bandeja_sin_aprovisionar
+  reenvio_abandonado
+  error_interno
+}
+
+/// Constancia de un evento público (webhook o landing) que llegó con datos inesperados. Se guarda UNA vez por evento del proveedor (`origen`, `clave`);
+/// un reintento solo suma `intentos`. NUNCA lleva el contenido del evento: `forma` es su estructura (tipos y largos, sin valores), `detalle` el error saneado y
+/// truncado. `organizacion_id` es nulo cuando el evento no se pudo atar a ninguna organización (solo se escribe y se lee por `src/datos/sistema.ts`).
+model evento_inesperado {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String?                  @db.Uuid
+  origen          origen_evento_inesperado
+  /// Identificador del evento del proveedor (id de mensaje, MessageSid + estado…) o, si no hay, el SHA-256 del cuerpo.
+  clave           String
+  causa           causa_evento_inesperado
+  detalle         String
+  forma           Json                     @default("{}")
+  intentos        Int                      @default(1)
+  lead_id         String?                  @db.Uuid
+  conversacion_id String?                  @db.Uuid
+  tarea_id        String?                  @db.Uuid
+  creado_en       DateTime                 @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?                @db.Timestamptz(6)
+
+  organizacion organizacion?  @relation(fields: [organizacion_id], references: [id], onDelete: Restrict)
+  lead         lead?          @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  conversacion conversacion?  @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  tarea        tarea_asesor?  @relation(fields: [tarea_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
 }

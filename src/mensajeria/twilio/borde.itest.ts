@@ -454,12 +454,12 @@ test("EA-03/EA-07: el barrido sigue aunque una organización falle", async () =>
   }
 });
 
-test("sin MessageSid no hay cómo descartar reintentos: 400 y no se reenvía", async () => {
+test("sin MessageSid no hay cómo descartar reintentos: no se reenvía; WH: se responde 200 (antes 400) y queda constancia (ver inesperados.itest.ts)", async () => {
   const o = await escuela();
   const e = entorno();
   try {
     const cuerpo = Buffer.from(`Body=hola&To=${encodeURIComponent(o.numero)}&From=whatsapp%3A%2B5215512345678`);
-    assert.equal(await e.enviar(ENTRANTES, cuerpo), 400);
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
     assert.equal(e.reenviador.enviados.length, 0);
   } finally {
     e.cerrar();

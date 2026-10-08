@@ -20,6 +20,8 @@ import type { ConfigLimites } from "./config-limites.ts";
 import { paginaDeError, paginaDeFormulario, paginaDeGracias } from "./landing-html.ts";
 import { llaveDeIp, normalizarIp } from "./ip.ts";
 import type { LimitadorDeTasa } from "./limite.ts";
+import { formaDe, huella } from "../webhooks/forma.ts";
+import { manejadorSoloLog, type ManejadorDeInesperados } from "../webhooks/inesperado.ts";
 
 export interface DepsLanding {
   prisma: PrismaRaiz;
@@ -28,6 +30,8 @@ export interface DepsLanding {
   reloj?: () => Date;
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
+  /** Qué hacer con un envío que no se pudo procesar por un dato inesperado (WH). Sin él solo se clasifica y se loguea. */
+  inesperados?: ManejadorDeInesperados;
 }
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/;
@@ -106,13 +110,59 @@ export function rutasDeLanding(deps: DepsLanding): Router {
     return landing;
   }
 
-  r.get("/:vertical", async (req: Request, res: Response) => {
+  const inesperados = deps.inesperados ?? manejadorSoloLog;
+  /**
+   * WH: lo que lance un handler nunca llega al cliente como 500. Una falla transitoria (base caída, tiempo agotado) → 503 «inténtalo en un momento»; un dato
+   * inesperado (un valor que la base no guarda, una restricción…) → constancia + tarea y una página con el formulario y un mensaje general (422), sin
+   * detalles. La constancia es idempotente: el mismo envío repetido deja UNA.
+   */
+  const seguro =
+    (origenOperacion: "get" | "post", manejar: (req: Request, res: Response, saber: (l: Landing) => void) => Promise<void>) =>
+    async (req: Request, res: Response): Promise<void> => {
+      const visto: { landing: Landing | null } = { landing: null };
+      try {
+        await manejar(req, res, (l) => {
+          visto.landing = l;
+        });
+      } catch (fallo) {
+        if (res.headersSent) return;
+        const cuerpo = (req.body ?? {}) as Record<string, unknown>;
+        const clave = `${origenOperacion}:${huella(JSON.stringify([req.params["vertical"], Object.entries(cuerpo).sort(([a], [b]) => a.localeCompare(b)), req.query]))}`;
+        const decision = await inesperados.falla({
+          origen: "landing",
+          clave,
+          error: fallo,
+          forma: formaDe({ cuerpo, consulta: req.query }),
+          ...(visto.landing ? { contexto: { organizacionId: visto.landing.organizacionId } } : {}),
+        });
+        if (decision === "reintentar") {
+          error(res, 503, "No disponible por ahora", "Intenta de nuevo en un momento.", { "Retry-After": "10" });
+          return;
+        }
+        if (!visto.landing) {
+          error(res, 404, "Página no encontrada", "Revisa el enlace e inténtalo de nuevo.");
+          return;
+        }
+        let parametros: ReturnType<typeof leerParametros> = leerParametros({});
+        try {
+          parametros = leerParametros({ ...req.query, ...cuerpo });
+        } catch {
+          // parámetros ilegibles: el formulario se repinta sin ellos
+        }
+        const nonce = randomBytes(16).toString("base64");
+        politica(res, nonce);
+        res.status(422).send(paginaDeFormulario(visto.landing, parametros, { nonce }, { campos: {}, general: "No pudimos registrar tu solicitud. Escríbenos por WhatsApp o inténtalo de nuevo más tarde." }, {}));
+      }
+    };
+
+  r.get("/:vertical", seguro("get", async (req: Request, res: Response, saber) => {
     const landing = await landingDe(req, res);
     if (!landing) return;
+    saber(landing);
     const nonce = randomBytes(16).toString("base64");
     politica(res, nonce);
     res.status(200).send(paginaDeFormulario(landing, leerParametros(req.query), { nonce }));
-  });
+  }));
 
   // EE-08: un envío que no viene de esta página se rechaza antes de leer el cuerpo y sin tocar la base.
   const soloDeEstaPagina = (req: Request, res: Response, next: NextFunction): void => {
@@ -121,9 +171,10 @@ export function rutasDeLanding(deps: DepsLanding): Router {
     error(res, 403, "No se pudo enviar", "Envía el formulario desde la página de la escuela.");
   };
 
-  r.post("/:vertical", soloDeEstaPagina, express.urlencoded({ extended: false, limit: LIMITE_CUERPO_LANDING, parameterLimit: 40 }), async (req: Request, res: Response) => {
+  r.post("/:vertical", soloDeEstaPagina, express.urlencoded({ extended: false, limit: LIMITE_CUERPO_LANDING, parameterLimit: 40 }), seguro("post", async (req: Request, res: Response, saber) => {
     const landing = await landingDe(req, res);
     if (!landing) return;
+    saber(landing);
     const cuerpo = (req.body ?? {}) as Record<string, unknown>;
     // Los parámetros opcionales (campaña, utm) viajan en campos ocultos del formulario o en la URL.
     const parametros = leerParametros({ ...req.query, ...cuerpo });
@@ -173,7 +224,7 @@ export function rutasDeLanding(deps: DepsLanding): Router {
     }
     politica(res, nonce);
     res.status(200).send(paginaDeGracias(landing, { nonce }));
-  });
+  }));
 
   return r;
 }

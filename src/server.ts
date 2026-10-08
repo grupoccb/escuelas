@@ -12,6 +12,7 @@ import { avisoDeTrustProxy, confianzaProxyDesdeEntorno, limitesDesdeEntorno } fr
 import { LimitadorDeTasa } from "./http/limite.ts";
 import { log } from "./lib/log.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
+import { crearManejadorDeInesperados } from "./webhooks/inesperado.ts";
 import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega } from "./mensajeria/index.ts";
 
 const prisma = crearPrisma();
@@ -35,6 +36,8 @@ const app = crearApp({
   limitador: new LimitadorDeTasa({ maxClaves: limites.maxClaves }),
   confiarEnProxy: confianzaProxyDesdeEntorno(),
   pingDb: () => pingBaseDatos(prisma),
+  // WH: un dato inesperado en un webhook o en la landing deja constancia y tarea (nunca un 500); solo una falla del momento da 5xx.
+  inesperados: crearManejadorDeInesperados(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
   twilio,
   // Landing pública por vertical (/l/:vertical): el cuestionario que crea el lead y manda a WhatsApp con su código de rastreo (E1).

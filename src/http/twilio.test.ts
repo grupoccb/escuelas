@@ -38,6 +38,7 @@ function montar(extra: { resultado?: ResultadoBorde | Error; token?: string | nu
           return extra.resultado ?? "reenviado";
         },
         reenviarPendientes: async () => ({ reenviados: 0, fallidos: 0, abandonados: 0, errores: 0 }),
+        reenviarSinRegistro: async () => true,
         alertas: { organizacionDesconocida: 0, eventosAbandonados: 0 },
       },
     },
@@ -122,13 +123,14 @@ test("sin token o sin URL pública configurados se rechaza todo, aunque la firma
   assert.equal((await post(sinBorde, ruta, CUERPO, firmado(ruta))).status, 403);
 });
 
-test("respuestas del borde: sin identificador 400, en curso 503, reenvío fallido 502, error inesperado 500; duplicado y organización desconocida 200", async () => {
+test("respuestas del borde (WH): en curso 503, reenvío fallido 502, falla del momento 503; sin identificador y datos inesperados 200 (antes 400 y 500); duplicado y organización desconocida 200", async () => {
   const ruta = "/webhooks/twilio/entrantes";
   const esperados: [ResultadoBorde | Error, number][] = [
-    ["sin_identificador", 400],
+    ["sin_identificador", 200],
     ["en_curso", 503],
     ["fallo_reenvio", 502],
-    [new Error("detalle interno: contraseña de la base"), 500],
+    [Object.assign(new Error("Timed out fetching a new connection from the connection pool"), { code: "P2024" }), 503],
+    [new Error("detalle interno: contraseña de la base"), 200],
     ["duplicado", 200],
     ["organizacion_desconocida", 200],
     ["reenviado_sin_organizacion", 200],
@@ -137,7 +139,7 @@ test("respuestas del borde: sin identificador 400, en curso 503, reenvío fallid
     const { deps } = montar({ resultado });
     const r = await post(deps, ruta, CUERPO, firmado(ruta));
     assert.equal(r.status, status, String(resultado));
-    if (status >= 500 || status === 400) assert.equal(r.texto, "", "nada interno hacia Twilio");
+    if (status >= 500) assert.equal(r.texto, "", "nada interno hacia Twilio");
     assert.ok(!r.texto.includes("contraseña"));
   }
 });

@@ -21,6 +21,8 @@ import { esViolacionUnica, type PrismaRaiz } from "../../datos/prisma.ts";
 import { JSON_NULO } from "../../datos/tipos.ts";
 import { listarOrganizaciones, resolverBandejaPorNumero } from "../../datos/sistema.ts";
 import { enmascararTelefono, log } from "../../lib/log.ts";
+import { clasificarError, type CausaInesperada } from "../../webhooks/clasificar.ts";
+import { crearManejadorDeInesperados } from "../../webhooks/inesperado.ts";
 import { normalizarNumeroWhatsapp } from "../../lib/telefono.ts";
 import type { ParametrosTwilio } from "./firma.ts";
 import type { ReenviadorTwilio, TipoWebhookTwilio } from "./reenviador.ts";
@@ -74,6 +76,11 @@ export interface BordeTwilio {
   procesar(entrada: EntradaBorde): Promise<ResultadoBorde>;
   /** Reenvía los eventos `fallido` y los `procesando` vencidos (EA-03). Lo llama el ciclo cada minuto. */
   reenviarPendientes(): Promise<ResumenReenvio>;
+  /**
+   * Reenvía el evento tal cual, SIN reclamarlo ni registrarlo (WH): el camino de un evento cuyos datos hicieron fallar el registro. No pierde el mensaje de
+   * una familia por un dato raro. No lanza: devuelve si Chatwoot lo aceptó.
+   */
+  reenviarSinRegistro(entrada: EntradaBorde): Promise<boolean>;
   readonly alertas: AlertasBorde;
 }
 
@@ -227,7 +234,7 @@ export function crearBordeTwilio(deps: DepsBorde): BordeTwilio {
         where: { id, estado_proceso: "procesando" },
         data: { estado_proceso: "fallido", error: (e as Error).message.slice(0, 500) },
       });
-      log.error("webhook_twilio_reenvio_fallido", { tipo, error: (e as Error).message });
+      log.error("webhook_twilio_reenvio_fallido", { tipo, error: clasificarError(e).detalle });
       return false;
     }
     const marcado = await db.evento_twilio.updateMany({
@@ -239,8 +246,28 @@ export function crearBordeTwilio(deps: DepsBorde): BordeTwilio {
     return true;
   }
 
+  const inesperados = crearManejadorDeInesperados(deps.prisma);
+
+  /** Constancia + tarea de un evento del barrido que ya no se va a reenviar solo (WH). Nunca lanza: el barrido sigue con el siguiente. */
+  async function constanciaDelBarrido(organizacionId: string, evento: { id: string; tipo: TipoWebhookTwilio; intentos: number }, causa: CausaInesperada, detalle: string): Promise<void> {
+    await inesperados
+      .dato({ origen: "barrido_twilio", clave: `evento_twilio:${evento.id}`, causa, detalle, forma: { tipo: evento.tipo, intentos: evento.intentos }, contexto: { organizacionId } })
+      .catch((e: unknown) => log.error("webhook_twilio_constancia_fallida", { eventoId: evento.id, error: clasificarError(e).detalle }));
+  }
+
   return {
     alertas,
+
+    async reenviarSinRegistro({ tipo, cuerpo, cabeceras }) {
+      const aEnviar = tipo === "entrante" && deps.normalizarFromAlReenviar ? normalizarFromEnCuerpo(cuerpo) : cuerpo;
+      try {
+        await deps.reenviador.reenviar({ tipo, cuerpo: aEnviar, cabeceras });
+        return true;
+      } catch (e) {
+        log.error("webhook_twilio_reenvio_fallido", { tipo, sinRegistro: true, error: clasificarError(e).detalle });
+        return false;
+      }
+    },
 
     async procesar({ tipo, cuerpo, params, cabeceras }) {
       const idMensaje = idMensajeDe(params);
@@ -276,7 +303,7 @@ export function crearBordeTwilio(deps: DepsBorde): BordeTwilio {
         try {
           await deps.reenviador.reenviar({ tipo, cuerpo: aEnviar, cabeceras });
         } catch (e) {
-          log.error("webhook_twilio_reenvio_fallido", { tipo, sinOrganizacion: true, error: (e as Error).message });
+          log.error("webhook_twilio_reenvio_fallido", { tipo, sinOrganizacion: true, error: clasificarError(e).detalle });
           return "fallo_reenvio"; // 502: Twilio puede reintentar
         }
         return "reenviado_sin_organizacion";
@@ -323,6 +350,8 @@ export function crearBordeTwilio(deps: DepsBorde): BordeTwilio {
                   alertas.eventosAbandonados++;
                   resumen.abandonados++;
                   log.error("webhook_twilio_evento_abandonado", { tipo: c.tipo, intentos: c.intentos, total: alertas.eventosAbandonados });
+                  // Un mensaje que nunca llegó a Chatwoot: una persona tiene que enterarse (constancia + tarea), no solo el log.
+                  await constanciaDelBarrido(org.id, c, "reenvio_abandonado", `Abandonado tras ${c.intentos} intentos de reenvío`);
                 }
                 continue;
               }
@@ -332,12 +361,25 @@ export function crearBordeTwilio(deps: DepsBorde): BordeTwilio {
               else resumen.fallidos++;
             } catch (e) {
               resumen.errores++;
-              log.error("webhook_twilio_barrido_error", { eventoId: c.id, error: (e as Error).message });
+              const clasificacion = clasificarError(e);
+              log.error("webhook_twilio_barrido_error", { eventoId: c.id, error: clasificacion.detalle });
+              // Una falla del momento se repite en el siguiente barrido. Una de DATOS (el evento guardado no se deja leer o reenviar) se repetiría cada
+              // minuto para siempre: se abandona, con constancia y tarea.
+              if (clasificacion.clase === "inesperado") {
+                const r = await db.evento_twilio
+                  .updateMany({ where: { id: c.id, estado_proceso: { in: ["fallido", "procesando"] } }, data: { estado_proceso: "abandonado", error: `Abandonado por un dato inesperado: ${clasificacion.detalle}`.slice(0, 500) } })
+                  .catch(() => ({ count: 0 }));
+                if (r.count === 1) {
+                  alertas.eventosAbandonados++;
+                  resumen.abandonados++;
+                  await constanciaDelBarrido(org.id, c, clasificacion.causa, clasificacion.detalle);
+                }
+              }
             }
           }
         } catch (e) {
           resumen.errores++;
-          log.error("webhook_twilio_barrido_error", { organizacionId: org.id, error: (e as Error).message });
+          log.error("webhook_twilio_barrido_error", { organizacionId: org.id, error: clasificarError(e).detalle });
         }
       }
       return resumen;

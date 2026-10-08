@@ -10,8 +10,13 @@ import type { ConfigLimites } from "./config-limites.ts";
 import type { LimitadorDeTasa } from "./limite.ts";
 import { admitirWebhookValido, rechazar429, registrarFirmaInvalida } from "./limite-http.ts";
 import { rutasDeLanding } from "./landing.ts";
+import { manejadorSoloLog, type ContextoDeEvento, type ManejadorDeInesperados } from "../webhooks/inesperado.ts";
+import { formaDe, formaDeBytes, huella, idSeguro } from "../webhooks/forma.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import {
+  contextoChatwootDe,
+  esMensajeEntranteIlegible,
+  idDeMensajeChatwoot,
   interpretarDesasignacion,
   interpretarEventoChatwoot,
   interpretarTomaDeConversacion,
@@ -37,6 +42,18 @@ export interface AppTwilio {
 
 export { LIMITE_CUERPO_TWILIO };
 
+const unico = (v: string | string[] | undefined): string | null => {
+  const x = Array.isArray(v) ? v[0] : v;
+  return x !== undefined && x.trim() !== "" ? x.trim() : null;
+};
+
+/** Los números de la escuela que pueden ubicar la organización de un evento de Twilio: en un entrante `To`; en un estado, `From` y luego `To`. */
+function receptoresDe(tipo: "entrante" | "estado", params: Record<string, string | string[] | undefined>): string[] {
+  const to = unico(params["To"]);
+  const from = unico(params["From"]);
+  return (tipo === "entrante" ? [to] : [from, to]).filter((x): x is string => x !== null);
+}
+
 export interface AppDeps {
   /** Verifica que la base responde. Lanza si no. */
   pingDb(): Promise<void>;
@@ -54,6 +71,8 @@ export interface AppDeps {
   twilio?: AppTwilio;
   /** API de la aplicación (/api). Sin ella, /api no existe. */
   api?: ApiDepsEntrada;
+  /** Qué hacer con un evento que no se pudo procesar (WH). Sin él solo se clasifica y se loguea; `server.ts` pasa el que guarda la constancia y la tarea. */
+  inesperados?: ManejadorDeInesperados;
   /** Landing pública por vertical (/l/:vertical, E1). Sin ella, /l no existe. */
   landing?: { prisma: PrismaRaiz; origenesPermitidos?: readonly string[] };
   /** Límites de peticiones (B6). Sin ellos no se limita nada: `server.ts` siempre los pasa. */
@@ -81,7 +100,7 @@ export function crearApp(deps: AppDeps): Express {
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
 
   // Landing pública (E1): sin sesión; su propia protección contra abuso (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
-  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
+  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.inesperados ? { inesperados: deps.inesperados } : {}), ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
 
   app.get("/salud", async (_req, res) => {
     try {
@@ -92,8 +111,14 @@ export function crearApp(deps: AppDeps): Express {
     }
   });
 
+  // WH (regla 5 de Eduardo): un webhook NUNCA responde 500 por un dato inesperado. Lo que lance el procesamiento se clasifica (src/webhooks/clasificar.ts): una
+  // falla transitoria de infraestructura (base caída, tiempo agotado, interbloqueo) → 503 y el proveedor reintenta; todo lo demás (forma rara, tipos o
+  // rangos incorrectos, texto con NUL, restricciones por datos, conversación borrada, bandeja sin aprovisionar…) se atrapa: log sin datos sensibles, UNA
+  // constancia + tarea para el asesor (idempotente por evento del proveedor) y 2xx para que no reintente en bucle.
+  const inesperados = deps.inesperados ?? manejadorSoloLog;
+
   // Webhook del Agent Bot. La firma se valida sobre el cuerpo crudo antes de parsear nada
-  // (invariante 9). Un 500 hace que Chatwoot reintente; el procesamiento es idempotente.
+  // (invariante 9). El procesamiento es idempotente.
   // La protección por IP (B6, EB-04) se aplica DESPUÉS de verificar la firma: los rechazos gastan un cupo
   // propio y solo lo firmado y legítimo gasta el techo; ver src/http/limite-http.ts.
   app.post("/webhooks/chatwoot", express.raw({ type: () => true, limit: LIMITE_CUERPO_CHATWOOT }), async (req, res) => {
@@ -111,59 +136,66 @@ export function crearApp(deps: AppDeps): Express {
       return;
     }
 
+    /** Responde según lo que decidió el manejador: aceptado → 200; reintentar → 503 (el proveedor repite). */
+    const responder = (decision: "aceptado" | "reintentar", resultado: string): void => {
+      if (decision === "reintentar") res.status(503).json({ ok: false });
+      else res.json({ ok: true, resultado });
+    };
+
     let payload: unknown;
     try {
       payload = JSON.parse(cuerpo.toString("utf8"));
     } catch {
-      res.status(400).json({ ok: false });
+      responder(await inesperados.dato({ origen: "chatwoot", clave: `sha:${huella(cuerpo)}`, causa: "json_invalido", detalle: "El cuerpo no es un JSON legible", forma: formaDeBytes(cuerpo) }), "inesperado");
       return;
     }
 
-    const evento = interpretarEventoChatwoot(payload);
-    if (!evento) {
+    // Lo que el catch necesita saber para dejar la constancia: de qué evento se trata y a qué organización pertenece.
+    let clave = idDeMensajeChatwoot(payload) ?? `sha:${huella(cuerpo)}`;
+    const cadena = contextoChatwootDe(payload);
+    const contexto: ContextoDeEvento | undefined = cadena ? { chatwoot: cadena } : undefined;
+    try {
+      if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+        responder(await inesperados.dato({ origen: "chatwoot", clave, causa: "forma_inesperada", detalle: "El JSON no es un objeto", forma: formaDe(payload) }), "inesperado");
+        return;
+      }
+      const evento = interpretarEventoChatwoot(payload);
+      if (evento) {
+        clave = `${evento.llave.proveedor}:${idSeguro(evento.llave.id) ?? huella(cuerpo)}`;
+        const { resultado } = await deps.procesarEntrante(evento);
+        res.json({ ok: true, resultado });
+        return;
+      }
       // No es un mensaje del contacto. Puede ser que una persona tome la conversación...
       const toma = interpretarTomaDeConversacion(payload);
       if (toma) {
-        try {
-          res.json({ ok: true, resultado: await deps.registrarTomaDeConversacion(toma) });
-        } catch (e) {
-          log.error("webhook_chatwoot_toma_error", { error: (e as Error).message });
-          res.status(500).json({ ok: false });
-        }
+        clave = `sha:${huella(cuerpo)}`;
+        res.json({ ok: true, resultado: await deps.registrarTomaDeConversacion(toma) });
         return;
       }
       // ...o que la conversación se quede sin asesor (B5)...
       const desasignacion = interpretarDesasignacion(payload);
       if (desasignacion && deps.registrarDesasignacion) {
-        try {
-          res.json({ ok: true, resultado: await deps.registrarDesasignacion(desasignacion) });
-        } catch (e) {
-          log.error("webhook_chatwoot_desasignacion_error", { error: (e as Error).message });
-          res.status(500).json({ ok: false });
-        }
+        clave = `sha:${huella(cuerpo)}`;
+        res.json({ ok: true, resultado: await deps.registrarDesasignacion(desasignacion) });
         return;
       }
       // ...o un cambio de estado de entrega de un saliente.
       const cambio = deps.estadosEntrega.interpretar(payload);
-      if (!cambio) {
-        res.json({ ok: true, resultado: "ignorado" });
+      if (cambio) {
+        clave = `sha:${huella(cuerpo)}`;
+        res.json({ ok: true, resultado: await deps.registrarEstadoEntrega(cambio) });
         return;
       }
-      try {
-        res.json({ ok: true, resultado: await deps.registrarEstadoEntrega(cambio) });
-      } catch (e) {
-        log.error("webhook_chatwoot_estado_error", { error: (e as Error).message });
-        res.status(500).json({ ok: false });
+      // Un mensaje entrante que no se pudo leer (faltan campos, tipos incorrectos, números fuera de rango) no se ignora en silencio: sería perder lo que
+      // escribió una familia. Se deja constancia y una tarea.
+      if (esMensajeEntranteIlegible(payload)) {
+        responder(await inesperados.dato({ origen: "chatwoot", clave, causa: "forma_inesperada", detalle: "Un mensaje entrante no trae los campos que el sistema necesita", forma: formaDe(payload), ...(contexto ? { contexto } : {}) }), "inesperado");
+        return;
       }
-      return;
-    }
-
-    try {
-      const { resultado } = await deps.procesarEntrante(evento);
-      res.json({ ok: true, resultado });
-    } catch (e) {
-      log.error("webhook_chatwoot_error", { error: (e as Error).message });
-      res.status(500).json({ ok: false });
+      res.json({ ok: true, resultado: "ignorado" });
+    } catch (error) {
+      responder(await inesperados.falla({ origen: "chatwoot", clave, error, forma: formaDe(payload), ...(contexto ? { contexto } : {}) }), "inesperado");
     }
   });
 
@@ -177,6 +209,7 @@ export function crearApp(deps: AppDeps): Express {
     ["/webhooks/twilio/estados", "estado"],
   ] as const) {
     const nombreLimite = `twilio${tipo === "entrante" ? "" : "-estados"}`;
+    const origen = tipo === "entrante" ? ("twilio_entrante" as const) : ("twilio_estado" as const);
     app.post(ruta, express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
       const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       const t = deps.twilio;
@@ -193,12 +226,24 @@ export function crearApp(deps: AppDeps): Express {
         rechazar429(res, techo.reintentarEnSegundos);
         return;
       }
+      const aceptado = (): void => {
+        if (tipo === "entrante") res.status(200).type("text/xml").send(TWIML_VACIO);
+        else res.status(200).end();
+      };
+      const entrada = { tipo, cuerpo, params: verificado.params, cabeceras: verificado.cabeceras };
+      const contexto: ContextoDeEvento = { numeroReceptor: receptoresDe(tipo, verificado.params) };
+      const sid = idSeguro(unico(verificado.params["MessageSid"]) ?? unico(verificado.params["SmsMessageSid"]) ?? unico(verificado.params["SmsSid"]));
+      const clave = `${sid ?? `sha:${huella(cuerpo)}`}${tipo === "estado" ? `:${idSeguro(unico(verificado.params["MessageStatus"])) ?? ""}` : ""}`;
       try {
-        const resultado = await t.borde.procesar({ tipo, cuerpo, params: verificado.params, cabeceras: verificado.cabeceras });
+        const resultado = await t.borde.procesar(entrada);
         switch (resultado) {
-          case "sin_identificador":
-            res.status(400).end();
+          case "sin_identificador": {
+            // Un evento sin MessageSid no se puede deduplicar ni reenviar con garantías: constancia + tarea y 2xx (Twilio no lo reintentaría con otro resultado).
+            const d = await inesperados.dato({ origen, clave, causa: "sin_identificador", detalle: "El evento de Twilio no trae MessageSid", forma: formaDe(verificado.params), contexto });
+            if (d === "reintentar") res.status(503).set("Retry-After", "5").end();
+            else aceptado();
             return;
+          }
           case "en_curso":
             res.status(503).set("Retry-After", "5").end();
             return;
@@ -207,12 +252,18 @@ export function crearApp(deps: AppDeps): Express {
             return;
           default:
             // reenviado, duplicado u organización desconocida: Twilio no debe reintentar.
-            if (tipo === "entrante") res.status(200).type("text/xml").send(TWIML_VACIO);
-            else res.status(200).end();
+            aceptado();
         }
-      } catch (e) {
-        log.error("webhook_twilio_error", { ruta, error: (e as Error).message });
-        res.status(500).end();
+      } catch (error) {
+        const d = await inesperados.falla({ origen, clave, error, forma: formaDe(verificado.params), contexto });
+        if (d === "reintentar") {
+          res.status(503).set("Retry-After", "5").end();
+          return;
+        }
+        // Un dato inesperado no debe costar el mensaje de una familia: se reenvía a Chatwoot tal cual, sin registro, y la constancia avisa a una persona.
+        const reenviado = await t.borde.reenviarSinRegistro(entrada).catch(() => false);
+        if (reenviado) aceptado();
+        else res.status(502).end();
       }
     });
   }
