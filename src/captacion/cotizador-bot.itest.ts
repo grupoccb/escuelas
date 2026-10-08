@@ -451,3 +451,177 @@ test("C8: nada de la cotización ni de la nota incluye datos de salud (no hay) n
   const todo = [...c.mensajes(), ...c.notas(), JSON.stringify((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: (await c.conversacion()).lead_id } })).snapshot)].join("\n");
   assert.ok(!/alergia|medicamento|condici[oó]n m[eé]dica|emergencia/i.test(todo));
 });
+
+// ── C9: lista de espera cuando no hay lugar ──────────────────────────────────────────────────────────
+
+/** Un programa con un grupo LLENO que permite lista de espera (A), uno con lugar (B) y uno lleno sin lista (C). */
+async function escenarioLleno() {
+  const ocupacion = new OcupacionFija();
+  const e = await escenarioBot(prisma, {
+    fuente: ocupacion,
+    programas: [
+      {
+        sucursal: 0,
+        nombre: "Programa con grupos llenos",
+        edadMin: 3,
+        edadMax: 12,
+        grupos: [
+          { nombre: "Grupo A", cupoMaximo: 4, permiteListaEspera: true, horarios: [H(1)] },
+          { nombre: "Grupo B", cupoMaximo: 6, horarios: [H(2)] },
+          { nombre: "Grupo C", cupoMaximo: 4, permiteListaEspera: false, horarios: [H(3)] },
+        ],
+        precio: PRECIO,
+      },
+    ],
+  });
+  const [a, b, c] = e.programas[0]!.grupos as unknown as [{ id: string }, { id: string }, { id: string }];
+  ocupacion.fijar(a.id, 4);
+  ocupacion.fijar(c.id, 4);
+  return { e, ocupacion, a: a.id, b: b.id, c: c.id };
+}
+
+test("C9: el bot ofrece lista de espera solo en el grupo lleno que la permite; el lleno sin lista no se ofrece", async () => {
+  const { e } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const texto = c.mensajes().at(-1)!;
+  assert.match(texto, /1\. Grupo B: martes de 16:00 a 17:00 · 6 lugares\n2\. Grupo A: lunes de 16:00 a 17:00 · lista de espera\n\nInscripción/);
+  assert.ok(!texto.includes("Grupo C"), "lleno y sin lista de espera: no se ofrece");
+});
+
+test("C9: elegir el grupo lleno pregunta si quiere la lista; «sí» la apunta (posición 1), deja una tarea para el asesor y pasa al asesor", async () => {
+  const { e, a } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2");
+  const conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "lista_espera");
+  assert.equal(conv.estado, "bot");
+  assert.equal(c.mensajes().at(-1), "El grupo Grupo A (lunes de 16:00 a 17:00) está lleno por ahora. ¿Quieres que te apuntemos en la lista de espera? Si se libera un lugar, un asesor te avisa. Responde sí o no.");
+  assert.equal(await e.db.lista_espera.count(), 0, "todavía no se apunta a nadie");
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, a, "queda como horario tentativo");
+
+  await c.escribe("sí");
+  const despues = await c.conversacion();
+  assert.equal(despues.paso_captacion, "completo");
+  assert.equal(despues.estado, "en_atencion_humana");
+  const entrada = await e.db.lista_espera.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
+  assert.deepEqual([entrada.grupo_id, entrada.estatus, entrada.posicion], [a, "esperando", 1]);
+  assert.equal(entrada.prospecto_id, (await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).id);
+  const tareas = await e.db.tarea_asesor.findMany({ where: { lead_id: conv.lead_id, tipo: "lista_espera_nueva" } });
+  assert.equal(tareas.length, 1);
+  assert.deepEqual([tareas[0]!.estado, tareas[0]!.conversacion_id], ["pendiente", conv.id]);
+  assert.equal(tareas[0]!.descripcion, "Entró a la lista de espera de «Grupo A» (posición 1). Avísale cuando se libere un lugar.");
+  assert.equal(c.mensajes().at(-1), "Listo, Ana quedó en la lista de espera de Grupo A (lunes de 16:00 a 17:00) de Programa con grupos llenos. Si se libera un lugar, un asesor te escribe por aquí. Mientras tanto te atiende un asesor para ver otras opciones.");
+  const nota = c.notas().at(-1)!;
+  assert.match(nota, /• Horario elegido: Grupo A — lunes de 16:00 a 17:00 \(lista de espera\)\n• Lista de espera: Grupo A \(posición 1\)/);
+});
+
+test("C9: «no» a la lista vuelve a los horarios, descarta el tentativo y deja elegir otro; nadie queda en la lista", async () => {
+  const { e, b } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2", "no");
+  let conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "horario");
+  assert.match(c.mensajes().at(-1)!, /^Sin problema\. ¿Cuál otro horario prefieres\?/);
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, null);
+  await c.escribe("1"); // Grupo B, con lugar
+  conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, b);
+  assert.equal(await e.db.lista_espera.count(), 0);
+  assert.equal(await e.db.tarea_asesor.count({ where: { tipo: "lista_espera_nueva" } }), 0);
+});
+
+test("C9: «asesor» en la pregunta de la lista pasa a una persona sin apuntar a nadie", async () => {
+  const { e } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2", "asesor");
+  assert.equal((await c.conversacion()).motivo_pase_asesor, "pidio_asesor");
+  assert.equal(await e.db.lista_espera.count(), 0);
+});
+
+test("C9: respuestas que no se entienden reintentan y a la tercera pasa al asesor, sin apuntar a nadie", async () => {
+  const { e } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2", "tal vez", "mmm", "quién sabe");
+  const conv = await c.conversacion();
+  assert.equal(conv.motivo_pase_asesor, "sin_entender");
+  assert.equal(await e.db.lista_espera.count(), 0);
+});
+
+test("C9: tres familias que aceptan la lista quedan en orden de llegada (1, 2, 3) y cada una deja su tarea", async () => {
+  const { e, a } = await escenarioLleno();
+  const cs = [e.contacto(), e.contacto(), e.contacto()];
+  for (const c of cs) await c.conversa("Hola", "Niño", "8", "1", "2", "sí");
+  const entradas = await e.db.lista_espera.findMany({ where: { grupo_id: a }, orderBy: { posicion: "asc" } });
+  assert.deepEqual(entradas.map((x) => x.posicion), [1, 2, 3]);
+  assert.equal(new Set(entradas.map((x) => x.lead_id)).size, 3);
+  assert.equal(await e.db.tarea_asesor.count({ where: { tipo: "lista_espera_nueva" } }), 3);
+});
+
+test("CONCURRENCIA C9: cinco familias que aceptan la lista al mismo tiempo quedan en las posiciones 1..5, sin repetir ni saltar", async () => {
+  const { e, a } = await escenarioLleno();
+  const cs = Array.from({ length: 5 }, () => e.contacto());
+  for (const c of cs) await c.conversa("Hola", "Niño", "8", "1", "2");
+  const rs = await Promise.all(cs.map((c) => c.escribe("sí")));
+  assert.deepEqual(rs.map((r) => r.resultado), ["procesado", "procesado", "procesado", "procesado", "procesado"]);
+  const entradas = await e.db.lista_espera.findMany({ where: { grupo_id: a }, orderBy: { posicion: "asc" } });
+  assert.deepEqual(entradas.map((x) => x.posicion), [1, 2, 3, 4, 5]);
+  assert.equal(new Set(entradas.map((x) => x.prospecto_id)).size, 5);
+  assert.equal(await e.db.tarea_asesor.count({ where: { tipo: "lista_espera_nueva" } }), 5);
+  for (const c of cs) assert.equal((await c.conversacion()).estado, "en_atencion_humana");
+});
+
+test("C9: un «sí» repetido (mismo mensaje) no apunta dos veces ni repite la tarea (invariante 8)", async () => {
+  const { e } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2");
+  const id = `si-${randomUUID()}`;
+  assert.equal((await c.escribe("sí", undefined, id)).resultado, "procesado");
+  assert.equal((await c.escribe("sí", undefined, id)).resultado, "duplicado");
+  assert.equal(await e.db.lista_espera.count(), 1);
+  assert.equal(await e.db.tarea_asesor.count({ where: { tipo: "lista_espera_nueva" } }), 1);
+});
+
+test("C9: si mientras contestaba el grupo recuperó un lugar, la tarea lo avisa para ofrecérselo de inmediato", async () => {
+  const { e, ocupacion, a } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2");
+  ocupacion.fijar(a, 3); // se liberó un lugar
+  await c.escribe("sí");
+  const tarea = await e.db.tarea_asesor.findFirstOrThrow({ where: { tipo: "lista_espera_nueva" } });
+  assert.match(tarea.descripcion, /Ojo: al apuntarlo el grupo ya tenía 1 lugar libre; ofrécele el lugar\./);
+});
+
+test("C9: si el grupo dejó de permitir lista de espera entre la pregunta y la respuesta, no se apunta a nadie y la tarea lo dice", async () => {
+  const { e, a } = await escenarioLleno();
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "2");
+  await prisma.grupo.update({ where: { id: a }, data: { permite_lista_espera: false } });
+  await c.escribe("sí");
+  assert.equal(await e.db.lista_espera.count(), 0);
+  const tarea = await e.db.tarea_asesor.findFirstOrThrow({ where: { tipo: "lista_espera_nueva" } });
+  assert.match(tarea.descripcion, /no se pudo apuntar \(el grupo ya no permite lista de espera\)/);
+  assert.equal((await c.conversacion()).estado, "en_atencion_humana");
+});
+
+test("C9: con el cotizador apagado no hay lista de espera ni cotización: la captura de siempre", async () => {
+  const { e } = await escenarioLleno();
+  await prisma.vertical.update({ where: { id: e.org.verticalId }, data: { cotizador_whatsapp_activo: false } });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  assert.equal((await c.conversacion()).paso_captacion, "completo");
+  assert.equal(await e.db.lista_espera.count(), 0);
+});
+
+test("C9: se interrumpe en la pregunta de la lista → a los 30 min se avisa a los asesores", async () => {
+  const { e } = await escenarioLleno();
+  const c = e.contacto();
+  const t0 = new Date("2026-10-08T16:00:00Z");
+  for (const t of ["Hola", "Ana", "8", "1", "2"]) await c.escribe(t, t0);
+  assert.equal((await c.conversacion()).paso_captacion, "lista_espera");
+  const despues = new Date(t0.getTime() + 31 * 60 * 1000);
+  const avisadas = await barrerTiemposDeEspera({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => despues }), organizacionId: e.org.organizacionId, reloj: () => despues });
+  assert.equal(avisadas, 1);
+  assert.equal((await c.conversacion()).estado, "bot");
+});

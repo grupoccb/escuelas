@@ -29,7 +29,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C6 | HECHO | ver sección | Varios programas para una edad: el bot (máquina pura) pregunta cuál, lo guarda en `prospecto.programa_sugerido_id`; `vertical.cotizador_whatsapp_activo` |
 | C7 | HECHO | ver sección | Otra sucursal: política `configuracion_organizacion.sucursal_sin_programa` (`ofrecer_otra` por defecto | `avisar_asesor`), paso `otra_sucursal` |
 | C8 | HECHO | ver sección | Cotización guardada (`cotizacion`, snapshot congelado) y cotizador por WhatsApp por vertical: el bot cotiza, el contacto elige horario, handoff con la cotización; `GET/POST /api/leads/:id/cotizaciones` |
-| C9 | PENDIENTE | | Lista de espera |
+| C9 | HECHO | ver sección | Lista de espera: tabla `lista_espera` (posición densa y única, alta atómica), el bot la ofrece en un horario lleno, API de asesor (listar, quitar, mover) y `ofrecerLugarLiberado` |
 | D1 | PENDIENTE | | Clase muestra: agendar, reprogramar, cancelar |
 | D2 | PENDIENTE | | Aviso al maestro |
 | D3 | PENDIENTE | | Recordatorios de 24 h y 2 h |
@@ -929,3 +929,56 @@ Mutaciones atrapadas: usar los horarios de hoy en vez de los guardados, ignorar 
 - **[SUPUESTO]** vigencia de 7 días de una cotización y todos los textos del mensaje de cotización (genéricos, en `src/captacion/maquina.ts`): revisar tono y si quiere más datos (dirección de la sucursal, duración de la clase).
 - Con el cotizador encendido, **el contacto recibe la cotización sin que un asesor la revise**: precios y promociones salen de las tablas, así que lo cargado en el catálogo (todo `[SUPUESTO]` hoy) es lo que se le dice al cliente. Antes de encender una vertical con clientes reales hay que confirmar precios, cupos y promociones.
 - Los programas con fecha de corte de edad no se pueden cotizar por fecha de nacimiento desde WhatsApp (el bot solo captura la edad); ver C5.
+
+## C9. Lista de espera
+
+**Qué se hizo**
+- **Tabla `lista_espera`** (migración `20261012040000_lista_espera`): `grupo_id`, `prospecto_id`, `lead_id` (FK compuestas), `estatus` (`esperando` | `ofrecido` | `inscrito` | `cancelado`), `posicion`, `ofrecido_en`, `vence_en`. En la base: **una viva (esperando u ofrecido) por (grupo, prospecto)** y **posición única por grupo entre las vivas** (índices únicos parciales), `posicion ≥ 1` y oferta coherente (ofrecido ⇒ fechas con `vence_en > ofrecido_en`; esperando ⇒ sin fechas). `configuracion_organizacion.lista_espera_oferta_horas` (48 por defecto, 1 a 720). Enum `paso_captacion` + `lista_espera`; tareas nuevas `lista_espera_nueva` y `lista_espera_lugar_liberado`.
+- **Posición:** densa (1..N) entre las vivas; la alta siempre queda al final (orden de llegada determinista); cerrar una entrada conserva su posición como historial y recorre a las demás; mover reordena. Todo cambio corre bajo un **candado por grupo** (`lista_espera:<grupo>`) y la base impide repetir una posición aunque alguien se salte el candado. El recorrido usa dos pasos (sacar de en medio las que cambian y asignarlas) para no chocar con el índice único.
+- **Módulo** `src/lista-espera/lista-espera.ts`: `altaListaEspera(tx, …)` (sin candado, para la transacción de otro flujo; idempotente), `altaConCandado(db, …)`, `cerrarEntrada(db, id, "cancelado" | "inscrito")`, `cerrarEntradaDe(db, grupoId, prospectoId, …)`, `moverEnListaEspera`, **`ofrecerLugarLiberado(db, grupoId)`** (marca al primero que espera como `ofrecido`, fija `vence_en` y crea la tarea `lista_espera_lugar_liberado` con el nombre del prospecto, la posición y la hora límite en la zona de la sucursal; atómico: tres lugares liberados a la vez van a tres familias distintas; NO escribe a nadie) y `entradasVivasDe`.
+- **El bot:** al elegir un horario **lleno que permite lista de espera**, en lugar de cerrar pregunta «¿Quieres que te apuntemos en la lista de espera? … Responde sí o no» (paso `lista_espera`; el horario queda como tentativo en `cotizacion.grupo_elegido_id`). **Sí** → alta en la lista + tarea `lista_espera_nueva` para el asesor (con la posición; si el grupo ya recuperó un lugar lo avisa; si dejó de permitir lista, no apunta a nadie y la tarea lo dice) + handoff con «Lista de espera: grupo (posición N)» en la nota. **No** → vuelve a los horarios y descarta el tentativo. «asesor» → persona. Lo que no entiende reintenta y a la tercera, `sin_entender`. El grupo lleno **sin** lista de espera no se ofrece. Todo por `MessagingProvider`; el paso entra en `PASOS_A_MEDIAS` (aviso de 30 min).
+- **API para el asesor** (`docs/API.md`): `GET /api/lista-espera?grupo_id=&prospecto_id=&estatus=` (`lista_espera:leer`: administrador, asesor y recepción; sin `estatus` trae las vivas), `PATCH /api/lista-espera/:id {posicion}` (mover) y `DELETE /api/lista-espera/:id` (quitar = `cancelado`, sin borrar) con `lista_espera:escribir` (administrador y asesor); alcance por la sucursal del programa del grupo (404 si no); cada cambio queda en `registro_cambio` en la misma transacción.
+- `MAX_REINTENTOS` de `procesarEntrante` sube de 3 a 8: varias familias aceptando la lista del mismo grupo a la vez se disputan la posición (cada intento fallido es que otra ganó); el webhook sigue siendo idempotente.
+- `src/server.ts` crea UNA `fuenteOcupacion` (`SinInscripciones`) y la pasa a la API y al bot: F4 cambia esa línea.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 392 · pass 392 · fail 0
+$ npm run test:int    → exit 0 · tests 482 · pass 482 · fail 0
+```
+Tests nuevos: 4 en `maquina-cotizador.test.ts`, `lista-espera.itest.ts` (15: orden de llegada e idempotencia, rechazos, **10 altas simultáneas → posiciones 1..10** con una barrera que fuerza a todas a leer lo mismo, **sin candado la base rechaza la posición repetida** (6 simultáneas → gana 1, el resto violación de unicidad), la misma familia 5 veces a la vez, quitar/mover/recorrer, `ofrecerLugarLiberado` (tarea, vencimiento, horas de la configuración, **3 lugares a la vez → 3 familias distintas**), el punto de enchufe de F3, no-fuga y las garantías de la base), `api.itest.ts` (7: listar con filtros y paginación, permisos por rol, alcance por sucursal, mover, quitar con registro, **4 quitar simultáneos y quitar+mover**, no-fuga) y 12 en `cotizador-bot.itest.ts` (grupo lleno solo con lista, sí/no/asesor/inválidas, tres familias en orden, **5 familias aceptando a la vez → posiciones 1..5 y 5 tareas** (corrida 4 veces seguidas sin fallar), «sí» repetido sin duplicar, lugar recuperado, grupo que dejó de permitir lista, cotizador apagado, aviso de 30 min).
+Mutaciones atrapadas: quitar el candado, posición +2, no sacar de en medio al recorrer, ofrecer al último en vez del primero, ofrecer a un ya ofrecido, no recorrer al cerrar, mover a un ofrecido, no ser idempotente, ignorar `permite_lista_espera`.
+
+**Decisiones que tomé**
+- *Dos entradas del mismo prospecto en grupos distintos son válidas* (la unicidad es por grupo): una familia puede esperar dos horarios.
+- *La oferta de un lugar no escribe a la familia:* solo marca y deja la tarea, como pidió el encargo y para respetar las reglas de ventana, plantilla y horario de `MessagingProvider`. El asesor decide cómo avisar. Alternativa descartada: mandar una plantilla automática (necesita plantilla aprobada y horario).
+- *Una oferta vencida no pasa sola al siguiente:* `vence_en` es la fecha límite que ve el asesor en la tarea; quitar a quien no tomó el lugar (`DELETE`) y volver a llamar `ofrecerLugarLiberado` es decisión de una persona. Alternativa descartada: barrido que devuelva ofertas vencidas (decide el negocio si pasa al final de la fila, se cancela o se avisa antes).
+- *Posición densa y mantenida por el código* (en vez de un contador de llegada inmutable más una posición calculada): el asesor puede mover y la posición que ve es la que vale. Costo: reordenar al cerrar o mover (pocas filas por grupo).
+- *Sin `POST /api/lista-espera`:* el encargo pidió listar, quitar y mover; el alta manual del asesor puede llegar con la interfaz (J3) usando `altaConCandado`.
+- *`inscrito` solo lo marca F3* (`cerrarEntrada`): hoy nadie lo usa.
+
+**Para Eduardo**
+- Los textos de la pregunta de la lista y de los cierres son genéricos: revisar tono.
+- **Decisión de producto abierta:** qué pasa cuando una familia no toma el lugar ofrecido a tiempo (¿pasa al final, se cancela, se avisa?). Hoy lo resuelve una persona con las tareas.
+- El bot solo apunta **un** prospecto por conversación (límite de C-anteriores); varios hijos a la lista llegarán con la interfaz del asesor.
+
+## Cierre de C5 a C9 (cotizador) — para quien siga
+
+**Estado.** C5, C6, C7, C8 y C9 HECHOS (commits en el historial: `C5:` … `C9:`). Etapa C completa salvo la auditoría y la etiqueta `etapa-C` (las hace quien coordina).
+
+**Cómo enchufar lo que falta**
+- **Ocupación real (F4).** `FuenteOcupacion` (`src/catalogo/cupo.ts`: `ocupados(db, grupoId)`) es la única fuente de «lugares ocupados». Escribe una que cuente las inscripciones activas del grupo y cámbiala en **`src/server.ts`** (`const fuenteOcupacion = new SinInscripciones()`): se inyecta a la API (`api.fuenteOcupacion` → `DepsApi.fuenteOcupacion` → cotizador y cotizaciones a mano) y al bot (`procesarEntrante({ fuenteOcupacion })`). Los tests usan `OcupacionFija` (`src/testutil/semilla.ts`). La lista de espera NO cuenta como ocupación. La inscripción debe tomar el cupo de forma atómica (dos inscripciones por el último lugar: gana una).
+- **Un lugar liberado (F5).** Cuando una baja o un cambio de grupo libere un lugar, llama `ofrecerLugarLiberado(db, grupoId)` (`src/lista-espera/lista-espera.ts`) **después de confirmar la baja** (usa su propia transacción con el candado del grupo): marca al siguiente como `ofrecido` y deja la tarea `lista_espera_lugar_liberado`. Devuelve null si nadie espera. Si quien esperaba se inscribe (F3/F5), ciérrale la entrada con `cerrarEntrada(db, id, "inscrito")` o `cerrarEntradaDe(db, grupoId, prospectoId, "inscrito")`.
+- **Cotización guardada (F3).** La tabla `cotizacion` guarda el `snapshot` congelado (programa, grupos con lugares y horarios, `precio.costo_inscripcion` / `costo_mensualidad` en texto, `promociones` con `inscripcion` y `mensualidad` → `final_ahora` y `final_con_diferidos`, `lineas` con lo diferido) y `grupo_elegido_id`. Para respetar lo cotizado en la inscripción: busca la `cotizacion` vigente del prospecto y programa (`estatus = 'vigente'`, `vigente_hasta ≥ hoy`), toma los precios del snapshot (los importes ya son texto: `deTexto`) y, al inscribir, pásala a `aceptada`. Si no se respeta, el precio vigente de hoy sale de `precioVigente`. `promocion_aplicacion.inscripcion_id` sigue sin FK hasta F3.
+- **Cotizar desde otro módulo:** `cargarCatalogoCotizable(db, {verticalId, sucursalIds, fecha, fuente})` + `cotizar(catalogo, {verticalId, sucursalId, edadDeclarada | fechaNacimiento, hermanosInscritos, mesesPagadosPorAdelantado})` (puro) + `cotizacionAJson`; guardar con `guardarCotizacion(tx, …)` (reemplaza la vigente anterior del prospecto y programa).
+- **Pasos nuevos del bot:** `programa`, `otra_sucursal`, `horario`, `lista_espera` (enum `paso_captacion`). Todo paso que espera respuesta va en `PASOS_A_MEDIAS` (`maquina.ts`) y, si usa el catálogo, en `PASOS_CON_CATALOGO` (`entrante.ts`). La máquina pide **efectos** (`programa_sugerido`, `guardar_cotizacion`, `elegir_grupo`, `entrar_lista_espera`) que `aplicarEfectos` ejecuta en la transacción del mensaje.
+- **Configuración nueva** (`configuracion_organizacion`, sin API todavía; J8): `sucursal_sin_programa`, `cotizacion_vigencia_dias`, `lista_espera_oferta_horas`. **Interruptor por vertical:** `vertical.cotizador_whatsapp_activo`.
+- **Permisos nuevos:** `cotizador:leer`, `lista_espera:leer`, `lista_espera:escribir`.
+- **Migraciones de C5 a C9:** `20261012000000_cotizador_edad_corte`, `…010000_programa_sugerido_y_cotizador_vertical`, `…020000_sucursal_sin_programa`, `…030000_cotizacion`, `…040000_lista_espera`. La siguiente debe usar `20261013…` o mayor.
+
+**Decisiones de producto abiertas de C5 a C9** (todas con un valor por defecto razonable ya implementado)
+1. Fecha de inicio de ciclo por programa (`programa.fecha_corte_edad`) y si el bot debe pedir la fecha de nacimiento (hoy solo captura la edad; un programa con corte usa la edad declarada tal cual).
+2. Vigencia de una cotización (7 días), horas para tomar un lugar de la lista de espera (48) y qué pasa cuando no lo toman.
+3. Si el cliente puede recibir la cotización sin revisión de un asesor mientras precios, cupos y promociones del seed sigan siendo `[SUPUESTO]`.
+4. Textos del bot (genéricos): tono de la cotización, de la oferta de otra sucursal y de la lista de espera.
+5. Política `sucursal_sin_programa` por defecto (`ofrecer_otra`) —decisión 8 ya tomada— y quién la cambia (hoy SQL).

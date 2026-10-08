@@ -25,7 +25,7 @@ export const MAX_INTENTOS = 3;
  * 30 min se avisa a los asesores (`espera.ts`) y el reenganche de 25 h puede salir (`motor.ts`). Un solo lugar:
  * un paso nuevo que espera respuesta se agrega aquí.
  */
-export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal", "horario"];
+export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera"];
 
 export interface OpcionSucursal {
   id: string;
@@ -53,7 +53,7 @@ export interface ContextoCotizadorBot {
    * La cotización que el bot ya le mandó a este contacto (la guardada), con los horarios TAL COMO se los numeró:
    * el número que responda apunta a lo que vio, aunque los lugares hayan cambiado después. Nula si no hay.
    */
-  cotizacionGuardada: { opciones: OpcionHorario[] } | null;
+  cotizacionGuardada: { opciones: OpcionHorario[]; /** El horario que eligió y está por confirmar (lista de espera). */ grupoElegidoId: string | null } | null;
 }
 
 export interface ContextoCaptacion {
@@ -81,8 +81,10 @@ export type EfectoCaptacion =
   | { tipo: "programa_sugerido"; programaId: string }
   /** Guardar lo cotizado (programa, horarios con lugar, precios y promociones de hoy) para el prospecto. */
   | { tipo: "guardar_cotizacion"; programaId: string; cotizado: ProgramaCotizado; fecha: string; vigenteHasta: string }
-  /** El contacto eligió este horario (grupo) de la cotización guardada. */
-  | { tipo: "elegir_grupo"; grupoId: string };
+  /** El contacto eligió este horario (grupo) de la cotización guardada; null = lo descartó. */
+  | { tipo: "elegir_grupo"; grupoId: string | null }
+  /** El contacto aceptó entrar a la lista de espera de este grupo lleno (C9). */
+  | { tipo: "entrar_lista_espera"; grupoId: string };
 
 export interface ResultadoCaptacion {
   estado: EstadoCaptacion;
@@ -159,6 +161,15 @@ export const textos = {
   cierreConHorario: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
     `¡Listo! Anotamos a ${nombre} en ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}${o.oferta === "lista_de_espera" ? ", en lista de espera" : ""}. Un asesor te escribe por aquí en unos minutos para confirmar y resolver tus dudas.`,
   pidioAsesor: "Claro, te comunico con un asesor. Te escribe por aquí en unos minutos.",
+  /** C9: eligió un horario lleno que permite lista de espera. */
+  preguntaListaEspera: (o: OpcionHorario) =>
+    `El grupo ${o.nombre} (${o.horarioTexto}) está lleno por ahora. ¿Quieres que te apuntemos en la lista de espera? Si se libera un lugar, un asesor te avisa. Responde sí o no.`,
+  reintentoListaEspera: (o: OpcionHorario) => `Responde sí o no: ¿te apuntamos en la lista de espera de ${o.nombre}?`,
+  cierreListaEspera: (nombre: string, o: OpcionHorario, programa: string) =>
+    `Listo, ${nombre} quedó en la lista de espera de ${o.nombre} (${o.horarioTexto}) de ${programa}. Si se libera un lugar, un asesor te escribe por aquí. Mientras tanto te atiende un asesor para ver otras opciones.`,
+  /** C9: no quiso la lista de espera; se le vuelven a mostrar los horarios. */
+  otroHorario: (opciones: OpcionHorario[]) =>
+    `Sin problema. ¿Cuál otro horario prefieres? Responde con el número, o escribe «asesor» para hablar con una persona:\n${opciones.map((o, i) => `${i + 1}. ${o.nombre}: ${o.horarioTexto} · ${o.oferta === "lugar" ? (o.lugares === 1 ? "1 lugar" : `${o.lugares} lugares`) : "lista de espera"}`).join("\n")}`,
   cierreConPrograma: (nombre: string, programa: string, sucursal: string | null) =>
     `¡Gracias! Ya tengo los datos de ${nombre} para ${programa}${sucursal ? ` en la sucursal ${sucursal}` : ""}. Un asesor te escribe por aquí en unos minutos con horarios y costos.`,
   /** Única respuesta a una baja: sale una sola vez y es lo último que el sistema le manda. */
@@ -261,9 +272,18 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
 
     case "horario": {
       const opciones = opcionesVigentes(estado, ctx);
-      if (esNegativa(entrada)) return pidioAsesor(estado);
+      if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado);
       const elegida = opciones.length > 0 ? elegirOpcion(entrada, opciones) : null;
       if (!elegida) return fallo(estado, textos.reintentoHorario(opciones));
+      // Un horario lleno con lista de espera: antes de cerrar se pregunta si quiere entrar a la lista (C9).
+      if (elegida.oferta === "lista_de_espera") {
+        return {
+          estado: { ...estado, paso: "lista_espera", intentosFallidos: 0 },
+          respuestas: [textos.preguntaListaEspera(elegida)],
+          pasarAAsesor: null,
+          efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
+        };
+      }
       const programa = ctx.cotizador?.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
       const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
       return {
@@ -272,6 +292,33 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
         pasarAAsesor: "captura_completa",
         efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
       };
+    }
+
+    case "lista_espera": {
+      const opciones = opcionesVigentes(estado, ctx);
+      const grupoId = ctx.cotizador?.cotizacionGuardada?.grupoElegidoId ?? null;
+      const elegida = opciones.find((o) => o.grupoId === grupoId);
+      if (!elegida) return fallo({ ...estado, paso: "horario" }, textos.reintentoHorario(opciones)); // no hay a qué lista: vuelve a los horarios
+      if (esAfirmativa(entrada)) {
+        const programa = ctx.cotizador?.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
+        return {
+          estado: { ...estado, paso: "completo", intentosFallidos: 0 },
+          respuestas: [textos.cierreListaEspera(estado.nombre ?? "", elegida, programa)],
+          pasarAAsesor: "captura_completa",
+          efectos: [{ tipo: "entrar_lista_espera", grupoId: elegida.grupoId }],
+        };
+      }
+      if (esNegativa(entrada)) {
+        // Dijo que no: se descarta el horario tentativo y se le vuelven a mostrar los demás.
+        return {
+          estado: { ...estado, paso: "horario", intentosFallidos: 0 },
+          respuestas: [textos.otroHorario(opciones)],
+          pasarAAsesor: null,
+          efectos: [{ tipo: "elegir_grupo", grupoId: null }],
+        };
+      }
+      if (pidePersona(entrada)) return pidioAsesor(estado);
+      return fallo(estado, textos.reintentoListaEspera(elegida));
     }
 
     case "otra_sucursal": {
@@ -459,20 +506,27 @@ export function extraerEdad(entrada: string): number | null {
 }
 
 const AFIRMATIVAS = new Set(["si", "sip", "claro", "ok", "okay", "dale", "va", "vale", "bueno", "acepto", "quiero", "por favor", "de acuerdo", "esta bien", "si por favor", "si claro", "si quiero", "si me interesa", "me interesa"]);
-const NEGATIVAS = new Set(["no", "nel", "nop", "no gracias", "no quiero", "asesor", "un asesor", "con un asesor", "una persona", "persona", "prefiero un asesor"]);
+const NEGATIVAS = new Set(["no", "nel", "nop", "no gracias", "no quiero"]);
+const PIDEN_PERSONA = new Set(["asesor", "un asesor", "con un asesor", "una persona", "persona", "prefiero un asesor"]);
 
-/** «sí» / «no» (completos, sin importar acentos, mayúsculas ni signos). */
+const sinSignos = (entrada: string): string => normalizar(entrada).replace(/[¡!¿?.,;:"'*_-]+/g, " ").replace(/\s+/g, " ").trim();
+
+/** «sí» (completo, sin importar acentos, mayúsculas ni signos). */
 export function esAfirmativa(entrada: string): boolean {
   return AFIRMATIVAS.has(sinSignos(entrada));
 }
+/** «no» (completo). */
 export function esNegativa(entrada: string): boolean {
   return NEGATIVAS.has(sinSignos(entrada));
 }
-const sinSignos = (entrada: string): string => normalizar(entrada).replace(/[¡!¿?.,;:"'*_-]+/g, " ").replace(/\s+/g, " ").trim();
+/** Pide hablar con una persona («asesor», «una persona»…). */
+export function pidePersona(entrada: string): boolean {
+  return PIDEN_PERSONA.has(sinSignos(entrada));
+}
 
 /** Respuesta a la oferta de otra sucursal: la elegida, «no» (prefiere a un asesor) o null (no se entendió). */
 function interpretarOtraSucursal(entrada: string, otras: OpcionSucursal[]): OpcionSucursal | "no" | null {
-  if (esNegativa(entrada)) return "no";
+  if (esNegativa(entrada) || pidePersona(entrada)) return "no";
   if (otras.length === 1 && esAfirmativa(entrada)) return otras[0]!;
   return elegirOpcion(entrada, otras);
 }

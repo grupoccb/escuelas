@@ -60,20 +60,24 @@ export async function cotizacionDelBot(tx: Consultas, conversacionId: string, pr
   });
 }
 
-/** Los horarios que se le numeraron al contacto en esa cotización (los del snapshot guardado). */
-export async function horariosCotizadosAlContacto(tx: Consultas, conversacionId: string, prospectoId: string): Promise<OpcionHorario[] | null> {
+/**
+ * Los horarios que se le numeraron al contacto en esa cotización (los del snapshot guardado) y el que eligió y está
+ * por confirmar, si lo hay.
+ */
+export async function horariosCotizadosAlContacto(tx: Consultas, conversacionId: string, prospectoId: string): Promise<{ opciones: OpcionHorario[]; grupoElegidoId: string | null } | null> {
   const c = await cotizacionDelBot(tx, conversacionId, prospectoId);
-  return c ? opcionesDeSnapshot(c.snapshot) : null;
+  return c ? { opciones: opcionesDeSnapshot(c.snapshot), grupoElegidoId: c.grupo_elegido_id } : null;
 }
 
 /**
- * Anota el horario que eligió el contacto en su cotización del bot. El grupo tiene que ser del programa cotizado.
+ * Anota el horario que eligió el contacto en su cotización del bot (null = lo descartó). El grupo tiene que ser del
+ * programa cotizado.
  * Devuelve false si no hay cotización a la que anotárselo.
  */
-export async function elegirHorario(tx: Consultas, d: { conversacionId: string; prospectoId: string; grupoId: string }): Promise<boolean> {
+export async function elegirHorario(tx: Consultas, d: { conversacionId: string; prospectoId: string; grupoId: string | null }): Promise<boolean> {
   const c = await cotizacionDelBot(tx, d.conversacionId, d.prospectoId);
   if (!c) return false;
-  if (!(await tx.grupo.findFirst({ where: { id: d.grupoId, programa_id: c.programa_id }, select: { id: true } }))) {
+  if (d.grupoId !== null && !(await tx.grupo.findFirst({ where: { id: d.grupoId, programa_id: c.programa_id }, select: { id: true } }))) {
     throw new RangeError("El horario elegido no es de un grupo del programa cotizado");
   }
   const r = await tx.cotizacion.updateMany({ where: { id: c.id, estatus: "vigente" }, data: { grupo_elegido_id: d.grupoId } });

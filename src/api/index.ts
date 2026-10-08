@@ -34,6 +34,7 @@ import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
+import { rutasDeListaEspera } from "./rutas/lista-espera.ts";
 import { rutasDePrecios } from "./rutas/precios.ts";
 import { rutasDePromociones } from "./rutas/promociones.ts";
 import { rutasDeRegistroCambios } from "./rutas/registro-cambios.ts";
@@ -106,6 +107,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeTareas(deps));
   api.use(rutasDeLeads(deps));
   api.use(rutasDeCotizaciones(deps));
+  api.use(rutasDeListaEspera(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));
   api.use(rutasDeSalud(deps));

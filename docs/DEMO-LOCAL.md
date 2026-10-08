@@ -50,6 +50,15 @@ parciales. Todavía **nadie la atiende**: el bot sigue si el contacto vuelve a e
 el aviso sale en el siguiente barrido de un minuto después de que se cumplan los 30 minutos (para
 verlo sin esperar, ajusta `ultimo_mensaje_entrante_en` de la conversación en la base).
 
+### Cotizador por WhatsApp (C6 a C9)
+
+Las tres verticales de la demo traen **encendido** el cotizador de WhatsApp (`vertical.cotizador_whatsapp_activo`). Después de nombre, edad y sucursal, el bot consulta el catálogo: si la edad cae en
+varios programas (los marcados como alternativas) pregunta cuál; si la sucursal no tiene programa para la edad, ofrece la otra sucursal (o pasa al asesor, según
+`configuracion_organizacion.sucursal_sin_programa`); manda **una cotización** (horarios con lugar, inscripción, mensualidad y la promoción vigente) y espera que el contacto elija un horario o escriba
+«asesor»; un horario lleno con lista de espera pregunta si quiere entrar a la lista. Al final pasa al asesor con la cotización y el horario elegido en la nota privada. Se guarda en `cotizacion` y se ve en
+`GET /api/leads/:id/cotizaciones`; la lista de espera, en `GET /api/lista-espera`. Para apagarlo en una vertical (vuelve la captura de tres preguntas):
+`UPDATE vertical SET cotizador_whatsapp_activo = false WHERE slug = '…'`. Precios, cupos y promociones del seed son **[SUPUESTO]**.
+
 ## Usuarios de la aplicación (API)
 
 La API vive en `http://localhost:3000/api` (ver `docs/API.md`). El seed de la demo crea la

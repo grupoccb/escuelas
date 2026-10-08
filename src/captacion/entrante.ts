@@ -5,11 +5,12 @@
 // versión. Si dos mensajes de la misma conversación llegan juntos, uno gana y el otro se
 // repite con el estado nuevo.
 
-import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { SinInscripciones, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
 import { snapshotDeCotizacion } from "../cotizador/cotizacion.ts";
 import { elegirHorario, guardarCotizacion, horariosCotizadosAlContacto } from "../cotizador/guardar.ts";
+import { altaListaEspera } from "../lista-espera/lista-espera.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
@@ -35,7 +36,10 @@ import {
 import { resumenParaAsesor } from "./resumen.ts";
 import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EfectoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
 
-const MAX_REINTENTOS = 3;
+// Un conflicto de versión o de unicidad vuelve a correr la transacción con el estado nuevo. Con varias familias entrando a la
+// lista de espera del mismo grupo a la vez (C9), cada intento fallido significa que OTRA ganó la posición; el tope deja pasar a
+// un puñado de ellas antes de rendirse (el webhook se reintenta solo y es idempotente).
+const MAX_REINTENTOS = 8;
 
 export type ResultadoEntrante =
   | "bandeja_desconocida"
@@ -215,7 +219,7 @@ async function registrarYAvanzar(
     }
   }
   // Lo que la máquina pidió guardar (la cotización que mandó, el horario que eligió el contacto).
-  if (prospectoId) await aplicarEfectos(tx, r.efectos ?? [], { leadId: conv.lead.id, conversacionId: conv.id, prospectoId, sucursalId: r.estado.sucursalId });
+  if (prospectoId) await aplicarEfectos(tx, r.efectos ?? [], { leadId: conv.lead.id, conversacionId: conv.id, prospectoId, sucursalId: r.estado.sucursalId, fuente });
 
   const salientes: Saliente[] = r.respuestas.map((cuerpo) => respuestaA(entrante.id, cuerpo));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
@@ -225,11 +229,41 @@ async function registrarYAvanzar(
   return { resultado: "procesado", conversacionId: conv.id };
 }
 
+/**
+ * El contacto aceptó la lista de espera de un grupo lleno (C9): lo apunta al final de la fila y deja UNA tarea para el
+ * asesor. Si el grupo ya no permite lista de espera (se apagó entre la pregunta y la respuesta) no se apunta a nadie y
+ * la tarea lo dice, para que una persona lo atienda. Si el grupo ya tiene lugar libre (se liberó mientras contestaba),
+ * la tarea lo avisa: es un lugar para ofrecerle de inmediato.
+ */
+async function entrarAListaDeEspera(tx: Consultas, grupoId: string, c: { leadId: string; conversacionId: string; prospectoId: string; fuente: FuenteOcupacion }): Promise<void> {
+  const grupo = await tx.grupo.findFirst({ where: { id: grupoId }, select: { nombre: true } });
+  const nombre = grupo?.nombre ?? "el grupo";
+  const alta = await altaListaEspera(tx, { grupoId, prospectoId: c.prospectoId, leadId: c.leadId });
+  if (!alta.ok) {
+    await asegurarTareaEnTransaccion(tx, {
+      leadId: c.leadId,
+      conversacionId: c.conversacionId,
+      tipo: "lista_espera_nueva",
+      descripcion: `El contacto quiso entrar a la lista de espera de «${nombre}», pero no se pudo apuntar (${alta.motivo === "sin_lista_de_espera" ? "el grupo ya no permite lista de espera" : "el grupo ya no está disponible"}). Atiéndelo para ofrecerle otra opción.`,
+    });
+    return;
+  }
+  if (!alta.creada) return; // ya estaba en la fila: un reintento no la duplica ni repite la tarea
+  const cupo = await cupoPorGrupo(tx, grupoId, c.fuente);
+  const aviso = cupo && cupo.disponibles > 0 ? ` Ojo: al apuntarlo el grupo ya tenía ${cupo.disponibles} ${cupo.disponibles === 1 ? "lugar libre" : "lugares libres"}; ofrécele el lugar.` : "";
+  await asegurarTareaEnTransaccion(tx, {
+    leadId: c.leadId,
+    conversacionId: c.conversacionId,
+    tipo: "lista_espera_nueva",
+    descripcion: `Entró a la lista de espera de «${nombre}» (posición ${alta.entrada.posicion}). Avísale cuando se libere un lugar.${aviso}`,
+  });
+}
+
 /** Ejecuta, en la transacción del mensaje, los efectos que pidió la máquina de captación. */
 async function aplicarEfectos(
   tx: Consultas,
   efectos: readonly EfectoCaptacion[],
-  c: { leadId: string; conversacionId: string; prospectoId: string; sucursalId: string | null },
+  c: { leadId: string; conversacionId: string; prospectoId: string; sucursalId: string | null; fuente: FuenteOcupacion },
 ): Promise<void> {
   for (const e of efectos) {
     if (e.tipo === "guardar_cotizacion") {
@@ -247,6 +281,8 @@ async function aplicarEfectos(
       });
     } else if (e.tipo === "elegir_grupo") {
       await elegirHorario(tx, { conversacionId: c.conversacionId, prospectoId: c.prospectoId, grupoId: e.grupoId });
+    } else if (e.tipo === "entrar_lista_espera") {
+      await entrarAListaDeEspera(tx, e.grupoId, c);
     }
     // `programa_sugerido` ya viajó en el estado y se guardó con el prospecto.
   }
@@ -410,7 +446,7 @@ async function obtenerConversacion(
 }
 
 /** Pasos en los que el bot consulta el catálogo: solo ahí se carga (cuesta unas cuantas consultas). */
-const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal", "horario"];
+const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera"];
 
 async function contextoCaptacion(
   tx: Consultas,
@@ -433,10 +469,10 @@ async function contextoCaptacion(
   const catalogo = await cargarCatalogoCotizable(tx, { verticalId, fecha: fechaLocal(o.ahora, zona), fuente: o.fuente });
   const { sucursalSinPrograma, cotizacionVigenciaDias } = await leerConfiguracion(tx);
   // En el paso del horario, los que se le numeraron al contacto: los de la cotización guardada, no los de hoy.
-  const opciones = o.paso === "horario" && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId) : null;
+  const guardada = (o.paso === "horario" || o.paso === "lista_espera") && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId) : null;
   return {
     nombreVertical: vertical.nombre,
     sucursales,
-    cotizador: { verticalId, catalogo, sucursalSinPrograma, vigenciaDias: cotizacionVigenciaDias, cotizacionGuardada: opciones && opciones.length > 0 ? { opciones } : null },
+    cotizador: { verticalId, catalogo, sucursalSinPrograma, vigenciaDias: cotizacionVigenciaDias, cotizacionGuardada: guardada && guardada.opciones.length > 0 ? guardada : null },
   };
 }

@@ -24,6 +24,9 @@ export const MATRIZ_DE_PERMISOS = {
   "conversaciones:leer": ["administrador", "asesor"],
   // Cotizador (C5): programa, grupos con lugar, precio y promociones para una edad. Lo usan quienes atienden al lead.
   "cotizador:leer": ["administrador", "asesor"],
+  // Lista de espera (C9): quién espera un lugar en un grupo lleno. Quitar y mover es del asesor y el administrador.
+  "lista_espera:leer": ["administrador", "asesor", "recepcion"],
+  "lista_espera:escribir": ["administrador", "asesor"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],

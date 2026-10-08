@@ -12,6 +12,8 @@ export const PERMISOS_ACORDADOS = {
   "tareas:resolver": ["administrador", "asesor"],
   "conversaciones:leer": ["administrador", "asesor"],
   "cotizador:leer": ["administrador", "asesor"],
+  "lista_espera:leer": ["administrador", "asesor", "recepcion"],
+  "lista_espera:escribir": ["administrador", "asesor"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:escribir": ["administrador"],

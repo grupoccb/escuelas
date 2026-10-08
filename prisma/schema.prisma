@@ -78,6 +78,7 @@ model organizacion {
   promociones_beneficios     promocion_beneficio[]
   promociones_aplicaciones   promocion_aplicacion[]
   cotizaciones               cotizacion[]
+  lista_espera               lista_espera[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -104,6 +105,9 @@ model configuracion_organizacion {
   sucursal_sin_programa     politica_sucursal_sin_programa @default(ofrecer_otra)
   /// Cuántos días vale una cotización (a lo más; antes vence si lo que cotizó vence: una promoción o el precio).
   cotizacion_vigencia_dias  Int                            @default(7)
+  /// Cuántas horas tiene una familia para tomar el lugar que se le ofreció de la lista de espera antes de que el asesor
+  /// decida si pasa al siguiente (C9).
+  lista_espera_oferta_horas Int                            @default(48)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -348,6 +352,7 @@ model lead {
   interacciones    interaccion[]
   tareas_asesor    tarea_asesor[]
   cotizaciones     cotizacion[]
+  lista_espera     lista_espera[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -376,11 +381,12 @@ model prospecto {
   actualizado_en       DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en         DateTime?        @db.Timestamptz(6)
 
-  organizacion      organizacion @relation(fields: [organizacion_id], references: [id])
-  lead              lead         @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  vertical_interes  vertical     @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  programa_sugerido programa?    @relation(fields: [programa_sugerido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  organizacion      organizacion   @relation(fields: [organizacion_id], references: [id])
+  lead              lead           @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  vertical_interes  vertical       @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  programa_sugerido programa?      @relation(fields: [programa_sugerido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   cotizaciones      cotizacion[]
+  lista_espera      lista_espera[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -438,6 +444,8 @@ enum paso_captacion {
   otra_sucursal
   /// C8: se le mandó la cotización y elige uno de los horarios.
   horario
+  /// C9: eligió un horario lleno y se le pregunta si quiere entrar a la lista de espera.
+  lista_espera
   completo
 }
 
@@ -742,6 +750,10 @@ enum tipo_tarea_asesor {
   baja_solicitada
   /// No se pudo publicar una nota interna para los asesores (p. ej. el resumen del aviso de 30 min).
   nota_fallida
+  /// Alguien entró a la lista de espera de un grupo lleno (C9).
+  lista_espera_nueva
+  /// Se liberó un lugar y le toca al siguiente de la lista: el asesor se lo ofrece (C9).
+  lista_espera_lugar_liberado
 }
 
 enum estado_tarea_asesor {
@@ -955,6 +967,7 @@ model grupo {
   salon                 salon?          @relation(fields: [salon_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   horarios              grupo_horario[]
   cotizaciones_elegidas cotizacion[]
+  lista_espera          lista_espera[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1486,4 +1499,45 @@ model cotizacion {
   @@index([organizacion_id])
   @@index([lead_id])
   @@index([prospecto_id, programa_id])
+}
+
+enum estatus_lista_espera {
+  /// En la fila, sin lugar todavía.
+  esperando
+  /// Se liberó un lugar y se le ofreció; tiene hasta `vence_en` para tomarlo.
+  ofrecido
+  /// Tomó el lugar: se inscribió (F3/F5).
+  inscrito
+  /// Se quitó de la fila (lo pidió la familia o lo decidió el asesor).
+  cancelado
+}
+
+/// Fila de espera de un grupo lleno (C9). Una entrada viva (esperando u ofrecido) por (grupo, prospecto). La posición es
+/// densa (1..N) entre las vivas y única por grupo; la mantiene el código bajo un candado por grupo y la base impide
+/// repetirla. Orden de llegada determinista: la posición nueva es siempre la última.
+model lista_espera {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String               @db.Uuid
+  grupo_id        String               @db.Uuid
+  prospecto_id    String               @db.Uuid
+  lead_id         String               @db.Uuid
+  estatus         estatus_lista_espera @default(esperando)
+  /// 1 = el siguiente en recibir un lugar. Solo cuenta entre las vivas (esperando u ofrecido); al cerrarse una entrada
+  /// las demás se recorren.
+  posicion        Int
+  ofrecido_en     DateTime?            @db.Timestamptz(6)
+  vence_en        DateTime?            @db.Timestamptz(6)
+  creado_en       DateTime             @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?            @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  grupo        grupo        @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospecto    prospecto    @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead         lead         @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([grupo_id])
+  @@index([lead_id])
 }

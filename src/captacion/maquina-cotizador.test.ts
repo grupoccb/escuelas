@@ -370,7 +370,7 @@ test("C8: el número que responde apunta a los horarios QUE VIO (la cotización 
   assert.match(cotizada.ultimo.respuestas[0]!, /1\. Tarde:.*\n2\. Noche:/);
   // Después se llena «Tarde»: hoy el catálogo mostraría «Noche» primero, pero la cotización guardada manda.
   const hoy = contexto([programa("p", "Programa P", 3, 12, { grupos: [grupo("a", { nombre: "Tarde", cupoMaximo: 10, ocupados: 10 }), grupo("b", { nombre: "Noche", cupoMaximo: 5 })] })]);
-  const guardada = { opciones: [{ grupoId: "a", nombre: "Tarde", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar" as const, lugares: 10 }, { grupoId: "b", nombre: "Noche", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar" as const, lugares: 5 }] };
+  const guardada = { grupoElegidoId: null, opciones: [{ grupoId: "a", nombre: "Tarde", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar" as const, lugares: 10 }, { grupoId: "b", nombre: "Noche", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar" as const, lugares: 5 }] };
   const ctxHoy = { ...hoy, cotizador: { ...hoy.cotizador!, cotizacionGuardada: guardada } };
   assert.deepEqual(avanzar(cotizada.estado, "1", ctxHoy).efectos, [{ tipo: "elegir_grupo", grupoId: "a" }], "el 1 sigue siendo «Tarde»");
 });
@@ -391,14 +391,73 @@ test("C8: «asesor» pasa a una persona con el motivo pidio_asesor; respuestas i
   assert.equal(c.pasarAAsesor, "sin_entender");
 });
 
-test("C8: un horario en lista de espera se anota como tal en el cierre", () => {
-  const p = programa("p", "Programa P", 3, 12, { grupos: [grupo("a", { nombre: "Lleno", cupoMaximo: 2, ocupados: 2, permiteListaEspera: true })] });
-  const ctx = contexto([p]);
-  const r = avanzar(conversar(["Hola", "Ana", "8", "1"], ctx).estado, "1", ctx);
-  assert.match(r.respuestas[0]!, /Lleno \(lunes de 16:00 a 17:00\) de Programa P, sucursal Norte, en lista de espera\./);
-});
-
 test("C8: la nota del asesor incluye las líneas de la cotización cuando se le pasan", () => {
   const nota = textos.resumenAsesor("captura_completa", { nombre: "Ana", edad: 8, sucursal: "Norte", programa: "Programa P", cotizacion: ["• Cotización (vale hasta 2026-10-15): inscripción $500.00, mensualidad $800.00", "• Horario elegido: Noche — martes de 19:00 a 20:00"], telefono: "+525512340001" });
   assert.match(nota, /• Programa: Programa P\n• Cotización \(vale hasta 2026-10-15\)[^\n]*\n• Horario elegido: Noche — martes de 19:00 a 20:00\n• Teléfono/);
+});
+
+// ── C9: un horario lleno con lista de espera ──────────────────────────────────────────────────────────
+
+const LLENO = programa("p", "Programa P", 3, 12, {
+  grupos: [grupo("lleno", { nombre: "Lleno", cupoMaximo: 2, ocupados: 2, permiteListaEspera: true }), grupo("libre", { nombre: "Libre", cupoMaximo: 9, horarios: [{ dia: 3, inicioMin: 1080, finMin: 1140 }] })],
+});
+/** El contexto como lo arma `procesarEntrante` en el paso del horario: con la cotización guardada y, si lo hay, el horario tentativo. */
+const conGuardada = (ctx: ContextoCaptacion, grupoElegidoId: string | null, estado: EstadoCaptacion) => {
+  const opciones = (estado.programaId ? ctx.cotizador!.catalogo.programas.find((p) => p.id === estado.programaId) : undefined)
+    ? ["libre", "lleno"].map((id) => ({ grupoId: id, nombre: id === "libre" ? "Libre" : "Lleno", horarioTexto: id === "libre" ? "miércoles de 18:00 a 19:00" : "lunes de 16:00 a 17:00", oferta: (id === "libre" ? "lugar" : "lista_de_espera") as "lugar" | "lista_de_espera", lugares: id === "libre" ? 9 : 0 }))
+    : [];
+  return { ...ctx, cotizador: { ...ctx.cotizador!, cotizacionGuardada: { opciones, grupoElegidoId } } };
+};
+
+test("C9: elegir un horario lleno con lista de espera pregunta si quiere entrar a la lista, sin cerrar todavía", () => {
+  const ctx = contexto([LLENO]);
+  const cotizada = conversar(["Hola", "Ana", "8", "1"], ctx);
+  assert.match(cotizada.ultimo.respuestas[0]!, /1\. Libre: miércoles de 18:00 a 19:00 · 9 lugares\n2\. Lleno: lunes de 16:00 a 17:00 · lista de espera/);
+  const r = avanzar(cotizada.estado, "2", ctx);
+  assert.equal(r.estado.paso, "lista_espera");
+  assert.equal(r.pasarAAsesor, null);
+  assert.deepEqual(r.efectos, [{ tipo: "elegir_grupo", grupoId: "lleno" }], "queda anotado como tentativo");
+  assert.equal(r.respuestas[0], "El grupo Lleno (lunes de 16:00 a 17:00) está lleno por ahora. ¿Quieres que te apuntemos en la lista de espera? Si se libera un lugar, un asesor te avisa. Responde sí o no.");
+  // Un horario con lugar sigue cerrando como antes.
+  assert.equal(avanzar(cotizada.estado, "1", ctx).estado.paso, "completo");
+});
+
+test("C9: «sí» entra a la lista de espera y pasa al asesor; «no» vuelve a los horarios y descarta el tentativo", () => {
+  const ctx = contexto([LLENO]);
+  const base = avanzar(conversar(["Hola", "Ana", "8", "1"], ctx).estado, "2", ctx);
+  const cx = conGuardada(ctx, "lleno", base.estado);
+  for (const si of ["sí", "Si", "claro", "¡Sí, por favor!"]) {
+    const r = avanzar(base.estado, si, cx);
+    assert.equal(r.estado.paso, "completo", si);
+    assert.equal(r.pasarAAsesor, "captura_completa");
+    assert.deepEqual(r.efectos, [{ tipo: "entrar_lista_espera", grupoId: "lleno" }]);
+    assert.equal(r.respuestas[0], "Listo, Ana quedó en la lista de espera de Lleno (lunes de 16:00 a 17:00) de Programa P. Si se libera un lugar, un asesor te escribe por aquí. Mientras tanto te atiende un asesor para ver otras opciones.");
+  }
+  const no = avanzar(base.estado, "no", cx);
+  assert.equal(no.estado.paso, "horario");
+  assert.equal(no.pasarAAsesor, null);
+  assert.deepEqual(no.efectos, [{ tipo: "elegir_grupo", grupoId: null }]);
+  assert.match(no.respuestas[0]!, /^Sin problema\. ¿Cuál otro horario prefieres\?[^\n]*\n1\. Libre: miércoles de 18:00 a 19:00 · 9 lugares\n2\. Lleno: lunes de 16:00 a 17:00 · lista de espera$/);
+});
+
+test("C9: en la pregunta de la lista, «asesor» pasa a una persona; lo que no se entiende reintenta y a la tercera, sin_entender", () => {
+  const ctx = contexto([LLENO]);
+  const base = avanzar(conversar(["Hola", "Ana", "8", "1"], ctx).estado, "2", ctx);
+  const cx = conGuardada(ctx, "lleno", base.estado);
+  const asesor = avanzar(base.estado, "asesor", cx);
+  assert.equal(asesor.pasarAAsesor, "pidio_asesor");
+  assert.equal(asesor.efectos, undefined);
+  const a = avanzar(base.estado, "tal vez", cx);
+  assert.deepEqual(a.respuestas, ["Responde sí o no: ¿te apuntamos en la lista de espera de Lleno?"]);
+  assert.equal(a.estado.paso, "lista_espera");
+  const c = avanzar(avanzar(a.estado, "mmm", cx).estado, "quién sabe", cx);
+  assert.equal(c.pasarAAsesor, "sin_entender");
+});
+
+test("C9: sin horario tentativo guardado (algo se perdió), la lista vuelve a los horarios en vez de apuntar a nadie", () => {
+  const ctx = contexto([LLENO]);
+  const base = avanzar(conversar(["Hola", "Ana", "8", "1"], ctx).estado, "2", ctx);
+  const r = avanzar(base.estado, "sí", conGuardada(ctx, null, base.estado));
+  assert.equal(r.efectos, undefined);
+  assert.equal(r.estado.paso, "horario");
 });

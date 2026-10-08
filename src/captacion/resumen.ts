@@ -4,6 +4,7 @@
 import type { Consultas } from "../datos/alcance.ts";
 import { resumenDeCotizacion } from "../cotizador/cotizacion.ts";
 import { deFecha } from "../catalogo/precios.ts";
+import { entradasVivasDe } from "../lista-espera/lista-espera.ts";
 import { textos, type MotivoPaseAsesor } from "./maquina.ts";
 
 export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: MotivoPaseAsesor): Promise<string> {
@@ -23,6 +24,11 @@ export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: M
         select: { snapshot: true, vigente_hasta: true, grupo_elegido_id: true },
       })
     : null;
+  const enLista = prospecto ? await entradasVivasDe(tx, prospecto.id) : [];
+  const lineasDeCotizacion = [
+    ...(cotizacion ? resumenDeCotizacion({ snapshot: cotizacion.snapshot, vigenteHasta: deFecha(cotizacion.vigente_hasta), grupoElegidoId: cotizacion.grupo_elegido_id }) : []),
+    ...enLista.map((e) => `• Lista de espera: ${e.grupo} (posición ${e.posicion}${e.estatus === "ofrecido" ? ", ya se le ofreció un lugar" : ""})`),
+  ];
   const campana = lead.campana_id ? await tx.campana.findFirst({ where: { id: lead.campana_id }, select: { nombre: true } }) : null;
 
   const origen = lead.anuncio_id
@@ -34,7 +40,7 @@ export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: M
     edad: prospecto?.edad_declarada ?? null,
     sucursal: sucursal?.nombre ?? null,
     ...(prospecto?.programa_sugerido_id ? { programa: programa?.nombre ?? null } : {}),
-    ...(cotizacion ? { cotizacion: resumenDeCotizacion({ snapshot: cotizacion.snapshot, vigenteHasta: deFecha(cotizacion.vigente_hasta), grupoElegidoId: cotizacion.grupo_elegido_id }) } : {}),
+    ...(lineasDeCotizacion.length > 0 ? { cotizacion: lineasDeCotizacion } : {}),
     telefono: lead.telefono,
     contacto: lead.nombre_contacto,
     origen,
