@@ -269,7 +269,7 @@ async function darDeBaja(
     // Con una persona atendiendo el sistema no contesta (invariante 6): se le avisa por tarea.
     if (conv.estado === "en_atencion_humana") {
       const pendiente = await tx.tarea_asesor.findFirst({
-        where: { conversacion_id: conv.id, tipo: "revision_manual", estado: "pendiente" },
+        where: { conversacion_id: conv.id, tipo: "baja_solicitada", estado: "pendiente" },
         select: { id: true },
       });
       // Si dos bajas llegan juntas, el índice único parcial rechaza la segunda y el reintento
@@ -279,7 +279,7 @@ async function darDeBaja(
           data: altaConAlcance({
             lead_id: conv.lead.id,
             conversacion_id: conv.id,
-            tipo: "revision_manual" as const,
+            tipo: "baja_solicitada" as const,
             descripcion: "El contacto pidió la baja de los mensajes. Ya quedó registrada; confirma con él si hace falta.",
           }),
         });

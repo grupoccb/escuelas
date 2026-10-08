@@ -8,7 +8,7 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { fijarConfiguracion, sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
-import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, ErrorOrigenSaliente, MessagingProvider, TransporteFalso, respuestaA, type Saliente } from "./index.ts";
+import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, ErrorOrigenSaliente, MessagingProvider, TransporteFalso, asegurarTareaAsesor, respuestaA, type Saliente } from "./index.ts";
 
 let prisma: PrismaPruebas;
 
@@ -178,6 +178,65 @@ test("una etiqueta de origen distinta de `respuesta` basta para ser del sistema,
 });
 
 // ---------------------------------------------------------------------------------------------
+// EA-06: una nota interna fallida no es un mensaje perdido para el contacto
+
+test("EA-06: una NOTA interna que falla (definitivo o incierto) no pasa la conversación a humano; deja una tarea `nota_fallida` y no frena los mensajes que siguen", async () => {
+  for (const modo of ["definitivo", "incierto"] as const) {
+    const s = await escenario(MEDIODIA);
+    if (modo === "definitivo") s.transporte.fallarSi = (e) => e.tipo === "nota_interna";
+    else s.transporte.inciertoSi = (e) => e.tipo === "nota_interna";
+    const entrante = await sembrarEntrante(s.db, s.conv.id);
+    const [idNota, idMensaje] = await s.db.$transaction((tx) =>
+      s.provider.encolar(tx, s.conv.id, [{ tipo: "nota_interna", origen: "respuesta", cuerpo: "resumen para el asesor" }, respuestaA(entrante, "sigue la conversación")]),
+    );
+    const r = await s.provider.despachar(s.db, s.conv.id);
+
+    assert.equal(r.pasoAAsesor, false, modo);
+    const conv = await s.db.conversacion.findUniqueOrThrow({ where: { id: s.conv.id } });
+    assert.deepEqual([conv.estado, conv.pasar_a_asesor_pendiente], ["bot", false], modo);
+    assert.equal(await s.db.interaccion.count({ where: { conversacion_id: s.conv.id, tipo: "pase_a_asesor" } }), 0, modo);
+    const nota = await s.db.mensaje.findUniqueOrThrow({ where: { id: idNota! } });
+    assert.equal(nota.estatus, "fallido", modo);
+    assert.equal(nota.error === ENVIO_INCIERTO, modo === "incierto", modo);
+    assert.deepEqual((await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conv.id } })).map((t) => [t.tipo, t.estado]), [["nota_fallida", "pendiente"]], modo);
+    assert.equal((await s.db.mensaje.findUniqueOrThrow({ where: { id: idMensaje! } })).estatus, "enviado", `${modo}: la nota no frena al mensaje que sigue`);
+
+    // Repetir el fallo no llena la bandeja: una pendiente por conversación.
+    const otra = await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [{ tipo: "nota_interna", origen: "respuesta", cuerpo: "otra nota" }]));
+    await s.provider.despachar(s.db, s.conv.id);
+    assert.ok(otra[0]);
+    assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conv.id, tipo: "nota_fallida" } }), 1, modo);
+  }
+});
+
+test("EA-06: lo contrario sigue igual: un MENSAJE al contacto que falla sí pasa la conversación a un asesor", async () => {
+  const s = await escenario(MEDIODIA);
+  s.transporte.fallarSi = (e) => e.tipo === "mensaje";
+  const entrante = await sembrarEntrante(s.db, s.conv.id);
+  await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [respuestaA(entrante, "hola")]));
+  const r = await s.provider.despachar(s.db, s.conv.id);
+  assert.equal(r.pasoAAsesor, true);
+  assert.equal((await s.db.conversacion.findUniqueOrThrow({ where: { id: s.conv.id } })).estado, "en_atencion_humana");
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conv.id, tipo: "nota_fallida" } }), 0);
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-14: una tarea pendiente de una causa no se traga el aviso de otra
+
+test("EA-14: con una tarea pendiente de otra causa, un envío incierto igual deja SU tarea", async () => {
+  const s = await conMensajeEnviando(MEDIODIA, ENVIO_INCIERTO_MS + MINUTO);
+  await asegurarTareaAsesor(s.db, { leadId: s.lead.id, conversacionId: s.conv.id, tipo: "automatizacion_omitida", descripcion: "CAUSA A" });
+  await asegurarTareaAsesor(s.db, { leadId: s.lead.id, conversacionId: s.conv.id, tipo: "baja_solicitada", descripcion: "CAUSA B" });
+  assert.equal(await s.provider.recuperarEnviosInciertos(s.db), 1);
+  const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conv.id }, orderBy: { creado_en: "asc" } });
+  assert.deepEqual(tareas.map((t) => t.tipo).sort(), ["automatizacion_omitida", "baja_solicitada", "envio_incierto"]);
+  assert.match(tareas.find((t) => t.tipo === "envio_incierto")!.descripcion, /no se sabe si salió/);
+  // Y la misma causa repetida sigue sin duplicarse.
+  await asegurarTareaAsesor(s.db, { leadId: s.lead.id, conversacionId: s.conv.id, tipo: "envio_incierto", descripcion: "repetida" });
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conv.id, tipo: "envio_incierto" } }), 1);
+});
+
+// ---------------------------------------------------------------------------------------------
 // F1-01: envío incierto
 
 async function conMensajeEnviando(ahora: Date, hace: number, extra: { idExterno?: string; direccion?: "saliente" | "nota_interna" } = {}) {
@@ -206,7 +265,7 @@ test("un mensaje en `enviando` sin id del proveedor pasa a fallido/envio_inciert
   assert.equal(s.transporte.envios.length, 0, "no se reenvía algo que pudo haber salido");
   const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conv.id } });
   assert.equal(tareas.length, 1);
-  assert.deepEqual([tareas[0]!.tipo, tareas[0]!.estado], ["revision_manual", "pendiente"]);
+  assert.deepEqual([tareas[0]!.tipo, tareas[0]!.estado], ["envio_incierto", "pendiente"]);
   assert.match(tareas[0]!.descripcion, /no se sabe si salió/);
 
   // Idempotente: no vuelve a contarlo ni duplica la tarea.
@@ -214,7 +273,7 @@ test("un mensaje en `enviando` sin id del proveedor pasa a fallido/envio_inciert
   assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conv.id } }), 1);
 });
 
-test("lo reciente, lo que ya tiene id del proveedor y una nota interna no generan tarea al contacto", async () => {
+test("lo reciente y lo que ya tiene id del proveedor no se tocan; una nota interna perdida no genera tarea de envío incierto", async () => {
   const reciente = await conMensajeEnviando(MEDIODIA, ENVIO_INCIERTO_MS - MINUTO);
   assert.equal(await reciente.provider.recuperarEnviosInciertos(reciente.db), 0);
   assert.equal((await reciente.db.mensaje.findUniqueOrThrow({ where: { id: reciente.m.id } })).estatus, "enviando");
@@ -225,7 +284,11 @@ test("lo reciente, lo que ya tiene id del proveedor y una nota interna no genera
   const nota = await conMensajeEnviando(MEDIODIA, 3 * HORA, { direccion: "nota_interna" });
   assert.equal(await nota.provider.recuperarEnviosInciertos(nota.db), 1);
   assert.equal((await nota.db.mensaje.findUniqueOrThrow({ where: { id: nota.m.id } })).estatus, "fallido");
-  assert.equal(await nota.db.tarea_asesor.count({ where: { conversacion_id: nota.conv.id } }), 0);
+  // Una nota perdida no es un mensaje perdido al contacto: no hay tarea de envío incierto. Desde EA-06
+  // sí deja SU tarea (`nota_fallida`): el asesor se quedó sin el resumen.
+  assert.equal(await nota.db.tarea_asesor.count({ where: { conversacion_id: nota.conv.id, tipo: "envio_incierto" } }), 0);
+  assert.equal(await nota.db.tarea_asesor.count({ where: { conversacion_id: nota.conv.id } }), 1);
+  assert.equal(await nota.db.tarea_asesor.count({ where: { conversacion_id: nota.conv.id, tipo: "nota_fallida" } }), 1);
 });
 
 test("la recuperación respeta la organización: no toca mensajes de otra", async () => {

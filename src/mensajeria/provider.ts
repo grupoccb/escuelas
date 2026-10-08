@@ -214,31 +214,30 @@ export class MessagingProvider {
               ? await this.transporte.enviarPlantilla(conv.destino, this.plantillaAEnviar(plantilla, m.variables_usadas, m.cuerpo))
               : await this.transporte.enviarMensaje(conv.destino, m.cuerpo));
       } catch (e) {
+        // Una NOTA interna fallida no es un mensaje que el contacto no recibió: no pasa la
+        // conversación a un asesor (visible no es atendido, decisión 1) ni frena los mensajes que
+        // siguen. Deja una tarea con causa propia para que una persona revise la conversación (EA-06).
+        const esNota = tipo === "nota_interna";
         if (e instanceof EnvioIncierto) {
           // Se acabó el tiempo o la respuesta no se pudo leer: el mensaje pudo haber salido (F1-03).
           // NO se marca como un fallo simple ni se reenvía; queda como envío incierto con una tarea
           // para que una persona lo revise, y la conversación pasa a un asesor.
           await this.marcarEnvioIncierto(db, { id: m.id, direccion: m.direccion, cuerpo: m.cuerpo, conversacionId, leadId: conv.lead_id });
-          await db.conversacion.updateMany({
-            where: { id: conversacionId, estado: "bot" },
-            data: { pasar_a_asesor_pendiente: true, motivo_pase_asesor: "falla_envio" },
-          });
+          if (!esNota) await this.pasarAAsesorPendiente(db, conversacionId);
           resumen.fallidos++;
           resumen.resultados.push({ mensajeId: m.id, resultado: "fallido", motivo: ENVIO_INCIERTO });
-          falloPrevio = true;
+          if (!esNota) falloPrevio = true;
           continue;
         }
         // Fallo definitivo (no se pudo contactar al proveedor, o este respondió con un error): no
         // salió. No se reintenta sola; una persona retoma la conversación.
         await db.mensaje.update({ where: { id: m.id }, data: { estatus: "fallido", error: (e as Error).message } });
-        await db.conversacion.updateMany({
-          where: { id: conversacionId, estado: "bot" },
-          data: { pasar_a_asesor_pendiente: true, motivo_pase_asesor: "falla_envio" },
-        });
+        if (esNota) await this.tareaDeNotaFallida(db, conversacionId, conv.lead_id, m.cuerpo);
+        else await this.pasarAAsesorPendiente(db, conversacionId);
         resumen.fallidos++;
         resumen.resultados.push({ mensajeId: m.id, resultado: "fallido" });
-        falloPrevio = true;
-        log.error("saliente_fallido", { conversacionId, mensajeId: m.id, error: (e as Error).message });
+        if (!esNota) falloPrevio = true;
+        log.error("saliente_fallido", { conversacionId, mensajeId: m.id, tipo, error: (e as Error).message });
         continue;
       }
 
@@ -263,6 +262,24 @@ export class MessagingProvider {
 
     resumen.pasoAAsesor = await this.pasarAAsesorSiToca(db, conversacionId);
     return resumen;
+  }
+
+  /** Marca la conversación (si sigue con el bot) para pasarla a un asesor por una falla de envío al contacto. */
+  private async pasarAAsesorPendiente(db: BaseDatos, conversacionId: string): Promise<void> {
+    await db.conversacion.updateMany({
+      where: { id: conversacionId, estado: "bot" },
+      data: { pasar_a_asesor_pendiente: true, motivo_pase_asesor: "falla_envio" },
+    });
+  }
+
+  /** Tarea con causa propia: una nota interna para los asesores no se pudo publicar (EA-06). Una pendiente por conversación. */
+  private async tareaDeNotaFallida(db: Consultas, conversacionId: string, leadId: string, cuerpo: string): Promise<void> {
+    await asegurarTareaAsesor(db, {
+      leadId,
+      conversacionId,
+      tipo: "nota_fallida",
+      descripcion: `No se pudo publicar una nota interna para los asesores en la conversación (Chatwoot no la aceptó o no respondió). La conversación sigue con el bot; revisa lo que el contacto dejó. Nota: «${resumirTexto(cuerpo)}»`,
+    });
   }
 
   /**
@@ -438,8 +455,8 @@ export class MessagingProvider {
 
   /**
    * Un mensaje reclamado cuyo resultado se ignora: lo marca `fallido` con error `envio_incierto`
-   * (solo si sigue en `enviando` sin id: idempotente) y, si era para el contacto, deja una tarea
-   * `revision_manual`. Lo comparten la recuperación de procesos muertos y el envío con tiempo
+   * (solo si sigue en `enviando` sin id: idempotente) y deja una tarea con causa propia: para un
+   * mensaje al contacto `envio_incierto`; para una nota interna `nota_fallida`. Lo comparten la recuperación de procesos muertos y el envío con tiempo
    * agotado. NUNCA reenvía. Devuelve true si lo marcó él.
    */
   private async marcarEnvioIncierto(
@@ -452,11 +469,15 @@ export class MessagingProvider {
     });
     if (marcado.count !== 1) return false; // otro proceso lo resolvió
     log.warn("envio_incierto", { conversacionId: m.conversacionId, mensajeId: m.id });
-    if (m.direccion !== "saliente") return true; // una nota interna perdida no llega al contacto
+    if (m.direccion !== "saliente") {
+      // Una nota interna perdida no le llega al contacto, pero el asesor se quedó sin su resumen.
+      await this.tareaDeNotaFallida(db, m.conversacionId, m.leadId, m.cuerpo);
+      return true;
+    }
     await asegurarTareaAsesor(db, {
       leadId: m.leadId,
       conversacionId: m.conversacionId,
-      tipo: "revision_manual",
+      tipo: "envio_incierto",
       descripcion: `Un mensaje al contacto quedó a medias y no se sabe si salió. No se reenvió para no duplicarlo: revisa la conversación y, si hace falta, escríbele tú. Mensaje: «${resumirTexto(m.cuerpo)}»`,
     });
     return true;

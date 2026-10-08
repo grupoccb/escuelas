@@ -319,7 +319,7 @@ test("A5: el envío con tiempo agotado es incierto: la ejecución queda fallida/
   assert.deepEqual([e!.estatus, e!.motivo_omision], ["fallido", ENVIO_INCIERTO]);
   const m = await s.db.mensaje.findUniqueOrThrow({ where: { id: e!.mensaje_id! } });
   assert.deepEqual([m.estatus, m.error], ["fallido", ENVIO_INCIERTO]);
-  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "revision_manual", estado: "pendiente" } }), 1);
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "envio_incierto", estado: "pendiente" } }), 1);
 
   // Ni otra corrida ni la recuperación lo vuelven a mandar o a contar.
   s.transporte.inciertoSi = undefined;
@@ -465,7 +465,7 @@ test("F6b: el proceso muere con el envío a medias; el barrido de recuperación 
   const m = await s.db.mensaje.findUniqueOrThrow({ where: { id: e!.mensaje_id! } });
   assert.deepEqual([m.estatus, m.error], ["fallido", ENVIO_INCIERTO]);
   const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conversacionId } });
-  assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["revision_manual", "pendiente"]]);
+  assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["envio_incierto", "pendiente"]]);
 
   // Y no vuelve a pasar nada, por más que corra el motor.
   for (const horas of [27, 50, 200]) {
@@ -543,7 +543,7 @@ test("recuperación: el mensaje `enviando` sin id (envío incierto) falla con en
   const { e, m, s } = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "enviando" });
   assert.deepEqual([e.estatus, e.motivo_omision], ["fallido", ENVIO_INCIERTO]);
   assert.deepEqual([m!.estatus, m!.error], ["fallido", ENVIO_INCIERTO]);
-  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "revision_manual", estado: "pendiente" } }), 1);
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "envio_incierto", estado: "pendiente" } }), 1);
   assert.equal(s.transporte.envios.length, 0);
 });
 
@@ -634,7 +634,7 @@ test("F1-07: sin plantilla, variables inválidas o plantilla sin cuerpo: se omit
     assert.equal(s.transporte.envios.length, 0, motivo);
     assert.equal((await s.ejecuciones())[0]!.motivo_omision, motivo);
     const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conversacionId } });
-    assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["revision_manual", "pendiente"]], motivo);
+    assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["automatizacion_omitida", "pendiente"]], motivo);
     assert.match(tareas[0]!.descripcion, new RegExp(motivo));
   }
 });
@@ -645,7 +645,7 @@ test("F1-07: dos automatizaciones mal configuradas sobre la misma conversación 
     data: { organizacion_id: s.o.organizacionId, nombre: "Otro", evento_disparador: "lead_sin_respuesta", offset_minutos: 1500 },
   });
   await s.motor(en(T0, 26));
-  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "revision_manual", estado: "pendiente" } }), 1);
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "automatizacion_omitida", estado: "pendiente" } }), 1);
 });
 
 // ---------------------------------------------------------------------------------------------

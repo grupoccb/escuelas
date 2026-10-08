@@ -114,12 +114,16 @@ async function barrerOrganizacion(
     try {
       const avisada = await db.$transaction(async (tx) => {
         const conv = await tx.conversacion.findFirst({
-          // El lead se vuelve a comprobar dentro de la transacción: pudo borrarse en medio (EA-01).
+          // El lead y el silencio se vuelven a comprobar dentro de la transacción: el lead pudo
+          // borrarse en medio (EA-01) y el contacto pudo escribir mientras se atendía a las
+          // demás conversaciones (EA-15): avisar «dejó de contestar» de quien acaba de contestar
+          // engaña al asesor.
           where: {
             id,
             estado: "bot",
             pasar_a_asesor_pendiente: false,
             visible_a_asesores_en: null,
+            ultimo_mensaje_entrante_en: { lt: corte },
             lead: { eliminado_en: null },
           },
           include: { lead: true },

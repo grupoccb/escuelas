@@ -249,7 +249,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     await asegurarTareaAsesor(db, {
       leadId: conv.lead_id,
       conversacionId: conv.id,
-      tipo: "revision_manual",
+      tipo: "automatizacion_omitida",
       descripcion: `La automatización «${e.automatizacion.nombre}» no se le mandó a este contacto (${motivo}). Revisa su configuración o escríbele tú.`,
     });
   };

@@ -162,7 +162,7 @@ test("con un asesor atendiendo, la baja se registra pero el sistema no contesta 
   const conv = await conversacionDe(conversacion);
   assert.equal(conv.estado, "en_atencion_humana");
   assert.equal(await db().consentimiento.count({ where: { telefono, estado: "opt_out" } }), 1);
-  assert.equal(await db().tarea_asesor.count({ where: { conversacion_id: conv.id, tipo: "revision_manual", estado: "pendiente" } }), 1);
+  assert.equal(await db().tarea_asesor.count({ where: { conversacion_id: conv.id, tipo: "baja_solicitada", estado: "pendiente" } }), 1);
 });
 
 test("tiempo de espera (30 min): la conversación se vuelve visible con una nota, pero NO pasa a atención humana", async () => {

@@ -169,6 +169,56 @@ test("(v) el aviso de los 30 min es idempotente: barridos repetidos o simultáne
   assert.equal(s.aperturas().length, 1);
 });
 
+test("EA-15: si el contacto contesta mientras el barrido atendía a otras, NO se avisa «dejó de contestar» (se vuelve a comprobar el silencio en la transacción)", async () => {
+  const s = await escenario();
+  const cuando = despues(31 * MIN);
+  // Carrera forzada: justo después de elegir la conversación vencida, el contacto escribe.
+  let escribio = false;
+  const raiz = conGanchos(prisma, {
+    modelo: "conversacion",
+    operacion: "findMany",
+    cuando: (args) => (args["where"] as { visible_a_asesores_en?: unknown } | undefined)?.visible_a_asesores_en === null,
+    despues: async () => {
+      if (escribio) return;
+      escribio = true;
+      await s.escribe("7", cuando);
+    },
+  });
+  const hechas = await barrerTiemposDeEspera({ prisma: raiz, mensajeria: s.proveedor(cuando), organizacionId: s.o.organizacionId, reloj: () => cuando });
+  assert.equal(escribio, true);
+  assert.equal(hechas, 0, "acaba de contestar: no se avisa");
+  assert.equal(s.notas().length, 0);
+  assert.equal(s.aperturas().length, 0);
+  const conv = await s.conv();
+  assert.equal(conv.visible_a_asesores_en, null);
+  assert.equal(conv.estado, "bot");
+});
+
+test("EA-06: si falla la NOTA del aviso de 30 min, la conversación sigue siendo del bot (no pasa a humano), se abre igual y queda una tarea", async () => {
+  for (const modo of ["definitivo", "incierto"] as const) {
+    const s = await escenario();
+    if (modo === "definitivo") s.transporte.fallarSi = (e) => e.tipo === "nota_interna";
+    else s.transporte.inciertoSi = (e) => e.tipo === "nota_interna";
+    assert.equal(await s.barrer(despues(31 * MIN)), 1, modo);
+
+    const conv = await s.conv();
+    assert.equal(conv.estado, "bot", `${modo}: visible no es atendido, y una nota fallida tampoco lo vuelve atendido`);
+    assert.equal(conv.pasar_a_asesor_pendiente, false, modo);
+    assert.ok(conv.visible_a_asesores_en && conv.abierta_para_asesores_en, `${modo}: aun así se abre para los asesores`);
+    assert.equal(await s.db.interaccion.count({ where: { conversacion_id: conv.id, tipo: "pase_a_asesor" } }), 0, modo);
+    const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: conv.id } });
+    assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["nota_fallida", "pendiente"]], modo);
+    assert.match(tareas[0]!.descripcion, /nota interna/);
+
+    // El bot sigue atendiendo si el contacto vuelve.
+    s.transporte.fallarSi = undefined;
+    s.transporte.inciertoSi = undefined;
+    const r = await s.escribe("7", despues(40 * MIN));
+    assert.equal(r.resultado, "procesado", modo);
+    assert.equal((await s.conv()).paso_captacion, "sucursal", modo);
+  }
+});
+
 test("abrirParaAsesores no abre una conversación que ya no es del bot (A3m)", async () => {
   const s = await escenario();
   const conv = await s.conv();

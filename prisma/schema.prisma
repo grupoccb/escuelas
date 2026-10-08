@@ -653,11 +653,21 @@ model automatizacion_ejecucion {
 
 enum tipo_tarea_asesor {
   sin_plantilla_apta
+  /// Genérico y heredado de la noche 1. Lo nuevo usa un tipo por causa (EA-14): una tarea pendiente
+  /// de una causa no se traga el aviso de otra.
   revision_manual
   /// Alguien dado de baja volvió a escribir. El sistema no contesta; una persona decide (A4).
   baja_volvio_a_escribir
   /// Un evento de entrega marcó un mensaje como fallido (A5). Una por mensaje, con el código de error.
   entrega_fallida
+  /// Un mensaje al contacto quedó a medias y no se sabe si salió (envío incierto). No se reenvía.
+  envio_incierto
+  /// Una automatización no se le mandó al contacto por un problema de configuración o de datos.
+  automatizacion_omitida
+  /// El contacto pidió la baja mientras lo atendía una persona: el sistema no contesta, la persona confirma.
+  baja_solicitada
+  /// No se pudo publicar una nota interna para los asesores (p. ej. el resumen del aviso de 30 min).
+  nota_fallida
 }
 
 enum estado_tarea_asesor {

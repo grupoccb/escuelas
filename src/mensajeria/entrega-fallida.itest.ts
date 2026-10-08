@@ -336,7 +336,7 @@ test("tiempo agotado con el mensaje ya creado: queda como envío incierto, con t
   assert.deepEqual([m.estatus, m.error, m.id_externo], ["fallido", ENVIO_INCIERTO, null]);
   assert.deepEqual(resumen.resultados, [{ mensajeId: m.id, resultado: "fallido", motivo: ENVIO_INCIERTO }]);
   assert.equal(transporte.envios.filter((e) => e.tipo === "mensaje").length, 1);
-  const tareas = await db().tarea_asesor.findMany({ where: { conversacion_id: conv.id, tipo: "revision_manual" } });
+  const tareas = await db().tarea_asesor.findMany({ where: { conversacion_id: conv.id, tipo: "envio_incierto" } });
   assert.equal(tareas.length, 1);
   assert.match(tareas[0]!.descripcion, /no se sabe si salió/);
   // La conversación pasa a un asesor.
@@ -346,7 +346,7 @@ test("tiempo agotado con el mensaje ya creado: queda como envío incierto, con t
   await provider.despachar(db(), conv.id);
   assert.equal(await provider.recuperarEnviosInciertos(db(), { desde: new Date(Date.now() + HORA) }), 0);
   assert.equal(transporte.envios.filter((e) => e.tipo === "mensaje").length, 1);
-  assert.equal(await db().tarea_asesor.count({ where: { conversacion_id: conv.id, tipo: "revision_manual" } }), 1);
+  assert.equal(await db().tarea_asesor.count({ where: { conversacion_id: conv.id, tipo: "envio_incierto" } }), 1);
 });
 
 test("un fallo definitivo (no se pudo contactar al proveedor) NO es incierto: fallido con su error, sin tarea de revisión", async () => {
