@@ -21,7 +21,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B5 | HECHO | 08fc9eb | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
 | B6 | HECHO | c73d7b9 | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
 | B-fix | HECHO (6 pendientes, 1 decisión) | 25616f5…6a19fad | Correcciones de la auditoría de la etapa B (`docs/auditorias/etapa-B.md`): ver la sección «Correcciones de la auditoría de la etapa B» |
-| C1 | PENDIENTE | | Instructores y salones |
+| C1 | HECHO | ver sección | Instructores y salones: tabla `salon`, `grupo.salon_id`, choques de salón e instructor (función pura + API 409 + disparadores en la base) |
 | C2 | PENDIENTE | | Precios versionados |
 | C3 | PENDIENTE | | Promociones |
 | C4 | PENDIENTE | | Catálogo de las tres verticales |
@@ -682,3 +682,29 @@ Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe 
 - **Decisiones del informe sin cerrar:** 2FA / reautenticación para crear administradores y cambiar roles (EB-02), tope por cuenta del login (EB-03), retención de los registros solo de anexar (EB-19), qué pasa al dar de baja una organización (sus sesiones ya mueren), contraseñas de la demo y política (EB-20), varias réplicas (el límite vive en memoria), ratificar las excepciones de `sistema.ts` al invariante 1.
 - **Cambios de contrato a tener en cuenta (interfaz J1):** una ruta desconocida de `/api` da 401 sin sesión; la cookie segura se llama `__Host-sesion`; `PATCH /api/usuarios/:id` ya no acepta `contrasena` sobre uno mismo.
 - **Un fallo no reproducido:** en la primera corrida de `test:int` contra una base nueva falló una vez el login de un test de `chatwoot.itest.ts` (404 donde esperaba 201); no se reprodujo en 25 corridas del archivo ni en dos de la suite completa. Si reaparece, mirar primero el reuso de puertos entre servidores de prueba consecutivos.
+
+## C1. Instructores y salones
+
+**Qué se hizo**
+- **Migración `20261011000000_instructores_y_salones`:** tabla `salon` (sucursal, nombre único por sucursal viva, capacidad opcional); `instructor` gana `telefono` y `correo`; tabla `instructor_sucursal` (dónde da clases; vacío = sin restricción); `grupo.salon` (texto) se reemplaza por `grupo.salon_id` (FK compuesta). **Los textos existentes se migran sin perder datos:** una fila de `salon` por (sucursal del programa, texto sin espacios en los extremos), incluidos los grupos dados de baja; un texto vacío queda «sin salón»; la migración falla (y no pierde nada) si algún grupo con texto quedara sin `salon_id`. Probada de tres formas: sobre una copia de la base de la demo (9 grupos → 2 salones, 9 con salón), sobre una base descartable con casos feos (espacios, vacíos, un grupo dado de baja, el mismo nombre en dos sucursales, un choque heredado: `migracion-salones.itest.ts`) y sobre base vacía (`test:int`).
+- **Choques, tres capas.** (1) `src/catalogo/choques.ts`: `detectarChoques` / `choquesDe` PURAS (mismo día, `inicio < fin ajeno` y `fin > inicio ajeno`; terminar cuando empieza la otra NO choca; salón o instructor, éste también entre sucursales) más `choquesDeGrupo` (consulta). (2) La API (`POST/PATCH /api/grupos`, `docs/API.md`) los revisa y responde `409 conflicto` con el detalle de qué se pisa con qué; toda escritura de ocupación va bajo un candado por organización, así que dos asignaciones simultáneas que chocan se serializan y gana una. (3) Disparadores en la base (`grupo_choques_trg`, `grupo_horario_choques_trg`, error `choque_de_ocupacion` con SQLSTATE 23P01) que toman un candado consultivo por salón e instructor y revisan: la red de seguridad si algo escribe sin la API (un seed, un script).
+- **Verificación 3 del insumo** (`src/catalogo/verificacion.ts`) reescrita sobre `salon` (no texto), más `choquesDeInstructor`. Los tests puros usan nombres neutros.
+- **API:** `GET/POST/PATCH/DELETE` de `/api/salones` y `/api/instructores`, y escritura de `/api/grupos` (alta, cambio —salón, instructor, horarios que REEMPLAZAN el conjunto, cupo, activo— y baja). Lectura `catalogo:leer` (cada rol ve lo de su sucursal; el maestro ve donde da clases y solo se ve a sí mismo como instructor); escritura `catalogo:escribir` (administrador). Validan: el salón es de la sucursal del programa (también un disparador), el instructor da clases en esa sucursal, las franjas de un grupo no se pisan entre sí, el teléfono pasa por `normalizarTelefono()`, `usuario_id` solo de un maestro y único. Bajas lógicas con 409 si algo vivo depende. `registrarCambio` en todo (`salon`, `instructor`, `grupo`).
+- **Semillas:** `catalogo.sql` crea los salones «Dojo» con ids (531, 532, capacidad `[SUPUESTO]`) y los grupos referencian `salon_id`; el instructor de la demo se acota a la primera vertical.
+
+**Verificación**
+- `npm run validar` → exit 0; `npm run test:int` → exit 0 (conteos finales en la sección de cierre de la etapa C).
+- Tests nuevos: `choques.test.ts` (5, puros), `catalogo.test.ts` (reescrito + instructor), `ocupacion.itest.ts` (16: permisos por rol, alcance, no-fuga, validaciones, choques de salón e instructor con detalle, contiguos/otro día/inactivo, horarios que reemplazan, registro de cambios, **carrera de 2 y de 8 peticiones simultáneas** y dos transacciones directas contra los disparadores), `migracion-salones.itest.ts`.
+- Mutaciones atrapadas (una por una): traslape con `<=` (contiguas), quitar el candado de la API (la carrera se rompe: el perdedor ya no trae detalle), quitar la revisión previa, quitar la validación de sucursal del salón, no normalizar el teléfono, cambiar el orden de los tres tiempos de los horarios; y, sobre una base creada con la migración MUTADA, quitar los dos `pg_advisory_xact_lock` de los disparadores: el test de dos transacciones directas falla (entran las dos).
+
+**Decisiones que tomé**
+- *Restricción de exclusión con `btree_gist`: descartada, con razón.* Una exclusión mira una sola tabla y aquí el salón/instructor viven en `grupo` y las franjas en `grupo_horario`. Alternativa: tabla sombra mantenida por disparadores + exclusión (más piezas que sincronizar). Elegí disparadores de verificación con candado consultivo (READ COMMITTED: tras esperar el candado, la consulta ve lo confirmado por quien lo tenía) y el mismo candado en la API para dar el detalle. Para C2 (precios) sí aplica la exclusión, porque es una sola tabla.
+- *Candado por organización (`catalogo:ocupacion`) en las escrituras de ocupación:* serializa la edición del catálogo, que es rara y de un administrador; alternativa descartada: candado por salón/instructor (hay que tomar varios en orden fijo y el costo de complejidad no se paga).
+- *Los horarios se cambian en tres tiempos* (quitar, actualizar el grupo, crear) porque los disparadores revisan cada escritura y un orden ingenuo da choques falsos con el salón o instructor viejo/nuevo.
+- *Los disparadores se crean después de migrar los datos:* una base con choques heredados migra igual y la verificación los reporta.
+- *Un instructor sin sucursales = sin restricción* (igual que el alcance vacío de las promociones).
+- *Las bajas de programas, verticales y sucursales y el alta de programas* quedan para J7: aquí solo lo que C1 pide (instructores, salones y la asignación en grupos).
+
+**Para Eduardo**
+- **[SUPUESTO]** capacidad de los salones «Dojo» (24) del seed; los salones de las otras verticales llegan con C4. Todo editable por la API.
+- Un salón o instructor que hoy tiene dos grupos que se pisan (si los hubiera en la base real) migra sin error y aparece en la verificación 3; hay que corregirlo a mano antes de poder editar esos grupos.

@@ -26,9 +26,19 @@ JOIN sucursal s ON s.organizacion_id = '00000000-0000-4000-8000-000000000001' AN
 JOIN vertical v ON v.organizacion_id = '00000000-0000-4000-8000-000000000001' AND v.slug = 'karate' AND v.eliminado_en IS NULL
 ON CONFLICT DO NOTHING;
 
+-- ── SALONES (C1): uno por sucursal. «Dojo» es el nombre que dio la escuela; la capacidad es [SUPUESTO]. ──
+INSERT INTO salon (id, organizacion_id, sucursal_id, nombre, capacidad, activo)
+SELECT s_.id_salon::uuid, '00000000-0000-4000-8000-000000000001', s.id, s_.nombre, s_.capacidad, true
+FROM (VALUES
+  ('00000000-0000-4000-8000-000000000531', 'Águilas',    'Dojo', 24),
+  ('00000000-0000-4000-8000-000000000532', 'Centenario', 'Dojo', 24)
+) AS s_(id_salon, sucursal, nombre, capacidad)
+JOIN sucursal s ON s.organizacion_id = '00000000-0000-4000-8000-000000000001' AND s.nombre = s_.sucursal AND s.eliminado_en IS NULL
+ON CONFLICT DO NOTHING;
+
 -- ── GRUPOS: cada uno es una opción de horario ("Lun-Mié O Mar-Jue" son DOS grupos) ─────────
-INSERT INTO grupo (organizacion_id, programa_id, nombre, salon, cupo_maximo, permite_lista_espera, activo)
-SELECT '00000000-0000-4000-8000-000000000001', pr.id, g.nombre, g.salon, g.cupo, true, true
+INSERT INTO grupo (organizacion_id, programa_id, nombre, salon_id, cupo_maximo, permite_lista_espera, activo)
+SELECT '00000000-0000-4000-8000-000000000001', pr.id, g.nombre, sa.id, g.cupo, true, true
 FROM (VALUES
   ('Águilas',    'Karate Infantil 3-5',  'Lun-Mié 4:00 pm', 'Dojo', 12),
   ('Águilas',    'Karate Infantil 3-5',  'Mar-Jue 4:00 pm', 'Dojo', 12),
@@ -42,6 +52,7 @@ FROM (VALUES
 ) AS g(sucursal, programa, nombre, salon, cupo)
 JOIN sucursal s  ON s.organizacion_id = '00000000-0000-4000-8000-000000000001' AND s.nombre = g.sucursal AND s.eliminado_en IS NULL
 JOIN programa pr ON pr.organizacion_id = '00000000-0000-4000-8000-000000000001' AND pr.sucursal_id = s.id AND pr.nombre = g.programa AND pr.eliminado_en IS NULL
+JOIN salon sa    ON sa.organizacion_id = '00000000-0000-4000-8000-000000000001' AND sa.sucursal_id = s.id AND sa.nombre = g.salon AND sa.eliminado_en IS NULL
 ON CONFLICT DO NOTHING;
 
 -- ── HORARIOS (hora_inicio, hora_fin) en minutos desde la medianoche ───────────────────────
@@ -79,11 +90,13 @@ JOIN programa pr ON pr.organizacion_id = '00000000-0000-4000-8000-000000000001' 
 JOIN grupo gr    ON gr.organizacion_id = '00000000-0000-4000-8000-000000000001' AND gr.programa_id = pr.id AND gr.nombre = h.grupo AND gr.eliminado_en IS NULL
 ON CONFLICT DO NOTHING;
 
--- Instructor de la demo (B2): imparte los grupos de Lun-Mié (2 de los 9). Los demás quedan sin
--- instructor, para ver que un maestro solo ve los suyos. [SUPUESTO] editable desde administración.
+-- Instructor de la demo (B2): imparte los grupos de Lun-Mié de la primera vertical (2 de los 9). Los demás
+-- quedan sin instructor, para ver que un maestro solo ve los suyos. [SUPUESTO] editable desde administración.
+-- (Acotado a la primera vertical: catalogo-completo.sql agrega grupos de Lun-Mié de otras verticales.)
 UPDATE grupo SET instructor_id = '00000000-0000-4000-8000-000000000521'
 WHERE organizacion_id = '00000000-0000-4000-8000-000000000001'
   AND instructor_id IS NULL
   AND nombre LIKE 'Lun-Mié%'
   AND eliminado_en IS NULL
+  AND programa_id IN (SELECT id FROM programa WHERE organizacion_id = '00000000-0000-4000-8000-000000000001' AND vertical_id = '00000000-0000-4000-8000-000000000101')
   AND EXISTS (SELECT 1 FROM instructor i WHERE i.id = '00000000-0000-4000-8000-000000000521' AND i.organizacion_id = '00000000-0000-4000-8000-000000000001');

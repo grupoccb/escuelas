@@ -26,6 +26,21 @@ export async function alcanceDeSucursales(db: BaseDatos, usuario: Pick<UsuarioDe
 }
 
 /**
+ * Sucursales cuyo CATÁLOGO ve el usuario (salones, instructores, precios, promociones). Administrador:
+ * todas. Asesor y recepción: las suyas (`usuario_sucursal`). Maestro: las de los programas de sus
+ * grupos (no tiene sucursales asignadas; ve la oferta donde da clases).
+ */
+export async function alcanceDeCatalogo(db: BaseDatos, usuario: Pick<UsuarioDeSesion, "id" | "rol">): Promise<AlcanceDeSucursales> {
+  if (usuario.rol === "administrador") return { todas: true };
+  if (usuario.rol !== "maestro") return alcanceDeSucursales(db, usuario);
+  const grupos = await db.grupo.findMany({
+    where: { instructor: { usuario_id: usuario.id, eliminado_en: null } },
+    select: { programa: { select: { sucursal_id: true } } },
+  });
+  return { todas: false, sucursalIds: [...new Set(grupos.map((g) => g.programa.sucursal_id))].sort() };
+}
+
+/**
  * Condición de Prisma sobre una columna de sucursal (`sucursal_interes_id`, `sucursal_id`…); `undefined`
  * (sin restricción) para el administrador. Una fila SIN sucursal (un lead que aún no la elige) no
  * cae dentro de ningún `in`: solo la ve el administrador (mínimo privilegio; decisión documentada en

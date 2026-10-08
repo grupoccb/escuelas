@@ -21,6 +21,9 @@ export { esCampoProhibidoEnRegistro };
 export const CAMPOS_AUDITABLES = {
   usuario: ["nombre", "rol", "activo", "sucursales", "chatwoot_agent_id"],
   tarea_asesor: ["estado", "resuelta_en"],
+  salon: ["sucursal_id", "nombre", "capacidad", "activo"],
+  instructor: ["nombre", "telefono", "correo", "activo", "usuario_id", "sucursales"],
+  grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type EntidadAuditable = keyof typeof CAMPOS_AUDITABLES;

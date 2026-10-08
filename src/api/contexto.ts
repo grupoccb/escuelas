@@ -10,7 +10,7 @@ import type { UsuarioDeSesion } from "../auth/sesiones.ts";
 import { normalizarIp } from "../http/ip.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
-import { alcanceDeSucursales, type AlcanceDeSucursales } from "./alcance.ts";
+import { alcanceDeCatalogo, alcanceDeSucursales, type AlcanceDeSucursales } from "./alcance.ts";
 
 /** Dependencias de la API ya resueltas (con sus valores por defecto). */
 export interface DepsApi {
@@ -35,6 +35,8 @@ export interface ContextoApi {
   ahora(): Date;
   /** Sucursales que ve el usuario (se consulta una vez por petición). */
   alcance(): Promise<AlcanceDeSucursales>;
+  /** Sucursales cuyo catálogo ve el usuario (el maestro ve donde da clases). Una consulta por petición. */
+  alcanceCatalogo(): Promise<AlcanceDeSucursales>;
   /**
    * ¿La ruta declaró su acceso (`requierePermiso` o `soloSesion`)? Mientras no, `contextoDe` se niega
    * a entregar el contexto: una ruta sin declaración falla con 500 en vez de operar (EB-09).
@@ -47,6 +49,7 @@ const LLAVE = "contexto";
 export function fijarContexto(res: Response, req: Request, deps: DepsApi, usuario: UsuarioDeSesion, sesionId: string): ContextoApi {
   const db = conAlcance(deps.prisma, usuario.organizacionId);
   let alcance: Promise<AlcanceDeSucursales> | undefined;
+  let alcanceCatalogo: Promise<AlcanceDeSucursales> | undefined;
   const ctx: ContextoApi = {
     usuario,
     sesionId,
@@ -55,6 +58,7 @@ export function fijarContexto(res: Response, req: Request, deps: DepsApi, usuari
     ip: normalizarIp(req.ip),
     ahora: deps.reloj,
     alcance: () => (alcance ??= alcanceDeSucursales(db, usuario)),
+    alcanceCatalogo: () => (alcanceCatalogo ??= alcanceDeCatalogo(db, usuario)),
     accesoDeclarado: false,
   };
   res.locals[LLAVE] = ctx;

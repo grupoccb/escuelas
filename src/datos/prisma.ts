@@ -35,6 +35,14 @@ export function clienteSinAlcance(raiz: PrismaRaiz): PrismaClient {
   return raiz as unknown as PrismaClient;
 }
 
+/**
+ * ¿La base rechazó el cambio por un choque de salón o instructor? (disparadores de C1, SQLSTATE 23P01,
+ * mensaje «choque_de_ocupacion: …»). Prisma lo envuelve con códigos que varían, así que se mira el texto.
+ */
+export function esChoqueDeOcupacion(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("choque_de_ocupacion");
+}
+
 /** Código de Prisma para violación de índice único. */
 export function esViolacionUnica(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2002";

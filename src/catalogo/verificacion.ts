@@ -2,10 +2,12 @@
 // catálogo cargado por el scope de organización (nunca SQL crudo fuera de src/datos/):
 //   1. traslapes de edad dentro de una misma vertical y sucursal (debe dar CERO);
 //   2. resumen de capacidad por sucursal y vertical;
-//   3. choques de salón (debe dar CERO).
+//   3. choques de salón (debe dar CERO) —ahora con la tabla `salon` (C1), no con texto— y, de paso,
+//      choques de instructor.
 // Las consultas son puras: reciben el catálogo ya cargado.
 
 import type { Consultas } from "../datos/alcance.ts";
+import { detectarChoques, type OcupacionDeGrupo } from "./choques.ts";
 
 export interface ProgramaCatalogo {
   id: string;
@@ -19,8 +21,15 @@ export interface GrupoCatalogo {
   id: string;
   nombre: string;
   programaId: string;
-  salon: string | null;
+  salonId: string | null;
+  instructorId: string | null;
   cupoMaximo: number;
+  /** Solo los grupos activos ocupan salón e instructor; por omisión se supone activo. */
+  activo?: boolean;
+}
+export interface SalonCatalogo {
+  nombre: string;
+  sucursalId: string;
 }
 export interface HorarioCatalogo {
   grupoId: string;
@@ -32,15 +41,17 @@ export interface Catalogo {
   programas: ProgramaCatalogo[];
   grupos: GrupoCatalogo[];
   horarios: HorarioCatalogo[];
+  salones: Map<string, SalonCatalogo>;
   sucursales: Map<string, string>;
   verticales: Map<string, string>;
 }
 
 export async function cargarCatalogo(db: Consultas): Promise<Catalogo> {
-  const [programas, grupos, horarios, sucursales, verticales] = await Promise.all([
+  const [programas, grupos, horarios, salones, sucursales, verticales] = await Promise.all([
     db.programa.findMany(),
     db.grupo.findMany(),
     db.grupo_horario.findMany(),
+    db.salon.findMany({ select: { id: true, nombre: true, sucursal_id: true } }),
     db.sucursal.findMany({ select: { id: true, nombre: true } }),
     db.vertical.findMany({ select: { id: true, nombre: true } }),
   ]);
@@ -53,8 +64,9 @@ export async function cargarCatalogo(db: Consultas): Promise<Catalogo> {
       edadMin: p.edad_min,
       edadMax: p.edad_max,
     })),
-    grupos: grupos.map((g) => ({ id: g.id, nombre: g.nombre, programaId: g.programa_id, salon: g.salon, cupoMaximo: g.cupo_maximo })),
+    grupos: grupos.map((g) => ({ id: g.id, nombre: g.nombre, programaId: g.programa_id, salonId: g.salon_id, instructorId: g.instructor_id, cupoMaximo: g.cupo_maximo, activo: g.activo })),
     horarios: horarios.map((h) => ({ grupoId: h.grupo_id, dia: h.dia_semana, inicioMin: h.hora_inicio_min, finMin: h.hora_fin_min })),
+    salones: new Map(salones.map((s) => [s.id, { nombre: s.nombre, sucursalId: s.sucursal_id }])),
     sucursales: new Map(sucursales.map((s) => [s.id, s.nombre])),
     verticales: new Map(verticales.map((v) => [v.id, v.nombre])),
   };
@@ -130,7 +142,7 @@ export function resumenDeCapacidad(c: Catalogo): ResumenCapacidad[] {
     .sort((a, b) => alfabetico(a.sucursal, b.sucursal) || alfabetico(a.vertical, b.vertical));
 }
 
-// ── 3. Choques de salón ─────────────────────────────────────────────────────────────────
+// ── 3. Choques de salón (y de instructor) ─────────────────────────────────────────────
 
 export interface ChoqueDeSalon {
   sucursal: string;
@@ -140,24 +152,36 @@ export interface ChoqueDeSalon {
   grupoB: string;
 }
 
-/** Dos grupos distintos en el mismo salón de la misma sucursal, el mismo día y a horas que se pisan. */
+export interface ChoqueDeInstructor {
+  instructorId: string;
+  dia: number;
+  grupoA: string;
+  grupoB: string;
+}
+
+function ocupaciones(c: Catalogo): OcupacionDeGrupo[] {
+  const franjas = new Map<string, { dia: number; inicioMin: number; finMin: number }[]>();
+  for (const h of c.horarios) (franjas.get(h.grupoId) ?? franjas.set(h.grupoId, []).get(h.grupoId)!).push({ dia: h.dia, inicioMin: h.inicioMin, finMin: h.finMin });
+  return c.grupos
+    .filter((g) => g.activo !== false)
+    .map((g) => ({ grupoId: g.id, grupoNombre: g.nombre, salonId: g.salonId, instructorId: g.instructorId, franjas: franjas.get(g.id) ?? [] }));
+}
+
+/** Dos grupos distintos en el mismo salón, el mismo día y a horas que se pisan (sobre la tabla `salon`). */
 export function choquesDeSalon(c: Catalogo): ChoqueDeSalon[] {
-  const programa = new Map(c.programas.map((p) => [p.id, p]));
-  const grupos = new Map(c.grupos.map((g) => [g.id, g]));
-  const salida: ChoqueDeSalon[] = [];
-  for (const h1 of c.horarios) {
-    for (const h2 of c.horarios) {
-      if (h1.grupoId >= h2.grupoId || h1.dia !== h2.dia) continue;
-      const a = grupos.get(h1.grupoId);
-      const b = grupos.get(h2.grupoId);
-      if (!a || !b || a.salon === null || a.salon !== b.salon) continue;
-      const pa = programa.get(a.programaId);
-      const pb = programa.get(b.programaId);
-      if (!pa || !pb || pa.sucursalId !== pb.sucursalId) continue;
-      if (h1.inicioMin < h2.finMin && h2.inicioMin < h1.finMin) {
-        salida.push({ sucursal: c.sucursales.get(pa.sucursalId) ?? pa.sucursalId, salon: a.salon, dia: h1.dia, grupoA: a.nombre, grupoB: b.nombre });
-      }
-    }
-  }
-  return salida.sort((x, y) => alfabetico(x.sucursal, y.sucursal) || x.dia - y.dia || alfabetico(x.grupoA, y.grupoA));
+  return detectarChoques(ocupaciones(c))
+    .filter((x) => x.tipo === "salon")
+    .map((x) => {
+      const salon = c.salones.get(x.recursoId);
+      return { sucursal: salon ? (c.sucursales.get(salon.sucursalId) ?? salon.sucursalId) : "", salon: salon?.nombre ?? x.recursoId, dia: x.dia, grupoA: x.grupoNombre, grupoB: x.otroGrupoNombre };
+    })
+    .sort((x, y) => alfabetico(x.sucursal, y.sucursal) || x.dia - y.dia || alfabetico(x.grupoA, y.grupoA));
+}
+
+/** Un mismo instructor en dos grupos a la vez (aunque sean de sucursales distintas). */
+export function choquesDeInstructor(c: Catalogo): ChoqueDeInstructor[] {
+  return detectarChoques(ocupaciones(c))
+    .filter((x) => x.tipo === "instructor")
+    .map((x) => ({ instructorId: x.recursoId, dia: x.dia, grupoA: x.grupoNombre, grupoB: x.otroGrupoNombre }))
+    .sort((x, y) => x.dia - y.dia || alfabetico(x.grupoA, y.grupoA));
 }

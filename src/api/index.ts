@@ -25,6 +25,8 @@ import { origenesPermitidosDesdeEntorno, proteccionCsrf } from "./csrf.ts";
 import { noEncontrado } from "./errores.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeGrupos } from "./rutas/grupos.ts";
+import { rutasDeInstructores } from "./rutas/instructores.ts";
+import { rutasDeSalones } from "./rutas/salones.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
@@ -88,6 +90,8 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeSesionPropia(deps));
   api.use(rutasDeUsuarios(deps));
   api.use(rutasDeGrupos(deps));
+  api.use(rutasDeSalones(deps));
+  api.use(rutasDeInstructores(deps));
   api.use(rutasDeTareas(deps));
   api.use(rutasDeLeads(deps));
   api.use(rutasDeConversaciones(deps));

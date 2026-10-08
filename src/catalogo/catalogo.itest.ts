@@ -81,13 +81,21 @@ test("las verificaciones sí detectan un catálogo mal armado (control negativo)
   const a = await p("A", norte.id, 3, 6);
   const b = await p("B", norte.id, 6, 13); // traslapa con A en la edad 6
   await p("C", sur.id, 3, 6); // misma edad pero otra sucursal: no traslapa
+  const salon = await prisma.salon.create({ data: { organizacion_id: o.organizacionId, sucursal_id: norte.id, nombre: "Salón" } });
   const g = (programa: string, nombre: string) =>
-    prisma.grupo.create({ data: { organizacion_id: o.organizacionId, programa_id: programa, nombre, salon: "Salón", cupo_maximo: 10 } });
+    prisma.grupo.create({ data: { organizacion_id: o.organizacionId, programa_id: programa, nombre, salon_id: salon.id, cupo_maximo: 10 } });
   const g1 = await g(a.id, "G1");
   const g2 = await g(b.id, "G2");
-  for (const grupo of [g1, g2]) {
-    await prisma.grupo_horario.create({ data: { organizacion_id: o.organizacionId, grupo_id: grupo.id, dia_semana: 2, hora_inicio_min: 960, hora_fin_min: 1020 } });
-  }
+  const horario = (grupoId: string) => ({ data: { organizacion_id: o.organizacionId, grupo_id: grupoId, dia_semana: 2, hora_inicio_min: 960, hora_fin_min: 1020 } });
+  await prisma.grupo_horario.create(horario(g1.id));
+  // La base ya NO deja armar este choque (disparador de C1)...
+  await assert.rejects(prisma.grupo_horario.create(horario(g2.id)), /choque_de_ocupacion/);
+  // ...así que, para probar que la verificación lo detecta en datos HEREDADOS, se inserta saltándose los disparadores
+  // (solo dentro de esta transacción: `SET LOCAL` se revierte solo).
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    await tx.grupo_horario.create(horario(g2.id));
+  });
   const c = await cargarCatalogo(conAlcance(prisma, o.organizacionId));
   assert.equal(traslapesDeEdad(c).length, 1);
   assert.equal(choquesDeSalon(c).length, 1);

@@ -37,6 +37,11 @@ un parámetro repetido es un error.
 **Alcance.** Administrador: toda la organización. Asesor y recepción: sus sucursales (`usuario_sucursal`). Maestro: los grupos de su instructor.
 Una fila sin sucursal (lead que aún no la elige) solo la ve el administrador.
 
+**Catálogo (C1 en adelante).** Lectura: `catalogo:leer` (todos los roles; cada uno ve lo de su alcance de sucursal, el maestro la de sus grupos); escritura: `catalogo:escribir` (administrador).
+La baja de un recurso del catálogo es lógica y se rechaza con 409 mientras algo vivo dependa de él.
+**Choques de salón e instructor.** Dos grupos activos con el mismo salón, o el mismo instructor (aunque sea en otra sucursal), en franjas que se traslapan (mismo día, `inicio < fin` ajeno y `fin > inicio` ajeno; terminar justo cuando empieza la otra NO choca) → `409 conflicto` con `detalles: [{campo: "salon_id"|"instructor_id", mensaje: "El salón ya está ocupado por el grupo «X» el martes de 16:30 a 17:30 (se traslapa con 17:00–18:00)"}]`.
+Lo calcula `src/catalogo/choques.ts` (`detectarChoques` pura + `choquesDeGrupo` con consulta). La base lo impone también con disparadores (`choque_de_ocupacion`, SQLSTATE 23P01) que toman un candado consultivo por salón e instructor: una restricción de exclusión (`btree_gist`) no sirve porque salón e instructor viven en `grupo` y las franjas en `grupo_horario`, y una exclusión mira una sola tabla.
+
 **Registro de cambios.** Cada escritura **de la API** deja en `registro_cambio` quién, qué y antes/después (solo campos de la lista blanca; nunca contraseñas ni salud),
 en la misma transacción. Queda fuera lo que no lo hace una persona con sesión: los procesos del sistema (el barrido, los webhooks de Chatwoot y de Twilio, p. ej. las asignaciones de
 conversación) —el registro exige `usuario_id`—, la creación del `instructor` al promover a un maestro, y los inicios y cierres de sesión (esos solo van al log).
@@ -88,7 +93,14 @@ Con `NODE_ENV=production` y sin valor, el backend loguea una alerta fuerte (`tru
 | `GET /api/usuarios?rol=&activo=` | `usuarios:administrar` | Lista |
 | `POST /api/usuarios` `{correo, nombre, rol, contrasena, sucursales?}` | `usuarios:administrar` | Alta (409 si el correo existe) |
 | `PATCH /api/usuarios/:id` `{nombre?, rol?, activo?, contrasena?, sucursales?}` | `usuarios:administrar` | Cambia; cierra sesiones si desactiva, cambia el rol o la contraseña. `contrasena` solo sirve para restablecer la de OTRA persona (sin la actual); la propia se cambia con `POST /api/yo/contrasena` (400 si se intenta aquí). Desactivar suelta el agente de Chatwoot |
-| `GET /api/grupos?programa_id=&sucursal_id=` | `grupos:leer` | Grupos con programa y horarios (el maestro, solo los suyos) |
+| `GET /api/grupos?programa_id=&sucursal_id=` | `grupos:leer` | Grupos con programa, salón, instructor y horarios (el maestro, solo los suyos) |
+| `POST /api/grupos` `{programa_id, nombre, cupo_maximo, permite_lista_espera?, salon_id?, instructor_id?, horarios?, activo?}` | `catalogo:escribir` | Alta. Revisa choques (409 con detalle). Salón de la sucursal del programa; instructor que dé clases ahí |
+| `PATCH /api/grupos/:id` `{nombre?, cupo_maximo?, permite_lista_espera?, salon_id?\|null, instructor_id?\|null, horarios?, activo?}` | `catalogo:escribir` | Cambia. `horarios` REEMPLAZA el conjunto (`[{dia_semana 0-6, hora_inicio_min, hora_fin_min}]`). Bajo candado: dos asignaciones simultáneas que chocan, gana una |
+| `DELETE /api/grupos/:id` | `catalogo:escribir` | Baja lógica (también de sus horarios) |
+| `GET /api/salones?sucursal_id=&activo=` · `GET /api/salones/:id` | `catalogo:leer` | Salones; cada rol ve los de su alcance (el maestro, los de donde da clases) |
+| `POST /api/salones` `{sucursal_id, nombre, capacidad?, activo?}` · `PATCH /api/salones/:id` `{nombre?, capacidad?\|null, activo?}` · `DELETE /api/salones/:id` | `catalogo:escribir` | Alta, cambio y baja lógica (409 si un grupo vivo lo usa). Nombre único por sucursal |
+| `GET /api/instructores?sucursal_id=&activo=` · `GET /api/instructores/:id` | `catalogo:leer` | Instructores con sus sucursales; el maestro solo se ve a sí mismo; asesor y recepción, los de sus sucursales y los sin restricción |
+| `POST /api/instructores` `{nombre, telefono?, correo?, sucursales?, usuario_id?, activo?}` · `PATCH /api/instructores/:id` · `DELETE /api/instructores/:id` | `catalogo:escribir` | Teléfono normalizado (+521 → +52); `usuario_id` solo de un maestro y único; no se da de baja, desactiva ni se le quita la sucursal mientras da grupos (409) |
 | `GET /api/tareas?estado=&tipo=` | `tareas:leer` | Tareas para el asesor |
 | `PATCH /api/tareas/:id` `{estado: hecha\|descartada}` | `tareas:resolver` | Resuelve (409 si ya estaba resuelta) |
 | `GET /api/leads?etapa_id=&sucursal_id=&telefono=` | `leads:leer` | Lista (el teléfono se normaliza) |

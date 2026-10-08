@@ -68,6 +68,8 @@ model organizacion {
   registros_cambio           registro_cambio[]
   fichas_salud               ficha_salud[]
   accesos_dato_sensible      acceso_dato_sensible[]
+  salones                    salon[]
+  instructores_sucursales    instructor_sucursal[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -138,6 +140,8 @@ model sucursal {
   automatizaciones    automatizacion[]
   programas           programa[]
   usuarioSucursals    usuario_sucursal[]
+  salones             salon[]
+  instructores        instructor_sucursal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -846,7 +850,9 @@ model grupo {
   organizacion_id      String    @db.Uuid
   programa_id          String    @db.Uuid
   nombre               String
-  salon                String?
+  /// Salón donde se imparte (de la MISMA sucursal que el programa: lo garantiza un disparador). Dos grupos activos
+  /// no pueden usar el mismo salón en franjas que se traslapan (disparador `grupo_choque_*`, C1).
+  salon_id             String?   @db.Uuid
   cupo_maximo          Int
   permite_lista_espera Boolean   @default(false)
   /// Quién imparte el grupo. Opcional: un grupo puede no tener instructor asignado todavía.
@@ -859,6 +865,7 @@ model grupo {
   organizacion organizacion    @relation(fields: [organizacion_id], references: [id])
   programa     programa        @relation(fields: [programa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   instructor   instructor?     @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  salon        salon?          @relation(fields: [salon_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   horarios     grupo_horario[]
 
   @@unique([id, organizacion_id])
@@ -992,15 +999,19 @@ model intento_acceso {
 
 // ── Instructores (B2) ──────────────────────────────────────────────────────────────────
 
-/// Quien imparte grupos. Mínimo a propósito: C1 lo amplía (salones, disponibilidad). Un maestro (rol)
-/// ve solo los grupos cuyo instructor está ligado a su usuario. Un usuario tiene a lo más un
-/// instructor vivo (índice parcial en la migración).
+/// Quien imparte grupos. Un maestro (rol) ve solo los grupos cuyo instructor está ligado a su usuario.
+/// Un usuario tiene a lo más un instructor vivo (índice parcial en la migración). Trabaja en las
+/// sucursales de `instructor_sucursal` (vacío = sin restricción) y no puede estar en dos grupos activos
+/// a la misma hora (disparador `grupo_choque_*`, C1).
 model instructor {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizacion_id String    @db.Uuid
   /// El usuario con el que entra, si tiene cuenta. Un instructor puede existir sin usuario.
   usuario_id      String?   @db.Uuid
   nombre          String
+  /// E.164 normalizado con `normalizarTelefono()` (invariante 7).
+  telefono        String?
+  correo          String?
   activo          Boolean   @default(true)
   creado_en       DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
@@ -1009,10 +1020,53 @@ model instructor {
   organizacion organizacion @relation(fields: [organizacion_id], references: [id])
   usuario      usuario?     @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupos       grupo[]
+  sucursales   instructor_sucursal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([usuario_id])
+}
+
+/// Sucursales en las que da clases un instructor. Único entre los vivos (índice parcial en la migración).
+model instructor_sucursal {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  instructor_id   String    @db.Uuid
+  sucursal_id     String    @db.Uuid
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  instructor   instructor   @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([instructor_id])
+  @@index([sucursal_id])
+}
+
+/// Un salón de una sucursal. El nombre es único entre los salones vivos de la sucursal (índice parcial).
+model salon {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  sucursal_id     String    @db.Uuid
+  nombre          String
+  /// Personas que caben; informativo (el cupo del grupo manda).
+  capacidad       Int?
+  activo          Boolean   @default(true)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupos       grupo[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([sucursal_id])
 }
 
 // ── Registro de cambios (B3) ───────────────────────────────────────────────────────────

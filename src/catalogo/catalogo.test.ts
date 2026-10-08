@@ -1,19 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calcularCupo } from "./cupo.ts";
-import { choquesDeSalon, resumenDeCapacidad, traslapesDeEdad, type Catalogo } from "./verificacion.ts";
+import { choquesDeInstructor, choquesDeSalon, resumenDeCapacidad, traslapesDeEdad, type Catalogo } from "./verificacion.ts";
 
 // Nombres neutros a propósito: los reales viven en las tablas (invariante 2).
 const SUC = new Map([["s1", "Norte"], ["s2", "Sur"]]);
 const VER = new Map([["v1", "Vertical Uno"], ["v2", "Vertical Dos"]]);
 
+// Salones: «uno» y «dos» son de la sucursal s1; «otra» (mismo nombre que «uno») es de s2.
+const SALONES = new Map([["uno", { nombre: "Salón", sucursalId: "s1" }], ["dos", { nombre: "Dos", sucursalId: "s1" }], ["otra", { nombre: "Salón", sucursalId: "s2" }]]);
+
 function catalogo(extra: Partial<Catalogo> = {}): Catalogo {
-  return { programas: [], grupos: [], horarios: [], sucursales: SUC, verticales: VER, ...extra };
+  return { programas: [], grupos: [], horarios: [], salones: SALONES, sucursales: SUC, verticales: VER, ...extra };
 }
 const programa = (id: string, verticalId: string, sucursalId: string, edadMin: number, edadMax: number) => ({
   id, nombre: `P${id}`, verticalId, sucursalId, edadMin, edadMax,
 });
-const grupo = (id: string, programaId: string, salon: string | null, cupoMaximo = 10) => ({ id, nombre: `G${id}`, programaId, salon, cupoMaximo });
+const grupo = (id: string, programaId: string, salonId: string | null, cupoMaximo = 10, instructorId: string | null = null) => ({ id, nombre: `G${id}`, programaId, salonId, instructorId, cupoMaximo });
 const horario = (grupoId: string, dia: number, inicioMin: number, finMin: number) => ({ grupoId, dia, inicioMin, finMin });
 
 // ── 1. Traslapes de edad ──────────────────────────────────────────────────────────────
@@ -38,7 +41,7 @@ test("un rango contenido en otro también es traslape", () => {
 test("resumen de capacidad: programas, grupos y cupo por sucursal y vertical", () => {
   const c = catalogo({
     programas: [programa("a", "v1", "s1", 3, 5), programa("b", "v1", "s1", 6, 13), programa("c", "v1", "s2", 3, 5), programa("d", "v2", "s1", 3, 5)],
-    grupos: [grupo("g1", "a", "X", 12), grupo("g2", "a", "X", 12), grupo("g3", "b", "X", 18), grupo("g4", "c", "Y", 20)],
+    grupos: [grupo("g1", "a", "uno", 12), grupo("g2", "a", "uno", 12), grupo("g3", "b", "uno", 18), grupo("g4", "c", "otra", 20)],
   });
   assert.deepEqual(resumenDeCapacidad(c), [
     { sucursal: "Norte", vertical: "Vertical Dos", programas: 1, grupos: 0, capacidad: 0 },
@@ -50,7 +53,7 @@ test("resumen de capacidad: programas, grupos y cupo por sucursal y vertical", (
 // ── 3. Choques de salón ───────────────────────────────────────────────────────────────
 
 const base = [programa("a", "v1", "s1", 3, 5), programa("b", "v1", "s1", 6, 13), programa("c", "v1", "s2", 3, 5)];
-const dosGrupos = [grupo("g1", "a", "Salón"), grupo("g2", "b", "Salón")];
+const dosGrupos = [grupo("g1", "a", "uno"), grupo("g2", "b", "uno")];
 
 test("choque de salón: mismo salón, misma sucursal, mismo día y horas que se pisan", () => {
   const r = choquesDeSalon(catalogo({ programas: base, grupos: dosGrupos, horarios: [horario("g1", 2, 960, 1020), horario("g2", 2, 990, 1050)] }));
@@ -61,13 +64,14 @@ test("sin choque: una clase termina cuando empieza la otra, otro día, otro sal�
   const sinChoque = (c: Partial<Catalogo>) => assert.deepEqual(choquesDeSalon(catalogo({ programas: base, ...c })), []);
   sinChoque({ grupos: dosGrupos, horarios: [horario("g1", 2, 960, 1020), horario("g2", 2, 1020, 1080)] }); // contiguas
   sinChoque({ grupos: dosGrupos, horarios: [horario("g1", 2, 960, 1020), horario("g2", 3, 960, 1020)] }); // otro día
-  sinChoque({ grupos: [grupo("g1", "a", "Uno"), grupo("g2", "b", "Dos")], horarios: [horario("g1", 2, 960, 1020), horario("g2", 2, 960, 1020)] });
-  sinChoque({ grupos: [grupo("g1", "a", "Salón"), grupo("g3", "c", "Salón")], horarios: [horario("g1", 2, 960, 1020), horario("g3", 2, 960, 1020)] }); // otra sucursal
+  sinChoque({ grupos: [grupo("g1", "a", "uno"), grupo("g2", "b", "dos")], horarios: [horario("g1", 2, 960, 1020), horario("g2", 2, 960, 1020)] }); // otro salón
+  sinChoque({ grupos: [grupo("g1", "a", "uno"), grupo("g3", "c", "otra")], horarios: [horario("g1", 2, 960, 1020), horario("g3", 2, 960, 1020)] }); // mismo nombre, otra sucursal = otro salón
+  sinChoque({ grupos: [{ ...grupo("g1", "a", "uno"), activo: false }, grupo("g2", "b", "uno")], horarios: [horario("g1", 2, 960, 1020), horario("g2", 2, 960, 1020)] }); // un grupo inactivo no ocupa
   sinChoque({ grupos: [grupo("g1", "a", null), grupo("g2", "b", null)], horarios: [horario("g1", 2, 960, 1020), horario("g2", 2, 960, 1020)] });
 });
 
 test("un mismo grupo con dos horarios que se pisan no choca consigo mismo", () => {
-  assert.deepEqual(choquesDeSalon(catalogo({ programas: base, grupos: [grupo("g1", "a", "Salón")], horarios: [horario("g1", 2, 960, 1020), horario("g1", 2, 990, 1050)] })), []);
+  assert.deepEqual(choquesDeSalon(catalogo({ programas: base, grupos: [grupo("g1", "a", "uno")], horarios: [horario("g1", 2, 960, 1020), horario("g1", 2, 990, 1050)] })), []);
 });
 
 // ── Cupo ──────────────────────────────────────────────────────────────────────────────
@@ -92,4 +96,14 @@ test("cupo: datos imposibles se rechazan, no se adivinan", () => {
 
 test("cupo: es determinista (misma entrada, misma salida)", () => {
   assert.deepEqual(calcularCupo(18, 7, true), calcularCupo(18, 7, true));
+});
+
+test("choques de instructor: el mismo instructor en dos grupos a la vez, aunque sean de sucursales distintas", () => {
+  const c = catalogo({
+    programas: base,
+    grupos: [grupo("g1", "a", "uno", 10, "i1"), grupo("g3", "c", "otra", 10, "i1"), grupo("g2", "b", "dos", 10, "i2")],
+    horarios: [horario("g1", 2, 960, 1020), horario("g3", 2, 990, 1050), horario("g2", 2, 960, 1020)],
+  });
+  assert.deepEqual(choquesDeInstructor(c), [{ instructorId: "i1", dia: 2, grupoA: "Gg1", grupoB: "Gg3" }]);
+  assert.deepEqual(choquesDeSalon(c), [], "los salones son distintos");
 });
