@@ -454,3 +454,9 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 - El contrato de `encolar` cambió para D3, D8 y H6: `origen` obligatorio, y una respuesta se construye con `respuestaA(entranteId, …)`.
 - Para los bloques de cupo y dinero: `src/testutil/carrera.ts` (`Barrera`, `conGanchos`, `soloOrganizaciones`) y `transaccionConBloqueo()` de `src/datos/bloqueos.ts`.
 - Los eventos de Twilio `abandonado` y los avisos `webhook_twilio_organizacion_desconocida` salen como líneas `error` del log; aún no hay tablero que los muestre.
+
+## Cierre de la etapa A
+
+- Auditoría de cierre: `docs/auditorias/etapa-A.md` (1 ALTA, 11 MEDIA, 11 BAJA). La ALTA (EA-01) y casi todos los demás se corrigieron en commits `A-fix` (ver la sección anterior). Pendientes que son decisión de Eduardo: EA-02 (estados de entrega de Twilio en la vía A), EA-21, EA-22 y la excepción del borde de Twilio al invariante 4 (no toqué `CLAUDE.md`).
+- Verificación personal en el último commit: `npm run validar` exit 0 (194 tests); `npm run test:int` exit 0 (244 tests).
+- Etiqueta `etapa-A`.
