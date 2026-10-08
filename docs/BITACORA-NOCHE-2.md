@@ -8,7 +8,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A1 | HECHO | ver sección | Auditoría de la primera sesión: 2 ALTA, 9 MEDIA, 7 BAJA |
 | A2 | HECHO | dae9e9d | Correcciones de A1: las 2 ALTA (F1-02 cierra con A3) y 11 de los demás hallazgos |
 | A3 | HECHO | 8f607f2 | Lead a medias: visible a los 30 min sin marcar atención humana; una persona la toma por asignación o primer mensaje |
-| A4 | PENDIENTE | | Baja que vuelve a escribir |
+| A4 | HECHO | ver sección | Baja que vuelve a escribir: tarea `baja_volvio_a_escribir` (una pendiente por conversación), el sistema calla |
 | A5 | PENDIENTE | | Entrega fallida |
 | A6 | PENDIENTE | | Frecuencia |
 | A7 | PENDIENTE | | Firma en el borde |
@@ -228,3 +228,25 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 - Si en producción se enciende la asignación automática de Chatwoot, una asignación automática contaría como "persona la tomó". Por eso el aprovisionamiento la apaga.
 - Resolver una conversación en Chatwoot la deja sin bot para siempre en esa conversación (decisión 3 de la lista de la auditoría, ver arriba).
 - La demo de estas pruebas dejó las conversaciones 14, 15 y 16 en Chatwoot (la 15 asignada al asesor demo).
+
+## A4. Baja que vuelve a escribir
+
+**Qué se hizo**
+- Nuevo valor `baja_volvio_a_escribir` en el enum `tipo_tarea_asesor` (migración `20261009010000_tarea_baja_volvio_a_escribir`).
+- `procesarEntrante` (`src/captacion/entrante.ts`): después de atender las palabras de baja y antes de cualquier otra cosa, si la conversación está en `opt_out` **o** el teléfono tiene una baja vigente en la organización (`estaDadoDeBaja(..., "todo")`), el mensaje se registra, se actualiza la ventana y se deja la tarea para el asesor. Resultado nuevo: `baja_volvio_a_escribir`. No corre la máquina de estados, no se encola ninguna respuesta (tampoco la confirmación de baja otra vez) y la conversación `bot` de un teléfono dado de baja (otra vertical de la misma organización) pasa a `opt_out`, así que el motor y la espera ya no la ven. Una conversación atendida por una persona se queda como está (y también recibe la tarea).
+- Una pendiente por conversación: `asegurarTareaEnTransaccion` (`src/mensajeria/tareas.ts`) consulta y crea dentro de la transacción del entrante; si dos mensajes chocan, el índice único parcial existente rechaza al segundo, la transacción se repite y ya ve la tarea.
+- La palabra de baja sigue siendo solo las cuatro del plan (`BAJA`, `STOP`, `CANCELAR`, `NO MOLESTAR`); repetirlas no crea tarea.
+
+**Verificación**
+- `src/captacion/baja-vuelve.itest.ts` (7 tests): baja → escribe → una tarea y silencio; escribe otra vez (incluida `ALTO`) → sigue siendo una; palabra de baja repetida → sin tarea; el asesor la resuelve y vuelve a escribir → tarea nueva (y otra vez una sola pendiente); otra vertical de la misma organización → tarea, silencio y conversación nacida en `opt_out`; baja de otra organización no afecta (el bot contesta, sin tarea); tres mensajes simultáneos × 4 vueltas → una sola tarea; con una persona atendiendo también deja tarea y no cambia el estado.
+- `npm run validar` → exit 0 · `ℹ tests 138 · pass 138 · fail 0`.
+- `npm run test:int` → exit 0 · `ℹ tests 142 · pass 142 · fail 0` (antes 134).
+
+**Decisiones que tomé**
+- *El sistema ya ni prepara respuestas para otra vertical de un teléfono dado de baja.* Antes el bot encolaba y el provider las bloqueaba con `opt_out` (quedaban filas `bloqueado`). Ahora no se encola nada. Alternativa descartada: dejar correr el bot y que el provider bloquee; el bot avanzaría pasos de captura sin poder preguntar nada. **Cambié una aserción de un test existente** (`baja-espera.itest.ts`, "la baja es de toda la organización"): ya no cuenta mensajes `bloqueado` (no hay) sino que afirma que no existe ningún saliente; el comportamiento exigido ("no sale nada") es el mismo.
+- *También cuenta una conversación en `opt_out` aunque el teléfono ya no esté de baja* (por ejemplo, si alguien inserta un `opt_in` a mano): sigue callada y avisa a un asesor, en lugar de reactivar sola. Alternativa descartada: reactivar el bot automáticamente.
+- *Con una persona atendiendo también se crea la tarea.* El asesor ya ve el mensaje en Chatwoot, pero la tarea le recuerda que esa persona está dada de baja (sus mensajes manuales no los frena el provider).
+
+**Para Eduardo**
+- Qué hace la tarea: solo avisa. Para levantar la baja hace falta un `opt_in` explícito (no hay palabra de alta; sigue abierto en la lista de decisiones de la auditoría).
+- La tarea cita el mensaje del contacto (recortado a 160 caracteres) en la descripción.

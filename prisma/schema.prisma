@@ -626,6 +626,8 @@ model automatizacion_ejecucion {
 enum tipo_tarea_asesor {
   sin_plantilla_apta
   revision_manual
+  /// Alguien dado de baja volvió a escribir. El sistema no contesta; una persona decide (A4).
+  baja_volvio_a_escribir
 }
 
 enum estado_tarea_asesor {

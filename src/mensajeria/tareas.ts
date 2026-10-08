@@ -37,6 +37,24 @@ export async function asegurarTareaAsesor(db: Consultas, t: TareaParaAsesor): Pr
   }
 }
 
+/**
+ * Variante para usar DENTRO de una transacción: consulta y crea, pero no atrapa el choque del
+ * índice único (en Postgres un error aborta la transacción y atraparlo no sirve de nada). Si dos
+ * procesos chocan, la violación sube y quien llama repite la transacción: en el reintento la
+ * primera tarea ya existe y no se crea otra. Devuelve true si la creó.
+ */
+export async function asegurarTareaEnTransaccion(tx: Consultas, t: TareaParaAsesor): Promise<boolean> {
+  const pendiente = await tx.tarea_asesor.findFirst({
+    where: { conversacion_id: t.conversacionId, tipo: t.tipo, estado: "pendiente" },
+    select: { id: true },
+  });
+  if (pendiente) return false;
+  await tx.tarea_asesor.create({
+    data: altaConAlcance({ lead_id: t.leadId, conversacion_id: t.conversacionId, tipo: t.tipo, descripcion: t.descripcion }),
+  });
+  return true;
+}
+
 /** Recorta un texto largo para citarlo en la descripción de una tarea. */
 export function resumirTexto(texto: string, max = 160): string {
   return texto.length > max ? `${texto.slice(0, max)}…` : texto;

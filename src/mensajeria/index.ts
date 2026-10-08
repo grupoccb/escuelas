@@ -7,7 +7,7 @@ import { TransporteFalso } from "./fake.ts";
 import { MessagingProvider } from "./provider.ts";
 
 export { MessagingProvider, ENVIO_INCIERTO, ENVIO_INCIERTO_MS, type Saliente, type ResumenDespacho } from "./provider.ts";
-export { asegurarTareaAsesor, resumirTexto, type TareaParaAsesor } from "./tareas.ts";
+export { asegurarTareaAsesor, asegurarTareaEnTransaccion, resumirTexto, type TareaParaAsesor } from "./tareas.ts";
 export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
 export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
 export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";

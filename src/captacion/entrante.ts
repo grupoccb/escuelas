@@ -11,9 +11,11 @@ import type { ValorJson } from "../datos/tipos.ts";
 import { resolverBandejaChatwoot, resolverBandejaPorNumero, type BandejaResuelta } from "../datos/sistema.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
-import { registrarBaja } from "../mensajeria/consentimiento.ts";
+import { estaDadoDeBaja, registrarBaja } from "../mensajeria/consentimiento.ts";
 import {
   SinAtribucion,
+  asegurarTareaEnTransaccion,
+  resumirTexto,
   ventanaGratisDesde,
   ventanaServicioDesde,
   type Atribucion,
@@ -34,6 +36,7 @@ export type ResultadoEntrante =
   | "sin_automatizacion"
   | "asesor_tomo_conversacion"
   | "baja"
+  | "baja_volvio_a_escribir"
   | "procesado";
 
 export interface DepsCaptacion {
@@ -131,6 +134,12 @@ async function registrarYAvanzar(
     return darDeBaja(tx, mensajeria, conv, evento, recibidoEn, actualizar, ventana);
   }
 
+  // Alguien dado de baja que vuelve a escribir (decisión 2 del plan): el sistema calla y una
+  // persona decide. La baja es de toda la organización, así que vale también para otra vertical.
+  if (conv.estado === "opt_out" || (conv.lead.telefono && (await estaDadoDeBaja(tx, conv.lead.telefono, "todo")))) {
+    return bajaVolvioAEscribir(tx, conv, evento, actualizar, ventana);
+  }
+
   // Invariante 6: con una persona atendiendo, solo se registra el mensaje.
   if (conv.estado !== "bot") {
     await actualizar(ventana);
@@ -185,6 +194,31 @@ async function registrarYAvanzar(
 }
 
 type ConversacionConLead = Awaited<ReturnType<typeof obtenerConversacion>>;
+
+/**
+ * Quien pidió la baja volvió a escribir (con algo que no es una palabra de baja). Se registra su
+ * mensaje y se deja UNA tarea pendiente por conversación para el asesor. El sistema no contesta
+ * nada (ni repite la confirmación de baja), no corre el bot y la conversación deja de ser
+ * candidata a automatizaciones. La baja solo se levanta con un opt_in explícito, no con esto.
+ */
+async function bajaVolvioAEscribir(
+  tx: Consultas,
+  conv: ConversacionConLead,
+  evento: EventoEntrante,
+  actualizar: (datos: Parameters<Consultas["conversacion"]["updateMany"]>[0]["data"]) => Promise<void>,
+  ventana: { ventana_servicio_hasta: Date; ultimo_mensaje_entrante_en: Date },
+): Promise<{ resultado: ResultadoEntrante; conversacionId: string }> {
+  // Una conversación en `bot` de un teléfono dado de baja (otra vertical) pasa a `opt_out`: ya no
+  // la toman ni el bot ni las automatizaciones. Una atendida por una persona se queda como está.
+  await actualizar(conv.estado === "bot" ? { ...ventana, estado: "opt_out", pasar_a_asesor_pendiente: false } : ventana);
+  await asegurarTareaEnTransaccion(tx, {
+    leadId: conv.lead.id,
+    conversacionId: conv.id,
+    tipo: "baja_volvio_a_escribir",
+    descripcion: `El contacto pidió la baja de los mensajes y volvió a escribir. No se le contestó nada: está dado de baja. Revisa la conversación y decide si le escribes tú. Su mensaje: «${resumirTexto(evento.contenido)}»`,
+  });
+  return { resultado: "baja_volvio_a_escribir", conversacionId: conv.id };
+}
 
 /**
  * Baja ("BAJA", "STOP", "CANCELAR", "NO MOLESTAR"). Se registra de inmediato, sin pedir otra

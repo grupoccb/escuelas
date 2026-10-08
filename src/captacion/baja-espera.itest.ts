@@ -140,9 +140,10 @@ test("la baja es de toda la organización: en otra vertical, el mismo teléfono 
   const dos = entorno(telefono, bandeja2); // mismo número, otra vertical
   await procesarEntrante(dos.deps, dos.evento("Hola"));
   assert.equal(dos.transporte.envios.length, 0, "no sale nada hacia un teléfono dado de baja");
-  const bloqueados = await db().mensaje.findMany({ where: { conversacion: { lead: { telefono, vertical_interes_id: vertical.id } }, estatus: "bloqueado" } });
-  assert.ok(bloqueados.length >= 1);
-  assert.ok(bloqueados.every((m) => m.motivo_bloqueo === "opt_out"));
+  // Desde A4 el sistema ni siquiera prepara respuestas: calla y deja una tarea al asesor
+  // (el detalle de esa regla vive en baja-vuelve.itest.ts).
+  const salientes = await db().mensaje.count({ where: { conversacion: { lead: { telefono, vertical_interes_id: vertical.id } }, direccion: { not: "entrante" } } });
+  assert.equal(salientes, 0);
 });
 
 test("con un asesor atendiendo, la baja se registra pero el sistema no contesta (invariante 6) y se crea una tarea", async () => {
