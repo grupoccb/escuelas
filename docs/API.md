@@ -119,6 +119,13 @@ Solo se acepta (o rechaza) la versión VIGENTE y la que dice haber visto quien a
 **Repetir lo mismo no duplica** (200 con la fila existente, también con peticiones simultáneas: candado por (prospecto, tipo)). **Revocar** solo aplica a `uso_imagen` y solo si lo último fue «aceptada»: es una fila NUEVA (la aceptación original queda intacta) y se puede volver a autorizar con otra. `GET …/registro/aceptaciones` da el estado por tipo con su frase («Aceptó el reglamento v3 el 2026-11-10 (Rosa Mena, madre)», `al_corriente` si lo último es la versión vigente) y el historial.
 **Sin la aceptación del reglamento un registro no pasa a `cerrado`** (409 con `detalles`: sin aceptar, rechazado o sin reglamento configurado); se acepta cualquier versión aceptada en su momento: la inscripción (F3) deberá pedir la vigente. Tablas, ids y textos de ejemplo `[SUPUESTO]` en `prisma/seed/seguimiento.sql`.
 
+**Embudo con historial (D7).** Cada cambio de etapa de un lead anexa una fila a `lead_etapa_historial` (**solo de anexar**, disparador): etapa anterior y nueva, `origen` `usuario` | `sistema`, quién, `motivo` (el tipo de movimiento o la causa: `avance`, `retroceso`, `perdida`, `recuperacion`, `clase_muestra_agendada`…), `motivo_perdida_id`, nota, `es_recuperacion` y `secuencia` (el orden de registro: la fecha puede repetirse). El alta del lead (el bot) es la primera fila, sin etapa anterior; los leads previos al historial entraron con
+una fila `alta_previa_al_historial`. **`PATCH /api/leads/:id/etapa {etapa_id, motivo_perdida_id?, nota?, desde_etapa_id?}`** (`leads:escribir`): las reglas puras están en `src/embudo/transiciones.ts` — **pasar a perdido EXIGE el motivo** (activo y de la organización; 400 si falta o si se manda sin perder); **recuperar** (de perdido a una etapa activa) **exige una nota**, suma `lead.recuperaciones` y limpia `lead.motivo_perdida_id` (la fila de la pérdida conserva su motivo); a una etapa de inscrito **no se llega moviendo etapas**
+(409; la hace la conversión, F2); **de una inscrita solo el administrador vuelve atrás y nunca a perdido**; perdido → perdido no. Una etapa «de cierre» lo es por `es_ganado`/`es_perdido` o por su `tipo_sistema` (`inscrito`/`perdido`); el código nunca busca etapas por nombre. **Matriz configurable mínima:** `transicion_etapa` (desde, hacia, `prohibida` | `solo_administrador` | `permitida`) endurece un par; las reglas fijas no se levantan con ella. Mover es movimiento: reinicia `ultima_interaccion_en`.
+Un movimiento se serializa por lead (candado `lead_etapa:<id>`) y es condicional a la etapa leída; con `desde_etapa_id` (la etapa que vio quien lo pide) un lead que ya cambió responde 409 (`detalles: desde_etapa_id`); dos movimientos simultáneos sin él se ordenan en cadena (cada «desde» es el «hacia» del anterior). Mover a la misma etapa es 200 sin cambio y sin historial. **Las transiciones del sistema** (`moverLeadAEtapa`: clase agendada, asistió, cancelada; un perdido que agenda se RECUPERA) escriben su fila con origen `sistema` y el reloj de quien llama.
+`GET /api/leads/:id/historial` (`leads:leer`) trae los cambios (más antiguo primero) con `segundos_en_la_etapa` y `tiempo_por_etapa` (suma por etapa y veces que entró; el tramo vigente corre hasta ahora; un reloj que retrocede da 0, nunca negativos). **Lead estancado:** `GET /api/leads/estancados?etapa_id=&sucursal_id=` es una CONSULTA (no envía nada): leads cuya etapa tiene `dias_alerta_sin_movimiento` y llevan al menos esos días (completos) desde su última interacción (o desde su creación si nunca hubo),
+sin las etapas de cierre ni las sin umbral, los más viejos primero, con el alcance por sucursal; usa el índice `lead(etapa_id, ultima_interaccion_en)`. **Motivos de pérdida:** `motivo_perdida` por organización, editable (`GET|POST /api/motivos-perdida`, `PATCH|DELETE /api/motivos-perdida/:id`; el código se deriva del nombre si no se manda y es único entre los vivos; dar de baja no toca lo ya perdido). Seed `[SUPUESTO]` en `prisma/seed/seguimiento.sql`.
+
 **Choques de salón e instructor.** Dos grupos activos con el mismo salón, o el mismo instructor (aunque sea en otra sucursal), en franjas que se traslapan (mismo día, `inicio < fin` ajeno y `fin > inicio` ajeno; terminar justo cuando empieza la otra NO choca) → `409 conflicto` con `detalles: [{campo: "salon_id"|"instructor_id", mensaje: "El salón ya está ocupado por el grupo «X» el martes de 16:30 a 17:30 (se traslapa con 17:00–18:00)"}]`.
 Lo calcula `src/catalogo/choques.ts` (`detectarChoques` pura + `choquesDeGrupo` con consulta). La base lo impone también con disparadores (`choque_de_ocupacion`, SQLSTATE 23P01) que toman un candado consultivo por salón e instructor: una restricción de exclusión (`btree_gist`) no sirve porque salón e instructor viven en `grupo` y las franjas en `grupo_horario`, y una exclusión mira una sola tabla.
 
@@ -215,6 +222,11 @@ Con `NODE_ENV=production` y sin valor, el backend loguea una alerta fuerte (`tru
 | `PATCH /api/maestro/avisos/:id` `{visto: boolean}` | `avisos_maestro:escribir` | Marca visto (o lo desmarca). Idempotente; solo cambia y registra si cambia. 404 si es de otro maestro |
 | `GET /api/tareas?estado=&tipo=` | `tareas:leer` | Tareas para el asesor |
 | `PATCH /api/tareas/:id` `{estado: hecha\|descartada}` | `tareas:resolver` | Resuelve (409 si ya estaba resuelta) |
+| `PATCH /api/leads/:id/etapa` `{etapa_id, motivo_perdida_id?, nota?, desde_etapa_id?}` | `leads:escribir` | Mueve de etapa con historial. 400 sin motivo de pérdida / sin nota al recuperar; 409 a inscrito, de inscrito sin ser administrador, par prohibido o lead que ya cambió |
+| `GET /api/leads/:id/historial` | `leads:leer` | Cambios de etapa y tiempo en cada una (404 fuera de tu alcance) |
+| `GET /api/leads/estancados?etapa_id=&sucursal_id=&limite=&pagina=` | `leads:leer` | Leads sin movimiento más allá del umbral de su etapa (consulta; no envía nada) |
+| `GET /api/motivos-perdida?activo=` | `catalogo:leer` | Catálogo de motivos de pérdida |
+| `POST /api/motivos-perdida` `{nombre, codigo?, orden?}` · `PATCH`/`DELETE /api/motivos-perdida/:id` | `catalogo:escribir` | Alta (409 si el código existe), cambio y baja lógica |
 | `GET /api/leads?etapa_id=&sucursal_id=&telefono=` | `leads:leer` | Lista (el teléfono se normaliza) |
 | `GET /api/leads/:id` | `leads:leer` | Detalle con prospectos |
 | `GET /api/registro-cambios?entidad_tipo=&entidad_id=&usuario_id=` | `registro_cambios:leer` | Auditoría |
@@ -234,7 +246,7 @@ borra la asignación (no devuelve el bot). El directorio de agentes (`Directorio
 
 ## Roles de base de datos (producción)
 
-Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_sensible`, `documento_legal` y `aceptacion_legal` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
+Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_sensible`, `documento_legal`, `aceptacion_legal` y `lead_etapa_historial` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
 (`ALTER TABLE … DISABLE TRIGGER`). La garantía completa exige dos cuentas distintas (EB-08):
 
 - **Migraciones** (`prisma migrate deploy`): una cuenta dueña de las tablas (p. ej. `inscripciones_migrador`), que solo corre en el despliegue.
@@ -244,7 +256,7 @@ Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_
 CREATE ROLE inscripciones_app LOGIN PASSWORD '…';
 GRANT USAGE ON SCHEMA public TO inscripciones_app;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO inscripciones_app;   -- sin DELETE: el borrado es lógico (invariante 3)
-REVOKE UPDATE ON registro_cambio, acceso_dato_sensible, documento_legal, aceptacion_legal FROM inscripciones_app;       -- solo de anexar
+REVOKE UPDATE ON registro_cambio, acceso_dato_sensible, documento_legal, aceptacion_legal, lead_etapa_historial FROM inscripciones_app;       -- solo de anexar
 ALTER DEFAULT PRIVILEGES FOR ROLE inscripciones_migrador IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO inscripciones_app;
 -- Sin TRUNCATE, ALTER ni TRIGGER: no se otorgan. Las tablas de la demo local (docker compose) usan una sola cuenta, a propósito.
 ```

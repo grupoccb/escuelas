@@ -210,7 +210,7 @@ export async function agendarClaseMuestra(tx: Consultas, c: ContextoDeAgenda, en
   if (motivo) return { ok: false, motivo };
 
   const clase = await crearClase(tx, c, { prospecto, grupo, fechaHora: entrada.fechaHora, notas: entrada.notas ?? null });
-  await moverLeadAEtapa(tx, prospecto.lead_id, "muestra_agendada", { motivo: "clase_muestra_agendada" });
+  await moverLeadAEtapa(tx, prospecto.lead_id, "muestra_agendada", { motivo: "clase_muestra_agendada", ahora: c.ahora });
   await crearAvisoMaestro(tx, { claseId: clase.id, tipo: "agendada", ahora: c.ahora }); // D2: al instructor del grupo
   await programarRecordatoriosDeClase(tx, clase.id, c.ahora); // D3: 24 h y 2 h antes, al lead
   await darPorRecuperadoAlProspecto(tx, prospecto.id, c.ahora); // D4: si antes no llegó, ya volvió a agendar: la recuperación sobra
@@ -287,7 +287,7 @@ export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motiv
   if (cambio.count !== 1) return { ok: false, motivo: "clase_no_vigente" };
   const otras = await tx.clase_muestra.count({ where: { lead_id: vieja.lead_id, estatus: "agendada" } });
   if (otras === 0 && (await tipoDeEtapaDelLead(tx, vieja.lead_id)) === "muestra_agendada" && (await etapaDeSistema(tx, "contactado"))) {
-    await moverLeadAEtapa(tx, vieja.lead_id, "contactado", { motivo: "clase_muestra_cancelada", permitirRetroceso: true });
+    await moverLeadAEtapa(tx, vieja.lead_id, "contactado", { motivo: "clase_muestra_cancelada", permitirRetroceso: true, ahora });
   }
   await crearAvisoMaestro(tx, { claseId: vieja.id, tipo: "cancelada", ahora }); // D2
   await cancelarRecordatoriosDeClase(tx, vieja.id, "clase_cancelada"); // D3

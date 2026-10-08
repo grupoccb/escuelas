@@ -37,7 +37,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D4 | HECHO | de73e25 | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
 | D5 | HECHO | ver `git log` (`D5:`) | Registro del maestro por API: `registro_clase_muestra` + `registro_tutor`, salud solo con `guardarSensible()`, borrador → completo → cerrado, permisos por rol, conversión sin recaptura |
 | D6 | HECHO | ver `git log` (`D6:`) | Reglamento y autorización de imagen: `documento_legal` versionado e inmutable, `aceptacion_legal` de solo anexar con evidencia, revocación como fila nueva, el registro no cierra sin reglamento |
-| D7 | PENDIENTE | | Embudo con historial |
+| D7 | HECHO | ver `git log` (`D7:`) | Embudo con historial de solo anexar, motivos de pérdida, perdido/recuperado, matriz de transiciones, tiempo por etapa, leads estancados (consulta) y concurrencia por lead |
 | D8 | PENDIENTE | | Lead frío y promoción por vencer |
 | E1 | PENDIENTE | | Landing pública por vertical |
 | E2 | PENDIENTE | | Código de rastreo de WhatsApp |
@@ -1298,3 +1298,37 @@ Mutaciones atrapadas: sin el candado de (prospecto, tipo) → duplicados; sin la
 - **[SUPUESTO]** los tres textos del seed (reglamento, uso de imagen, aviso de privacidad): la escuela pone los suyos y el aviso debe revisarlo su abogado. Se publican como versión 2 desde administración (no se editan).
 - Decisión de producto: ¿la autorización de imagen es obligatoria para cerrar el registro o puede quedar «rechazada»? Hoy solo el reglamento es obligatorio.
 - Pendiente de producto: firma manuscrita/foto como evidencia (hoy solo texto corto en `evidencia`); no se pidió ni se construyó almacenamiento de archivos.
+
+
+## D7. Embudo: cambios de etapa con historial, motivos de pérdida, perdido y recuperado
+
+**Qué se hizo**
+- **Migración `20261015020000_embudo_historial`:** `lead_etapa_historial` (de SOLO ANEXAR por disparadores; `secuencia` para el orden de registro), `motivo_perdida` (catálogo por organización, código único entre los vivos), `transicion_etapa` (matriz configurable por par) y en `lead`: `motivo_perdida_id` y `recuperaciones`. Los leads que ya existían entran al historial con una fila de alta (`alta_previa_al_historial`). **Probada sobre una base con datos** (dos leads vivos y uno borrado): el relleno solo toma los vivos, y `migrate diff` contra el schema da «No difference detected».
+- **Reglas puras** (`src/embudo/transiciones.ts`): `evaluarTransicion` (avance, retroceso, lateral, perdida, recuperación; las reglas fijas y la matriz), `tramosEnEtapa` / `tiempoPorEtapa` y `estaEstancado` / `diasSinMovimiento`. **Servicio** (`src/embudo/historial.ts`): `moverEtapaDeLead` (candado por lead + cambio condicional a la etapa leída + `desde_etapa_id`), `historialDeLead` (cambios con el tiempo que estuvo en cada etapa), `registrarAltaDeLead` (lo llama el bot al crear el lead). `src/embudo/estancados.ts`: la consulta de leads estancados con el índice `lead(etapa_id, ultima_interaccion_en)`.
+- **`moverLeadAEtapa` (D1/D4) escribe el historial** con origen `sistema` y el reloj de quien llama; un perdido que agenda una clase se **recupera** (suma, limpia el motivo, deja la nota).
+- **API** (`src/api/rutas/embudo.ts`, montada ANTES de leads por `/leads/estancados`): `PATCH /api/leads/:id/etapa`, `GET /api/leads/:id/historial`, `GET /api/leads/estancados`, `GET|POST|PATCH|DELETE /api/motivos-perdida`. Sin permisos nuevos (`leads:leer|escribir`, `catalogo:leer|escribir`). `GET /api/leads` y `/:id` ahora traen `motivo_perdida_id` y `recuperaciones`.
+- **Seed** (`prisma/seed/seguimiento.sql`): los seis motivos del encargo `[SUPUESTO]` (precio, horario, distancia, no contestó, eligió otra escuela, otro). Los umbrales por etapa ya los traía `demo.sql` (2, 3, 3, 3 y 5 días).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 466 · pass 466 · fail 0
+$ npm run test:int    → exit 0 · tests 659 · pass 659 · fail 0
+```
+Tests nuevos: `transiciones.test.ts` (8, puros: la matriz de reglas completa, los tramos con empates y relojes que retroceden, el umbral exacto del lead estancado) y `embudo.itest.ts` (12): mover con historial, interacción y registro de cambios; permisos, alcance y entradas; perdido exige motivo (activo, de la organización); recuperar (nota, contador, limpia el motivo, dos vueltas); inscrito; la matriz configurable; transiciones del sistema (agendar, asistir, recuperar por agendar); el alta por el bot; historial y tiempo en cada etapa con reloj inyectado + solo-anexar (UPDATE, DELETE, TRUNCATE, restricciones); **leads estancados** (umbral exacto, sin interacción, etapas de cierre, sin umbral, alcance, paginación, que no escribe nada y que el índice existe); **concurrencia** (con `desde_etapa_id` gana uno y el otro 409; seis sin él se serializan en cadena); motivos de pérdida (CRUD, permisos, aislamiento entre organizaciones). Más 2 de seed.
+Mutación atrapada: quitar el candado por lead → la prueba de la cadena falla (aparecen 409 en el intercalado).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El historial es de solo anexar y trae `secuencia`.** La fecha no basta (se repite con un reloj inyectado y entre dos cambios del mismo milisegundo); el primer intento de test lo mostró. Alternativa descartada: ordenar por `creado_en, id` (un uuid aleatorio rompe el desempate).
+2. **Etapa «de cierre» por bandera o por `tipo_sistema`**: una escuela puede haber puesto `es_ganado` sin `tipo_sistema` (o al revés); el código acepta cualquiera de los dos y nunca busca por nombre.
+3. **A inscrito no se llega moviendo etapas, ni el administrador**: la inscripción es la conversión (F2), que mueve al lead con su propia transacción. Hasta F2 nadie puede marcar un inscrito a mano por la API. Alternativa descartada: dejar que el administrador lo haga (se brinca la transacción de conversión y los cargos).
+4. **De inscrito solo el administrador vuelve atrás y nunca a perdido** (una baja es de la inscripción, F5). La matriz (`transicion_etapa`) endurece pares pero NO levanta las reglas fijas.
+5. **Mover es movimiento** (reinicia `ultima_interaccion_en`): un asesor que trabaja el lead lo saca de la alerta de estancado. Las transiciones del sistema no lo tocan: el bot ya actualiza `ultima_interaccion_en` con cada mensaje del contacto.
+6. **La alerta de estancado es una consulta**, sin envíos ni tareas (D8 decide qué hacer). Días COMPLETOS: cumplir el umbral ya cuenta.
+7. **`desde_etapa_id` opcional** para el control optimista. Sin él, dos movimientos simultáneos no se rechazan: se ordenan (el último gana, y el historial lo muestra en cadena). Alternativa descartada: exigirlo siempre (rompería a quien llama sin haber leído al lead).
+8. **Dar de baja un motivo de pérdida es lógico** y no toca los leads ya perdidos por él; no se puede elegir uno dado de baja o inactivo.
+9. **La matriz se edita por base/seed**; no hay API de administración de la matriz todavía (J7/J8). `transicion_etapa` existe, se respeta y está probada.
+
+**Para Eduardo**
+- **[SUPUESTO]** los seis motivos de pérdida, y los días por etapa de `demo.sql`.
+- Decisión de producto: ¿quién puede recuperar un lead? Hoy asesor y administrador (cualquiera con `leads:escribir`), con nota obligatoria.
+- Decisión de producto abierta: reglas por defecto de la matriz (hoy solo las fijas) y si hace falta una pantalla para editarla.

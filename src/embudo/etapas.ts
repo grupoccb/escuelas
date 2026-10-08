@@ -21,8 +21,10 @@ export async function etapaDeSistema(tx: Consultas, tipo: TipoSistemaEtapa): Pro
 }
 
 export interface OpcionesDeMovimiento {
-  /** Por qué se mueve (queda en la interacción `cambio_etapa`). */
+  /** Por qué se mueve (queda en la interacción `cambio_etapa` y en el historial). */
   motivo: string;
+  /** El instante del movimiento (el reloj de quien llama); por omisión, el de la base. */
+  ahora?: Date;
   /** Permite mover a una etapa de menor orden (corregir un error). Por omisión el lead solo avanza. */
   permitirRetroceso?: boolean;
 }
@@ -34,10 +36,11 @@ export interface ResultadoDeMovimiento {
 }
 
 /**
- * Mueve al lead a la etapa de ese tipo y deja una interacción `cambio_etapa`. Reglas: sin etapa de ese tipo, o ya en ella, no
- * hace nada; un lead ganado (inscrito) no se mueve; el lead solo AVANZA (orden mayor) salvo que esté perdido (reaparecer
- * después de perderse es recuperarlo) o se pida `permitirRetroceso`. El cambio es condicional a la etapa que se leyó: si
- * otra operación movió al lead mientras tanto, no pisa.
+ * Mueve al lead a la etapa de ese tipo y deja una interacción `cambio_etapa` y una fila en el historial (`lead_etapa_historial`,
+ * origen «sistema»; D7). Reglas: sin etapa de ese tipo, o ya en ella, no hace nada; un lead ganado (inscrito) no se mueve; el lead solo
+ * AVANZA (orden mayor) salvo que esté perdido (reaparecer después de perderse es RECUPERARLO: suma una recuperación, limpia el motivo de
+ * pérdida y queda marcado en el historial) o se pida `permitirRetroceso`. El cambio es condicional a la etapa que se leyó: si otra operación
+ * movió al lead mientras tanto, no pisa. (Las personas mueven etapas con `moverEtapaDeLead`, src/embudo/historial.ts.)
  */
 export async function moverLeadAEtapa(tx: Consultas, leadId: string, tipo: TipoSistemaEtapa, o: OpcionesDeMovimiento): Promise<ResultadoDeMovimiento> {
   const destino = await etapaDeSistema(tx, tipo);
@@ -46,8 +49,24 @@ export async function moverLeadAEtapa(tx: Consultas, leadId: string, tipo: TipoS
   if (!lead || lead.etapa_id === destino.id || lead.etapa.es_ganado) return { movido: false };
   const avanza = destino.orden > lead.etapa.orden;
   if (!avanza && !lead.etapa.es_perdido && !o.permitirRetroceso) return { movido: false };
-  const cambio = await tx.lead.updateMany({ where: { id: leadId, etapa_id: lead.etapa_id }, data: { etapa_id: destino.id } });
+  const recupera = lead.etapa.es_perdido;
+  const cambio = await tx.lead.updateMany({
+    where: { id: leadId, etapa_id: lead.etapa_id },
+    data: { etapa_id: destino.id, ...(recupera ? { motivo_perdida_id: null, recuperaciones: { increment: 1 } } : {}) },
+  });
   if (cambio.count !== 1) return { movido: false };
+  await tx.lead_etapa_historial.create({
+    data: altaConAlcance({
+      lead_id: leadId,
+      etapa_anterior_id: lead.etapa_id,
+      etapa_nueva_id: destino.id,
+      origen: "sistema" as const,
+      motivo: o.motivo,
+      es_recuperacion: recupera,
+      ...(recupera ? { nota: `Recuperado por el sistema: ${o.motivo}` } : {}),
+      ...(o.ahora ? { creado_en: o.ahora } : {}),
+    }),
+  });
   await tx.interaccion.create({
     data: altaConAlcance({
       lead_id: leadId,

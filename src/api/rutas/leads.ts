@@ -24,6 +24,8 @@ const SELECCION = {
   sucursal_interes_id: true,
   campana_id: true,
   etapa_id: true,
+  motivo_perdida_id: true,
+  recuperaciones: true,
   ultima_interaccion_en: true,
   creado_en: true,
 } as const;

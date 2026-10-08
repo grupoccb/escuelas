@@ -47,3 +47,16 @@ test("D6 seed: reglamento, uso de imagen y aviso de privacidad v1 vigentes, con 
   await aplicar("seguimiento");
   assert.equal(await db().documento_legal.count(), 3, "volver a correr el seed no duplica");
 });
+
+test("D7 seed: los motivos de pérdida de ejemplo y los umbrales de días sin movimiento por etapa (de demo.sql); idempotente", async () => {
+  const motivos = await db().motivo_perdida.findMany({ orderBy: { orden: "asc" }, select: { codigo: true, activo: true } });
+  assert.deepEqual(motivos.map((m) => m.codigo), ["precio", "horario", "distancia", "no_contesto", "eligio_otra_escuela", "otro"]);
+  assert.ok(motivos.every((m) => m.activo));
+  const etapas = await db().etapa_pipeline.findMany({ select: { tipo_sistema: true, dias_alerta_sin_movimiento: true } });
+  const umbral = (tipo: string) => etapas.find((e) => e.tipo_sistema === tipo)!.dias_alerta_sin_movimiento;
+  assert.deepEqual(["nuevo", "contactado", "muestra_agendada", "muestra_asistida", "negociacion"].map(umbral), [2, 3, 3, 3, 5]);
+  assert.equal(umbral("inscrito"), null, "las etapas de cierre nunca alertan");
+  assert.equal(umbral("perdido"), null);
+  await aplicar("seguimiento");
+  assert.equal(await db().motivo_perdida.count(), 6, "volver a correr el seed no duplica");
+});

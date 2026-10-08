@@ -65,12 +65,12 @@ export async function marcarAsistencia(tx: Consultas, e: { claseId: string; esta
   const sesion = describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).completa;
   const alumno = clase.prospecto.nombre ?? "El alumno";
   if (e.estatus === "asistio") {
-    await moverLeadAEtapa(tx, clase.lead_id, "muestra_asistida", { motivo: "clase_muestra_asistida" });
+    await moverLeadAEtapa(tx, clase.lead_id, "muestra_asistida", { motivo: "clase_muestra_asistida", ahora: e.ahora });
     await cancelarRecuperacionDeClase(tx, clase.id, "asistencia_corregida");
     await cerrarTareaDeLlamar(tx, clase.id, e.ahora);
   } else {
     // Corregir un «asistió»: el lead que se había adelantado por esta clase vuelve a la etapa de clase agendada.
-    if (corrige && (await tipoDeEtapaDelLead(tx, clase.lead_id)) === "muestra_asistida") await moverLeadAEtapa(tx, clase.lead_id, "muestra_agendada", { motivo: "asistencia_corregida", permitirRetroceso: true });
+    if (corrige && (await tipoDeEtapaDelLead(tx, clase.lead_id)) === "muestra_asistida") await moverLeadAEtapa(tx, clase.lead_id, "muestra_agendada", { motivo: "asistencia_corregida", permitirRetroceso: true, ahora: e.ahora });
     await programarRecuperacionDeClase(tx, clase.id, e.ahora);
     await tareaDeLlamar(tx, { claseId: clase.id, leadId: clase.lead_id, descripcion: `Llamar a la familia de ${alumno}: no llegó a su clase muestra del ${sesion} (${clase.grupo.nombre}). Ofrécele reagendar; si el sistema ya le escribió y contesta, la conversación te llega a ti.`, venceEn: new Date(e.ahora.getTime() + 24 * HORA_MS) });
   }

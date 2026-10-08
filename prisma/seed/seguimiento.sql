@@ -20,3 +20,17 @@ FROM (VALUES
    E'[SUPUESTO — texto de ejemplo; debe revisarlo el abogado de la escuela]\nLa escuela usa los datos que me pide (nombre, teléfono, datos del alumno) para contactarme por WhatsApp, informarme de horarios, costos y clases, y dar seguimiento a la inscripción. No los comparte con terceros sin mi autorización. Puedo pedir acceso, corrección o baja de mis datos y dejar de recibir mensajes escribiendo BAJA.')
 ) AS v(id, tipo, titulo, texto)
 ON CONFLICT DO NOTHING;
+
+-- ── D7: motivos de pérdida [SUPUESTO] ────────────────────────────────────────────────────────────────────
+-- Catálogo por organización, editable desde administración (`/api/motivos-perdida`). Perder un lead EXIGE elegir uno.
+INSERT INTO motivo_perdida (id, organizacion_id, codigo, nombre, orden) VALUES
+  ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000001', 'precio',              'Precio',                 1),
+  ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000001', 'horario',             'Horario',                2),
+  ('00000000-0000-4000-8000-000000000923', '00000000-0000-4000-8000-000000000001', 'distancia',           'Distancia',              3),
+  ('00000000-0000-4000-8000-000000000924', '00000000-0000-4000-8000-000000000001', 'no_contesto',         'No contestó',            4),
+  ('00000000-0000-4000-8000-000000000925', '00000000-0000-4000-8000-000000000001', 'eligio_otra_escuela', 'Eligió otra escuela',    5),
+  ('00000000-0000-4000-8000-000000000926', '00000000-0000-4000-8000-000000000001', 'otro',                'Otro',                   9)
+ON CONFLICT DO NOTHING;
+
+-- Los días sin movimiento para alertar un lead estancado (y, en D8, el lead frío) son `etapa_pipeline.dias_alerta_sin_movimiento`, que ya trae
+-- demo.sql por etapa [SUPUESTO]: 2, 3, 3, 3 y 5 días; las etapas de cierre (inscrito, perdido) no llevan umbral y nunca alertan.

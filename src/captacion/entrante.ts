@@ -6,6 +6,7 @@
 // repite con el estado nuevo.
 
 import { SinInscripciones, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { registrarAltaDeLead } from "../embudo/historial.ts";
 import { agendarClaseMuestra, proximasSesionesConLugar } from "../clases-muestra/agenda.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
@@ -471,9 +472,9 @@ async function obtenerConversacion(
     ? await tx.campana.findFirst({ where: { anuncio_id: atribucion.anuncioId }, select: { id: true } })
     : null;
 
-  const lead =
-    (telefono ? await tx.lead.findFirst({ where: { vertical_interes_id: bandeja.vertical_id, telefono } }) : null) ??
-    (await tx.lead.create({
+  let lead = telefono ? await tx.lead.findFirst({ where: { vertical_interes_id: bandeja.vertical_id, telefono } }) : null;
+  if (!lead) {
+    lead = await tx.lead.create({
       data: altaConAlcance({
         vertical_interes_id: bandeja.vertical_id,
         sucursal_interes_id: bandeja.sucursal_id,
@@ -491,7 +492,9 @@ async function obtenerConversacion(
             }
           : {}),
       }),
-    }));
+    });
+    await registrarAltaDeLead(tx, lead.id, etapaInicial.id, recibidoEn); // D7: el alta es la primera fila del historial
+  }
 
   return tx.conversacion.create({
     data: altaConAlcance({

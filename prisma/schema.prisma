@@ -86,6 +86,9 @@ model organizacion {
   registros_tutor            registro_tutor[]
   documentos_legales         documento_legal[]
   aceptaciones_legales       aceptacion_legal[]
+  motivos_perdida            motivo_perdida[]
+  historial_etapas           lead_etapa_historial[]
+  transiciones_etapa         transicion_etapa[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -348,6 +351,10 @@ model etapa_pipeline {
 
   organizacion organizacion @relation(fields: [organizacion_id], references: [id])
   leads        lead[]
+  historial_anterior lead_etapa_historial[] @relation("historial_etapa_anterior")
+  historial_nueva    lead_etapa_historial[] @relation("historial_etapa_nueva")
+  transiciones_desde transicion_etapa[]     @relation("transicion_desde")
+  transiciones_hacia transicion_etapa[]     @relation("transicion_hacia")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -371,11 +378,17 @@ model lead {
   /// El referral completo, sin perder campos que hoy no se usan.
   atribucion            Json?
   ultima_interaccion_en DateTime? @db.Timestamptz(6)
+  /// Por qué se perdió (D7). Nulo si no está perdido; al recuperarlo se limpia (el historial conserva el motivo).
+  motivo_perdida_id     String?   @db.Uuid
+  /// Cuántas veces se recuperó después de darse por perdido (D7).
+  recuperaciones        Int       @default(0)
   creado_en             DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en          DateTime? @db.Timestamptz(6)
 
   organizacion     organizacion   @relation(fields: [organizacion_id], references: [id])
+  motivo_perdida   motivo_perdida? @relation(fields: [motivo_perdida_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  historial_etapas lead_etapa_historial[]
   vertical_interes vertical       @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   sucursal_interes sucursal?      @relation(fields: [sucursal_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   campana          campana?       @relation(fields: [campana_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
@@ -1278,6 +1291,7 @@ model usuario {
   registros_cerrados       registro_clase_muestra[] @relation("registro_cerrado_por")
   documentos_legales_creados documento_legal[]     @relation("documento_creado_por")
   aceptaciones_capturadas  aceptacion_legal[]      @relation("aceptacion_capturada_por")
+  cambios_de_etapa         lead_etapa_historial[]  @relation("historial_usuario")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1995,4 +2009,94 @@ model aceptacion_legal {
   @@index([organizacion_id])
   @@index([prospecto_id, tipo, secuencia])
   @@index([documento_id])
+}
+
+// ── Embudo: historial de etapas, motivos de pérdida y reglas de transición (D7) ────────
+
+/// Quién movió al lead de etapa: una persona o el sistema (clase agendada, asistió, el bot…).
+enum origen_cambio_etapa {
+  usuario
+  sistema
+}
+
+/// Catálogo de motivos de pérdida, por organización y editable. Los textos viven aquí, no en código (invariante 2).
+model motivo_perdida {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  /// Identificador estable en minúsculas (`precio`, `no_contesto`…). Único entre los vivos de la organización.
+  codigo          String
+  nombre          String
+  orden           Int       @default(0)
+  activo          Boolean   @default(true)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion           @relation(fields: [organizacion_id], references: [id])
+  leads        lead[]
+  historial    lead_etapa_historial[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Cada cambio de etapa de un lead, de SOLO ANEXAR (disparador): de dónde a dónde, quién (una persona o el sistema), por qué (`motivo`: el
+/// código de la causa; `motivo_perdida_id` si se perdió), la nota y si fue una recuperación. El alta del lead es la primera fila (sin etapa anterior).
+model lead_etapa_historial {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id    String              @db.Uuid
+  lead_id            String              @db.Uuid
+  etapa_anterior_id  String?             @db.Uuid
+  etapa_nueva_id     String              @db.Uuid
+  origen             origen_cambio_etapa
+  usuario_id         String?             @db.Uuid
+  motivo             String?
+  motivo_perdida_id  String?             @db.Uuid
+  nota               String?
+  /// De perdido a una etapa activa: el lead se recuperó.
+  es_recuperacion    Boolean             @default(false)
+  /// Orden de registro (`creado_en` puede repetirse, p. ej. con un reloj inyectado).
+  secuencia          BigInt              @default(autoincrement())
+  creado_en          DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en     DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en       DateTime?           @db.Timestamptz(6)
+
+  organizacion    organizacion    @relation(fields: [organizacion_id], references: [id])
+  lead            lead            @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  etapa_anterior  etapa_pipeline? @relation("historial_etapa_anterior", fields: [etapa_anterior_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  etapa_nueva     etapa_pipeline  @relation("historial_etapa_nueva", fields: [etapa_nueva_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  usuario         usuario?        @relation("historial_usuario", fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  motivo_perdida  motivo_perdida? @relation(fields: [motivo_perdida_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([lead_id, secuencia])
+}
+
+enum regla_transicion {
+  /// Vale (es el comportamiento por omisión; sirve para levantar una restricción de otra fila).
+  permitida
+  solo_administrador
+  prohibida
+}
+
+/// La matriz de transiciones, configurable y mínima: por defecto se puede pasar de cualquier etapa a cualquier otra salvo las reglas fijas
+/// (a una etapa ganada solo con la conversión; de una ganada solo el administrador; de perdida a perdida, no). Una fila endurece o aclara
+/// UN par (desde → hacia). Las reglas fijas no se pueden levantar con una fila.
+model transicion_etapa {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id  String           @db.Uuid
+  desde_etapa_id   String           @db.Uuid
+  hacia_etapa_id   String           @db.Uuid
+  regla            regla_transicion
+  creado_en        DateTime         @default(now()) @db.Timestamptz(6)
+  actualizado_en   DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en     DateTime?        @db.Timestamptz(6)
+
+  organizacion organizacion   @relation(fields: [organizacion_id], references: [id])
+  desde        etapa_pipeline @relation("transicion_desde", fields: [desde_etapa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  hacia        etapa_pipeline @relation("transicion_hacia", fields: [hacia_etapa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
 }
