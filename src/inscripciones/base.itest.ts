@@ -113,6 +113,46 @@ test("el dinero de la inscripción: importes negativos, descuentos mayores que e
   await crear({ descuento_inscripcion_aplicado: "100.00", descuento_mensualidad_aplicado: "200.00", dia_corte_pago: 31 });
 });
 
+test("EF-04: el precio congelado y lo que valió cada promoción no se modifican después de inscribir, y el grupo tiene que ser del programa de la inscripción — aunque el código lo olvide", async () => {
+  const g = await grupoNuevo(10);
+  const otroPrograma = await grupoNuevo(10);
+  const i = await inscribirDirecto(g);
+  const cambiar = (data: Record<string, unknown>) => prisma.inscripcion.update({ where: { id: i.id }, data: data as never });
+  for (const [campo, valor] of [
+    ["precio_inscripcion_aplicado", "1.00"],
+    ["precio_mensualidad_aplicado", "1.00"],
+    ["descuento_inscripcion_aplicado", "10.00"],
+    ["descuento_mensualidad_aplicado", "10.00"],
+    ["meses_gratis_aplicados", 3],
+    ["meses_pagados_por_adelantado", 3],
+    ["fecha_inscripcion", new Date("2026-09-01")],
+    ["programa_id", otroPrograma.programaId],
+    ["alumno_id", (await alumno()).alumnoId],
+  ] as const) {
+    await assert.rejects(cambiar({ [campo]: valor }), /inscripcion_precio_congelado/, campo);
+  }
+  const intacta = await prisma.inscripcion.findFirstOrThrow({ where: { id: i.id } });
+  assert.equal(intacta.precio_mensualidad_aplicado.toFixed(2), "200.00");
+  // Lo que sí cambia (F5): estatus, grupo, día de corte y baja lógica; y volver a escribir el MISMO valor no es un cambio.
+  await cambiar({ precio_inscripcion_aplicado: "100.00", dia_corte_pago: 7 });
+  await cambiar({ estatus: "congelada", congelada_desde: new Date("2026-10-21") });
+  await cambiar({ estatus: "activa", congelada_desde: null });
+  const mismoPrograma = await sembrarPrograma(prisma, org, { sucursalId: org.sucursales[0]!.id, nombre: `Mismo ${++n}`, edadMin: 3, edadMax: 14, grupos: [{ nombre: "A", cupoMaximo: 5, horarios: [[3, 960, 1020]] }, { nombre: "B", cupoMaximo: 5, horarios: [[4, 960, 1020]] }] });
+  const j = await prisma.inscripcion.create({ data: datos((await alumno()).alumnoId, { programaId: mismoPrograma.id, grupoId: mismoPrograma.grupos[0]!.id }) as never });
+  await prisma.inscripcion.update({ where: { id: j.id }, data: { grupo_id: mismoPrograma.grupos[1]!.id } });
+  // El grupo es del programa: ni al insertar ni al mover a un grupo de OTRO programa.
+  await assert.rejects(prisma.inscripcion.create({ data: datos((await alumno()).alumnoId, { programaId: otroPrograma.programaId, grupoId: g.grupoId }) as never }), /inscripcion_programa_del_grupo/);
+  await assert.rejects(prisma.inscripcion.update({ where: { id: j.id }, data: { grupo_id: g.grupoId } }), /inscripcion_programa_del_grupo/);
+  // Lo que valió una promoción al inscribir tampoco cambia; su estatus y su entrega sí.
+  const promo = await prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "Congelada", codigo: `EF04${Date.now()}`, vigencia_desde: new Date("2020-01-01"), activo: false } });
+  const b = await prisma.promocion_beneficio.create({ data: { organizacion_id: org.organizacionId, promocion_id: promo.id, tipo: "descuento_mensualidad", modo: "porcentaje", valor: "10.00" } });
+  const a = await prisma.promocion_aplicacion.create({ data: { organizacion_id: org.organizacionId, inscripcion_id: i.id, promocion_id: promo.id, beneficio_id: b.id, descuento: "20.00", meses_gratis: 1 } });
+  await assert.rejects(prisma.promocion_aplicacion.update({ where: { id: a.id }, data: { descuento: "0.00" } }), /promocion_aplicacion_monto_congelado/);
+  await assert.rejects(prisma.promocion_aplicacion.update({ where: { id: a.id }, data: { meses_gratis: 12 } }), /promocion_aplicacion_monto_congelado/);
+  await assert.rejects(prisma.promocion_aplicacion.update({ where: { id: a.id }, data: { inscripcion_id: j.id } }), /promocion_aplicacion_monto_congelado/);
+  await prisma.promocion_aplicacion.update({ where: { id: a.id }, data: { estatus: "entregado", fecha_entrega: new Date() } });
+});
+
 test("la aplicación de una promoción: descuento y meses no negativos, y la inscripción tiene que existir en la MISMA organización", async () => {
   const g = await grupoNuevo(10);
   const i = await inscribirDirecto(g);
