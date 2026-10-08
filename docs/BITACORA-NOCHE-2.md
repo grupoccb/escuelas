@@ -1529,3 +1529,10 @@ $ npm run test:int    → exit 0 · tests 746 · pass 746 · fail 0   (1.ª y 2.
 $ npm run test:int    → exit 0 · tests 746 · pass 746 · fail 0   (base NUEVA y vacía; luego se borró)
 ```
 Un `test:int` intermedio falló una vez en `sesion.itest.ts` («CSRF: con ORIGEN_PUBLICO configurado solo ese origen vale»: 404 en vez de 403) y no se reprodujo en 25 corridas aisladas ni en 48 con 8 procesos a la vez; ver ED-06.
+
+## Cierre de las etapas D y E
+
+- Las etapas D y E se auditaron y corrigieron juntas (`docs/auditorias/etapa-D.md`, `docs/auditorias/etapa-E.md`). Como los arreglos `D-fix` quedaron después de los commits de E, las etiquetas `etapa-D` y `etapa-E` apuntan al mismo commit (`cb5db79`). Quien quiera quedarse solo con D sin E: `a527339` es el último commit de D, pero no incluye los arreglos de la auditoría (entre ellos ED-01, la baja del instructor).
+- Verificación personal en `cb5db79`: `npm run validar` exit 0 (500 tests); `npm run test:int` exit 0 (746 tests).
+- **Incidente a reportar:** para verificar EE-01 (la redirección de la landing a WhatsApp) el auditor-corrector abrió Chrome headless y siguió la redirección hasta `wa.me` / `api.whatsapp.com` con un número falso. Eso es tráfico (una petición GET de navegador) hacia servidores públicos de Meta, que el plan prohíbe ("nada contra Twilio, Meta ni AWS"). No envió ningún mensaje ni usó credenciales. Se anota aquí y no se repite.
+- Efecto lateral en el entorno: el auditor borró con `--rmi local` la etiqueta de imagen `inscripciones-backend:local`; el siguiente `docker compose up` la reconstruye.
