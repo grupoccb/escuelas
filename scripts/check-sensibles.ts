@@ -9,14 +9,23 @@
 //   3. aparece en cualquier parte del código de las capas que redactan para el contacto o el asesor
 //      (captacion, mensajeria, automatizaciones, reportes, http, lib, configuracion, catalogo) o en
 //      el resto de src/ fuera de `sensibles/`, `api/rutas/salud.ts` y la API de permisos.
+//   4. se llama a `.revelar()` (la única forma de sacar el valor de un `Sensible`) o se nombra
+//      `leerSensible` fuera de `sensibles/` y `api/rutas/salud.ts` (EB-06). Con eso, un valor de salud
+//      no puede salir de la ficha con un nombre neutro (`vals`, `x`) hacia un log o un texto: para
+//      tenerlo en claro hay que pasar por la ruta de salud, que ya pasó el permiso y el registro.
 //
 //   npm run check:sensibles
 //   node scripts/check-sensibles.ts --raiz <dir>
 //
 // Los comentarios no cuentan. Los tests no se revisan (ahí los centinelas son el punto). Límite
-// conocido: es revisión de TEXTO; un valor sensible renombrado a una variable inocua y pasado a un
-// log no lo ve. Eso lo cubren la redacción en tiempo de ejecución de `log` (por clave y por
-// `Sensible`) y el test de fuga (src/sensibles/fuga.itest.ts).
+// conocido: es revisión de TEXTO. Cierra los atajos obvios (la regla 4: nadie fuera de las dos rutas
+// permitidas revela un `Sensible` ni lee la ficha), pero NO ve: (a) código nuevo DENTRO de
+// `sensibles/` o de `api/rutas/salud.ts` que filtre un valor revelado; (b) un acceso armado a trozos
+// (`m["leer" + "Sensible"]`, un `import()` dinámico del módulo); (c) un valor sensible que llega por
+// otro camino y se llama con un nombre neutro. Eso lo cubren la redacción en tiempo de ejecución de
+// `log` (por clave y por `Sensible`: un valor sin revelar se imprime [REDACTADO]), el test de fuga
+// (src/sensibles/fuga.itest.ts, que ejecuta los flujos que existen) y la revisión de quien toque esas
+// dos carpetas. Cada flujo nuevo que toque datos de salud debe sumarse a fuga.itest.ts.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
@@ -38,6 +47,9 @@ const LLAMADAS_VIGILADAS = [
   /\bresumenAsesor\s*\(/g,
   /\basegurarTarea(?:Asesor|DeMensaje|EnTransaccion)\s*\(/g,
 ];
+
+/** `.revelar(`, `?.revelar(`, `["revelar"]`: las formas de pedirle a un `Sensible` su valor. */
+const REVELAR = /\.\s*revelar\b|\[\s*["'`]revelar["'`]\s*\]/;
 
 /** Rutas (relativas a src/, con "/") donde SÍ se nombran los campos sensibles. */
 const PERMITIDAS = ["sensibles/", "api/rutas/salud.ts"];
@@ -155,10 +167,13 @@ export function escanearSensibles(raiz: string): { archivos: number; hallazgos: 
     }
 
     // 3: mención en cualquier parte, salvo donde se permite.
+    // 4: revelar un valor sensible o leer la ficha, salvo donde se permite (EB-06).
     if (!PERMITIDAS.some((p) => rel.startsWith(p) || rel === p)) {
       codigo.split("\n").forEach((texto, i) => {
         const campo = campoSensibleEn(texto);
         if (campo) anotar(i + 1, "nombre de campo sensible fuera de src/sensibles/", campo);
+        if (REVELAR.test(texto)) anotar(i + 1, "revelar() un valor sensible fuera de src/sensibles/ y api/rutas/salud.ts", "revelar");
+        if (/\bleerSensible\b/.test(texto)) anotar(i + 1, "leerSensible fuera de src/sensibles/ y api/rutas/salud.ts", "leerSensible");
       });
     }
   }

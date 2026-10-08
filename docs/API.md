@@ -37,8 +37,10 @@ un parámetro repetido es un error.
 **Alcance.** Administrador: toda la organización. Asesor y recepción: sus sucursales (`usuario_sucursal`). Maestro: los grupos de su instructor.
 Una fila sin sucursal (lead que aún no la elige) solo la ve el administrador.
 
-**Registro de cambios.** Cada escritura deja en `registro_cambio` quién, qué y antes/después (solo campos de la lista blanca; nunca contraseñas ni salud),
-en la misma transacción.
+**Registro de cambios.** Cada escritura **de la API** deja en `registro_cambio` quién, qué y antes/después (solo campos de la lista blanca; nunca contraseñas ni salud),
+en la misma transacción. Queda fuera lo que no lo hace una persona con sesión: los procesos del sistema (el barrido, los webhooks de Chatwoot y de Twilio, p. ej. las asignaciones de
+conversación) —el registro exige `usuario_id`—, la creación del `instructor` al promover a un maestro, y los inicios y cierres de sesión (esos solo van al log).
+**Solo de anexar en la base:** ni `UPDATE`, ni `DELETE`, ni `TRUNCATE` (también en cascada) sobre `registro_cambio` y `acceso_dato_sensible`; ver «Roles de base de datos».
 
 **Cabeceras.** En todo el backend: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. En `/api`: CSP `default-src 'none'`,
 `Cache-Control: no-store`.
@@ -106,6 +108,32 @@ Con `NODE_ENV=production` y sin valor, el backend loguea una alerta fuerte (`tru
 corresponde (`asignada_a_usuario_id`); si el agente se vincula después, las conversaciones ya asignadas se completan. Quitar al asesor en Chatwoot
 borra la asignación (no devuelve el bot). El directorio de agentes (`DirectorioAgentes`) usa `CHATWOOT_ADMIN_TOKEN`; sin él, vincular responde 409.
 
+## Roles de base de datos (producción)
+
+Los disparadores que hacen «solo de anexar» a `registro_cambio` y `acceso_dato_sensible` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
+(`ALTER TABLE … DISABLE TRIGGER`). La garantía completa exige dos cuentas distintas (EB-08):
+
+- **Migraciones** (`prisma migrate deploy`): una cuenta dueña de las tablas (p. ej. `inscripciones_migrador`), que solo corre en el despliegue.
+- **Aplicación** (`DATABASE_URL` del backend): una cuenta que **no es dueña** de nada y solo tiene lo necesario:
+
+```sql
+CREATE ROLE inscripciones_app LOGIN PASSWORD '…';
+GRANT USAGE ON SCHEMA public TO inscripciones_app;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO inscripciones_app;   -- sin DELETE: el borrado es lógico (invariante 3)
+REVOKE UPDATE ON registro_cambio, acceso_dato_sensible FROM inscripciones_app;       -- solo de anexar
+ALTER DEFAULT PRIVILEGES FOR ROLE inscripciones_migrador IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO inscripciones_app;
+-- Sin TRUNCATE, ALTER ni TRIGGER: no se otorgan. Las tablas de la demo local (docker compose) usan una sola cuenta, a propósito.
+```
+
+(El `docker-compose.yml` de la demo usa una sola cuenta dueña: es una demo. El despliegue a AWS, bloque K6, debe crear las dos.)
+
+## Datos sensibles: clave y rotación
+
+`CLAVE_DATOS_SENSIBLES` (32 bytes en base64) es obligatoria; sin ella el backend se niega a guardar o leer salud, salvo con `NODE_ENV=development` o `test` explícito (clave de desarrollo pública).
+Cada texto cifrado lleva el identificador (`kid`) de su clave. **Rotar:** pon la clave nueva en `CLAVE_DATOS_SENSIBLES` y la anterior en `CLAVES_DATOS_SENSIBLES_ANTERIORES` (comas); lo viejo se sigue
+leyendo y lo que se guarde a partir de entonces usa la nueva. No hay un trabajo que re-cifre en lote: un registro viejo se re-cifra cuando se vuelve a guardar; la clave anterior se quita del llavero
+solo cuando ya no queda nada con su `kid`.
+
 ## Guía para agregar a la API
 
 ### Un recurso nuevo
@@ -149,6 +177,6 @@ Alergias, condiciones médicas, medicamentos, contacto de emergencia y autorizac
 - **Una sola puerta**: `leerSensible()` / `guardarSensible()` de `src/sensibles/`. La tabla `ficha_salud` guarda cada campo CIFRADO (AES-256-GCM, ligado a su fila y campo; clave en `CLAVE_DATOS_SENSIBLES`). `check:capas` prohíbe nombrar la tabla fuera de `src/sensibles/`.
 - **Quién**: `salud:leer` y `salud:escribir` son del administrador y del maestro; recepción y asesor no. El maestro, además, solo accede a sujetos de SUS grupos: esa regla (`maestroDelSujeto`) se implementa cuando exista la inscripción (F1/F3); hoy falla cerrado (404).
 - **Rastro**: cada lectura y escritura —y cada intento denegado— queda en `acceso_dato_sensible` (quién, a quién, qué campos, motivo, ruta), solo de anexar.
-- **Nunca en logs, notas ni mensajes**: `log.*` redacta por clave y por valor `Sensible`; `npm run check:sensibles` falla si un campo de salud aparece en un log, un mensaje, una nota o una tarea; `src/sensibles/fuga.itest.ts` ejecuta los flujos con valores centinela y falla si alguno aparece (en logs, mensajes o cualquier tabla en claro).
+- **Nunca en logs, notas ni mensajes**: `log.*` redacta por clave y por valor `Sensible`; `npm run check:sensibles` falla si un campo de salud aparece en un log, un mensaje, una nota o una tarea, **o si se llama a `.revelar()` o a `leerSensible` fuera de `src/sensibles/` y `api/rutas/salud.ts`** (EB-06); `src/sensibles/fuga.itest.ts` ejecuta los flujos con valores centinela y falla si alguno aparece (en logs, mensajes o cualquier tabla en claro). **Residual:** la guarda es revisión de texto; no ve código nuevo dentro de esas dos rutas, un acceso armado a trozos ni un `import()` dinámico: cada flujo nuevo debe sumarse a `fuga.itest.ts` y pasar revisión.
 - **Para sumar un flujo que toque datos de salud** (D5, F1): úsalo SOLO con `leerSensible`/`guardarSensible`, no pases los valores a logs ni textos, y agrega el flujo a `fuga.itest.ts`.
 - **Para agregar un campo sensible**: una entrada en `src/sensibles/campos.ts` (y la columna en `ficha_salud` si va en la ficha).

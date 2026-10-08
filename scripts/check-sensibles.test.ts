@@ -24,6 +24,20 @@ function hallazgos(archivos: Record<string, string>): string[] {
   }
 }
 
+test("EB-06: revelar() un Sensible o leer la ficha fuera de src/sensibles/ y la ruta de salud falla, aunque el nombre sea neutro", () => {
+  const leer = "const r = await leerSensible(db, actor, p);\nconst vals = Object.values(r.campos).map((v) => v?.revelar());\nlog.info(\"depuracion\", { vals });";
+  assert.deepEqual(hallazgos({ "src/captacion/ev1.ts": leer }), ["src/captacion/ev1.ts:1", "src/captacion/ev1.ts:2"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const x = ficha.campos.algo.revelar();` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const x = ficha.campos.algo?.revelar();` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const x = s["revelar"]();` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import { leerSensible as leer } from "../sensibles/index.ts";` }), ["src/x/a.ts:1"]);
+  // Donde sí se permite: el servicio y la ruta de salud.
+  assert.deepEqual(hallazgos({ "src/sensibles/ficha.ts": `export async function leerSensible() {}\nconst v = s.revelar();` }), []);
+  assert.deepEqual(hallazgos({ "src/api/rutas/salud.ts": `const v = valor.revelar();\nawait leerSensible(db);` }), []);
+  // Una mención en un comentario no cuenta.
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `// no uses leerSensible ni .revelar() aquí\nconst ok = 1;` }), []);
+});
+
 test("el repositorio real no viola la guarda", () => {
   const r = escanearSensibles(REPO);
   assert.deepEqual(r.hallazgos, []);
