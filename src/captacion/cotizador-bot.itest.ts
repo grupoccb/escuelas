@@ -11,6 +11,7 @@ import { barrerTiemposDeEspera } from "./espera.ts";
 import { MessagingProvider } from "../mensajeria/index.ts";
 import { fijarConfiguracion, OcupacionFija } from "../testutil/semilla.ts";
 import { textos } from "./maquina.ts";
+import { elegirHorario, vencerCotizaciones } from "../cotizador/guardar.ts";
 
 let prisma: PrismaPruebas;
 before(() => {
@@ -624,4 +625,139 @@ test("C9: se interrumpe en la pregunta de la lista → a los 30 min se avisa a l
   const avisadas = await barrerTiemposDeEspera({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => despues }), organizacionId: e.org.organizacionId, reloj: () => despues });
   assert.equal(avisadas, 1);
   assert.equal((await c.conversacion()).estado, "bot");
+});
+
+// ── Correcciones de la auditoría de la etapa C (EC-01 a EC-04 y EC-12) ──────────────────────────────
+
+const DOS_GRUPOS = (): OpcionesEscenarioBot => ({
+  programas: [{ sucursal: 0, nombre: "Programa P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "Grupo A", horarios: [H(1)] }, { nombre: "Grupo B", horarios: [H(2)] }], precio: PRECIO }],
+});
+
+test("EC-01: el grupo que eligió se dio de baja mientras contestaba → el mensaje SE PROCESA (no 500), se le avisa y se le manda la cotización de hoy, sin el grupo", async () => {
+  const e = await escenarioBot(prisma, DOS_GRUPOS());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const uno = await e.db.grupo.findFirstOrThrow({ where: { nombre: "Grupo A" } });
+  await prisma.grupo.update({ where: { id: uno.id }, data: { eliminado_en: new Date() } });
+  const r = await c.escribe("1"); // «Grupo A» tal como lo vio (el 1: los dos tienen 10 lugares y se ordenan por nombre)
+  assert.equal(r.resultado, "procesado");
+  const conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "horario", "sigue eligiendo");
+  assert.equal(conv.estado, "bot");
+  const texto = c.mensajes().at(-1)!;
+  assert.match(texto, /^Ese horario ya no está disponible; te mando las opciones actualizadas\.\n\nPara Ana \(8 años\)/);
+  assert.match(texto, /1\. Grupo B: martes de 16:00 a 17:00 · 10 lugares/);
+  assert.ok(!texto.includes("Grupo A"));
+  // El mensaje del contacto quedó guardado y hay UNA cotización vigente (la nueva).
+  assert.equal((await e.db.mensaje.findFirstOrThrow({ where: { conversacion_id: conv.id, direccion: "entrante" }, orderBy: [{ creado_en: "desc" }, { id: "desc" }] })).cuerpo, "1");
+  assert.deepEqual((await e.db.cotizacion.findMany({ where: { lead_id: conv.lead_id }, orderBy: { creado_en: "asc" } })).map((q) => q.estatus), ["vencida", "vigente"]);
+  await c.escribe("1");
+  assert.equal((await c.conversacion()).estado, "en_atencion_humana");
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id, estatus: "vigente" } })).grupo_elegido_id, (await e.db.grupo.findFirstOrThrow({ where: { nombre: "Grupo B" } })).id);
+});
+
+test("EC-01: elegirHorario con un grupo que ya no existe devuelve false en vez de lanzar", async () => {
+  const e = await escenarioBot(prisma, DOS_GRUPOS());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const conv = await c.conversacion();
+  const prospecto = await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
+  const uno = await e.db.grupo.findFirstOrThrow({ where: { nombre: "Grupo A" } });
+  await prisma.grupo.update({ where: { id: uno.id }, data: { eliminado_en: new Date() } });
+  assert.equal(await elegirHorario(e.db, { conversacionId: conv.id, prospectoId: prospecto.id, grupoId: uno.id }), false);
+  assert.equal(await elegirHorario(e.db, { conversacionId: conv.id, prospectoId: prospecto.id, grupoId: randomUUID() }), false, "ni uno inventado");
+});
+
+test("EC-02: la cotización venció (por el barrido o porque su último día pasó sin que corriera) → el bot manda una NUEVA en lugar de interpretar el número, y luego el horario SÍ queda registrado", async () => {
+  for (const modo of ["barrido", "fecha_pasada"] as const) {
+    const e = await escenarioBot(prisma, DOS_GRUPOS());
+    const c = e.contacto();
+    await c.conversa("Hola", "Ana", "8", "1");
+    const conv = await c.conversacion();
+    if (modo === "barrido") assert.equal(await vencerCotizaciones(e.db, new Date(Date.now() + 30 * 86_400_000)), 1);
+    else await prisma.cotizacion.updateMany({ where: { lead_id: conv.lead_id }, data: { fecha: new Date("2026-01-01T00:00:00Z"), vigente_hasta: new Date("2026-01-08T00:00:00Z") } }); // sigue «vigente» en la base
+    await c.escribe("2");
+    assert.equal((await c.conversacion()).paso_captacion, "horario", modo);
+    assert.match(c.mensajes().at(-1)!, /^Tu cotización anterior ya venció; te mando una actualizada\.\n\nPara Ana \(8 años\)/, modo);
+    const cots = await e.db.cotizacion.findMany({ where: { lead_id: conv.lead_id }, orderBy: { creado_en: "asc" } });
+    assert.deepEqual(cots.map((q) => q.estatus), ["vencida", "vigente"], modo);
+    assert.equal(cots[1]!.grupo_elegido_id, null);
+    await c.escribe("2"); // ahora sí apunta a la lista que vio
+    const final = await c.conversacion();
+    assert.equal(final.estado, "en_atencion_humana", modo);
+    assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id, estatus: "vigente" } })).grupo_elegido_id, (await e.db.grupo.findFirstOrThrow({ where: { nombre: "Grupo B" } })).id, modo);
+    assert.match(c.notas().at(-1)!, /• Horario elegido: Grupo B — martes de 16:00 a 17:00/, modo);
+  }
+});
+
+test("EC-03: se apaga el interruptor del cotizador con la conversación en el paso del horario (o del programa, o de la otra sucursal) → cierra como la captura de siempre y pasa al asesor, sin listas vacías", async () => {
+  const pasos: { nombre: string; mensajes: string[]; esperado: string; opciones: () => OpcionesEscenarioBot }[] = [
+    { nombre: "horario", mensajes: ["Hola", "Ana", "8", "1"], esperado: "horario", opciones: DOS_GRUPOS },
+    { nombre: "programa", mensajes: ["Hola", "Luis", "20", "1"], esperado: "programa", opciones: catalogoBase },
+    { nombre: "otra_sucursal", mensajes: ["Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1"], esperado: "otra_sucursal", opciones: catalogoBase },
+  ];
+  for (const p of pasos) {
+    const e = await escenarioBot(prisma, p.opciones());
+    const c = e.contacto();
+    await c.conversa(...p.mensajes);
+    assert.equal((await c.conversacion()).paso_captacion, p.esperado, p.nombre);
+    await prisma.vertical.update({ where: { id: e.org.verticalId }, data: { cotizador_whatsapp_activo: false } });
+    await c.escribe("1");
+    const conv = await c.conversacion();
+    assert.equal(conv.estado, "en_atencion_humana", p.nombre);
+    assert.equal(conv.motivo_pase_asesor, "captura_completa", p.nombre);
+    assert.equal(conv.intentos_fallidos, 0, p.nombre);
+    assert.ok(!c.mensajes().at(-1)!.includes("Responde"), `${p.nombre}: nada de «Responde con el número» con la lista vacía`);
+    assert.match(c.mensajes().at(-1)!, /^¡Gracias! Ya tengo los datos de /, p.nombre);
+  }
+});
+
+test("EC-03: si ya no hay lugar en ningún grupo cuando contesta el horario, no se le pide un número de una lista vacía: pasa al asesor", async () => {
+  const ocupacion = new OcupacionFija();
+  const e = await escenarioBot(prisma, { ...DOS_GRUPOS(), fuente: ocupacion });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const conv = await c.conversacion();
+  // Ya no hay cotización vigente que numerar (se vence) y el programa se llenó por completo.
+  await vencerCotizaciones(e.db, new Date(Date.now() + 30 * 86_400_000));
+  for (const g of await e.db.grupo.findMany()) ocupacion.fijar(g.id, 10);
+  await c.escribe("1");
+  const despues = await c.conversacion();
+  assert.equal(despues.estado, "en_atencion_humana");
+  assert.equal(despues.intentos_fallidos, 0);
+  assert.ok(!c.mensajes().at(-1)!.endsWith(":\n"), "sin lista vacía");
+  assert.equal(conv.id, despues.id);
+});
+
+test("EC-04: el horario se llenó entre la cotización y la respuesta (y no tiene lista de espera) → se anota su preferencia pero el bot NO dice que quedó en un grupo con lugar", async () => {
+  const ocupacion = new OcupacionFija();
+  const e = await escenarioBot(prisma, { ...DOS_GRUPOS(), fuente: ocupacion });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const uno = await e.db.grupo.findFirstOrThrow({ where: { nombre: "Grupo A" } });
+  ocupacion.fijar(uno.id, 10);
+  await c.escribe("1");
+  const conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.motivo_pase_asesor, "captura_completa");
+  assert.equal(c.mensajes().at(-1), "Anotamos tu preferencia por Grupo A (lunes de 16:00 a 17:00) de Programa P, sucursal Norte, pero en este momento ese grupo ya no tiene lugar disponible. Un asesor te escribe por aquí en unos minutos para ofrecerte otra opción para Ana.");
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, uno.id, "la preferencia queda registrada para el asesor");
+});
+
+test("EC-12: un NUL en el mensaje no revienta la transacción: se procesa y se guarda sin él, en cualquier paso", async () => {
+  const e = await escenarioBot(prisma, DOS_GRUPOS());
+  const c = e.contacto();
+  await c.escribe("Hola");
+  const r = await c.escribe("Ana\u0000 Pérez");
+  assert.equal(r.resultado, "procesado");
+  const conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "edad");
+  assert.equal((await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).nombre, "Ana Pérez");
+  assert.equal(await e.db.mensaje.count({ where: { conversacion_id: conv.id, cuerpo: "Ana Pérez" } }), 1);
+  await c.conversa("8\u0000", "1\u0000");
+  assert.equal((await c.conversacion()).paso_captacion, "horario");
+  // También el nombre del contacto que manda el canal.
+  const otro = e.contacto("Ma\u0000má");
+  await otro.escribe("Hola");
+  assert.equal((await otro.conversacion()).lead.nombre_contacto, "Mamá");
 });

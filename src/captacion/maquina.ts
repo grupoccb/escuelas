@@ -14,7 +14,7 @@
 import type { PoliticaSucursalSinPrograma } from "../configuracion/index.ts";
 import { descripcionDePromociones, opcionesDeHorario, vigenteHasta, type OpcionHorario } from "../cotizador/cotizacion.ts";
 import { cotizar, sucursalesConPrograma } from "../cotizador/cotizar.ts";
-import type { CatalogoCotizable, ProgramaCotizado } from "../cotizador/tipos.ts";
+import type { CatalogoCotizable, GrupoCotizado, ProgramaCotizado } from "../cotizador/tipos.ts";
 import { formatear } from "../lib/dinero.ts";
 import type { PasoCaptacion } from "../datos/tipos.ts";
 
@@ -54,6 +54,12 @@ export interface ContextoCotizadorBot {
    * el número que responda apunta a lo que vio, aunque los lugares hayan cambiado después. Nula si no hay.
    */
   cotizacionGuardada: { opciones: OpcionHorario[]; /** El horario que eligió y está por confirmar (lista de espera). */ grupoElegidoId: string | null } | null;
+  /**
+   * EC-02: la conversación espera un horario (`horario` o `lista_espera`) pero la cotización que se le mandó ya no vale
+   * (venció o se quedó sin opciones). Entonces el número que responda no apunta a nada que haya visto: en vez de
+   * interpretarlo contra el catálogo de hoy, el bot manda una cotización nueva. Ausente = falso (solo lo pone `entrante.ts`).
+   */
+  cotizacionVencida?: boolean;
 }
 
 export interface ContextoCaptacion {
@@ -161,6 +167,12 @@ export const textos = {
   cierreConHorario: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
     `¡Listo! Anotamos a ${nombre} en ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}${o.oferta === "lista_de_espera" ? ", en lista de espera" : ""}. Un asesor te escribe por aquí en unos minutos para confirmar y resolver tus dudas.`,
   pidioAsesor: "Claro, te comunico con un asesor. Te escribe por aquí en unos minutos.",
+  /** EC-02 / EC-01: lo que el contacto vio ya no vale; se le manda la cotización de hoy. */
+  cotizacionVencida: "Tu cotización anterior ya venció; te mando una actualizada.",
+  horarioNoDisponible: "Ese horario ya no está disponible; te mando las opciones actualizadas.",
+  /** EC-04: eligió un horario que se llenó mientras contestaba (y no tiene lista de espera). */
+  cierreConHorarioLleno: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
+    `Anotamos tu preferencia por ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}, pero en este momento ese grupo ya no tiene lugar disponible. Un asesor te escribe por aquí en unos minutos para ofrecerte otra opción para ${nombre}.`,
   /** C9: eligió un horario lleno que permite lista de espera. */
   preguntaListaEspera: (o: OpcionHorario) =>
     `El grupo ${o.nombre} (${o.horarioTexto}) está lleno por ahora. ¿Quieres que te apuntemos en la lista de espera? Si se libera un lugar, un asesor te avisa. Responde sí o no.`,
@@ -271,10 +283,29 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
     }
 
     case "horario": {
-      const opciones = opcionesVigentes(estado, ctx);
+      // EC-03: sin cotizador (se apagó con la conversación a medias) no hay nada que elegir: cierra como la captura de siempre.
+      if (!ctx.cotizador) return completar(estado, ctx);
       if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado);
-      const elegida = opciones.length > 0 ? elegirOpcion(entrada, opciones) : null;
+      // EC-02: la cotización que vio ya no vale; no se interpreta un número contra una lista que no vio.
+      if (ctx.cotizador.cotizacionVencida) return cotizarDeNuevo(estado, ctx, textos.cotizacionVencida);
+      const opciones = opcionesVigentes(estado, ctx);
+      if (opciones.length === 0) return completar(estado, ctx); // EC-03: nada que ofrecer (ya no hay lugar en ningún grupo)
+      const elegida = elegirOpcion(entrada, opciones);
       if (!elegida) return fallo(estado, textos.reintentoHorario(opciones));
+      const hoy = grupoDeHoy(estado, ctx, elegida.grupoId);
+      // EC-01: el grupo que eligió ya no existe en el catálogo (se dio de baja o se desactivó).
+      if (!hoy) return cotizarDeNuevo(estado, ctx, textos.horarioNoDisponible);
+      // EC-04: se llenó mientras contestaba y no tiene lista de espera: se anota su preferencia, pero se le dice la verdad.
+      if (hoy.cupo.oferta === "sin_lugar") {
+        const programaLleno = ctx.cotizador.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
+        const sucursalLlena = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
+        return {
+          estado: { ...estado, paso: "completo", intentosFallidos: 0 },
+          respuestas: [textos.cierreConHorarioLleno(estado.nombre ?? "", elegida, programaLleno, sucursalLlena)],
+          pasarAAsesor: "captura_completa",
+          efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
+        };
+      }
       // Un horario lleno con lista de espera: antes de cerrar se pregunta si quiere entrar a la lista (C9).
       if (elegida.oferta === "lista_de_espera") {
         return {
@@ -295,11 +326,16 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
     }
 
     case "lista_espera": {
+      if (!ctx.cotizador) return completar(estado, ctx); // EC-03
+      if (ctx.cotizador.cotizacionVencida) return pidePersona(entrada) ? pidioAsesor(estado) : cotizarDeNuevo({ ...estado, paso: "horario" }, ctx, textos.cotizacionVencida); // EC-02
       const opciones = opcionesVigentes(estado, ctx);
-      const grupoId = ctx.cotizador?.cotizacionGuardada?.grupoElegidoId ?? null;
+      if (opciones.length === 0) return completar(estado, ctx); // EC-03
+      const grupoId = ctx.cotizador.cotizacionGuardada?.grupoElegidoId ?? null;
       const elegida = opciones.find((o) => o.grupoId === grupoId);
       if (!elegida) return fallo({ ...estado, paso: "horario" }, textos.reintentoHorario(opciones)); // no hay a qué lista: vuelve a los horarios
       if (esAfirmativa(entrada)) {
+        // EC-01: el grupo ya no existe: no se le dice que quedó en una lista que no existe.
+        if (!grupoDeHoy(estado, ctx, elegida.grupoId)) return cotizarDeNuevo({ ...estado, paso: "horario" }, ctx, textos.horarioNoDisponible);
         const programa = ctx.cotizador?.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
         return {
           estado: { ...estado, paso: "completo", intentosFallidos: 0 },
@@ -322,6 +358,7 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
     }
 
     case "otra_sucursal": {
+      if (!ctx.cotizador) return completar(estado, ctx); // EC-03: el interruptor se apagó con la oferta pendiente
       const otras = otrasSucursalesConPrograma(estado, ctx);
       if (otras.length === 0) return sinPrograma(estado, ctx); // el catálogo cambió: ya no hay nada que ofrecer
       const respuesta = interpretarOtraSucursal(entrada, otras);
@@ -331,6 +368,7 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
     }
 
     case "programa": {
+      if (!ctx.cotizador) return completar(estado, ctx); // EC-03
       const opciones = programasDeLaEdad(estado, ctx);
       const elegido = elegirOpcion(entrada, opciones);
       if (!elegido) return fallo(estado, textos.reintentoPrograma(opciones));
@@ -438,6 +476,25 @@ function opcionesVigentes(estado: EstadoCaptacion, ctx: ContextoCaptacion): Opci
   if (!ctx.cotizador || estado.sucursalId === null || estado.edad === null || !estado.programaId) return [];
   const p = cotizar(ctx.cotizador.catalogo, { verticalId: ctx.cotizador.verticalId, sucursalId: estado.sucursalId, edadDeclarada: estado.edad }).programas.find((x) => x.programaId === estado.programaId);
   return p ? opcionesDeHorario(p) : [];
+}
+
+/** El grupo (con su cupo de HOY) dentro del programa del contacto, o undefined si ya no está en el catálogo (se dio de baja, se desactivó o perdió sus horarios). */
+function grupoDeHoy(estado: EstadoCaptacion, ctx: ContextoCaptacion, grupoId: string): GrupoCotizado | undefined {
+  if (!ctx.cotizador || estado.sucursalId === null || estado.edad === null || !estado.programaId) return undefined;
+  const p = cotizar(ctx.cotizador.catalogo, { verticalId: ctx.cotizador.verticalId, sucursalId: estado.sucursalId, edadDeclarada: estado.edad }).programas.find((x) => x.programaId === estado.programaId);
+  return p?.grupos.find((g) => g.grupoId === grupoId);
+}
+
+/**
+ * Lo que el contacto vio ya no vale (la cotización venció o el horario ya no existe): se manda la cotización de HOY,
+ * que reemplaza a la anterior, con un aviso al principio. Sin programa anotado, cierra como la captura de siempre.
+ */
+function cotizarDeNuevo(estado: EstadoCaptacion, ctx: ContextoCaptacion, aviso: string): ResultadoCaptacion {
+  if (!estado.programaId) return completar(estado, ctx);
+  const r = conPrograma({ ...estado, paso: "horario", intentosFallidos: 0 }, estado.programaId, ctx);
+  // Solo se antepone el aviso si de verdad hay una cotización nueva esperando horario.
+  if (r.estado.paso !== "horario") return r;
+  return { ...r, respuestas: r.respuestas.map((m, i) => (i === 0 ? `${aviso}\n\n${m}` : m)) };
 }
 
 function pidioAsesor(estado: EstadoCaptacion): ResultadoCaptacion {

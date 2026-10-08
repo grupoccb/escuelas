@@ -52,10 +52,14 @@ export async function guardarCotizacion(tx: Consultas, d: DatosDeCotizacion): Pr
   return { id: creada.id, reemplazadas: previas.map((c) => c.id) };
 }
 
-/** La cotización vigente más reciente que el bot le mandó a este prospecto en esta conversación. */
-export async function cotizacionDelBot(tx: Consultas, conversacionId: string, prospectoId: string) {
+/**
+ * La cotización vigente más reciente que el bot le mandó a este prospecto en esta conversación. Con `hoy` (la fecha local
+ * de la consulta) solo cuenta si su último día no ha pasado: el barrido que la marca `vencida` corre cada hora y con un día
+ * de margen, y mientras tanto no debe seguir sirviendo (EC-02).
+ */
+export async function cotizacionDelBot(tx: Consultas, conversacionId: string, prospectoId: string, hoy?: FechaISO) {
   return tx.cotizacion.findFirst({
-    where: { conversacion_id: conversacionId, prospecto_id: prospectoId, origen: "bot", estatus: "vigente" },
+    where: { conversacion_id: conversacionId, prospecto_id: prospectoId, origen: "bot", estatus: "vigente", ...(hoy ? { vigente_hasta: { gte: aFecha(hoy) } } : {}) },
     orderBy: [{ creado_en: "desc" }, { id: "desc" }],
   });
 }
@@ -64,22 +68,22 @@ export async function cotizacionDelBot(tx: Consultas, conversacionId: string, pr
  * Los horarios que se le numeraron al contacto en esa cotización (los del snapshot guardado) y el que eligió y está
  * por confirmar, si lo hay.
  */
-export async function horariosCotizadosAlContacto(tx: Consultas, conversacionId: string, prospectoId: string): Promise<{ opciones: OpcionHorario[]; grupoElegidoId: string | null } | null> {
-  const c = await cotizacionDelBot(tx, conversacionId, prospectoId);
+export async function horariosCotizadosAlContacto(tx: Consultas, conversacionId: string, prospectoId: string, hoy?: FechaISO): Promise<{ opciones: OpcionHorario[]; grupoElegidoId: string | null } | null> {
+  const c = await cotizacionDelBot(tx, conversacionId, prospectoId, hoy);
   return c ? { opciones: opcionesDeSnapshot(c.snapshot), grupoElegidoId: c.grupo_elegido_id } : null;
 }
 
 /**
  * Anota el horario que eligió el contacto en su cotización del bot (null = lo descartó). El grupo tiene que ser del
  * programa cotizado.
- * Devuelve false si no hay cotización a la que anotárselo.
+ * Devuelve false si no hay cotización a la que anotárselo o si el grupo ya no existe (EC-01).
  */
 export async function elegirHorario(tx: Consultas, d: { conversacionId: string; prospectoId: string; grupoId: string | null }): Promise<boolean> {
   const c = await cotizacionDelBot(tx, d.conversacionId, d.prospectoId);
   if (!c) return false;
-  if (d.grupoId !== null && !(await tx.grupo.findFirst({ where: { id: d.grupoId, programa_id: c.programa_id }, select: { id: true } }))) {
-    throw new RangeError("El horario elegido no es de un grupo del programa cotizado");
-  }
+  // EC-01: un grupo que ya no existe (o que no es del programa cotizado) no se anota, pero tampoco revienta el mensaje del
+  // contacto: la máquina ya le avisó. Devuelve false como cuando no hay cotización.
+  if (d.grupoId !== null && !(await tx.grupo.findFirst({ where: { id: d.grupoId, programa_id: c.programa_id }, select: { id: true } }))) return false;
   const r = await tx.cotizacion.updateMany({ where: { id: c.id, estatus: "vigente" }, data: { grupo_elegido_id: d.grupoId } });
   return r.count === 1;
 }

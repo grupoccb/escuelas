@@ -461,3 +461,102 @@ test("C9: sin horario tentativo guardado (algo se perdió), la lista vuelve a lo
   assert.equal(r.efectos, undefined);
   assert.equal(r.estado.paso, "horario");
 });
+
+// ── Correcciones de la auditoría de la etapa C ────────────────────────────────────────────────────────
+
+const DOS = programa("p", "Programa P", 3, 12, { grupos: [grupo("a", { nombre: "Tarde" }), grupo("b", { nombre: "Noche", horarios: [{ dia: 2, inicioMin: 1140, finMin: 1200 }] })] });
+const sinCotizador = (ctx: ContextoCaptacion): ContextoCaptacion => {
+  const { cotizador: _quitado, ...resto } = ctx;
+  return resto;
+};
+
+test("EC-03: sin cotizador (se apagó el interruptor con la conversación a medias) los pasos programa, otra_sucursal, horario y lista_espera cierran como la captura de siempre y pasan al asesor", () => {
+  const ctx = contexto([DOS]);
+  const horario = conversar(["Hola", "Ana", "8", "1"], ctx).estado;
+  assert.equal(horario.paso, "horario");
+  for (const paso of ["programa", "otra_sucursal", "horario", "lista_espera"] as const) {
+    const r = avanzar({ ...horario, paso }, "1", sinCotizador(ctx));
+    assert.equal(r.estado.paso, "completo", paso);
+    assert.equal(r.pasarAAsesor, "captura_completa", paso);
+    assert.equal(r.efectos, undefined, paso);
+    assert.ok(!r.respuestas[0]!.includes("Responde"), `${paso}: sin lista vacía`);
+    assert.match(r.respuestas[0]!, /^¡Gracias! Ya tengo los datos de Ana/, paso);
+  }
+});
+
+test("EC-03: sin opciones que ofrecer (ya no hay lugar en ningún grupo) el horario no pide un número de una lista vacía: pasa al asesor", () => {
+  const ctx = contexto([DOS]);
+  const horario = conversar(["Hola", "Ana", "8", "1"], ctx).estado;
+  const llenos = contexto([programa("p", "Programa P", 3, 12, { grupos: [grupo("a", { cupoMaximo: 2, ocupados: 2 }), grupo("b", { cupoMaximo: 2, ocupados: 2 })] })]);
+  const r = avanzar(horario, "1", llenos);
+  assert.equal(r.pasarAAsesor, "captura_completa");
+  assert.equal(r.estado.intentosFallidos, 0);
+  assert.ok(!r.respuestas[0]!.endsWith(":\n"));
+});
+
+test("EC-02: con la cotización vencida el número NO se interpreta: el bot manda una cotización nueva (con aviso) que reemplaza a la anterior, y «asesor» o «no» pasan a una persona", () => {
+  const ctx = contexto([DOS]);
+  const horario = conversar(["Hola", "Ana", "8", "1"], ctx).estado;
+  const vencida = { ...ctx, cotizador: { ...ctx.cotizador!, cotizacionVencida: true } };
+  const r = avanzar(horario, "2", vencida);
+  assert.equal(r.estado.paso, "horario");
+  assert.equal(r.pasarAAsesor, null);
+  assert.equal(r.efectos?.some((e) => e.tipo === "elegir_grupo"), false, "no se anota ningún horario del número que no se interpretó");
+  assert.deepEqual(r.efectos?.map((e) => e.tipo), ["programa_sugerido", "guardar_cotizacion"]);
+  assert.match(r.respuestas[0]!, /^Tu cotización anterior ya venció; te mando una actualizada\.\n\nPara Ana \(8 años\) en la sucursal Norte te recomiendo Programa P\./);
+  assert.equal(avanzar(horario, "asesor", vencida).pasarAAsesor, "pidio_asesor");
+  assert.equal(avanzar(horario, "no", vencida).pasarAAsesor, "pidio_asesor");
+  // Sin programa anotado no hay qué recotizar: cierra como siempre.
+  assert.equal(avanzar({ ...horario, programaId: null }, "2", vencida).pasarAAsesor, "captura_completa");
+  // En la pregunta de la lista de espera pasa lo mismo.
+  const enLista = avanzar({ ...horario, paso: "lista_espera" }, "sí", vencida);
+  assert.equal(enLista.estado.paso, "horario");
+  assert.equal(enLista.efectos?.some((e) => e.tipo === "entrar_lista_espera"), false);
+  assert.match(enLista.respuestas[0]!, /^Tu cotización anterior ya venció/);
+});
+
+test("EC-01: si el grupo que eligió ya no está en el catálogo (se dio de baja o desactivó) no se anota: se le avisa y se le manda la cotización de hoy sin ese grupo", () => {
+  const ctx = contexto([DOS]);
+  const horario = conversar(["Hola", "Ana", "8", "1"], ctx).estado;
+  const hoy = contexto([programa("p", "Programa P", 3, 12, { grupos: [grupo("b", { nombre: "Noche", horarios: [{ dia: 2, inicioMin: 1140, finMin: 1200 }] })] })]);
+  const guardada = { grupoElegidoId: null, opciones: [{ grupoId: "a", nombre: "Tarde", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar" as const, lugares: 10 }, { grupoId: "b", nombre: "Noche", horarioTexto: "martes de 19:00 a 20:00", oferta: "lugar" as const, lugares: 10 }] };
+  const ctxHoy = { ...hoy, cotizador: { ...hoy.cotizador!, cotizacionGuardada: guardada } };
+  const r = avanzar(horario, "1", ctxHoy); // el 1 que vio era «Tarde», que ya no existe
+  assert.equal(r.estado.paso, "horario");
+  assert.equal(r.efectos?.some((e) => e.tipo === "elegir_grupo"), false);
+  assert.match(r.respuestas[0]!, /^Ese horario ya no está disponible; te mando las opciones actualizadas\.\n\nPara Ana/);
+  assert.ok(!r.respuestas[0]!.includes("Tarde"));
+  // El que sigue existiendo se elige normal.
+  assert.deepEqual(avanzar(horario, "2", ctxHoy).efectos, [{ tipo: "elegir_grupo", grupoId: "b" }]);
+  // En la lista de espera: «sí» a un grupo que ya no existe no dice que quedó en una lista.
+  const llenoYa = contexto([programa("p", "Programa P", 3, 12, { grupos: [grupo("libre", { nombre: "Libre", horarios: [{ dia: 3, inicioMin: 1080, finMin: 1140 }] })] })]);
+  const opcionesLista = [{ grupoId: "lleno", nombre: "Lleno", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lista_de_espera" as const, lugares: 0 }, { grupoId: "libre", nombre: "Libre", horarioTexto: "miércoles de 18:00 a 19:00", oferta: "lugar" as const, lugares: 9 }];
+  const ctxLista = { ...llenoYa, cotizador: { ...llenoYa.cotizador!, cotizacionGuardada: { grupoElegidoId: "lleno", opciones: opcionesLista } } };
+  const enLista = avanzar({ ...horario, paso: "lista_espera" }, "sí", ctxLista);
+  assert.equal(enLista.efectos?.some((e) => e.tipo === "entrar_lista_espera"), false);
+  assert.match(enLista.respuestas[0]!, /^Ese horario ya no está disponible/);
+});
+
+test("EC-04: si el horario que eligió se llenó (sin lista de espera) se anota su preferencia pero el mensaje dice que ya no hay lugar", () => {
+  const ctx = contexto([DOS]);
+  const horario = conversar(["Hola", "Ana", "8", "1"], ctx).estado;
+  const hoy = contexto([programa("p", "Programa P", 3, 12, { grupos: [grupo("a", { nombre: "Tarde", cupoMaximo: 10, ocupados: 10 }), grupo("b", { nombre: "Noche", horarios: [{ dia: 2, inicioMin: 1140, finMin: 1200 }] })] })]);
+  const guardada = { grupoElegidoId: null, opciones: [{ grupoId: "a", nombre: "Tarde", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar" as const, lugares: 10 }, { grupoId: "b", nombre: "Noche", horarioTexto: "martes de 19:00 a 20:00", oferta: "lugar" as const, lugares: 10 }] };
+  const r = avanzar(horario, "1", { ...hoy, cotizador: { ...hoy.cotizador!, cotizacionGuardada: guardada } });
+  assert.equal(r.estado.paso, "completo");
+  assert.equal(r.pasarAAsesor, "captura_completa");
+  assert.deepEqual(r.efectos, [{ tipo: "elegir_grupo", grupoId: "a" }]);
+  assert.equal(r.respuestas[0], "Anotamos tu preferencia por Tarde (lunes de 16:00 a 17:00) de Programa P, sucursal Norte, pero en este momento ese grupo ya no tiene lugar disponible. Un asesor te escribe por aquí en unos minutos para ofrecerte otra opción para Ana.");
+  // Si todavía hay lugar, el cierre es el de siempre.
+  assert.match(avanzar(horario, "2", { ...hoy, cotizador: { ...hoy.cotizador!, cotizacionGuardada: guardada } }).respuestas[0]!, /^¡Listo! Anotamos a Ana en Noche/);
+});
+
+test("EC-02: si la cotización vencida ya no tiene qué ofrecer (todo lleno), no se antepone ningún aviso de «cotización actualizada»: pasa al asesor", () => {
+  const ctx = contexto([DOS]);
+  const horario = conversar(["Hola", "Ana", "8", "1"], ctx).estado;
+  const llenos = contexto([programa("p", "Programa P", 3, 12, { grupos: [grupo("a", { cupoMaximo: 2, ocupados: 2 })] })]);
+  const r = avanzar(horario, "1", { ...llenos, cotizador: { ...llenos.cotizador!, cotizacionVencida: true } });
+  assert.equal(r.pasarAAsesor, "captura_completa");
+  assert.ok(!r.respuestas[0]!.includes("ya venció"));
+  assert.match(r.respuestas[0]!, /Por ahora no hay lugares/);
+});

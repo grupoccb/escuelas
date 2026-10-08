@@ -63,10 +63,18 @@ export interface DepsCaptacion {
 
 class ConflictoVersion extends Error {}
 
+/** Postgres no guarda el carácter NUL en un texto: un mensaje con uno hacía fallar la transacción entera (EC-12). */
+const sinNul = (t: string): string => t.replaceAll("\u0000", "");
+
 export async function procesarEntrante(
   deps: DepsCaptacion,
-  evento: EventoEntrante,
+  eventoCrudo: EventoEntrante,
 ): Promise<{ resultado: ResultadoEntrante; conversacionId?: string }> {
+  const evento: EventoEntrante = {
+    ...eventoCrudo,
+    contenido: sinNul(eventoCrudo.contenido),
+    contacto: { ...eventoCrudo.contacto, nombre: eventoCrudo.contacto.nombre === null ? null : sinNul(eventoCrudo.contacto.nombre) },
+  };
   const bandeja =
     (await resolverBandejaChatwoot(deps.prisma, evento.chatwootAccountId, evento.chatwootInboxId)) ??
     (evento.numeroReceptor ? await resolverBandejaPorNumero(deps.prisma, evento.numeroReceptor) : null);
@@ -469,10 +477,13 @@ async function contextoCaptacion(
   const catalogo = await cargarCatalogoCotizable(tx, { verticalId, fecha: fechaLocal(o.ahora, zona), fuente: o.fuente });
   const { sucursalSinPrograma, cotizacionVigenciaDias } = await leerConfiguracion(tx);
   // En el paso del horario, los que se le numeraron al contacto: los de la cotización guardada, no los de hoy.
-  const guardada = (o.paso === "horario" || o.paso === "lista_espera") && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId) : null;
+  const esperaHorario = o.paso === "horario" || o.paso === "lista_espera";
+  const guardada = esperaHorario && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId, catalogo.fecha) : null;
+  const cotizacionGuardada = guardada && guardada.opciones.length > 0 ? guardada : null;
   return {
     nombreVertical: vertical.nombre,
     sucursales,
-    cotizador: { verticalId, catalogo, sucursalSinPrograma, vigenciaDias: cotizacionVigenciaDias, cotizacionGuardada: guardada && guardada.opciones.length > 0 ? guardada : null },
+    // EC-02: si espera un horario y su cotización ya no vale (venció o no tiene opciones), la máquina manda una nueva.
+    cotizador: { verticalId, catalogo, sucursalSinPrograma, vigenciaDias: cotizacionVigenciaDias, cotizacionGuardada, ...(esperaHorario && !cotizacionGuardada ? { cotizacionVencida: true } : {}) },
   };
 }
