@@ -52,6 +52,16 @@ export interface EventoEntrante {
   estadoConversacion: string;
   contacto: { nombre: string | null; telefono: string | null };
   creadoEn: Date | null;
+  /**
+   * Llave de idempotencia (invariante 8): el id del proveedor (`source_id`, el MessageSid de
+   * Twilio) cuando existe; si no, el id de Chatwoot. Chatwoot no es idempotente ante un
+   * reintento de Twilio (DECISION-ATRIBUCION, H2), así que no se puede usar solo su id.
+   */
+  llave: { proveedor: string; id: string };
+  /** Número de WhatsApp que recibió el mensaje, si el transporte lo trae. Chatwoot no lo manda. */
+  numeroReceptor: string | null;
+  /** El payload tal como llegó. Lo leen los adaptadores (p. ej. la atribución). */
+  crudo: unknown;
 }
 
 type Objeto = Record<string, unknown>;
@@ -83,6 +93,14 @@ export function interpretarEventoChatwoot(payload: unknown): EventoEntrante | nu
   const creado = texto(p["created_at"]);
   const creadoEn = creado ? new Date(creado) : null;
 
+  // Los canales de Twilio traen en `source_id` el MessageSid del proveedor.
+  const idProveedor = texto(p["source_id"]);
+  const esTwilio = texto(conversacion?.["channel"]) === "Channel::TwilioSms";
+  const llave =
+    idProveedor && esTwilio
+      ? { proveedor: "twilio", id: idProveedor }
+      : { proveedor: "chatwoot", id: String(idMensaje) };
+
   return {
     chatwootAccountId: cuenta,
     chatwootInboxId: bandeja,
@@ -95,5 +113,8 @@ export function interpretarEventoChatwoot(payload: unknown): EventoEntrante | nu
       telefono: texto(contacto?.["phone_number"]),
     },
     creadoEn: creadoEn && !Number.isNaN(creadoEn.getTime()) ? creadoEn : null,
+    llave,
+    numeroReceptor: null,
+    crudo: payload,
   };
 }

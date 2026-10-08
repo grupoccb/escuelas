@@ -8,7 +8,9 @@ import { MessagingProvider } from "./provider.ts";
 
 export { MessagingProvider, type Saliente, type ResumenDespacho } from "./provider.ts";
 export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
-export { ventanaServicioDesde } from "./reglas.ts";
+export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
+export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";
+export { AtribucionDesdeChatwoot } from "./chatwoot/atribucion.ts";
 export {
   interpretarEventoChatwoot,
   verificarWebhookChatwoot,

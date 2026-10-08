@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
 import { conAlcance } from "../datos/alcance.ts";
-import { MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
+import { AtribucionSimulada, MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { procesarEntrante } from "./entrante.ts";
 import { textos } from "./maquina.ts";
@@ -28,17 +28,23 @@ function nuevoEntorno() {
   const transporte = new TransporteFalso();
   const deps = { prisma, mensajeria: new MessagingProvider({ transporte }) };
   const conversacion = randomInt(1, 2_000_000_000);
-  const evento = (contenido: string, extra: Partial<EventoEntrante> = {}): EventoEntrante => ({
-    chatwootAccountId: org.chatwootAccountId,
-    chatwootInboxId: org.chatwootInboxId,
-    chatwootConversacionId: conversacion,
-    idMensaje: String(siguienteMensaje++),
-    contenido,
-    estadoConversacion: "pending",
-    contacto: { nombre: "Contacto", telefono: `+52155${randomInt(10_000_000, 99_999_999)}` },
-    creadoEn: null,
-    ...extra,
-  });
+  const evento = (contenido: string, extra: Partial<EventoEntrante> = {}): EventoEntrante => {
+    const idMensaje = extra.idMensaje ?? String(siguienteMensaje++);
+    return {
+      chatwootAccountId: org.chatwootAccountId,
+      chatwootInboxId: org.chatwootInboxId,
+      chatwootConversacionId: conversacion,
+      idMensaje,
+      contenido,
+      estadoConversacion: "pending",
+      contacto: { nombre: "Contacto", telefono: `+52155${randomInt(10_000_000, 99_999_999)}` },
+      creadoEn: null,
+      llave: { proveedor: "chatwoot", id: idMensaje },
+      numeroReceptor: null,
+      crudo: null,
+      ...extra,
+    };
+  };
   return { transporte, deps, conversacion, evento };
 }
 
@@ -185,4 +191,96 @@ test("un evento de una bandeja que no está dada de alta se ignora", async () =>
   const { deps, evento } = nuevoEntorno();
   const r = await procesarEntrante(deps, evento("Hola", { chatwootInboxId: 1 }));
   assert.equal(r.resultado, "bandeja_desconocida");
+});
+
+test("entrada por anuncio: el lead guarda la atribución, la campaña se enlaza y las dos ventanas son distintas (invariante 5)", async () => {
+  const anuncioId = `ad-${randomInt(1e9)}`;
+  const campana = await prisma.campana.create({ data: { organizacion_id: org.organizacionId, nombre: "Campaña de prueba", origen: "facebook", anuncio_id: anuncioId } });
+  const { deps, conversacion, evento } = nuevoEntorno();
+  const fuente = new AtribucionSimulada();
+  const ahora = new Date("2026-10-08T15:00:00Z");
+  const primero = evento("Hola, vi su anuncio");
+  fuente.programar(primero.idMensaje, {
+    anuncioId,
+    ctwaClid: "clid-1",
+    anuncioTitulo: "Titular del anuncio",
+    tipoOrigen: "ad",
+    urlOrigen: "https://fb.me/x",
+    crudo: { source_id: anuncioId, ctwa_clid: "clid-1" },
+  });
+  await procesarEntrante({ ...deps, atribucion: fuente, reloj: () => ahora }, primero);
+
+  const conv = await conversacionDe(conversacion);
+  assert.equal(conv.lead.anuncio_id, anuncioId);
+  assert.equal(conv.lead.ctwa_clid, "clid-1");
+  assert.equal(conv.lead.anuncio_titulo, "Titular del anuncio");
+  assert.equal(conv.lead.campana_id, campana.id);
+  assert.deepEqual(conv.lead.atribucion, { source_id: anuncioId, ctwa_clid: "clid-1" });
+  assert.equal(conv.ventana_servicio_hasta?.toISOString(), "2026-10-09T15:00:00.000Z");
+  assert.equal(conv.ventana_gratis_hasta?.toISOString(), "2026-10-11T15:00:00.000Z");
+});
+
+test("un mensaje que no viene de un anuncio no abre ventana gratis ni guarda atribución", async () => {
+  const { deps, conversacion, evento } = nuevoEntorno();
+  await procesarEntrante({ ...deps, atribucion: new AtribucionSimulada() }, evento("Hola"));
+  const conv = await conversacionDe(conversacion);
+  assert.equal(conv.ventana_gratis_hasta, null);
+  assert.equal(conv.lead.ctwa_clid, null);
+  assert.equal(conv.lead.campana_id, null);
+  assert.ok(conv.ventana_servicio_hasta);
+});
+
+test("el lead conserva la atribución de su primer contacto aunque vuelva por otro anuncio", async () => {
+  const telefono = `+52155${randomInt(10_000_000, 99_999_999)}`;
+  const fuente = new AtribucionSimulada();
+  const atribucion = (anuncioId: string) => ({ anuncioId, ctwaClid: `clid-${anuncioId}`, anuncioTitulo: null, tipoOrigen: "ad", urlOrigen: null, crudo: { source_id: anuncioId } });
+
+  const uno = nuevoEntorno();
+  const e1 = uno.evento("Hola", { contacto: { nombre: "Mamá", telefono } });
+  fuente.programar(e1.idMensaje, atribucion("primero"));
+  await procesarEntrante({ ...uno.deps, atribucion: fuente }, e1);
+
+  const dos = nuevoEntorno();
+  const e2 = dos.evento("Hola otra vez", { contacto: { nombre: "Mamá", telefono } });
+  fuente.programar(e2.idMensaje, atribucion("segundo"));
+  await procesarEntrante({ ...dos.deps, atribucion: fuente }, e2);
+
+  const c1 = await conversacionDe(uno.conversacion);
+  const c2 = await conversacionDe(dos.conversacion);
+  assert.equal(c1.lead_id, c2.lead_id);
+  assert.equal(c2.lead.anuncio_id, "primero");
+  // La nueva conversación sí es una entrada por anuncio: tiene su propia ventana gratis.
+  assert.ok(c2.ventana_gratis_hasta);
+});
+
+test("idempotencia por MessageSid: un reintento de Twilio con otro id de Chatwoot no duplica (H2)", async () => {
+  const { transporte, deps, conversacion, evento } = nuevoEntorno();
+  const sid = `SM${randomInt(1e9)}`;
+  const llave = { proveedor: "twilio", id: sid };
+  const primero = evento("Hola", { llave });
+  const reintento = evento("Hola", { llave });
+  assert.notEqual(primero.idMensaje, reintento.idMensaje);
+
+  assert.equal((await procesarEntrante(deps, primero)).resultado, "procesado");
+  const enviados = transporte.envios.length;
+  assert.equal((await procesarEntrante(deps, reintento)).resultado, "duplicado");
+
+  const conv = await conversacionDe(conversacion);
+  assert.equal(conv.mensajes.filter((m) => m.direccion === "entrante").length, 1);
+  assert.equal(transporte.envios.length, enviados);
+});
+
+test("vertical por número receptor: si la bandeja no se reconoce, el número del canal la resuelve", async () => {
+  const numero = `+1555${randomInt(1_000_000, 9_999_999)}`;
+  await prisma.canal_whatsapp.update({ where: { id: org.canalId }, data: { numero_whatsapp: `whatsapp:${numero}` } });
+  const { deps, conversacion, evento } = nuevoEntorno();
+
+  const desconocida = evento("Hola", { chatwootInboxId: 1, numeroReceptor: "whatsapp:+99999999999" });
+  assert.equal((await procesarEntrante(deps, desconocida)).resultado, "bandeja_desconocida");
+
+  const porNumero = evento("Hola", { chatwootInboxId: 1, numeroReceptor: `whatsapp:${numero}` });
+  assert.equal((await procesarEntrante(deps, porNumero)).resultado, "procesado");
+  const conv = await conversacionDe(conversacion);
+  assert.equal(conv.lead.vertical_interes_id, org.verticalId);
+  assert.equal(conv.bandeja_chatwoot_id, org.bandejaId);
 });

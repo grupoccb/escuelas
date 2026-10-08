@@ -13,6 +13,10 @@ export interface OpcionesPayload {
   estado?: string;
   telefono?: string | null;
   nombre?: string;
+  /** MessageSid de Twilio; con canal Twilio. */
+  sourceId?: string | null;
+  canal?: string;
+  referral?: Record<string, string>;
 }
 
 export function payloadMensajeEntrante(o: OpcionesPayload = {}): Record<string, unknown> {
@@ -31,13 +35,15 @@ export function payloadMensajeEntrante(o: OpcionesPayload = {}): Record<string, 
     message_type: o.message_type ?? "incoming",
     private: o.private ?? false,
     created_at: "2026-10-07T17:59:58.769Z",
-    source_id: null,
+    source_id: o.sourceId ?? null,
+    content_attributes: o.referral ? { referral: o.referral } : {},
     account: { id: o.cuenta ?? 1, name: "Demo local" },
     inbox: { id: o.bandeja ?? 1, name: "Bandeja" },
     sender: { ...contacto, account: { id: o.cuenta ?? 1, name: "Demo local" } },
     conversation: {
       id: o.conversacion ?? 10,
       inbox_id: o.bandeja ?? 1,
+      channel: o.canal ?? "Channel::Api",
       status: o.estado ?? "pending",
       meta: { sender: { ...contacto, type: "contact" } },
     },

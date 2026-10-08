@@ -8,7 +8,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N1 | HECHO | 24f667f | Correcciones a CLAUDE.md (invariantes 13 y 14) |
 | N2 | HECHO | ecb2c01 | Prueba simulada de atribución y transporte |
 | N3 | HECHO | 4fa5dcf | Esquema de Fase 1 |
-| N4 | PENDIENTE | | Entrada |
+| N4 | HECHO | (ver git log) | Entrada |
 | N5 | PENDIENTE | | Bot |
 | N6 | PENDIENTE | | Handoff |
 | N7 | PENDIENTE | | Estados de entrega |
@@ -106,3 +106,25 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 **Para Eduardo**
 - Revisar que `lead` conserve `sucursal_interes_id` (a nivel adulto) y `prospecto` no tenga sucursal propia; si prefieres sucursal por niño, es un cambio chico.
 - Los nombres de las etapas del seed son los del insumo (sugerencia inicial); cámbialos en la tabla, no en código.
+
+## N4. Entrada (bloque 1.2)
+
+**Qué se hizo**
+- **Idempotencia por identificador del proveedor** (invariante 8): `EventoEntrante.llave` = `{twilio, MessageSid}` en canales de Twilio y `{chatwoot, id}` en bandejas API. Resuelve H2 de N2 (un reintento de Twilio trae otro id de Chatwoot). El índice único `(organizacion, proveedor, id_externo)` ya existía.
+- **Vertical por número receptor**: `normalizarNumeroWhatsapp()` (en `src/lib/telefono.ts`, único lugar que toca formatos) y `resolverBandejaPorNumero()` (en `sistema.ts`). Se usa cuando la bandeja no se reconoce y el evento trae `numeroReceptor`. Chatwoot no manda ese número, así que para Chatwoot la vertical sale de bandeja → canal; la ruta por número queda lista para otras fuentes (vía C).
+- **Atribución detrás de una interfaz** (`FuenteAtribucion`, `src/mensajeria/atribucion.ts`) con `AtribucionSimulada` y `SinAtribucion`, más el adaptador de la vía A (`AtribucionDesdeChatwoot`, lee `content_attributes.referral`). El lead guarda `ctwa_clid`, `anuncio_id`, `anuncio_titulo`, `atribucion` (JSON completo) y `campana_id` (por `campana.anuncio_id`). La conversación recibe `ventana_gratis_hasta` = +72 h; `ventana_servicio_hasta` sigue en +24 h y son independientes.
+- `server.ts` usa el adaptador de la vía A. Cambiar de vía = cambiar esa línea.
+
+**Verificación**
+- `npm run validar` exit 0 (58 tests) · `npm run test:int` exit 0 (31 tests).
+- Tests nuevos: llave de idempotencia (Twilio vs API), adaptador A con y sin `source_id`, número receptor, lead con atribución + campaña + dos ventanas distintas, primer contacto conservado, reintento con otro id de Chatwoot no duplica, resolución por número.
+
+**Decisiones que tomé**
+- La atribución es del **primer contacto**: un lead existente conserva la suya; la conversación nueva sí abre su ventana gratis. Alternativa descartada: sobrescribir con la última (perdería el costo por lead real).
+- Cuando el canal tiene `sucursal_id` fija, el lead nace con `sucursal_interes_id` (bandeja de una sola sucursal).
+- Al cambiar `EventoEntrante` ajusté dos tests existentes que comparaban el evento completo: ahora incluyen `llave`, `numeroReceptor` y `crudo`; la comparación fixture-vs-real ignora `crudo` porque son dos documentos distintos por definición.
+- No registro `consentimiento opt_in` por entrada CTWA: no hay regla de negocio que lo exija todavía (la ausencia de consentimiento = permitido, como en el insumo). Se decide en N5/N8.
+
+**Para Eduardo**
+- Confirmar la vía de atribución (el adaptador es solo la A).
+- El número receptor no llega en el payload de Chatwoot; si la vía elegida es la C, ese campo se llena desde `To` de Twilio.

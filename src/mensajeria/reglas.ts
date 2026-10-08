@@ -39,3 +39,10 @@ export const DURACION_VENTANA_SERVICIO_MS = 24 * 60 * 60 * 1000;
 export function ventanaServicioDesde(entrante: Date): Date {
   return new Date(entrante.getTime() + DURACION_VENTANA_SERVICIO_MS);
 }
+
+/** 72 h desde la entrada por anuncio. Solo afecta el costo; nunca habilita un envío. */
+export const DURACION_VENTANA_GRATIS_MS = 72 * 60 * 60 * 1000;
+
+export function ventanaGratisDesde(entradaPorAnuncio: Date): Date {
+  return new Date(entradaPorAnuncio.getTime() + DURACION_VENTANA_GRATIS_MS);
+}

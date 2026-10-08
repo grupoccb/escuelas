@@ -3,6 +3,7 @@
 // Agregar otra aquí es una decisión explícita, no un atajo.
 
 import type { PrismaClient } from "../generated/prisma/client.ts";
+import { normalizarNumeroWhatsapp } from "../lib/telefono.ts";
 
 export interface BandejaResuelta {
   id: string;
@@ -42,6 +43,34 @@ export async function resolverBandejaChatwoot(
     canal_whatsapp_id: b.canal_whatsapp_id,
     vertical_id: b.canal_whatsapp.vertical_id,
     sucursal_id: b.canal_whatsapp.sucursal_id,
+  };
+}
+
+/**
+ * Bandeja del canal de WhatsApp que tiene ese número receptor. El número se normaliza antes de
+ * buscar (invariante 7). Sirve a las fuentes que traen el número receptor en el evento.
+ */
+export async function resolverBandejaPorNumero(prisma: PrismaClient, numeroReceptor: string): Promise<BandejaResuelta | null> {
+  const numero = normalizarNumeroWhatsapp(numeroReceptor);
+  if (!numero) return null;
+  const canal = await prisma.canal_whatsapp.findFirst({
+    where: { numero_whatsapp: numero, eliminado_en: null, activo: true, organizacion: { eliminado_en: null } },
+    select: {
+      id: true,
+      organizacion_id: true,
+      vertical_id: true,
+      sucursal_id: true,
+      bandejas_chatwoot: { where: { eliminado_en: null }, select: { id: true }, take: 1 },
+    },
+  });
+  const bandeja = canal?.bandejas_chatwoot[0];
+  if (!canal || !bandeja) return null;
+  return {
+    id: bandeja.id,
+    organizacion_id: canal.organizacion_id,
+    canal_whatsapp_id: canal.id,
+    vertical_id: canal.vertical_id,
+    sucursal_id: canal.sucursal_id,
   };
 }
 

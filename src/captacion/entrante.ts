@@ -7,13 +7,22 @@
 
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaClient } from "../datos/prisma.ts";
-import { resolverBandejaChatwoot, type BandejaResuelta } from "../datos/sistema.ts";
+import type { ValorJson } from "../datos/tipos.ts";
+import { resolverBandejaChatwoot, resolverBandejaPorNumero, type BandejaResuelta } from "../datos/sistema.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
-import { ventanaServicioDesde, type EventoEntrante, type MessagingProvider, type Saliente } from "../mensajeria/index.ts";
+import {
+  SinAtribucion,
+  ventanaGratisDesde,
+  ventanaServicioDesde,
+  type Atribucion,
+  type EventoEntrante,
+  type FuenteAtribucion,
+  type MessagingProvider,
+  type Saliente,
+} from "../mensajeria/index.ts";
 import { avanzar, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
 
-const PROVEEDOR = "chatwoot";
 const MAX_REINTENTOS = 3;
 
 export type ResultadoEntrante =
@@ -26,6 +35,8 @@ export type ResultadoEntrante =
 export interface DepsCaptacion {
   prisma: PrismaClient;
   mensajeria: MessagingProvider;
+  /** De dónde sale la atribución a un anuncio. Por defecto, ninguna. */
+  atribucion?: FuenteAtribucion;
   reloj?: () => Date;
 }
 
@@ -35,7 +46,9 @@ export async function procesarEntrante(
   deps: DepsCaptacion,
   evento: EventoEntrante,
 ): Promise<{ resultado: ResultadoEntrante; conversacionId?: string }> {
-  const bandeja = await resolverBandejaChatwoot(deps.prisma, evento.chatwootAccountId, evento.chatwootInboxId);
+  const bandeja =
+    (await resolverBandejaChatwoot(deps.prisma, evento.chatwootAccountId, evento.chatwootInboxId)) ??
+    (evento.numeroReceptor ? await resolverBandejaPorNumero(deps.prisma, evento.numeroReceptor) : null);
   if (!bandeja) {
     log.warn("entrante_bandeja_desconocida", { cuenta: evento.chatwootAccountId, bandeja: evento.chatwootInboxId });
     return { resultado: "bandeja_desconocida" };
@@ -46,10 +59,13 @@ export async function procesarEntrante(
   // La ventana cuenta desde que el contacto escribió, nunca desde el futuro.
   const recibidoEn = evento.creadoEn && evento.creadoEn < ahora ? evento.creadoEn : ahora;
 
+  // Fuera de la transacción: la fuente puede ser externa (otras vías consultan a un tercero).
+  const atribucion = await (deps.atribucion ?? new SinAtribucion()).obtener(evento);
+
   let r: { resultado: ResultadoEntrante; conversacionId: string } | undefined;
   for (let intento = 1; !r; intento++) {
     try {
-      r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn));
+      r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion));
     } catch (e) {
       const repetible = e instanceof ConflictoVersion || esViolacionUnica(e);
       if (!repetible || intento >= MAX_REINTENTOS) throw e;
@@ -68,22 +84,23 @@ async function registrarYAvanzar(
   bandeja: BandejaResuelta,
   evento: EventoEntrante,
   recibidoEn: Date,
+  atribucion: Atribucion | null,
 ): Promise<{ resultado: ResultadoEntrante; conversacionId: string }> {
   const previo = await tx.mensaje.findFirst({
-    where: { proveedor: PROVEEDOR, id_externo: evento.idMensaje },
+    where: { proveedor: evento.llave.proveedor, id_externo: evento.llave.id },
     select: { conversacion_id: true },
   });
   if (previo) return { resultado: "duplicado", conversacionId: previo.conversacion_id };
 
-  const conv = await obtenerConversacion(tx, bandeja, evento);
+  const conv = await obtenerConversacion(tx, bandeja, evento, recibidoEn, atribucion);
   await tx.mensaje.create({
     data: altaConAlcance({
       conversacion_id: conv.id,
       direccion: "entrante" as const,
       estatus: "recibido" as const,
       cuerpo: evento.contenido,
-      proveedor: PROVEEDOR,
-      id_externo: evento.idMensaje,
+      proveedor: evento.llave.proveedor,
+      id_externo: evento.llave.id,
     }),
   });
 
@@ -155,7 +172,13 @@ async function registrarYAvanzar(
   return { resultado: "procesado", conversacionId: conv.id };
 }
 
-async function obtenerConversacion(tx: Consultas, bandeja: BandejaResuelta, evento: EventoEntrante) {
+async function obtenerConversacion(
+  tx: Consultas,
+  bandeja: BandejaResuelta,
+  evento: EventoEntrante,
+  recibidoEn: Date,
+  atribucion: Atribucion | null,
+) {
   const existente = await tx.conversacion.findFirst({
     where: { bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId },
     include: { lead: true },
@@ -175,14 +198,30 @@ async function obtenerConversacion(tx: Consultas, bandeja: BandejaResuelta, even
   });
   if (!etapaInicial) throw new Error("La organización no tiene etapas de pipeline: falta el seed");
 
+  // La atribución es del primer contacto: un lead que ya existe conserva la suya.
+  const campana = atribucion
+    ? await tx.campana.findFirst({ where: { anuncio_id: atribucion.anuncioId }, select: { id: true } })
+    : null;
+
   const lead =
     (telefono ? await tx.lead.findFirst({ where: { vertical_interes_id: bandeja.vertical_id, telefono } }) : null) ??
     (await tx.lead.create({
       data: altaConAlcance({
         vertical_interes_id: bandeja.vertical_id,
+        sucursal_interes_id: bandeja.sucursal_id,
         etapa_id: etapaInicial.id,
         telefono,
         nombre_contacto: evento.contacto.nombre,
+        ultima_interaccion_en: recibidoEn,
+        ...(atribucion
+          ? {
+              campana_id: campana?.id ?? null,
+              ctwa_clid: atribucion.ctwaClid,
+              anuncio_id: atribucion.anuncioId,
+              anuncio_titulo: atribucion.anuncioTitulo,
+              atribucion: atribucion.crudo as ValorJson,
+            }
+          : {}),
       }),
     }));
 
@@ -191,6 +230,8 @@ async function obtenerConversacion(tx: Consultas, bandeja: BandejaResuelta, even
       bandeja_chatwoot_id: bandeja.id,
       lead_id: lead.id,
       chatwoot_conversacion_id: evento.chatwootConversacionId,
+      // Entrada por anuncio: 72 h de conversación gratis. Solo afecta el costo (invariante 5).
+      ...(atribucion ? { ventana_gratis_hasta: ventanaGratisDesde(recibidoEn) } : {}),
     }),
     include: { lead: true },
   });

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizarTelefono } from "./telefono.ts";
+import { normalizarNumeroWhatsapp, normalizarTelefono } from "./telefono.ts";
 
 const E164 = "+525512345678";
 
@@ -62,4 +62,11 @@ test("rechaza lo que no es un teléfono", () => {
   ]) {
     assert.equal(normalizarTelefono(entrada), null, JSON.stringify(entrada));
   }
+});
+
+test("número receptor de WhatsApp: forma canónica, igual con +521 y +52", () => {
+  assert.equal(normalizarNumeroWhatsapp("whatsapp:+5215512345678"), "whatsapp:+525512345678");
+  assert.equal(normalizarNumeroWhatsapp("whatsapp:+525512345678"), "whatsapp:+525512345678");
+  assert.equal(normalizarNumeroWhatsapp("+1 (500) 555-0006"), "whatsapp:+15005550006");
+  assert.equal(normalizarNumeroWhatsapp("no es un número"), null);
 });

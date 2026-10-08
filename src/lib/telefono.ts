@@ -49,3 +49,12 @@ export function normalizarTelefono(entrada: string): string | null {
   if (digitos.length < 8 || digitos.length > 15 || digitos.startsWith("0")) return null;
   return `+${digitos}`;
 }
+
+/**
+ * Número receptor de un canal de WhatsApp en la forma canónica de `canal_whatsapp.numero_whatsapp`:
+ * "whatsapp:" + E.164 de normalizarTelefono(). Devuelve `null` si no se puede interpretar.
+ */
+export function normalizarNumeroWhatsapp(entrada: string): string | null {
+  const e164 = normalizarTelefono(entrada);
+  return e164 ? `whatsapp:${e164}` : null;
+}
