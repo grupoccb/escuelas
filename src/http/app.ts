@@ -4,7 +4,11 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { cabecerasDeSeguridad } from "../api/cabeceras.ts";
 import { crearApiRouter, type ApiDepsEntrada } from "../api/index.ts";
+import { LIMITE_CUERPO_CHATWOOT, LIMITE_CUERPO_TWILIO } from "../api/cuerpos.ts";
 import { log } from "../lib/log.ts";
+import type { ConfigLimites } from "./config-limites.ts";
+import type { LimitadorDeTasa } from "./limite.ts";
+import { protegerWebhook, registrarFirmaInvalida } from "./limite-http.ts";
 import {
   interpretarDesasignacion,
   interpretarEventoChatwoot,
@@ -29,8 +33,7 @@ export interface AppTwilio {
   borde: BordeTwilio;
 }
 
-/** Tope del cuerpo de un webhook de Twilio. Los reales (con Referral*) pesan unos cuantos KB. */
-export const LIMITE_CUERPO_TWILIO = "100kb";
+export { LIMITE_CUERPO_TWILIO };
 
 export interface AppDeps {
   /** Verifica que la base responde. Lanza si no. */
@@ -49,16 +52,24 @@ export interface AppDeps {
   twilio?: AppTwilio;
   /** API de la aplicación (/api). Sin ella, /api no existe. */
   api?: ApiDepsEntrada;
+  /** Límites de peticiones (B6). Sin ellos no se limita nada: `server.ts` siempre los pasa. */
+  limites?: ConfigLimites;
+  limitador?: LimitadorDeTasa;
+  /** `trust proxy` de Express: cuántos saltos de proxy creer para leer la IP real. Por omisión ninguno. */
+  confiarEnProxy?: boolean | number | string;
   reloj?: () => Date;
 }
 
 export function crearApp(deps: AppDeps): Express {
   const app = express();
   app.disable("x-powered-by");
+  // La IP del cliente (req.ip) sale de la conexión, salvo que se configure confiar en un proxy.
+  app.set("trust proxy", deps.confiarEnProxy ?? false);
+  const { limites, limitador } = deps;
   app.use(cabecerasDeSeguridad(deps.api?.cookieSegura ?? false));
 
   // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
-  if (deps.api) app.use("/api", crearApiRouter(deps.api));
+  if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), ...deps.api }));
 
   app.get("/salud", async (_req, res) => {
     try {
@@ -71,9 +82,11 @@ export function crearApp(deps: AppDeps): Express {
 
   // Webhook del Agent Bot. La firma se valida sobre el cuerpo crudo antes de parsear nada
   // (invariante 9). Un 500 hace que Chatwoot reintente; el procesamiento es idempotente.
-  app.post("/webhooks/chatwoot", express.raw({ type: () => true, limit: "1mb" }), async (req, res) => {
+  const protegido = (nombre: string): express.RequestHandler[] => (limitador && limites ? [protegerWebhook(limitador, limites, nombre)] : []);
+  app.post("/webhooks/chatwoot", ...protegido("chatwoot"), express.raw({ type: () => true, limit: LIMITE_CUERPO_CHATWOOT }), async (req, res) => {
     const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (!verificarWebhookChatwoot(req, cuerpo, deps.secretoWebhookChatwoot, deps.reloj?.())) {
+      registrarFirmaInvalida(limitador, limites, "chatwoot", req);
       log.warn("webhook_chatwoot_rechazado");
       res.status(401).json({ ok: false });
       return;
@@ -144,11 +157,12 @@ export function crearApp(deps: AppDeps): Express {
     ["/webhooks/twilio/entrantes", "entrante"],
     ["/webhooks/twilio/estados", "estado"],
   ] as const) {
-    app.post(ruta, express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
+    app.post(ruta, ...protegido(`twilio${tipo === "entrante" ? "" : "-estados"}`), express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
       const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       const t = deps.twilio;
       const verificado = verificarWebhookTwilio(req, cuerpo, t?.authToken, t?.publicBaseUrl ? urlPublicaDe(t.publicBaseUrl, req.originalUrl) : null);
       if (!t || !verificado) {
+        registrarFirmaInvalida(limitador, limites, `twilio${tipo === "entrante" ? "" : "-estados"}`, req);
         log.warn("webhook_twilio_rechazado", { ruta });
         res.status(403).end();
         return;

@@ -39,6 +39,31 @@ en la misma transacción.
 **Cabeceras.** En todo el backend: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. En `/api`: CSP `default-src 'none'`,
 `Cache-Control: no-store`.
 
+## Protección de rutas públicas (límites)
+
+Límite por **IP** y ruta, en memoria (`src/http/limite.ts`: cubeta de fichas, ráfaga = cupo por minuto, con tope de memoria). Al excederlo: **429 con `Retry-After`**
+(en `/api`, con la convención de errores y código `limite_excedido`; en los webhooks, sin cuerpo).
+
+| Qué | Variable (por minuto) | Defecto | Detalle |
+|---|---|---|---|
+| Inicio de sesión | `LIMITE_LOGIN_POR_MINUTO` | 10 | Además del bloqueo por (correo, IP) de B1 |
+| Resto de `/api` | `LIMITE_API_POR_MINUTO` | 600 | Antes de revisar la sesión |
+| Landing pública (E1) | `LIMITE_LANDING_POR_MINUTO` | 30 | Perfil listo: la landing usará `limitarApiPorIp(limitador, "landing", limites.landing)` y `LIMITE_CUERPO_LANDING` |
+| Webhooks: firmas INVÁLIDAS | `LIMITE_WEBHOOK_FALLOS_POR_MINUTO` | 30 | Por IP y por ruta; agotado, la IP recibe 429 antes de que se lea el cuerpo |
+| Webhooks: techo | `LIMITE_WEBHOOK_POR_MINUTO` | 6000 | Frena una inundación; no estorba al tráfico normal |
+| Tope de memoria | `LIMITE_MAX_CLAVES` | 50000 | Cubetas guardadas |
+
+El tráfico de webhooks **firmado y legítimo** no gasta cupo de fallos: solo cuentan las firmas inválidas. (Una IP que acumula firmas inválidas espera aunque ahora firme bien.)
+Tamaño de cuerpo por ruta (`src/api/cuerpos.ts`): login 4 KB, resto de la API 100 KB, Twilio 100 KB, Chatwoot 1 MB, landing 16 KB; al pasarlo, 413.
+
+**IP real detrás de un balanceador:** `TRUST_PROXY` (número de saltos de confianza, p. ej. `1`, o lista de redes). Sin definirlo se usa la IP de la conexión y
+`X-Forwarded-For` se ignora, así que no sirve para esquivar el límite. No uses `true`. Las IPv6 se agrupan por /64.
+
+**Lo que NO resuelve:**
+- El estado vive en el proceso: con **varias réplicas** cada una cuenta aparte (el límite efectivo se multiplica) y un reinicio lo borra. Con más de una réplica hace falta un almacén compartido (Redis, la base) o un WAF/balanceador que limite antes.
+- Una IP compartida (oficina con NAT) comparte cupo; un atacante con muchísimas IPs distintas no se frena por IP (ni puede expulsar cubetas sin límite, pero sí algunas).
+- No protege contra denegación de servicio de red (volumétrica): eso es del balanceador/CDN.
+
 ## Rutas
 
 | Método y ruta | Permiso | Descripción |

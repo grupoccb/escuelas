@@ -19,7 +19,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B3 | HECHO | (ver git log) | API base: errores, validador, paginación, registro de cambios solo de anexar, cabeceras; docs/API.md |
 | B4 | HECHO | (ver git log) | Datos sensibles: ficha de salud cifrada, registro de accesos, redacción en logs, `check:sensibles` y test de fuga |
 | B5 | HECHO | (ver git log) | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
-| B6 | PENDIENTE | | Protección de rutas públicas |
+| B6 | HECHO | (ver git log) | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
 | C1 | PENDIENTE | | Instructores y salones |
 | C2 | PENDIENTE | | Precios versionados |
 | C3 | PENDIENTE | | Promociones |
@@ -502,7 +502,7 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 - **Reglas de usuarios**: el correo no se cambia; no puedes desactivarte ni quitarte el rol de administrador; nunca queda la organización sin un administrador activo (comprobado bajo el candado `usuarios:administradores`); desactivar, cambiar el rol o restablecer la contraseña cierra sus sesiones; un usuario con rol maestro tiene su `instructor` (se crea si falta); las sucursales se reemplazan marcando eliminadas las que sobran.
 - **Un recurso fuera de tu alcance o de otra organización da 404**, nunca 403 (no se confirma que exista). Un id mal formado da 400.
 - Se adelantó de B3 lo que las listas necesitan: `src/api/paginacion.ts` (`?limite=&pagina=`, tope de 100, respuesta `{datos, paginacion}`).
-- Seed: el instructor del maestro de la demo y tres grupos suyos (`Lun-Mié…`) en `catalogo.sql`. Los ids del seed pasaron a la convención de 3 dígitos (`…501`, `…511`, `…521`) para que los tests puedan re-prefijarlos.
+- Seed: el instructor del maestro de la demo y dos grupos suyos (`Lun-Mié…`) en `catalogo.sql`. Los ids del seed pasaron a la convención de 3 dígitos (`…501`, `…511`, `…521`) para que los tests puedan re-prefijarlos.
 
 **Verificación**
 - `npm run validar` → exit 0 (`check:generico: 173 archivos`, `check:capas: 65 archivos`); `npm run test:int` → exit 0 · `ℹ tests 287 · pass 287 · fail 0` (antes 265).
@@ -600,3 +600,30 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 **Para Eduardo**
 - En un ambiente real hace falta `CHATWOOT_ADMIN_TOKEN` (un administrador de la cuenta); la demo ya lo trae en `config/demo-local.env`.
 - Los usuarios deben tener el MISMO correo que su agente de Chatwoot para vincularlos sin escribir el id.
+
+## B6. Protección de rutas públicas
+
+**Qué se hizo**
+- **Limitador en memoria** (`src/http/limite.ts`): cubeta de fichas (token bucket) por clave, con ráfaga = cupo por minuto y recarga continua, reloj inyectable y **tope de memoria** (`LIMITE_MAX_CLAVES`, 50 000 cubetas: al llenarse se tiran primero las inactivas —ya llenas— y luego las menos usadas). Claves por IP (`src/http/ip.ts`: se quita el prefijo de IPv4 mapeada y las IPv6 se agrupan por /64) y por ruta.
+- **Dónde se aplica** (`src/http/limite-http.ts`, `src/http/app.ts`, `src/api/index.ts`): login (10/min por IP, antes de leer el cuerpo y además del bloqueo por correo+IP de B1); el resto de `/api` (600/min, antes de revisar la sesión); la landing (perfil `landing`, 30/min, listo para E1); y los **webhooks públicos** de Chatwoot y de Twilio (entrantes y estados, cupo separado cada uno) con dos protecciones: cupo de **firmas inválidas** por IP (30/min; agotado, 429 sin leer el cuerpo) y un techo generoso por IP (6 000/min). El tráfico firmado y legítimo no gasta el cupo de fallos.
+- **Respuestas 429 con `Retry-After`**: en `/api` con la convención de errores (`limite_excedido`); en los webhooks, sin cuerpo.
+- **`trust proxy` configurable** (`TRUST_PROXY`: número de saltos, lista de redes; por omisión ninguno): sin configurarlo, `X-Forwarded-For` se ignora y no sirve para esquivar el límite.
+- **Tope de cuerpo por ruta** centralizado en `src/api/cuerpos.ts` (login 4 KB, API 100 KB, Twilio 100 KB, Chatwoot 1 MB, landing 16 KB); 413 al pasarlo.
+- Configuración por variables (`src/http/config-limites.ts`, `.env.example`); `server.ts` siempre las pasa. Sin `limites` (los demás tests de la app) no se limita nada.
+- **Documentado en `docs/API.md` lo que NO resuelve**: el estado vive en el proceso (varias réplicas multiplican el límite y un reinicio lo borra: haría falta Redis/la base o un WAF/balanceador), IPs compartidas (NAT) comparten cupo, un atacante con muchísimas IPs no se frena por IP, y nada contra DoS volumétrico.
+
+**Verificación**
+- `npm run validar` → exit 0 (`ℹ tests 257`; `check:generico: 204`, `check:capas: 79`, `check:sensibles: 79`). `npm run test:int` → exit 0 · `ℹ tests 330 · pass 330 · fail 0`, **dos corridas seguidas** (antes 324).
+- `limite.test.ts` (9): ráfaga, recarga y tope, claves independientes, `espiar`, tope de memoria con 600 claves y una IP activa que conserva su cubeta, inactivas primero, IP/IPv6, configuración y `TRUST_PROXY`. `limites.test.ts` (8, sin base): 200 webhooks firmados de Twilio y 100 de Chatwoot seguidos desde una IP sin un solo 429; ráfaga de firmas inválidas → 429 con `Retry-After` y sin llegar al borde; otra IP intacta; sin `trust proxy` falsificar `X-Forwarded-For` no da cupo; techo; cupos separados por ruta; 413. `limites.itest.ts` (6): login por IP (incluso con la contraseña correcta), otra IP y recarga con reloj de mentira, límite general de `/api`, 90 peticiones normales sin 429, y un webhook firmado que pasa con el cupo de login y API agotado.
+- Mutaciones atrapadas: no anotar las firmas inválidas, quitar el tope de memoria, `trust proxy` en `true`, quitar el límite general de `/api` y el del login.
+- **Demo real** (`docker compose up -d --build --wait`, sin `down -v`): las migraciones B1–B5 aplican sobre la base con datos de la demo (el slug de «Escuela demo» se rellenó) y el seed crea los usuarios; con curl: login sin `organizacion` (hay una sola viva), `GET /api/yo`, lista de usuarios, **vincular al asesor con su agente de Chatwoot REAL por correo** (agente 2), el maestro ve 2 grupos de 9, el administrador los 9, el asesor recibe 403 en `/api/usuarios`.
+
+**Decisiones que tomé**
+- *Cubeta de fichas y no ventana deslizante exacta*: misma idea con memoria constante por clave y ráfagas permitidas. Alternativa descartada: guardar las marcas de tiempo de cada petición (memoria proporcional al tráfico).
+- *Los webhooks no se limitan «en general»*: se limitan las firmas inválidas (lo que hace un atacante) y hay un techo muy alto. Un cupo bajo por IP ahogaría a Twilio/Chatwoot (pocas IPs, ráfagas de campaña). Costo: una IP que falla firmas espera aunque ahora firme bien.
+- *La API tiene su límite general ANTES de revisar la sesión*: así también frena a quien manda cookies inventadas.
+- *Defecto de 600/min en la API*: holgado para una interfaz; ajustable.
+
+**Para Eduardo**
+- **Limpieza de la base de la demo** (no fue por estos bloques): la base `inscripciones` tenía dos organizaciones de prueba vivas, «A 63459c59» y «B 310f5e8f» (creadas a las 07:22 UTC por alguna corrida de pruebas contra la base de la demo), que hacían fallar `demo-preparar` al reconstruir (índice único de bandeja de Chatwoot). Las marqué con `eliminado_en` junto con sus bandejas (sin borrado físico); queda una bandeja huérfana (cuenta 2, bandeja 6) en Chatwoot. Es el mismo tipo de incidente que A3: los tests solo deben correr con `npm run test:int`.
+- Si el backend va detrás de un balanceador, definir `TRUST_PROXY=1` o los límites verán a todos con la IP del balanceador.

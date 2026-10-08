@@ -12,6 +12,9 @@ import { BLOQUEO_POR_DEFECTO, type ConfigBloqueo } from "../auth/acceso.ts";
 import { PARAMETROS_POR_DEFECTO, type ParametrosScrypt } from "../auth/contrasena.ts";
 import { configSesionDesdeEntorno, type ConfigSesion } from "../auth/sesiones.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
+import type { ConfigLimites } from "../http/config-limites.ts";
+import type { LimitadorDeTasa } from "../http/limite.ts";
+import { limitarApiPorIp } from "../http/limite-http.ts";
 import { cabecerasDeApi } from "./cabeceras.ts";
 import type { DepsApi } from "./contexto.ts";
 import { cookieSeguraDesdeEntorno } from "./cookies.ts";
@@ -43,6 +46,9 @@ export interface ApiDepsEntrada {
   sensibles?: OpcionesSensibles;
   /** Agentes de Chatwoot (null = no configurado). Por omisión: ninguno. */
   directorio?: DirectorioAgentes | null;
+  /** Límites por IP (B6). Sin ellos la API no limita. */
+  limites?: ConfigLimites;
+  limitador?: LimitadorDeTasa;
 }
 
 export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
@@ -64,9 +70,13 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   const api = Router();
 
   api.use(cabecerasDeApi);
+  const { limites, limitador } = entrada;
+  // Primero el límite general por IP (también frena a quien manda sesiones inventadas)...
+  if (limites && limitador) api.use(limitarApiPorIp(limitador, "api", limites.api));
   api.use(proteccionCsrf(deps.origenesPermitidos));
 
-  api.use(rutasPublicasDeSesion(deps));
+  // ...y el del login, más estricto, solo para iniciar sesión.
+  api.use(rutasPublicasDeSesion(deps, limites && limitador ? [limitarApiPorIp(limitador, "login", limites.login)] : []));
 
   api.use(rutasDeSesionPropia(deps));
   api.use(rutasDeUsuarios(deps));

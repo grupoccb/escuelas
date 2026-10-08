@@ -79,7 +79,7 @@ JOIN programa pr ON pr.organizacion_id = '00000000-0000-4000-8000-000000000001' 
 JOIN grupo gr    ON gr.organizacion_id = '00000000-0000-4000-8000-000000000001' AND gr.programa_id = pr.id AND gr.nombre = h.grupo AND gr.eliminado_en IS NULL
 ON CONFLICT DO NOTHING;
 
--- Instructor de la demo (B2): imparte los grupos de Lun-Mié (3 de los 9). Los demás quedan sin
+-- Instructor de la demo (B2): imparte los grupos de Lun-Mié (2 de los 9). Los demás quedan sin
 -- instructor, para ver que un maestro solo ve los suyos. [SUPUESTO] editable desde administración.
 UPDATE grupo SET instructor_id = '00000000-0000-4000-8000-000000000521'
 WHERE organizacion_id = '00000000-0000-4000-8000-000000000001'

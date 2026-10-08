@@ -51,22 +51,22 @@ test("guardar: en la base solo hay texto cifrado (nunca el valor), y leer lo dev
     sujetoId: id,
     motivo: "captura en inscripción",
     ruta: "PUT /prueba",
-    valores: { alergias: "penicilina-ZZ", medicamentos: "insulina-ZZ", contacto_emergencia: { nombre: "Tía Rosa-ZZ", telefono: "+525511112222" }, autorizacion_atencion_medica: true },
+    valores: { alergias: "penicilina-reservada-para-pruebas", medicamentos: "insulina-reservada-para-pruebas", contacto_emergencia: { nombre: "Tía Rosa-reservada-para-pruebas", telefono: "+525511112222" }, autorizacion_atencion_medica: true },
   }, opciones);
   const fila = await prisma.ficha_salud.findFirstOrThrow({ where: { sujeto_id: id } });
-  assert.ok(!JSON.stringify(fila).includes("ZZ") && !JSON.stringify(fila).includes("5511112222"), "ni rastro del valor en la fila");
+  assert.ok(!JSON.stringify(fila).includes("reservada-para-pruebas") && !JSON.stringify(fila).includes("5511112222"), "ni rastro del valor en la fila");
   assert.match(fila.alergias ?? "", /^v1\./);
   assert.equal(fila.condiciones_medicas, null);
 
   const ficha = await leerSensible(db(), actor(admin), { sujetoTipo: "prospecto", sujetoId: id, motivo: "revisión", ruta: "GET /prueba" }, opciones);
   assert.equal(ficha.existe, true);
   assert.ok(ficha.campos.alergias instanceof Sensible);
-  assert.equal(ficha.campos.alergias?.revelar(), "penicilina-ZZ");
-  assert.deepEqual(ficha.campos.contacto_emergencia?.revelar(), { nombre: "Tía Rosa-ZZ", telefono: "+525511112222" });
+  assert.equal(ficha.campos.alergias?.revelar(), "penicilina-reservada-para-pruebas");
+  assert.deepEqual(ficha.campos.contacto_emergencia?.revelar(), { nombre: "Tía Rosa-reservada-para-pruebas", telefono: "+525511112222" });
   assert.equal(ficha.campos.autorizacion_atencion_medica?.revelar(), true);
   assert.equal(ficha.campos.condiciones_medicas, null);
   assert.equal(JSON.stringify(ficha), JSON.stringify({ existe: true, campos: JSON.parse(JSON.stringify(ficha.campos)) }));
-  assert.ok(!JSON.stringify(ficha).includes("ZZ"), "serializar la respuesta no revela nada");
+  assert.ok(!JSON.stringify(ficha).includes("reservada-para-pruebas"), "serializar la respuesta no revela nada");
 });
 
 test("cada lectura y escritura deja su registro (quién, a quién, QUÉ campos, motivo, ruta) sin valores", async () => {

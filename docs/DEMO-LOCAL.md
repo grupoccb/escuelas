@@ -82,6 +82,11 @@ curl -b /tmp/sesion-asesor.txt 'http://localhost:3000/api/conversaciones?asignad
 Datos de salud (solo administrador y maestro del grupo): `PUT/GET /api/salud/prospecto/:id` — ver `docs/API.md`.
 La clave de cifrado de la demo (`CLAVE_DATOS_SENSIBLES` en `docker-compose.yml`) es pública a propósito.
 
+### Límites de peticiones
+
+El backend limita por IP el inicio de sesión (10 por minuto), el resto de `/api` (600) y los webhooks con firma inválida (30); lo legítimo
+firmado no se ahoga. Detalle y variables en `docs/API.md`. En la demo local todo llega desde la misma IP: si pruebas contraseñas malas verás un `429`.
+
 ## Cómo está armada
 
 | Pieza | Dónde |

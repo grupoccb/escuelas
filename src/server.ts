@@ -6,6 +6,8 @@ import { registrarDesasignacionDeConversacion, registrarTomaDeConversacion } fro
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { crearApp } from "./http/app.ts";
+import { confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./http/config-limites.ts";
+import { LimitadorDeTasa } from "./http/limite.ts";
 import { log } from "./lib/log.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
 import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega } from "./mensajeria/index.ts";
@@ -18,7 +20,13 @@ const atribucion = new AtribucionDesdeChatwoot();
 // Apagado (rechaza todo) mientras no haya TWILIO_AUTH_TOKEN y PUBLIC_BASE_URL.
 const twilio = bordeTwilioDesdeEntorno(prisma);
 
+const limites = limitesDesdeEntorno();
+
 const app = crearApp({
+  // Límites de peticiones por IP (B6) y confianza en el proxy para leer la IP real.
+  limites,
+  limitador: new LimitadorDeTasa({ maxClaves: limites.maxClaves }),
+  confiarEnProxy: confianzaProxyDesdeEntorno(),
   pingDb: () => pingBaseDatos(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
   twilio,
