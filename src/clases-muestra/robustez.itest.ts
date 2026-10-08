@@ -12,6 +12,8 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { OcupacionFija, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra, type ContextoDeAgenda } from "./agenda.ts";
+import { moverLeadAEtapa } from "../embudo/etapas.ts";
+import { moverEtapaDeLead } from "../embudo/historial.ts";
 import { marcarAsistencia } from "./asistencia.ts";
 import { barrerAvisosMaestro } from "./avisos.ts";
 
@@ -196,4 +198,62 @@ test("ED-05 (M53): la versión vigente de un documento de una vertical es la má
   assert.equal((await documentoVigente(db, "reglamento", org.verticalId, ahora))?.id, propio2.id, "la más alta de las que ya rigen (ni la v1 ni la futura)");
   assert.equal((await documentoVigente(db, "reglamento", otraVertical.id, ahora))?.id, general1.id, "otra vertical sin documento propio: el general");
   assert.equal((await documentoVigente(db, "reglamento", org.verticalId, new Date("2031-01-01T00:00:00Z")))?.id, futuro.id, "llegada su fecha, rige la v3");
+});
+
+test("ED-07: varias reprogramaciones simultáneas de la misma clase: una gana y las demás reciben «la clase ya no está agendada» (no «ya tiene una clase»)", async () => {
+  const m = await mundo();
+  const f = await sembrarFamilia(prisma, m.org, { sucursalId: m.org.sucursales[0]!.id });
+  const r0 = await m.db.$transaction((tx) => agendarClaseMuestra(tx, m.ctx, { prospectoId: f.prospectoId, grupoId: m.grupoA, fechaHora: MIERCOLES_4 }));
+  assert.ok(r0.ok);
+  const fechas = [MIERCOLES_11, new Date("2026-11-19T00:00:00Z"), MIERCOLES_11, new Date("2026-11-19T00:00:00Z")];
+  const rs = await Promise.all(fechas.map((fechaHora) => m.db.$transaction((tx) => reprogramarClaseMuestra(tx, m.ctx, { claseId: r0.clase.id, fechaHora }))));
+  assert.equal(rs.filter((r) => r.ok).length, 1);
+  assert.deepEqual([...new Set(rs.filter((r) => !r.ok).map((r) => (r as { motivo: string }).motivo))], ["clase_no_vigente"]);
+  assert.equal(await m.db.clase_muestra.count({ where: { prospecto_id: f.prospectoId, estatus: "agendada" } }), 1);
+});
+
+test("ED-12: el sistema tampoco mueve a un lead cuya etapa es de cierre solo por su tipo (inscrito sin la bandera de ganado; perdido sin la bandera de perdido)", async () => {
+  const org = await sembrarOrganizacion(prisma, "Etapas por tipo");
+  const db = conAlcance(prisma, org.organizacionId);
+  await prisma.etapa_pipeline.update({ where: { id: org.etapaInicialId }, data: { tipo_sistema: "nuevo" } });
+  const crea = (nombre: string, orden: number, tipo: "muestra_agendada" | "muestra_asistida" | "inscrito" | "perdido") => prisma.etapa_pipeline.create({ data: { organizacion_id: org.organizacionId, nombre, orden, tipo_sistema: tipo } });
+  const agendada = await crea("Etapa B", 2, "muestra_agendada");
+  const asistida = await crea("Etapa C", 3, "muestra_asistida");
+  const inscrito = await crea("Etapa D", 4, "inscrito"); // es_ganado queda en false a propósito
+  const perdido = await crea("Etapa E", 5, "perdido"); // es_perdido queda en false a propósito
+  const a = await sembrarFamilia(prisma, org, { etapaId: inscrito.id });
+  const retrocede = await db.$transaction((tx) => moverLeadAEtapa(tx, a.leadId, "muestra_asistida", { motivo: "prueba", permitirRetroceso: true }));
+  assert.equal(retrocede.movido, false, "un inscrito no se mueve aunque la escuela no haya marcado la bandera");
+  assert.equal((await db.lead.findFirstOrThrow({ where: { id: a.leadId } })).etapa_id, inscrito.id);
+
+  const b = await sembrarFamilia(prisma, org, { etapaId: perdido.id });
+  const recupera = await db.$transaction((tx) => moverLeadAEtapa(tx, b.leadId, "muestra_agendada", { motivo: "prueba" }));
+  assert.equal(recupera.movido, true, "un perdido (por tipo) que reaparece se recupera");
+  const lead = await db.lead.findFirstOrThrow({ where: { id: b.leadId } });
+  assert.deepEqual([lead.etapa_id, lead.recuperaciones], [agendada.id, 1]);
+  void asistida;
+});
+
+test("ED-13: el registro de cambios del movimiento de etapa va en la misma transacción: si falla, el movimiento no se confirma", async () => {
+  const m = await mundo();
+  const etapas = await m.db.etapa_pipeline.findMany({ orderBy: { orden: "asc" }, select: { id: true, tipo_sistema: true } });
+  const nuevo = etapas.find((x) => x.tipo_sistema === "nuevo")!;
+  const contactado = etapas.find((x) => x.tipo_sistema === "contactado")!;
+  const f = await sembrarFamilia(prisma, m.org, { sucursalId: m.org.sucursales[0]!.id, etapaId: nuevo.id });
+  const actor = { usuarioId: m.usuarioId, organizacionId: m.org.organizacionId, esAdministrador: false, ahora: AHORA };
+  await assert.rejects(
+    moverEtapaDeLead(m.db, actor, { leadId: f.leadId, haciaEtapaId: contactado.id }, async () => {
+      throw new Error("falla el registro");
+    }),
+    /falla el registro/,
+  );
+  assert.equal((await m.db.lead.findFirstOrThrow({ where: { id: f.leadId } })).etapa_id, nuevo.id, "la etapa no cambió");
+  assert.equal(await m.db.lead_etapa_historial.count({ where: { lead_id: f.leadId, origen: "usuario" } }), 0, "ni quedó una fila de historial");
+  // Con el registro bien, sí: y el callback recibe lo que cambió.
+  let visto: unknown = null;
+  const ok = await moverEtapaDeLead(m.db, actor, { leadId: f.leadId, haciaEtapaId: contactado.id }, async (_tx, cambio) => {
+    visto = cambio;
+  });
+  assert.ok(ok.ok && ok.cambio);
+  assert.deepEqual(visto, { antes: { etapa_id: nuevo.id, motivo_perdida_id: null, recuperaciones: 0 }, despues: { etapa_id: contactado.id, motivo_perdida_id: null, recuperaciones: 0 } });
 });

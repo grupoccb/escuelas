@@ -240,6 +240,9 @@ export async function reprogramarClaseMuestra(tx: Consultas, c: ContextoDeAgenda
   const prospecto = await tx.prospecto.findFirst({ where: { id: vieja.prospecto_id }, select: { id: true, lead_id: true, vertical_interes_id: true } });
   if (!prospecto) return { ok: false, motivo: "prospecto_inexistente" };
   if (!(await bloquearGrupos(tx, [vieja.grupo_id, grupoId]))) return { ok: false, motivo: "grupo_inexistente" };
+  // ED-07: con los candados en la mano, la clase se vuelve a leer: otra reprogramación o cancelación simultánea pudo cerrarla mientras esperábamos, y
+  // entonces el motivo verdadero es que «ya no está agendada» (no que el prospecto «ya tiene una clase» en ese grupo, que es la que dejó la ganadora).
+  if (!(await tx.clase_muestra.findFirst({ where: { id: vieja.id, estatus: "agendada" }, select: { id: true } }))) return { ok: false, motivo: "clase_no_vigente" };
   const grupo = await cargarGrupoParaAgenda(tx, grupoId);
   if (!grupo) return { ok: false, motivo: "grupo_inexistente" };
   const motivo = await comprobarSesion(tx, c, { prospecto, grupo, fechaHora: entrada.fechaHora, excluirClaseId: vieja.id });

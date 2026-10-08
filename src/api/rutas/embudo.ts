@@ -99,21 +99,17 @@ export function rutasDeEmbudo(_deps: DepsApi): Router {
     const { id } = parsear(esquemaId, req.params);
     const e = parsear(esquemaMover, req.body);
     if (!(await ctx.db.lead.findFirst({ where: { id, ...(await dondeLead(ctx)) }, select: { id: true } }))) throw noEncontrado();
-    const antes = await ctx.db.lead.findFirst({ where: { id }, select: { etapa_id: true, motivo_perdida_id: true, recuperaciones: true } });
     const resultado = await moverEtapaDeLead(ctx.db, { usuarioId: ctx.usuario.id, organizacionId: ctx.organizacionId, esAdministrador: ctx.usuario.rol === "administrador", ahora: ctx.ahora() }, {
       leadId: id,
       haciaEtapaId: e.etapa_id,
       motivoPerdidaId: e.motivo_perdida_id ?? null,
       nota: e.nota ?? null,
       desdeEtapaId: e.desde_etapa_id ?? null,
-    });
+    },
+    // ED-13: el registro de cambios va en la misma transacción que el movimiento.
+    (tx, cambio) => registrarCambio(tx, ctx, { entidad: "lead", entidadId: id, accion: "actualizar", antes: cambio.antes, despues: cambio.despues }));
     if (!resultado.ok) rechazo(resultado.motivo);
     const lead = await ctx.db.lead.findFirstOrThrow({ where: { id }, select: { id: true, etapa_id: true, motivo_perdida_id: true, recuperaciones: true, etapa: { select: { nombre: true } } } });
-    if (resultado.cambio && antes) {
-      await ctx.db.$transaction((tx) =>
-        registrarCambio(tx, ctx, { entidad: "lead", entidadId: id, accion: "actualizar", antes: { etapa_id: antes.etapa_id, motivo_perdida_id: antes.motivo_perdida_id, recuperaciones: antes.recuperaciones }, despues: { etapa_id: lead.etapa_id, motivo_perdida_id: lead.motivo_perdida_id, recuperaciones: lead.recuperaciones } }),
-      );
-    }
     res.json({
       cambio: resultado.cambio,
       ...(resultado.cambio ? { movimiento: resultado.tipo, historial_id: resultado.historialId } : {}),

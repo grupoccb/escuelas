@@ -45,11 +45,12 @@ export interface ResultadoDeMovimiento {
 export async function moverLeadAEtapa(tx: Consultas, leadId: string, tipo: TipoSistemaEtapa, o: OpcionesDeMovimiento): Promise<ResultadoDeMovimiento> {
   const destino = await etapaDeSistema(tx, tipo);
   if (!destino) return { movido: false };
-  const lead = await tx.lead.findFirst({ where: { id: leadId }, select: { etapa_id: true, etapa: { select: { orden: true, es_ganado: true, es_perdido: true } } } });
-  if (!lead || lead.etapa_id === destino.id || lead.etapa.es_ganado) return { movido: false };
+  const lead = await tx.lead.findFirst({ where: { id: leadId }, select: { etapa_id: true, etapa: { select: { orden: true, es_ganado: true, es_perdido: true, tipo_sistema: true } } } });
+  // Una etapa de cierre lo es por su bandera o por su papel (ED-12: igual que en `aEtapaParaTransicion`, la ruta de las personas).
+  if (!lead || lead.etapa_id === destino.id || lead.etapa.es_ganado || lead.etapa.tipo_sistema === "inscrito") return { movido: false };
   const avanza = destino.orden > lead.etapa.orden;
-  if (!avanza && !lead.etapa.es_perdido && !o.permitirRetroceso) return { movido: false };
-  const recupera = lead.etapa.es_perdido;
+  if (!avanza && !(lead.etapa.es_perdido || lead.etapa.tipo_sistema === "perdido") && !o.permitirRetroceso) return { movido: false };
+  const recupera = lead.etapa.es_perdido || lead.etapa.tipo_sistema === "perdido";
   const cambio = await tx.lead.updateMany({
     where: { id: leadId, etapa_id: lead.etapa_id },
     data: { etapa_id: destino.id, ...(recupera ? { motivo_perdida_id: null, recuperaciones: { increment: 1 } } : {}) },

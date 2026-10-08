@@ -47,10 +47,19 @@ export type ResultadoDeMovimiento =
   | { ok: true; cambio: true; tipo: TipoDeMovimiento; desdeEtapaId: string; haciaEtapaId: string; historialId: string; recuperaciones: number; etapaAnterior: { id: string; nombre: string }; etapaNueva: { id: string; nombre: string } }
   | { ok: false; motivo: MotivoDeRechazoDeMovimiento; etapaActualId?: string };
 
-/** Mueve un lead de etapa por decisión de una persona. No lanza por reglas de negocio: devuelve `{ ok: false, motivo }`. */
-export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, e: EntradaDeMovimiento): Promise<ResultadoDeMovimiento> {
+/** Lo que cambió en el lead (ED-13): se entrega a `alCambiar` DENTRO de la transacción del movimiento, para registrarlo sin que pueda quedar fuera. */
+export interface CambioDeLead {
+  antes: { etapa_id: string; motivo_perdida_id: string | null; recuperaciones: number };
+  despues: { etapa_id: string; motivo_perdida_id: string | null; recuperaciones: number };
+}
+
+/**
+ * Mueve un lead de etapa por decisión de una persona. No lanza por reglas de negocio: devuelve `{ ok: false, motivo }`. `alCambiar` corre en la
+ * MISMA transacción, solo si hubo cambio (el registro de quién cambió qué, ED-13): si falla, el movimiento no se confirma.
+ */
+export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, e: EntradaDeMovimiento, alCambiar?: (tx: Consultas, cambio: CambioDeLead) => Promise<void>): Promise<ResultadoDeMovimiento> {
   return transaccionConBloqueo(db, actor.organizacionId, claveDeCandadoDeLead(e.leadId), async (tx): Promise<ResultadoDeMovimiento> => {
-    const lead = await tx.lead.findFirst({ where: { id: e.leadId }, select: { id: true, etapa_id: true, etapa: { select: SELECCION_ETAPA } } });
+    const lead = await tx.lead.findFirst({ where: { id: e.leadId }, select: { id: true, etapa_id: true, motivo_perdida_id: true, recuperaciones: true, etapa: { select: SELECCION_ETAPA } } });
     if (!lead) return { ok: false, motivo: "lead_inexistente" };
     const hacia = (await tx.etapa_pipeline.findFirst({ where: { id: e.haciaEtapaId }, select: SELECCION_ETAPA })) as FilaEtapa | null;
     if (!hacia) return { ok: false, motivo: "etapa_inexistente" };
@@ -105,7 +114,12 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
         datos: { desde_etapa_id: lead.etapa_id, hacia_etapa_id: hacia.id, movimiento: decision.tipo, usuario_id: actor.usuarioId },
       }),
     });
-    const recuperaciones = (await tx.lead.findFirstOrThrow({ where: { id: lead.id }, select: { recuperaciones: true } })).recuperaciones;
+    const actual = await tx.lead.findFirstOrThrow({ where: { id: lead.id }, select: { recuperaciones: true, motivo_perdida_id: true } });
+    const recuperaciones = actual.recuperaciones;
+    await alCambiar?.(tx, {
+      antes: { etapa_id: lead.etapa_id, motivo_perdida_id: lead.motivo_perdida_id, recuperaciones: lead.recuperaciones },
+      despues: { etapa_id: hacia.id, motivo_perdida_id: actual.motivo_perdida_id, recuperaciones },
+    });
     return { ok: true, cambio: true, tipo: decision.tipo, desdeEtapaId: lead.etapa_id, haciaEtapaId: hacia.id, historialId: fila.id, recuperaciones, etapaAnterior: { id: lead.etapa.id, nombre: lead.etapa.nombre }, etapaNueva: { id: hacia.id, nombre: hacia.nombre } };
   });
 }
