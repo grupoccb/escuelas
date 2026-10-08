@@ -15,7 +15,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N8 | HECHO | b50a9f1 | Reenganche |
 | N9 | HECHO | f2712b9 | Reporte mínimo |
 | N10 | HECHO | 2ad08ab | Prueba de fuego (segunda vertical) |
-| N11 | HECHO | (ver git log) | Catálogo de Fase 2 |
+| N11 | HECHO | 6200eac | Catálogo de Fase 2 |
 
 ## N0. Preparación
 
