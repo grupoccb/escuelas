@@ -40,7 +40,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D7 | HECHO | ver `git log` (`D7:`) | Embudo con historial de solo anexar, motivos de pérdida, perdido/recuperado, matriz de transiciones, tiempo por etapa, leads estancados (consulta) y concurrencia por lead |
 | D8 | HECHO | ver `git log` (`D8:`) | Lead frío y promoción por vencer sobre el motor: eventos nuevos, `aviso_promocion` (uno por lead y promoción), plantillas de marketing por el provider con frecuencia, bajas, horario y atención humana |
 | E1 | HECHO | ver `git log` (`E1:`) | Landing pública `/l/:vertical` con cuestionario: lead + prospecto idempotentes, aviso de privacidad con evidencia, consentimiento por formulario, atribución, `wa.me` con código de rastreo, anti-abuso y XSS; el bot no vuelve a preguntar lo capturado |
-| E2 | PENDIENTE | | Código de rastreo de WhatsApp |
+| E2 | HECHO | ver `git log` (`E2:`) | Código de rastreo en el primer mensaje: parser, limpieza del texto del bot, atribución al lead con consumo condicional, primera atribución conservada, CTWA intacto y API de campañas y códigos |
 | E3 | PENDIENTE | | Códigos QR |
 | F1 | PENDIENTE | | Tutor, alumno y relación M:N |
 | F2 | PENDIENTE | | Conversión en una transacción |
@@ -1395,3 +1395,32 @@ Mutaciones atrapadas: quitar el candado por teléfono (solo la prueba con barrer
 - **[SUPUESTO]** el texto del cuestionario (genérico) y del mensaje prellenado; el aviso de privacidad es el de ejemplo de `seguimiento.sql` y debe revisarlo el abogado.
 - Los canales de la demo no tienen número real: la landing termina en «gracias». Con un número en `canal_whatsapp.numero_whatsapp` redirige a `wa.me`.
 - Pendiente de producto: si la landing debe pedir correo o el nombre del tutor como obligatorio (hoy el nombre de contacto es opcional).
+
+
+## E2. Código de rastreo de WhatsApp
+
+**Qué se hizo**
+- **`src/captacion/rastreo.ts`:** `candidatosDeCodigo` (el parser, puro), `sinCodigos` (limpia el texto y el «Mi código es» previo), `resolverCodigosDeMensaje` (una consulta: qué códigos conoce la organización y cuál sirve), `consumirCodigo` (cambio CONDICIONAL: bajo concurrencia nadie pasa del tope) y `aplicarCodigoAlLead`. La tabla `codigo_rastreo` y su formato vienen de la migración de E1.
+- **`procesarEntrante`** busca el código en cada mensaje entrante ANTES de resolver la conversación: lo aplica al lead nuevo al crearlo, o al existente que aún no tiene atribución; el bot recibe el texto limpio; un mensaje que era solo el código a mitad de la captura no cuenta como respuesta fallida. Sin código no cambia nada.
+- **API** (`src/api/rutas/campanas.ts`): campañas (`GET|POST /api/campanas`, `GET|PATCH|DELETE /api/campanas/:id`) y códigos (`GET|POST /api/codigos-rastreo`, `PATCH|DELETE /api/codigos-rastreo/:id`), todo `catalogo:escribir` salvo leer campañas. Registro de cambios de ambas entidades.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 485 · pass 485 · fail 0
+$ npm run test:int    → exit 0 · tests 704 · pass 704 · fail 0
+```
+Tests nuevos: `rastreo.test.ts` (4, puros: los separadores y formatos, rodeado de signos, lo que NO es un código, la limpieza); `rastreo.itest.ts` (8, con el bot real): un código válido atribuye (campaña, sucursal, fuente, un uso) y el bot contesta igual que sin código, el texto del código no llega al bot (ni como nombre ni como respuesta fallida), **seis casos de código que no sirve** (inexistente, de otra organización, vencido, de vigencia futura, agotado, apagado) más basura, reutilización con y sin tope y un uso por lead, primera atribución conservada (otro código, anuncio, anuncio + código en el mismo mensaje) y orgánico que sí la recibe, códigos de lead de la landing (mismo y otro teléfono, ya consumido), sin código todo igual, y **concurrencia FORZADA** (dos leads nuevos con un código de un solo uso); `campanas.itest.ts` (3): permisos, validaciones, generados y propios, topes, vigencias, baja que libera el código, aislamiento y registro de cambios.
+Mutaciones atrapadas: consumo sin condición (la concurrencia forzada rompe el tope) y entregar al bot el texto crudo.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Solo se limpia lo que la organización conoce** (aunque ya no sirva): así «casa 2345», que tiene la forma, no se destruye. Alternativa descartada: limpiar todo lo que tenga la forma (un teléfono o un folio escrito como respuesta desaparecería).
+2. **Un mensaje que era SOLO el código, a mitad de la captura, no se contesta ni cuenta como fallo**; en `inicio` el bot saluda igual. Alternativa descartada: pasarle el texto vacío (tres códigos pegados pasarían la conversación a una persona).
+3. **Primera atribución gana; el orgánico sí recibe una.** Alternativa descartada: no atribuir nunca a un lead que ya existe (un contacto que escribió antes sin código y luego escanea el QR de sucursal se perdería del reporte de QR).
+4. **Anuncio + código en el primer mensaje: manda el anuncio y el código no se cuenta.** El adaptador de atribución (A7) no se toca y no hay dos fuentes para un mismo lead.
+5. **Un código de lead de la landing desde otro teléfono** crea un lead nuevo que hereda la campaña y queda ligado (`lead_de_landing_id`); NO se reasigna la conversación al lead de la landing. Alternativa descartada: adoptar el lead de la landing (la baja y la frecuencia se evalúan por el teléfono del lead, y el número que escribe sería otro: se podría saltar una baja). La unión de las dos familias queda para F1/F2.
+6. **El consumo es condicional en la base** (`usos < max_usos`) y la tabla además lo impide (CHECK `usos <= max_usos`).
+7. **Campañas con CRUD mínimo** (se necesitaba para crear códigos y el QR de E3 es `/api/campanas/:id/qr`); presupuesto y gasto quedan para I2.
+
+**Para Eduardo**
+- Pendiente de producto: unir la familia del lead de la landing con el lead de WhatsApp cuando escriben desde teléfonos distintos (hoy quedan ligados, no fusionados).
+- Pendiente de producto: ¿el código de campaña debe vencer o tener tope por omisión? Hoy no tiene ninguno.

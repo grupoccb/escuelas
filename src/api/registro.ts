@@ -37,6 +37,9 @@ export const CAMPOS_AUDITABLES = {
   // D7: el cambio de etapa del lead (el historial completo vive en `lead_etapa_historial`) y el catálogo de motivos de pérdida.
   lead: ["etapa_id", "motivo_perdida_id", "recuperaciones"],
   motivo_perdida: ["codigo", "nombre", "orden", "activo"],
+  // E2: campañas y sus códigos de rastreo.
+  campana: ["nombre", "origen", "vertical_id", "sucursal_id", "anuncio_id", "activo"],
+  codigo_rastreo: ["codigo", "tipo", "campana_id", "sucursal_id", "vertical_id", "max_usos", "vigente_desde", "vigente_hasta", "activo"],
   documento_legal: ["tipo", "vertical_id", "version", "titulo", "vigente_desde"],
   aceptacion_legal: ["tipo", "version_aceptada", "resultado", "canal", "documento_id"],
   registro_clase_muestra: ["estatus", "motivo_clase", "practico_antes", "interes_percibido", "grupo_recomendado_id", "salud_completa", "secciones"],

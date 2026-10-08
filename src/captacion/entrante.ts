@@ -7,6 +7,7 @@
 
 import { SinInscripciones, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { registrarAltaDeLead } from "../embudo/historial.ts";
+import { aplicarCodigoAlLead, resolverCodigosDeMensaje, type RastreoDelMensaje } from "./rastreo.ts";
 import { agendarClaseMuestra, proximasSesionesConLugar } from "../clases-muestra/agenda.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
@@ -17,7 +18,7 @@ import { altaListaEspera } from "../lista-espera/lista-espera.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
-import { JSON_NULO_SQL, type ValorJson } from "../datos/tipos.ts";
+import { JSON_NULO_SQL, type ConversacionDeLead, type ValorJson } from "../datos/tipos.ts";
 import { resolverBandejaChatwoot, resolverBandejaPorNumero, type BandejaResuelta } from "../datos/sistema.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
@@ -135,7 +136,11 @@ async function registrarYAvanzar(
   const deInstructor = await entranteDeInstructor(tx, bandeja, evento, recibidoEn);
   if (deInstructor) return { resultado: "instructor", conversacionId: deInstructor };
 
-  const conv = await obtenerConversacion(tx, bandeja, evento, recibidoEn, atribucion);
+  // E2: el código de rastreo del mensaje (landing, QR): se busca en la organización y se limpia del texto que ve el bot. Sin código, todo sigue como antes.
+  const rastreo = await resolverCodigosDeMensaje(tx, evento.contenido, recibidoEn);
+  const { conv, leadNuevo } = await obtenerConversacion(tx, bandeja, evento, recibidoEn, atribucion, rastreo);
+  // Un lead que ya existía y todavía no tenía atribución la recibe del código; el que ya la tenía conserva la suya.
+  if (!leadNuevo && rastreo.usable && !atribucion) await aplicarCodigoAlLead(tx, conv.lead, rastreo.usable);
   // Un lead borrado (eliminado_en) ya no existe para el sistema: no se registra ni se contesta.
   // Se responde 200 para que Chatwoot no reintente sin fin (F1-05).
   if (conv.lead.eliminado_en) {
@@ -209,7 +214,14 @@ async function registrarYAvanzar(
     sucursalId: conv.lead.sucursal_interes_id,
     ...(ctx.cotizador ? { programaId: prospecto?.programa_sugerido_id ?? null } : {}),
   };
-  const r = avanzar(estado, evento.contenido, ctx);
+  // E2: el bot nunca ve el código de rastreo como respuesta a lo que pregunta. Un mensaje que era SOLO el código (a mitad de la captura) no responde a nada: se
+  // registra, el lead sigue activo y el bot no lo cuenta como respuesta fallida ni contesta. (En `inicio` el bot saluda sin mirar el texto, así que ahí sí sigue.)
+  if (rastreo.textoLimpio === "" && evento.contenido.trim() !== "" && estado.paso !== "inicio") {
+    await actualizar(ventana);
+    await tx.lead.update({ where: { id: conv.lead.id }, data: { ultima_interaccion_en: recibidoEn } });
+    return { resultado: "procesado", conversacionId: conv.id };
+  }
+  const r = avanzar(estado, rastreo.textoLimpio, ctx);
 
   await actualizar({
     ...ventana,
@@ -323,7 +335,7 @@ async function aplicarEfectos(
   }
 }
 
-type ConversacionConLead = Awaited<ReturnType<typeof obtenerConversacion>>;
+type ConversacionConLead = ConversacionDeLead;
 
 /**
  * D2: ¿este mensaje es de un instructor? Lo es si llega por la conversación que se le abrió para avisarle (`conversacion_instructor`) o
@@ -448,12 +460,13 @@ async function obtenerConversacion(
   evento: EventoEntrante,
   recibidoEn: Date,
   atribucion: Atribucion | null,
-) {
+  rastreo: RastreoDelMensaje,
+): Promise<{ conv: ConversacionDeLead; leadNuevo: boolean }> {
   const existente = await tx.conversacion.findFirst({
     where: { bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId },
     include: { lead: true },
   });
-  if (existente) return existente;
+  if (existente) return { conv: existente, leadNuevo: false };
 
   // Invariante 7: el teléfono solo se toca con normalizarTelefono().
   const telefono = evento.contacto.telefono ? normalizarTelefono(evento.contacto.telefono) : null;
@@ -474,6 +487,7 @@ async function obtenerConversacion(
     : null;
 
   let lead = telefono ? await tx.lead.findFirst({ where: { vertical_interes_id: bandeja.vertical_id, telefono } }) : null;
+  let leadNuevo = false;
   if (!lead) {
     lead = await tx.lead.create({
       data: altaConAlcance({
@@ -495,9 +509,12 @@ async function obtenerConversacion(
       }),
     });
     await registrarAltaDeLead(tx, lead.id, etapaInicial.id, recibidoEn); // D7: el alta es la primera fila del historial
+    leadNuevo = true;
+    // E2: un código de rastreo que sirve da la atribución del lead nuevo (campaña, sucursal, fuente). La del anuncio (vía A7), si vino, manda y el código no se cuenta.
+    if (!atribucion && rastreo.usable) await aplicarCodigoAlLead(tx, lead, rastreo.usable);
   }
 
-  return tx.conversacion.create({
+  const conv = await tx.conversacion.create({
     data: altaConAlcance({
       bandeja_chatwoot_id: bandeja.id,
       lead_id: lead.id,
@@ -507,6 +524,7 @@ async function obtenerConversacion(
     }),
     include: { lead: true },
   });
+  return { conv, leadNuevo };
 }
 
 /** ¿El lead entró por la landing (E1)? Su atribución lo dice. */

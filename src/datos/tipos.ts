@@ -11,6 +11,9 @@ export type {
 
 import { Prisma } from "../generated/prisma/client.ts";
 
+/** Una conversación con su lead (lo que devuelve `include: { lead: true }`). */
+export type ConversacionDeLead = Prisma.conversacionGetPayload<{ include: { lead: true } }>;
+
 /** Valor que Prisma acepta en una columna JSON. */
 export type ValorJson = Prisma.InputJsonValue;
 

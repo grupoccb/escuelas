@@ -30,6 +30,7 @@ import { rutasDeSalones } from "./rutas/salones.ts";
 import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
+import { rutasDeCampanas } from "./rutas/campanas.ts";
 import { rutasDeClasesMuestra } from "./rutas/clases-muestra.ts";
 import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
@@ -109,6 +110,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDePrecios(deps));
   api.use(rutasDePromociones(deps));
   api.use(rutasDeCotizador(deps));
+  api.use(rutasDeCampanas(deps));
   api.use(rutasDeTareas(deps));
   // El embudo va ANTES que los leads: `/leads/estancados` no puede caer en `/leads/:id`.
   api.use(rutasDeEmbudo(deps));
