@@ -520,3 +520,23 @@ Código: `src/asistencia/derivados.ts`. Los derivados se **calculan al registrar
 - **% de asistencia (30 días):** `presentes / (presentes + faltas)` sobre las filas de `hoy − 29` a `hoy` (días locales de la sucursal), con un decimal. Las **justificadas no cuentan ni a favor ni en contra**. Sin presentes ni faltas en la ventana: `null` (no hay dato; no es 0 %).
 - **Racha de faltas:** de la sesión más reciente hacia atrás, por **sesiones con pase tomado** (solo hay fila de las sesiones en que se pasó lista), no por días del calendario: una clase sin pase no suma ni rompe. `falta` suma, `presente` corta, `justificada` no suma ni corta. `inicio_de_racha` es la fecha de la primera falta de la racha.
 - **Tarea para el asesor** (`tipo = faltas_consecutivas`, ligada a la inscripción y a su lead si lo hay): se crea al llegar la racha al umbral (`configuracion_organizacion.umbral_faltas_consecutivas`, **3 por omisión**, entre 1 y 30). **Una pendiente por inscripción** y **una por racha** (`referencia_fecha` = el inicio de la racha; índices únicos parciales): repetir el pase, o resolverla a mano mientras la racha sigue, no la vuelve a crear; una racha nueva (otro inicio) sí. Se **resuelve sola** (`hecha`) cuando la racha baja del umbral: el alumno vuelve a asistir o se corrige el pase. La ve el administrador, el asesor de la sucursal del grupo (`GET /api/tareas`) aunque la inscripción no tenga lead, y no el de otra sucursal. Cada inscripción se recalcula bajo un candado propio (`racha:<id>`): pases simultáneos de fechas distintas no crean dos.
+
+## Progresión genérica (G3)
+
+Los peldaños de cada vertical son **filas** (`nivel_progresion`: `vertical_id`, `nombre`, `orden`, `color_hex`, `horas_minimas`, `clases_minimas`, `requisitos_texto`); lo que cada alumno obtuvo, `alumno_progresion`
+(`alumno_id`, `nivel_id`, `fecha_obtenido`, `evento_id`, `instructor_id`, `observaciones`). Cómo se llama el avance en una vertical (cinturón, nivel, grado…) vive en `vertical.etiqueta_progresion` y
+`vertical.etiqueta_evento`; el código no nombra ninguno (invariante 2) y **nunca hay una columna `cinturon_id`**. Migración `20261020000000_progresion`; seed `[SUPUESTO]` en `prisma/seed/progresion.sql`
+(siete, seis —los del contexto §7— y tres peldaños para las tres verticales de la demo). Código: `src/progresion/`.
+
+| Método y ruta | Permiso | Qué |
+|---|---|---|
+| `GET /api/niveles?vertical_id=` | `catalogo:leer` | Los peldaños, del primero al último |
+| `POST /api/niveles` `{ vertical_id, nombre, orden, color_hex?, horas_minimas?, clases_minimas?, requisitos_texto? }` | `catalogo:escribir` | 201; `orden` y `nombre` únicos entre los vivos de la vertical (409) |
+| `PATCH /api/niveles/:id` · `DELETE /api/niveles/:id` | `catalogo:escribir` | Cambiar; baja lógica (409 `nivel_en_uso` si algún alumno lo tiene) |
+| `GET /api/alumnos/:id/progresion` | `alumnos:leer` | Por vertical donde el alumno tiene o tuvo inscripción o peldaños: `{ vertical, nivel_actual, siguiente_nivel, historial, niveles }` |
+| `POST /api/alumnos/:id/progresion` `{ nivel_id, fecha_obtenido, observaciones?, instructor_id? }` | `progresion:escribir` (administrador, maestro) | Registra un peldaño |
+| `DELETE /api/alumnos/:id/progresion/:progresion_id` | `progresion:corregir` (administrador) | Baja lógica de un registro equivocado (409 si lo otorgó un evento) |
+
+- **Nivel actual** = el más reciente que obtuvo en esa vertical (`fecha_obtenido` y, a igualdad, el último registrado), aunque se haya registrado después de uno posterior. **Siguiente** = el de `orden` inmediatamente mayor al actual; sin nivel, el primero; en el último, `null`. Cada vertical lleva su propia progresión.
+- **Otorgar** exige: el nivel y el alumno existen (404); la vertical tiene `usa_progresion`; el alumno tiene una inscripción **activa o congelada** en ESA vertical; la fecha no es futura (en la zona de la sucursal de esa inscripción); no lo tenía ya. Rechazos → 409 con `detalles: [{ campo: "motivo", mensaje }]`: `vertical_sin_progresion`, `sin_inscripcion_en_la_vertical`, `fecha_futura`, `nivel_ya_obtenido`. Un solo registro por (alumno, nivel) entre los vivos (índice único parcial).
+- **Alcance:** el de los alumnos; el maestro registra y lee solo a los de SUS grupos (queda como instructor del registro; el administrador puede indicar `instructor_id`); asesor y recepción leen pero no registran (403). `observaciones` (texto libre, puede mencionar salud) solo las ven el administrador y el maestro y **no entran al registro de cambios**.

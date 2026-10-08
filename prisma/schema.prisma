@@ -99,6 +99,8 @@ model organizacion {
   motivos_baja               motivo_baja[]
   inscripciones_movimientos  inscripcion_movimiento[]
   asistencias                asistencia[]
+  niveles_progresion         nivel_progresion[]
+  progresiones               alumno_progresion[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -199,6 +201,7 @@ model vertical {
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  niveles_progresion  nivel_progresion[]
 }
 
 model sucursal {
@@ -1387,6 +1390,7 @@ model usuario {
   asistencias_registradas asistencia[] @relation("asistencia_registrada_por")
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  progresiones_registradas alumno_progresion[] @relation("progresion_registrada_por")
 }
 
 /// Sucursales que ve un usuario. El administrador ve todas sin necesidad de filas aquí.
@@ -1482,6 +1486,7 @@ model instructor {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([usuario_id])
+  progresiones   alumno_progresion[]
 }
 
 /// Sucursales en las que da clases un instructor. Único entre los vivos (índice parcial en la migración).
@@ -2343,6 +2348,7 @@ model alumno {
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  progresiones alumno_progresion[]
 }
 
 /// Puente M:N: un alumno puede tener mamá, papá y abuela; un tutor, varios hijos en varias verticales. Una fila viva por
@@ -2597,4 +2603,63 @@ model asistencia {
   @@index([organizacion_id])
   @@index([inscripcion_id, fecha])
   @@index([grupo_id, fecha])
+}
+
+// ── Progresión genérica (G3) ───────────────────────────────────────────────────────────────────
+
+/// Un peldaño de la progresión de una vertical (nivel, grado…): una FILA, nunca una columna ni un término del código (invariante 2). El nombre con el que
+/// la escuela le dice a esto vive en `vertical.etiqueta_progresion`. `orden` ordena los peldaños de la vertical (único entre los vivos).
+model nivel_progresion {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id  String    @db.Uuid
+  vertical_id      String    @db.Uuid
+  nombre           String
+  orden            Int
+  /// `#RRGGBB` o nulo (CHECK en la migración).
+  color_hex        String?
+  /// Mínimos para ser elegible al SIGUIENTE peldaño: `clases_minimas` son asistencias `presente` desde que se obtuvo el peldaño anterior (G4). Las horas se capturan
+  /// pero hoy no se exigen (no hay duración por sesión en la asistencia).
+  horas_minimas    Int       @default(0)
+  clases_minimas   Int       @default(0)
+  requisitos_texto String?
+  creado_en        DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en     DateTime? @db.Timestamptz(6)
+
+  organizacion  organizacion         @relation(fields: [organizacion_id], references: [id])
+  vertical      vertical             @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  progresiones  alumno_progresion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([vertical_id])
+}
+
+/// Un peldaño que un alumno obtuvo. El nivel ACTUAL de una vertical es el más reciente (`fecha_obtenido` y, a igualdad, `creado_en`). Una fila por (alumno, nivel).
+model alumno_progresion {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String    @db.Uuid
+  alumno_id                 String    @db.Uuid
+  nivel_id                  String    @db.Uuid
+  fecha_obtenido            DateTime  @db.Date
+  /// El evento en el que se otorgó (G4); nulo si lo registró una persona fuera de un evento.
+  evento_id                 String?   @db.Uuid
+  instructor_id             String?   @db.Uuid
+  /// Texto libre del maestro. NO se audita ni sale del expediente: puede mencionar salud (decisión 12).
+  observaciones             String?
+  registrado_por_usuario_id String?   @db.Uuid
+  creado_en                 DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime? @db.Timestamptz(6)
+
+  organizacion   organizacion      @relation(fields: [organizacion_id], references: [id])
+  alumno         alumno            @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  nivel          nivel_progresion  @relation(fields: [nivel_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  instructor     instructor?       @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registrado_por usuario?          @relation("progresion_registrada_por", fields: [registrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([alumno_id])
+  @@index([nivel_id])
 }

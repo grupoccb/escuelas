@@ -138,6 +138,7 @@ firmado no se ahoga. Detalle y variables en `docs/API.md`. En la demo local todo
 | Clase muestra (D1 a D4): el papel de cada etapa del embudo (`tipo_sistema`), la clase muestra por WhatsApp encendida, las plantillas del aviso al maestro y del recordatorio, y sus automatizaciones de 24 h y 2 h `[SUPUESTO]` | `prisma/seed/clase-muestra.sql` (el servicio `demo-preparar` lo corre después de `catalogo-completo.sql`) |
 | Reporte de leads por campaña, sucursal y etapa | `npm run reporte:leads` |
 | Seguimiento (D6 a D8, E1 y E2): reglamento, uso de imagen y aviso de privacidad v1 de ejemplo `[SUPUESTO]` con su huella; motivos de pérdida; plantillas y automatizaciones de lead frío y promoción por vencer | `prisma/seed/seguimiento.sql` (el servicio `demo-preparar` lo corre después de `clase-muestra.sql`) |
+| Progresión (G3): los peldaños de las tres verticales de la demo `[SUPUESTO]` (siete, seis —los del contexto §7— y tres), editables desde `/api/niveles` | `prisma/seed/progresion.sql` (el servicio `demo-preparar` lo corre después de `seguimiento.sql`) |
 | Segunda vertical, solo con filas (opcional) | `prisma/seed/segunda-vertical.sql` |
 
 Todo es idempotente: `docker compose down -v && docker compose up -d --build --wait` deja la

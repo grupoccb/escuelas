@@ -56,7 +56,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | WH | HECHO | ver `git log` (`WH:`) | Un webhook nunca responde 500 por un dato inesperado: clasificación única (transitoria → 503, dato inesperado → 200 con constancia `evento_inesperado` + tarea idempotentes) en Chatwoot, Twilio (entrantes, estados y barrido del borde) y landing |
 | G1 | HECHO | ver `git log` (`G1:`) | Pase de lista por grupo y fecha: `asistencia` única por (inscripción, fecha), solo sesiones que ya empezaron, lista de inscritos activos, guardado masivo idempotente y serializado, corrección con registro de cambios |
 | G2 | HECHO | ver `git log` (`G2:`) | Derivados al registrar el pase: % de 30 días, racha de faltas por sesiones con pase tomado y tarea para el asesor al llegar al umbral (configurable, una por inscripción y por racha, se resuelve sola), consultables por API |
-| G3 | PENDIENTE | | Progresión genérica |
+| G3 | HECHO | ver `git log` (`G3:`) | Progresión genérica: `nivel_progresion` y `alumno_progresion` (filas, sin términos de vertical), nivel actual = el más reciente, siguiente por orden, API de niveles y de la progresión del alumno, seed `[SUPUESTO]` de las tres verticales |
 | G4 | PENDIENTE | | Eventos y elegibilidad |
 | G5 | PENDIENTE | | Expediente del alumno |
 | H1 | PENDIENTE | | Cargos |
@@ -2002,3 +2002,33 @@ Mutaciones atrapadas: sin resolverse sola (3 pruebas), sin «una por racha» (2)
 **Para Eduardo**
 - **[SUPUESTO]** el umbral de 3, que la justificada no cuenta, el texto de la tarea, y que la ve el asesor de la sucursal además del administrador.
 - Decisión abierta: ¿avisar también por WhatsApp a la familia? Hoy solo hay tarea para el asesor (un mensaje sería de servicio o de marketing según su texto: INV-6).
+
+
+## G3. Progresión genérica
+
+**Qué se hizo**
+- **Migración `20261020000000_progresion`:** `nivel_progresion` (vertical, nombre, orden, `color_hex`, `horas_minimas`, `clases_minimas`, `requisitos_texto`; únicos parciales por `(vertical, orden)` y `(vertical, lower(nombre))`, CHECK de color `#RRGGBB`, de mínimos y de nombre) y `alumno_progresion` (alumno, nivel, `fecha_obtenido`, `evento_id` —sin FK hasta G4—, `instructor_id`, `observaciones`; único parcial por `(alumno, nivel)`). Todas con FK compuestas y `eliminado_en`.
+- **`src/progresion/progresion.ts`:** `nivelesDeVertical`, `historialDeVertical`, `nivelActual`, `siguienteNivel` (puro) y `otorgarNivel` (las reglas de otorgar, dentro de la transacción de quien llama: G4 la reusa para el resultado de un evento).
+- **API** (`docs/API.md`, «Progresión genérica»): `GET|POST|PATCH|DELETE /api/niveles` (catálogo: `catalogo:leer` / `catalogo:escribir`) y `GET|POST|DELETE /api/alumnos/:id/progresion`. Permisos nuevos `progresion:escribir` (administrador, maestro) y `progresion:corregir` (administrador). Registro de cambios de `nivel_progresion` y `alumno_progresion` (sin `observaciones`).
+- **Seed** `prisma/seed/progresion.sql` `[SUPUESTO]`: 7 peldaños para la vertical de cinturones, **6 para la de niveles de ballet del contexto §7** (Pre-ballet → Básico I → Básico II → Intermedio I → Intermedio II → Avanzado) y 3 para la tercera (que en `catalogo-completo.sql` sigue con `usa_progresion = false`). En `docker-compose.yml` y `docs/DEMO-LOCAL.md`.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 534 · pass 534 · fail 0   (antes 532)
+$ npm run test:int    → exit 0 · tests 900 · pass 900 · fail 0   (antes 890)
+```
+(`check:generico` atrapó dos veces la palabra de una vertical en un comentario del schema y del código; se quitaron, sin tocar la guarda.)
+Tests nuevos: `progresion.test.ts` (2, puros: siguiente nivel con órdenes salteados y sin actual), `progresion.itest.ts` (7, app real + Postgres): catálogo por rol, únicos y color, registro de cambios, las cinco reglas de otorgar, nivel actual por fecha aunque se registre después, **dos verticales independientes**, alcance por rol (maestro propio/ajeno, instructor forzado, observaciones ocultas a asesor y recepción, corrección solo del administrador), no-fuga entre organizaciones (API y llave foránea) y SQL directo; `seed.itest.ts` (3: 7/6/3 peldaños, idempotente, y una vertical nueva solo con filas).
+Mutaciones atrapadas: sin la regla de fecha futura, sin la de inscripción en la vertical, siguiente con `>=`, sin «ya obtenido» y nivel actual por orden de registro.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Un alumno progresa por vertical**, no globalmente: el alumno no tiene vertical, su inscripción sí. Alternativa descartada: un solo «nivel del alumno» (rompería a quien estudia dos disciplinas).
+2. **Otorgar exige una inscripción activa o congelada en esa vertical y `usa_progresion`.** Alternativa descartada: permitirlo siempre (se podría dar un cinturón a quien ya no es alumno o de una vertical que no lo usa).
+3. **Sin nivel actual, el siguiente es el primero** (el primer peldaño es «lo que recibe quien entra» y su `clases_minimas` es 0). Alternativa descartada: un peldaño base implícito que no es fila.
+4. **`horas_minimas` se captura pero no se exige:** la asistencia no registra la duración de la sesión. Hoy manda `clases_minimas`.
+5. **No hay restricción de orden al otorgar** (se puede dar un peldaño mayor al siguiente): lo decide quien lo otorga; el evento (G4) sí propone el siguiente.
+6. **`evento_id` sin llave foránea todavía** (G4 la agrega con la tabla `evento`).
+
+**Para Eduardo**
+- **[SUPUESTO]** los nombres, colores, clases mínimas y requisitos del seed (salvo los seis peldaños de ballet, que son los del contexto §7), y que la tercera vertical no lleve progresión por ahora (`usa_progresion` en `catalogo-completo.sql`).
+- Decisión abierta: ¿se debe poder dar un peldaño que se salta uno? Hoy sí (con permiso de maestro o administrador).

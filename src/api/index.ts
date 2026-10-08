@@ -32,6 +32,8 @@ import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeAsistencia } from "./rutas/asistencia.ts";
 import { rutasDeCampanas } from "./rutas/campanas.ts";
+import { rutasDeNiveles } from "./rutas/niveles.ts";
+import { rutasDeProgresion } from "./rutas/progresion.ts";
 import { rutasDeCierre } from "./rutas/cierre.ts";
 import { rutasDeClasesMuestra } from "./rutas/clases-muestra.ts";
 import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
@@ -132,6 +134,8 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeFamilias(deps));
   api.use(rutasDeInscripciones(deps));
   api.use(rutasDeAsistencia(deps));
+  api.use(rutasDeNiveles(deps));
+  api.use(rutasDeProgresion(deps));
   api.use(rutasDeMotivosBaja(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));

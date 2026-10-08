@@ -54,6 +54,9 @@ export const CAMPOS_AUDITABLES = {
   motivo_baja: ["codigo", "nombre", "orden", "activo"],
   // G1: el pase de lista. Solo ids, la fecha, el estatus y el método (nada identificable).
   asistencia: ["inscripcion_id", "grupo_id", "fecha", "estatus", "metodo"],
+  // G3: los peldaños (catálogo) y lo que cada alumno obtuvo. Sin `observaciones` (texto libre que puede mencionar salud, decisión 12).
+  nivel_progresion: ["vertical_id", "nombre", "orden", "color_hex", "horas_minimas", "clases_minimas", "requisitos_texto"],
+  alumno_progresion: ["alumno_id", "nivel_id", "fecha_obtenido", "evento_id", "instructor_id"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

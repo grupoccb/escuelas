@@ -55,6 +55,9 @@ export const MATRIZ_DE_PERMISOS = {
   // Pase de lista (G1): lo toma el maestro de ese grupo, recepción (en el mostrador, también por QR) y el administrador; lo lee además el asesor. El alcance es el de las inscripciones.
   "asistencia:leer": ["administrador", "asesor", "recepcion", "maestro"],
   "asistencia:registrar": ["administrador", "recepcion", "maestro"],
+  // Progresión (G3): registrar un peldaño a mano es del maestro de ese alumno y del administrador; corregir un registro equivocado, solo del administrador. Leerla es `alumnos:leer`.
+  "progresion:escribir": ["administrador", "maestro"],
+  "progresion:corregir": ["administrador"],
   // Conversión del lead en familia e inscripciones (F2): quien cierra la inscripción. El maestro tiene el permiso, pero la ruta solo se lo concede con el modo de cierre `maestro_en_sitio` (F6, `puedeConvertir`) y de SUS alumnos.
   "conversion:leer": ["administrador", "asesor", "maestro"],
   "conversion:ejecutar": ["administrador", "asesor", "maestro"],

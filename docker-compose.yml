@@ -176,7 +176,7 @@ services:
     command:
       - sh
       - -c
-      - npx prisma migrate deploy && npx prisma db execute --file prisma/seed/demo.sql && npx prisma db execute --file prisma/seed/catalogo.sql && npx prisma db execute --file prisma/seed/catalogo-completo.sql && npx prisma db execute --file prisma/seed/clase-muestra.sql && npx prisma db execute --file prisma/seed/seguimiento.sql && node scripts/preparar-chatwoot.ts
+      - npx prisma migrate deploy && npx prisma db execute --file prisma/seed/demo.sql && npx prisma db execute --file prisma/seed/catalogo.sql && npx prisma db execute --file prisma/seed/catalogo-completo.sql && npx prisma db execute --file prisma/seed/clase-muestra.sql && npx prisma db execute --file prisma/seed/seguimiento.sql && npx prisma db execute --file prisma/seed/progresion.sql && node scripts/preparar-chatwoot.ts
     depends_on:
       postgres:
         condition: service_healthy
