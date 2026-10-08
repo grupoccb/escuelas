@@ -12,7 +12,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N5 | HECHO | a22b33f | Bot |
 | N6 | HECHO | 57b3a90 | Handoff |
 | N7 | HECHO | d0c0882 | Estados de entrega |
-| N8 | HECHO | (ver git log) | Reenganche |
+| N8 | HECHO | b50a9f1 | Reenganche |
 | N9 | PENDIENTE | | Reporte mínimo |
 | N10 | PENDIENTE | | Prueba de fuego (segunda vertical) |
 | N11 | PENDIENTE | | Catálogo de Fase 2 |
