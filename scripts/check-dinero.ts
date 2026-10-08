@@ -52,9 +52,9 @@ const REGLAS_DE_TEXTO: { re: RegExp; regla: string; donde: "siempre" | "zona" | 
   { re: /\bglobalThis\b/g, regla: "globalThis en una zona de dinero (esquiva Number/Math); usa centavos (src/lib/dinero.ts)", donde: "zona" },
   { re: /(?:[=(,:?]|\|\||\?\?|\breturn)\s*(?:Number\s*\.\s*parseFloat|parseFloat|parseInt|Number)\s*(?=[;,)\]}\n])/g, regla: "función de flotantes pasada o guardada sin llamarla (const f = parseFloat; .map(Number)): usa centavos (src/lib/dinero.ts)", donde: "dinero" },
   { re: /~~/g, regla: "~~ trunca a entero de 32 bits y baja el importe a flotante: usa centavos (src/lib/dinero.ts)", donde: "zona" },
-  { re: /(?:[=(,:?*\/%<>!&|\-]|\breturn|\bcase)\s*\+\s*(?=[A-Za-z_$(])/g, regla: "+x unario: convierte a número flotante; usa deTexto() de src/lib/dinero.ts", donde: "zona" },
-  { re: /[*\/]\s*\d+\.\d+|\d+\.\d+\s*[*\/]/g, regla: "multiplicación o división por un decimal literal (* 0.15): usa porcentaje() de src/lib/dinero.ts", donde: "zona" },
-  { re: /[*\/]\s*1(?![\d._n])/g, regla: "multiplicar o dividir por 1 convierte a número: usa deTexto() de src/lib/dinero.ts", donde: "zona" },
+  { re: /(?:[=(,:?*/%<>!&|-]|\breturn|\bcase)\s*\+\s*(?=[A-Za-z_$(])/g, regla: "+x unario: convierte a número flotante; usa deTexto() de src/lib/dinero.ts", donde: "zona" },
+  { re: /[*/]\s*\d+\.\d+|\d+\.\d+\s*[*/]/g, regla: "multiplicación o división por un decimal literal (* 0.15): usa porcentaje() de src/lib/dinero.ts", donde: "zona" },
+  { re: /[*/]\s*1(?![\d._n])/g, regla: "multiplicar o dividir por 1 convierte a número: usa deTexto() de src/lib/dinero.ts", donde: "zona" },
 ];
 
 export interface HallazgoDinero {
