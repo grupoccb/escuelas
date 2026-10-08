@@ -210,6 +210,6 @@ Ningún invariante roto. Ninguno parcial por culpa de C.
 7. **Qué hacer con una oferta de lista de espera vencida** (`vence_en`): hoy nadie la barre; la lleva el asesor.
 8. **La capacidad de la verificación 2** (EC-13): ¿cuenta grupos inactivos?
 
-## 8. Pendiente al cierre de la fase 1
+## 8. Estado después de las correcciones
 
-Todo MEDIA salvo EC-10 y todo BAJA que sea defecto (no decisión) se corrige en la fase 2 con su prueba y su mutación, o queda documentado en la bitácora como pendiente con su motivo. El seguimiento de cada ID está en `docs/BITACORA-NOCHE-2.md`, sección «Auditoría y correcciones de la etapa C».
+Este informe describe el HEAD `110eb73` tal como lo encontré; no se reescribe. El estado de cada ID tras la fase de correcciones (commits `C-fix`) está en `docs/BITACORA-NOCHE-2.md`, sección «Auditoría y correcciones de la etapa C». En resumen: corregidos EC-01 a EC-09, EC-12, EC-14 y EC-15; documentados EC-16 y EC-24; pendientes por decisión de producto EC-10, EC-13 y EC-18 a EC-22; pendientes técnicos EC-11, EC-17, EC-23, EC-25 y EC-26. Tras las correcciones: `validar` 409 tests y `test:int` 500, ambos con exit 0 (dos corridas seguidas y una base vacía).

@@ -5,6 +5,12 @@
 // segunda no le toca (0 filas). Es una sola sentencia, sin leer-y-luego-escribir. Además la base tiene un CHECK
 // (`cupo_usado <= cupo_maximo`) por si alguien lo olvida. Una promoción sin tope también cuenta sus usos.
 
+// ADVERTENCIAS PARA QUIEN LA USE (F3, inscripción; auditoría de C, EC-14 y EC-16):
+//   · Solo mira `activo` y el tope. NO comprueba vigencia, alcance (vertical, sucursal, programa) ni condición: eso lo decide
+//     `resolverPromociones` y quien consuma debe haber resuelto ANTES con el mismo contexto.
+//   · Si el `UPDATE` condicional pierde contra un cambio de tope, el `CHECK promocion_cupo_check` falla. Con `BaseDatos` (sin
+//     transacción) el `catch` de abajo lo vuelve `false`; DENTRO de una transacción de Postgres una sentencia fallida deja la
+//     transacción abortada y el `catch` no la salva: llámala con `BaseDatos` o con un `SAVEPOINT`, o comprueba el tope antes.
 import type { BaseDatos, Consultas } from "../datos/alcance.ts";
 
 /** Toma un lugar. true = lo tomó; false = no había (o la promoción no existe / está dada de baja / inactiva). */

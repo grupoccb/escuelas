@@ -30,6 +30,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C7 | HECHO | ver sección | Otra sucursal: política `configuracion_organizacion.sucursal_sin_programa` (`ofrecer_otra` por defecto | `avisar_asesor`), paso `otra_sucursal` |
 | C8 | HECHO | ver sección | Cotización guardada (`cotizacion`, snapshot congelado) y cotizador por WhatsApp por vertical: el bot cotiza, el contacto elige horario, handoff con la cotización; `GET/POST /api/leads/:id/cotizaciones` |
 | C9 | HECHO | ver sección | Lista de espera: tabla `lista_espera` (posición densa y única, alta atómica), el bot la ofrece en un horario lleno, API de asesor (listar, quitar, mover) y `ofrecerLugarLiberado` |
+| C-fix | HECHO (12 pendientes, 7 decisiones) | cd6ba4e…a9690ad | Correcciones de la auditoría de la etapa C (`docs/auditorias/etapa-C.md`): ver la sección «Auditoría y correcciones de la etapa C» |
 | D1 | PENDIENTE | | Clase muestra: agendar, reprogramar, cancelar |
 | D2 | PENDIENTE | | Aviso al maestro |
 | D3 | PENDIENTE | | Recordatorios de 24 h y 2 h |
@@ -991,3 +992,70 @@ $ npm run test:int                     → exit 0 · tests 482 · pass 482 · fa
 $ DATABASE_URL_PRUEBAS=…/vacia_c9_pruebas npm run test:int → exit 0 · tests 482 · pass 482 · fail 0   (base NUEVA y vacía; luego se borró)
 ```
 Línea base al empezar C5: validar 319 tests, test:int 394. Dos fallos intermitentes vistos y resueltos/anotados: (1) `cotizaciones.itest.ts` comparaba el ORDEN de dos filas de `registro_cambio` escritas en la misma transacción (comparten `creado_en`): ahora compara el conjunto; (2) una vez, en una corrida de `validar`, `src/http/twilio.test.ts` («respuestas del borde…») dio 404 en vez de 500; no se reprodujo en 6 corridas aisladas ni en las dos siguientes de `validar`. **No es de este trabajo** (no toca ese archivo ni la ruta), pero conviene vigilarlo: parece una intermitencia previa del test del borde.
+
+## Auditoría y correcciones de la etapa C
+
+Auditoría: `docs/auditorias/etapa-C.md` (0 ALTA, 10 MEDIA —9 más 1 de producto— y 16 BAJA; el informe entra en el primer commit, `cd6ba4e`). Commits `C-fix: …`:
+
+| Commit | Qué |
+|---|---|
+| `cd6ba4e` | Informe de la auditoría |
+| `7b8b0b8` | EC-07 |
+| `dafb14f` | EC-05 |
+| `efd45a2` | EC-01, EC-02, EC-03, EC-04, EC-12 |
+| `8ea14dd` + `b41edfe` | EC-06 (el segundo corrige dos `no-useless-escape` que dejaron `validar` en rojo en el primero) |
+| `9488ea6` | EC-08 |
+| `2df6f63` | EC-09 (pruebas de las 11 mutaciones que sobrevivían) |
+| `a9690ad` | EC-14, EC-15 |
+
+### Estado de cada hallazgo
+
+| EC | Estado | Cómo / por qué |
+|---|---|---|
+| EC-01 | **corregido** | `elegirHorario` devuelve `false` (no lanza) con un grupo inexistente o de otro programa; la máquina trata un grupo que ya no está en el catálogo de hoy como «ya no está disponible» y manda la cotización actualizada (que reemplaza a la anterior). El mensaje del contacto se procesa y se guarda. Pruebas: itest con el grupo dado de baja entre la cotización y la respuesta, unitaria de la máquina y de `elegirHorario`. |
+| EC-02 | **corregido** | `cotizacionDelBot` y `horariosCotizadosAlContacto` exigen que el último día no haya pasado (no esperan al barrido). Si en `horario`/`lista_espera` ya no hay cotización útil, `entrante.ts` pone `cotizacionVencida` y la máquina manda una cotización NUEVA con aviso, en vez de interpretar el número contra una lista que no vio; el horario que luego elige sí queda registrado y sale en la nota. Probado por barrido y por fecha pasada sin barrido. |
+| EC-03 | **corregido** | Sin `ctx.cotizador` (interruptor apagado a media conversación) los pasos `programa`, `otra_sucursal`, `horario` y `lista_espera` cierran como la captura de siempre (`captura_completa`, mensaje «¡Gracias! Ya tengo los datos…»), y sin opciones que ofrecer pasan al asesor al instante: nada de «Responde con el número:» con la lista vacía. |
+| EC-04 | **corregido (por el mensaje)** | Si el grupo elegido se llenó y no tiene lista de espera, el bot anota la preferencia (como pedía la prueba de C8: «el número apunta a lo que vio») y pasa al asesor, pero ya no dice «Anotamos a…»: dice que ese grupo ya no tiene lugar y que un asesor le ofrece otra opción. No se cambió el registro del horario (decisión de C8 intacta). |
+| EC-05 | **corregido para lo nuevo; lo heredado, reportado** | `src/catalogo/salones.ts`: clave sin mayúsculas, acentos ni espacios de más; la API la usa al crear y renombrar, bajo el candado de ocupación, y guarda el nombre limpio. Verificación nueva `salonesConNombreParecido` para los salones ya migrados (no se fusionan solos: decisión del administrador). No se editó la migración vieja. Pruebas: 5 variantes, renombrar, baja que libera el nombre, 6 rondas × 16 altas simultáneas (sin el candado falla 5 de 5). |
+| EC-06 | **corregido** | `check:dinero` lee el texto entero (el paréntesis ya no puede esconderse en otra línea) y prohíbe corchetes, `globalThis`, `~~`, `Math.fround`, funciones de flotantes sin llamar, y en zonas de dinero `+x`, `* 0.15` y `* 1`. El repositorio sigue limpio. Cada una de las 10 reglas de texto y `fround` tiene una prueba que falla si se quita. |
+| EC-07 | **corregido** | `fechaISO()` acepta de 1900 a 2999. Pruebas: unitaria de los extremos y de integración (alta de precio, filtro y cotizador con `0000-01-01` → 400). |
+| EC-08 | **corregido** | El snapshot de la cotización del asesor lleva `supuestos {hermanos_inscritos, meses_pagados}` si alguno es distinto de 0 (el del bot no cambia), el registro de cambios los guarda y la nota dice «Cotizado suponiendo…». `docs/API.md` actualizado. |
+| EC-09 | **corregido** | Las 11 mutaciones con hueco real (R18, P05, Q07, Z06, X24, X39, X40, S3, S4, S5, S6) ahora se atrapan; ver «Mutaciones». |
+| EC-10 | **pendiente: decisión de Eduardo** | El maestro lee precios, promociones, salones e instructores de su sucursal por `catalogo:leer`. Propuesta en el informe: un permiso `precios:leer` sin el maestro. |
+| EC-11 | **pendiente (documentado)** | La alta del bot corre en la transacción del mensaje y no toma el candado del grupo, así que contra un «quitar» concurrente puede dejar 1, 2, 4. Arreglarlo exige poder tomar un candado consultivo dentro de una transacción ya abierta con scope (hoy `$conBloqueoDeClave` abre la suya). El orden no se afecta y el siguiente cambio bajo candado renumera. |
+| EC-12 | **corregido** | `procesarEntrante` quita los NUL del contenido y del nombre del contacto antes de tocar la base. |
+| EC-13 | **pendiente: decisión** | `resumenDeCapacidad` suma grupos inactivos; ¿la verificación 2 cuenta solo lo activo? |
+| EC-14 | **corregido** | `PATCH /api/promociones/:id` pone `cupo_usado <= tope` dentro del propio `UPDATE`: si un consumo gana la carrera responde 409 y no 500. Prueba determinista con un cliente que sube el contador justo antes de escribir (con el código anterior da 500). Advertencia para F3 escrita en `src/promociones/cupo.ts` (`consumirCupo` dentro de una transacción). |
+| EC-15 | **corregido** | El vencimiento de cotizaciones tiene su propia frecuencia horaria en el ciclo (`deps.cotizaciones.cadaMs`), con o sin retención. |
+| EC-16 | **documentado** | `consumirCupo` solo mira `activo` y el tope; la advertencia para F3 (resolver antes vigencia, alcance y condición) está en el encabezado de `src/promociones/cupo.ts`. |
+| EC-17 | **pendiente (H5)** | `producto_id` sin llave foránea hasta que exista la tabla de productos. |
+| EC-18 a EC-22 | **pendientes: decisiones de producto** | Clases que cruzan la medianoche, capacidad del salón vs cupo del grupo, reescribir una vigencia pasada o borrar la vigente, alcance vacío = todos, «sí» ante un único horario. |
+| EC-23 | **pendiente** | N+1 de `fuente.ocupados` y catálogo completo por mensaje del bot; F4 trae la fuente real y es el momento de optimizarlo. |
+| EC-24 | **aceptado** | Las aserciones de orden de `ficha.itest.ts` quedaron como conjuntos; se anota, no se revierte (las filas son las mismas). |
+| EC-25 | **pendiente** | Volver a correr `catalogo-completo.sql` resucita un precio de ejemplo dado de baja. |
+| EC-26 | **pendiente (no probado)** | Crecimiento de `acceso_dato_sensible` ante un usuario sin permiso que insiste; solo lo frena el límite por IP. |
+
+### Mutaciones
+
+- Auditoría: 139 mutaciones sobre reglas de negocio de la etapa: 120 atrapadas y 19 sobrevivientes (8 equivalentes o redundantes, 11 huecos reales). Detalle y clasificación en el informe, sección 4.
+- Correcciones: las 11 que eran huecos se atrapan ahora (7 por mutación de código y 4 por mutación de las migraciones aplicadas a bases nuevas) y cada arreglo se mutó contra sus pruebas nuevas: EC-01 a EC-04 y EC-12, 17 mutaciones del arreglo: 14 atrapadas a la primera, 2 tras añadir una prueba (aviso solo si hay cotización nueva; NUL en el nombre del contacto) y 1 que resultó redundante (`hoy` en `elegirHorario`) y se quitó; EC-08, 5 de 5; EC-06, las 10 reglas y `fround`; EC-05, comparación literal y quitar el candado; EC-14, quitar la condición del `UPDATE` da 500; EC-15, volver a acoplar y quitar la frecuencia.
+- Pruebas que se escribieron mal la primera vez y se corrigieron antes del commit (no debilitadas): la de la carrera de salones se repite en seis rondas porque con una sola quitar el candado no siempre la hacía fallar; la del cupo (EC-14) pasó de «25 rondas al azar» a un gancho determinista porque con el azar no detectaba el error.
+
+### Verificación
+
+Línea base de la auditoría (HEAD `110eb73`): `validar` 392 tests, `test:int` 482. Al cerrar las correcciones (sin migraciones nuevas):
+
+```
+$ npm run validar                      → exit 0 · tests 409 · pass 409 · fail 0
+$ npm run test:int                     → exit 0 · tests 500 · pass 500 · fail 0   (1.ª corrida)
+$ npm run test:int                     → exit 0 · tests 500 · pass 500 · fail 0   (2.ª corrida seguida)
+$ DATABASE_URL_PRUEBAS=…/fix2_pruebas npm run test:int → exit 0 · tests 500 · pass 500 · fail 0   (base NUEVA y vacía; luego se borró)
+```
+
+Las corridas usaron un Postgres propio (`docker run … postgres:16-alpine`, puerto 5591), nunca la base de la demo ni el proyecto compose `inscripciones`. Cada commit `C-fix` pasó `validar` y `test:int` con exit 0, salvo `8ea14dd`: su `validar` falló por dos `no-useless-escape` de ESLint y su `test:int` tuvo la prueba colgada del incidente de red de abajo (lo corrige `b41edfe`, el commit siguiente, con las dos corridas en verde; no se reescribió la historia). Las 17 mutaciones de EC-01 a EC-04/EC-12 y las demás se corrieron contra las pruebas nuevas con un script temporal (cada una cambia una cadena del código, corre las pruebas y restaura el archivo).
+
+### Para Eduardo
+
+- **Decisiones del informe sin cerrar:** EC-10 (maestro y precios), EC-13 (capacidad e inactivos), EC-18 a EC-22 (producto) y qué hacer con los salones heredados con nombres casi iguales (`salonesConNombreParecido` los lista).
+- **Para F3/F4:** `consumirCupo` y su advertencia (EC-14/EC-16); la ocupación real entra por `FuenteOcupacion`; cuando haya inscripciones, el aviso de «ya se llenó» (EC-04) y la oferta de lista de espera dependerán de ella.
+- **Un incidente de entorno:** durante una corrida de `test:int` una prueba de `borde.itest.ts` (EA-20) se colgó 5 minutos con `fetch failed` contra `127.0.0.1`; sola y en la corrida completa siguiente pasó. Parece un fallo de red local de la máquina, no del código; si reaparece, anotarlo.
