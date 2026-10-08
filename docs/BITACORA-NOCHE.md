@@ -15,7 +15,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N8 | HECHO | b50a9f1 | Reenganche |
 | N9 | HECHO | f2712b9 | Reporte mínimo |
 | N10 | HECHO | 2ad08ab | Prueba de fuego (segunda vertical) |
-| N11 | PENDIENTE | | Catálogo de Fase 2 |
+| N11 | HECHO | (ver git log) | Catálogo de Fase 2 |
 
 ## N0. Preparación
 
@@ -273,3 +273,30 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 **Para Eduardo**
 - Para ver la segunda vertical en la demo: `docker compose up -d --build` y aplicar `prisma/seed/segunda-vertical.sql` (`npx prisma db execute --file …`) y luego `node scripts/preparar-chatwoot.ts` crea su bandeja en Chatwoot. No lo agregué a `demo-preparar` para no cambiar la demo de 0.5.
+
+## N11. Catálogo de Fase 2 (acotado)
+
+**Condición del plan:** N0 a N10 quedaron HECHO, así que se hizo. Alcance respetado: solo `programa`, `grupo`, `grupo_horario`, seed de la primera vertical, las tres consultas de verificación y el cupo por grupo. **Sin** precios, promociones, cotizador, clase muestra ni recordatorios.
+
+**Qué se hizo**
+- Tablas `programa`, `grupo`, `grupo_horario` (migración `20261008130000_catalogo_fase2`) con `organizacion_id`, `eliminado_en` y llaves foráneas compuestas (como N3). Llaves naturales únicas parciales (sucursal+programa, programa+grupo, grupo+día+hora) y CHECK: edades 0–99 con `min ≤ max`, cupo ≥ 1, horario válido (día 0–6, `inicio < fin`, dentro de 24 h).
+- `prisma/seed/catalogo.sql`: la primera vertical en sus dos sucursales, tomada de `docs/insumos/seed-sucursales-horarios.sql` → **6 programas, 9 grupos, 17 horarios**. Idempotente. Las horas de fin marcadas `[SUPUESTO]` en el insumo siguen siéndolo (anotado en el propio seed).
+- **Las tres consultas de verificación del insumo** (`src/catalogo/verificacion.ts`, sobre el catálogo cargado por el scope; sin SQL crudo fuera de `src/datos/`): traslapes de edad, resumen de capacidad y choques de salón.
+- **Cupo por grupo** (`src/catalogo/cupo.ts`): `disponibles = max(0, cupo_maximo − ocupados)`, con la oferta (`lugar` / `lista_de_espera` / `sin_lugar`). Determinista; rechaza datos imposibles.
+- `docker-compose.yml`: `demo-preparar` aplica también el seed del catálogo.
+
+**Verificación**
+- `npm run validar` exit 0 (102 tests) · `npm run test:int` exit 0 (94 tests) · `check:generico` ✓ (80 archivos).
+- Sobre el seed: **verificación 1 → 0 traslapes · verificación 2 → 2 filas `[3 programas, 6 grupos, 98 lugares]` y `[3, 3, 50]` · verificación 3 → 0 choques.** Control negativo: un catálogo armado a propósito con traslape y choque sí los detecta.
+- 4 casos nuevos de referencia entre organizaciones en `integridad.itest.ts` (programa→vertical/sucursal ajena, grupo→programa ajeno, horario→grupo ajeno): la base los rechaza.
+- **Demo real (sin borrar volúmenes):** `docker compose up -d --build --wait` migró la base existente con datos viejos de la demo (3 leads → 3 prospectos; 7 etapas; 1 canal; 6/9/17 de catálogo). `npm run demo:contacto` corrió el loop completo contra Chatwoot real (conversación #10 quedó `open`, nota del asesor con nombre, edad, sucursal, teléfono, contacto y origen). `npm run reporte:leads` sobre esa base: `(sin campaña) · Centenario · Nuevo · 4`.
+
+**Decisiones que tomé**
+- **El cupo todavía no puede contar inscripciones:** la tabla `inscripcion` no existe (es de otra fase y CLAUDE.md prohíbe construirla por adelantado). `ocupados` entra por una interfaz (`FuenteOcupacion`); la fuente por defecto devuelve 0 (el cupo es el máximo). Cuando exista `inscripcion`, se agrega una fuente que cuente las activas y nada más cambia. Alternativa descartada: columna `cupo_ocupado` editable a mano (dato derivado que se desincroniza).
+- Horas guardadas como minutos desde medianoche (`hora_inicio_min` / `hora_fin_min`), igual que la ventana horaria de las automatizaciones, para no pelear con tipos `time`.
+- Sin `fecha_corte_edad` ni `instructor_id` del modelo: no los usa nada de lo pedido.
+- No se aplicó una restricción de exclusión (`btree_gist`) para impedir traslapes de edad en la base: el plan pide la consulta de verificación, y la extensión sería una dependencia nueva de la base.
+
+**Para Eduardo**
+- Confirmar con la escuela las horas de fin `[SUPUESTO]` y los cupos antes de usar el catálogo para cotizar.
+- Decidir si los traslapes de edad y los choques de salón deben impedirse en la base (hoy se detectan con la verificación).

@@ -51,6 +51,9 @@ model organizacion {
   automatizaciones    automatizacion[]
   ejecuciones         automatizacion_ejecucion[]
   tareas_asesor       tarea_asesor[]
+  programas           programa[]
+  grupos              grupo[]
+  grupo_horarios      grupo_horario[]
 }
 
 model vertical {
@@ -71,6 +74,7 @@ model vertical {
   prospectos          prospecto[]
   plantillas_mensaje  plantilla_mensaje[]
   automatizaciones    automatizacion[]
+  programas           programa[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -94,6 +98,7 @@ model sucursal {
   campanas            campana[]
   leads               lead[]
   automatizaciones    automatizacion[]
+  programas           programa[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -645,4 +650,78 @@ model tarea_asesor {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([estado, vence_en])
+}
+
+// ── Catálogo (Fase 2, solo lo que pide N11: sin precios, promociones ni cotizador) ───────
+
+/// Un programa es lo que se ofrece a un rango de edad en una sucursal. Sus textos y nombres viven
+/// aquí, no en código (invariante 2).
+model programa {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String    @db.Uuid
+  vertical_id         String    @db.Uuid
+  sucursal_id         String    @db.Uuid
+  nombre              String
+  /// Años cumplidos, ambos inclusive.
+  edad_min            Int
+  edad_max            Int
+  nivel               String?
+  descripcion_publica String?
+  activo              Boolean   @default(true)
+  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  vertical     vertical     @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupos       grupo[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Un grupo es una opción de horario de un programa. "Lun-Mié o Mar-Jue" son dos grupos.
+model grupo {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id      String    @db.Uuid
+  programa_id          String    @db.Uuid
+  nombre               String
+  salon                String?
+  cupo_maximo          Int
+  permite_lista_espera Boolean   @default(false)
+  activo               Boolean   @default(true)
+  creado_en            DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en         DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion    @relation(fields: [organizacion_id], references: [id])
+  programa     programa        @relation(fields: [programa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  horarios     grupo_horario[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([programa_id])
+}
+
+/// Un grupo puede sesionar varios días: nunca van como texto en `grupo`.
+model grupo_horario {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  grupo_id        String    @db.Uuid
+  /// 0 = domingo … 6 = sábado.
+  dia_semana      Int
+  /// Minutos desde la medianoche local de la sucursal.
+  hora_inicio_min Int
+  hora_fin_min    Int
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  grupo        grupo        @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([grupo_id])
 }

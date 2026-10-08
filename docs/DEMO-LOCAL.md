@@ -15,6 +15,12 @@ El simulador muestra la conversación en la terminal y al final imprime el enlac
 - Chatwoot: http://localhost:3001
 - Usuario: `asesor@demo.test` · contraseña `Demo-local-2026!`
 
+Ver cuántos leads hay por campaña, sucursal y etapa:
+
+```bash
+DATABASE_URL=postgresql://inscripciones:inscripciones@localhost:5432/inscripciones npm run reporte:leads
+```
+
 Otras formas:
 
 ```bash
@@ -44,6 +50,9 @@ En la conversación nueva de la bandeja de la vertical:
 | Lead, conversación e idempotencia | `src/captacion/entrante.ts` |
 | Reglas de envío y pase al asesor | `src/mensajeria/provider.ts`, `src/mensajeria/reglas.ts` |
 | Simulador del contacto | `scripts/simular-contacto.ts` |
+| Catálogo de la vertical (programas, grupos, horarios) | `prisma/seed/catalogo.sql` |
+| Reporte de leads por campaña, sucursal y etapa | `npm run reporte:leads` |
+| Segunda vertical, solo con filas (opcional) | `prisma/seed/segunda-vertical.sql` |
 
 Todo es idempotente: `docker compose down -v && docker compose up -d --build --wait` deja la
 demo igual. Las credenciales son de desarrollo y están en `config/demo-local.env`.

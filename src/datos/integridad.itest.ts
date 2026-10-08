@@ -18,6 +18,8 @@ let conversacionB: string;
 let plantillaB: string;
 let automatizacionB: string;
 let campanaB: string;
+let programaB: string;
+let grupoB: string;
 
 /** Violación de llave foránea (P2003) o de CHECK/valor (P2004 / error crudo). */
 const esViolacionFk = (e: unknown): boolean => (e as { code?: unknown }).code === "P2003";
@@ -32,13 +34,15 @@ before(async () => {
   plantillaB = (await prisma.plantilla_mensaje.create({ data: { organizacion_id: B.organizacionId, codigo: "p", content_sid: "HX1", categoria: "utility" } })).id;
   automatizacionB = (await prisma.automatizacion.create({ data: { organizacion_id: B.organizacionId, nombre: "a", evento_disparador: "lead_sin_respuesta" } })).id;
   campanaB = (await prisma.campana.create({ data: { organizacion_id: B.organizacionId, nombre: "c", origen: "otro" } })).id;
+  programaB = (await prisma.programa.create({ data: { organizacion_id: B.organizacionId, vertical_id: B.verticalId, sucursal_id: B.sucursales[0]!.id, nombre: "p", edad_min: 3, edad_max: 5 } })).id;
+  grupoB = (await prisma.grupo.create({ data: { organizacion_id: B.organizacionId, programa_id: programaB, nombre: "g", cupo_maximo: 5 } })).id;
 });
 
 after(async () => {
   await prisma.$disconnect();
 });
 
-test("la base rechaza una referencia a una fila de otra organización (en cada tabla con referencias)", async () => {
+test("la base rechaza una referencia a una fila de otra organización (en cada tabla con referencias, catálogo incluido)", async () => {
   const org = A.organizacionId;
   const casos: [string, () => Promise<unknown>][] = [
     ["sucursal_vertical → sucursal ajena", () => prisma.sucursal_vertical.create({ data: { organizacion_id: org, sucursal_id: B.sucursales[0]!.id, vertical_id: A.verticalId } })],
@@ -66,6 +70,10 @@ test("la base rechaza una referencia a una fila de otra organización (en cada t
     ["automatizacion → vertical ajena", () => prisma.automatizacion.create({ data: { organizacion_id: org, nombre: "x", evento_disparador: "lead_sin_respuesta", vertical_id: B.verticalId } })],
     ["automatizacion_ejecucion → automatización ajena", () => prisma.automatizacion_ejecucion.create({ data: { organizacion_id: org, automatizacion_id: automatizacionB, entidad_tipo: "lead", entidad_id: leadA, programado_para: new Date() } })],
     ["tarea_asesor → lead ajeno", () => prisma.tarea_asesor.create({ data: { organizacion_id: org, lead_id: leadB, tipo: "revision_manual", descripcion: "x" } })],
+    ["programa → vertical ajena", () => prisma.programa.create({ data: { organizacion_id: org, vertical_id: B.verticalId, sucursal_id: A.sucursales[0]!.id, nombre: "x", edad_min: 3, edad_max: 5 } })],
+    ["programa → sucursal ajena", () => prisma.programa.create({ data: { organizacion_id: org, vertical_id: A.verticalId, sucursal_id: B.sucursales[0]!.id, nombre: "x", edad_min: 3, edad_max: 5 } })],
+    ["grupo → programa ajeno", () => prisma.grupo.create({ data: { organizacion_id: org, programa_id: programaB, nombre: "x", cupo_maximo: 5 } })],
+    ["grupo_horario → grupo ajeno", () => prisma.grupo_horario.create({ data: { organizacion_id: org, grupo_id: grupoB, dia_semana: 1, hora_inicio_min: 600, hora_fin_min: 660 } })],
     ["tarea_asesor → conversación ajena", () => prisma.tarea_asesor.create({ data: { organizacion_id: org, lead_id: leadA, conversacion_id: conversacionB, tipo: "revision_manual", descripcion: "x" } })],
   ];
   for (const [nombre, alta] of casos) {
