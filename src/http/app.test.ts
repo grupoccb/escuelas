@@ -4,18 +4,24 @@ import type { AddressInfo } from "node:net";
 import { crearApp, type AppDeps } from "./app.ts";
 import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
 import { readFileSync } from "node:fs";
-import { EstadosEntregaChatwoot, type CambioDeEstado, type EventoEntrante } from "../mensajeria/index.ts";
+import { EstadosEntregaChatwoot, type CambioDeEstado, type EventoEntrante, type EventoTomaDeConversacion } from "../mensajeria/index.ts";
 import { payloadMensajeEntrante } from "../mensajeria/chatwoot/fixtures.ts";
 
 const SECRETO = "secreto-de-prueba";
 const AHORA = new Date("2026-10-07T18:00:00Z");
 
-function deps(extra: Partial<AppDeps> = {}): AppDeps & { recibidos: EventoEntrante[]; estados: CambioDeEstado[] } {
+function deps(extra: Partial<AppDeps> = {}): AppDeps & { recibidos: EventoEntrante[]; estados: CambioDeEstado[]; tomas: EventoTomaDeConversacion[] } {
   const recibidos: EventoEntrante[] = [];
   const estados: CambioDeEstado[] = [];
+  const tomas: EventoTomaDeConversacion[] = [];
   return {
     recibidos,
     estados,
+    tomas,
+    registrarTomaDeConversacion: async (t) => {
+      tomas.push(t);
+      return "tomada";
+    },
     estadosEntrega: new EstadosEntregaChatwoot(),
     registrarEstadoEntrega: async (c) => {
       estados.push(c);
@@ -151,4 +157,43 @@ test("si registrar el estado falla responde 500 para que Chatwoot reintente", as
   const d = deps({ registrarEstadoEntrega: async () => { throw new Error("base caída"); } });
   const r = await pedir(d, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO));
   assert.equal(r.status, 500);
+});
+
+const fixtureJson = (nombre: string): string => readFileSync(new URL(`../mensajeria/chatwoot/payload-${nombre}.json`, import.meta.url), "utf8");
+
+test("A3: una asignación a un asesor, firmada, registra la toma de la conversación", async () => {
+  const d = deps();
+  const cuerpo = fixtureJson("conversacion-asignada");
+  const r = await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
+  assert.deepEqual([r.status, r.body], [200, { ok: true, resultado: "tomada" }]);
+  assert.deepEqual(d.tomas.map((t) => [t.via, t.chatwootConversacionId]), [["asignacion", 11]]);
+  assert.equal(d.recibidos.length + d.estados.length, 0);
+});
+
+test("A3: el primer mensaje de un asesor registra la toma; el del bot y abrir o resolver no", async () => {
+  const d = deps();
+  const asesor = fixtureJson("mensaje-asesor");
+  assert.equal((await pedir(d, "POST", "/webhooks/chatwoot", asesor, firmado(asesor))).status, 200);
+  assert.deepEqual(d.tomas.map((t) => t.via), ["mensaje"]);
+
+  for (const nombre of ["mensaje-bot", "nota-bot", "conversacion-abierta", "conversacion-estado-cambiado", "conversacion-resuelta", "conversacion-bot-suelta"]) {
+    const cuerpo = fixtureJson(nombre);
+    const r = await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
+    assert.deepEqual([r.status, r.body], [200, { ok: true, resultado: "ignorado" }], nombre);
+  }
+  assert.equal(d.tomas.length, 1, "solo el mensaje del asesor");
+});
+
+test("A3: una toma sin firma válida se rechaza y no apaga al bot (invariante 9)", async () => {
+  const d = deps();
+  const cuerpo = fixtureJson("conversacion-asignada");
+  const r = await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo, undefined, "otro-secreto"));
+  assert.equal(r.status, 401);
+  assert.equal(d.tomas.length, 0);
+});
+
+test("A3: si registrar la toma falla responde 500 para que Chatwoot reintente", async () => {
+  const d = deps({ registrarTomaDeConversacion: async () => { throw new Error("base caída"); } });
+  const cuerpo = fixtureJson("conversacion-asignada");
+  assert.equal((await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 500);
 });

@@ -5,9 +5,11 @@ import express, { type Express } from "express";
 import { log } from "../lib/log.ts";
 import {
   interpretarEventoChatwoot,
+  interpretarTomaDeConversacion,
   verificarWebhookChatwoot,
   type CambioDeEstado,
   type EventoEntrante,
+  type EventoTomaDeConversacion,
   type FuenteEstadosEntrega,
 } from "../mensajeria/index.ts";
 
@@ -17,6 +19,8 @@ export interface AppDeps {
   /** Secreto del Agent Bot de Chatwoot. Sin él, el webhook rechaza todo. */
   secretoWebhookChatwoot: string | null;
   procesarEntrante(evento: EventoEntrante): Promise<{ resultado: string }>;
+  /** Una persona tomó la conversación en Chatwoot (se la asignó o escribió): activa la atención humana. */
+  registrarTomaDeConversacion(evento: EventoTomaDeConversacion): Promise<string>;
   /** De dónde salen los estados de entrega (enviado, entregado, leído, fallido). */
   estadosEntrega: FuenteEstadosEntrega;
   registrarEstadoEntrega(cambio: CambioDeEstado): Promise<string>;
@@ -56,7 +60,18 @@ export function crearApp(deps: AppDeps): Express {
 
     const evento = interpretarEventoChatwoot(payload);
     if (!evento) {
-      // No es un mensaje del contacto: puede ser un cambio de estado de entrega de un saliente.
+      // No es un mensaje del contacto. Puede ser que una persona tome la conversación...
+      const toma = interpretarTomaDeConversacion(payload);
+      if (toma) {
+        try {
+          res.json({ ok: true, resultado: await deps.registrarTomaDeConversacion(toma) });
+        } catch (e) {
+          log.error("webhook_chatwoot_toma_error", { error: (e as Error).message });
+          res.status(500).json({ ok: false });
+        }
+        return;
+      }
+      // ...o un cambio de estado de entrega de un saliente.
       const cambio = deps.estadosEntrega.interpretar(payload);
       if (!cambio) {
         res.json({ ok: true, resultado: "ignorado" });

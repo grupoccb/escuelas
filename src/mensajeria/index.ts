@@ -23,8 +23,10 @@ export {
 } from "./estados.ts";
 export {
   interpretarEventoChatwoot,
+  interpretarTomaDeConversacion,
   verificarWebhookChatwoot,
   type EventoEntrante,
+  type EventoTomaDeConversacion,
 } from "./chatwoot/webhook.ts";
 
 export interface MensajeriaConfigurada {

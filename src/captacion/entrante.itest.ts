@@ -119,11 +119,23 @@ test("MessagingProvider bloquea aunque alguien deje un saliente pendiente despu�
   assert.deepEqual([bloqueado.estatus, bloqueado.motivo_bloqueo], ["bloqueado", "atencion_humana"]);
 });
 
-test("un asesor que toma la conversación en Chatwoot apaga al bot", async () => {
+test("una conversación `open` en Chatwoot SIN asesor sigue siendo del bot: el sistema mismo la abre (A3)", async () => {
   const { transporte, deps, conversacion, evento } = nuevoEntorno();
   await procesarEntrante(deps, evento("Hola"));
   const enviados = transporte.envios.length;
   const r = await procesarEntrante(deps, evento("Sofía", { estadoConversacion: "open" }));
+  assert.equal(r.resultado, "procesado");
+  assert.ok(transporte.envios.length > enviados, "el bot contesta y sigue la captura");
+  const conv = await conversacionDe(conversacion);
+  assert.equal(conv.estado, "bot");
+  assert.equal(conv.paso_captacion, "edad");
+});
+
+test("respaldo: si el mensaje del contacto llega con la conversación asignada a una PERSONA, se apaga al bot", async () => {
+  const { transporte, deps, conversacion, evento } = nuevoEntorno();
+  await procesarEntrante(deps, evento("Hola"));
+  const enviados = transporte.envios.length;
+  const r = await procesarEntrante(deps, evento("Sofía", { estadoConversacion: "open", asignadaAPersona: true }));
   assert.equal(r.resultado, "asesor_tomo_conversacion");
   assert.equal(transporte.envios.length, enviados);
   assert.equal((await conversacionDe(conversacion)).estado, "en_atencion_humana");

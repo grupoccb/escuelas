@@ -82,7 +82,7 @@ export const textos = {
       motivo === "captura_completa"
         ? "Datos capturados por el bot:"
         : motivo === "sin_respuesta"
-          ? "El contacto dejó de contestar a mitad de la captura. Datos parciales:"
+          ? "El contacto dejó de contestar a mitad de la captura. Nadie la ha tomado: el bot sigue atendiendo si vuelve. Asígnatela o escríbele para tomarla. Datos parciales:"
           : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
       `• Nombre: ${datos.nombre ?? "—"}`,
       `• Edad: ${datos.edad ?? "—"}`,

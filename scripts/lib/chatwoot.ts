@@ -55,7 +55,15 @@ export class ClienteChatwoot {
     return (await this.admin("POST", `/api/v1/accounts/${cuenta}/inboxes`, {
       name: nombre,
       channel: { type: "api", webhook_url: "" },
+      // Atender es que una PERSONA la tome (A3): la asignación automática de Chatwoot le pondría
+      // asesor a una conversación que nadie escogió y apagaría al bot sin que nadie la atienda.
+      enable_auto_assignment: false,
     })) as Bandeja;
+  }
+
+  /** Apaga la asignación automática de una bandeja que ya existe (ver crearBandejaApi). */
+  async sinAsignacionAutomatica(cuenta: number, bandeja: number): Promise<void> {
+    await this.admin("PATCH", `/api/v1/accounts/${cuenta}/inboxes/${bandeja}`, { enable_auto_assignment: false });
   }
 
   async asignarBot(cuenta: number, bandeja: number, bot: number): Promise<void> {

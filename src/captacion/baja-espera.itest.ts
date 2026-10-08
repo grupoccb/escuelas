@@ -164,7 +164,7 @@ test("con un asesor atendiendo, la baja se registra pero el sistema no contesta 
   assert.equal(await db().tarea_asesor.count({ where: { conversacion_id: conv.id, tipo: "revision_manual", estado: "pendiente" } }), 1);
 });
 
-test("tiempo de espera: a mitad de la captura el bot pasa la conversación al asesor con una nota, sin escribirle al contacto", async () => {
+test("tiempo de espera (30 min): la conversación se vuelve visible con una nota, pero NO pasa a atención humana", async () => {
   // Organización propia: el barrido con reloj futuro recoge toda conversación a medias de la organización.
   const o = await sembrarOrganizacion(prisma, "Espera");
   const { transporte, mensajeria, deps, conversacion, evento } = entorno(undefined, { cuenta: o.chatwootAccountId, inbox: o.chatwootInboxId });
@@ -172,28 +172,35 @@ test("tiempo de espera: a mitad de la captura el bot pasa la conversación al as
   await procesarEntrante({ ...deps, reloj: () => inicio }, evento("Hola"));
   await procesarEntrante({ ...deps, reloj: () => inicio }, evento("Ana"));
   const alContacto = mensajesAlContacto(transporte).length;
+  assert.equal(TIEMPO_ESPERA_MS, 30 * 60 * 1000);
 
   const justoAntes = new Date(inicio.getTime() + TIEMPO_ESPERA_MS - 1000);
   await barrerTiemposDeEspera({ prisma, mensajeria, organizacionId: o.organizacionId, reloj: () => justoAntes });
-  assert.equal((await conversacionDe(conversacion, o)).estado, "bot", "todavía dentro del tiempo de espera");
+  const antes = await conversacionDe(conversacion, o);
+  assert.equal(antes.visible_a_asesores_en, null, "todavía dentro del tiempo de espera");
+  assert.ok(!transporte.envios.some((e) => e.tipo === "abrir"));
 
   const despues = new Date(inicio.getTime() + TIEMPO_ESPERA_MS + 1000);
   const hechas = await barrerTiemposDeEspera({ prisma, mensajeria, organizacionId: o.organizacionId, reloj: () => despues });
-  assert.ok(hechas >= 1);
+  assert.equal(hechas, 1);
 
   const conv = await conversacionDe(conversacion, o);
-  assert.equal(conv.estado, "en_atencion_humana");
-  assert.equal(conv.motivo_pase_asesor, "sin_respuesta");
+  assert.equal(conv.estado, "bot", "visible no es atendido");
+  assert.equal(conv.paso_captacion, "edad");
+  assert.equal(conv.pasar_a_asesor_pendiente, false);
+  assert.equal(conv.visible_a_asesores_en?.toISOString(), despues.toISOString());
   assert.equal(mensajesAlContacto(transporte).length, alContacto, "no se le escribe al contacto");
   const nota = transporte.envios.find((e) => e.tipo === "nota_interna" && /dejó de contestar/.test(e.texto ?? ""));
   assert.ok(nota, "hay nota con datos parciales");
   assert.match(nota.texto!, /Nombre: Ana/);
-  assert.ok(transporte.envios.some((e) => e.tipo === "abrir"));
-  assert.equal(await db(o).interaccion.count({ where: { lead_id: conv.lead_id, tipo: "pase_a_asesor" } }), 1);
+  assert.match(nota.texto!, /Nadie la ha tomado/);
+  assert.ok(transporte.envios.some((e) => e.tipo === "abrir"), "se abre en Chatwoot para que los asesores la vean");
+  assert.ok(conv.abierta_para_asesores_en);
+  assert.equal(await db(o).interaccion.count({ where: { lead_id: conv.lead_id, tipo: "pase_a_asesor" } }), 0, "no es un pase a asesor");
 
-  // Idempotente: otro barrido no vuelve a pasarla ni a escribir.
+  // Idempotente: otro barrido no vuelve a avisar ni a escribir.
   const envios = transporte.envios.length;
-  await barrerTiemposDeEspera({ prisma, mensajeria, organizacionId: o.organizacionId, reloj: () => despues });
+  assert.equal(await barrerTiemposDeEspera({ prisma, mensajeria, organizacionId: o.organizacionId, reloj: () => despues }), 0);
   assert.equal(transporte.envios.length, envios);
 });
 

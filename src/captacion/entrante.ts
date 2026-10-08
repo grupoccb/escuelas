@@ -136,8 +136,10 @@ async function registrarYAvanzar(
     await actualizar(ventana);
     return { resultado: "sin_automatizacion", conversacionId: conv.id };
   }
-  // Un asesor tomó la conversación en Chatwoot sin pasar por el bot.
-  if (evento.estadoConversacion === "open") {
+  // Una persona ya tiene la conversación asignada en Chatwoot y el backend no se enteró (se perdió
+  // el evento de asignación): respaldo de la señal. NO se usa el estado `open` de Chatwoot: el
+  // propio sistema la deja abierta (a los 30 min o al terminar la captura) sin que nadie la atienda.
+  if (evento.asignadaAPersona) {
     await actualizar({ ...ventana, estado: "en_atencion_humana", pasar_a_asesor_pendiente: false });
     return { resultado: "asesor_tomo_conversacion", conversacionId: conv.id };
   }

@@ -365,6 +365,13 @@ model conversacion {
   /// El backend debe pasar la conversación a un asesor en cuanto termine de despachar.
   pasar_a_asesor_pendiente   Boolean             @default(false)
   motivo_pase_asesor         String?
+  /// A los 30 min sin respuesta a mitad de la captura se avisa a los asesores (nota con los datos
+  /// parciales). VISIBLE NO ES ATENDIDO: no cambia `estado`; el bot sigue si el contacto vuelve y
+  /// el reenganche puede salir. Es la marca del aviso: lo hace idempotente.
+  visible_a_asesores_en      DateTime?           @db.Timestamptz(6)
+  /// Cuándo se abrió la conversación en Chatwoot para los asesores. Nulo con `visible_a_asesores_en`
+  /// puesto = falta abrirla (se reintenta).
+  abierta_para_asesores_en   DateTime?           @db.Timestamptz(6)
   /// Invariante 5, ventana 1: 24 h desde el último mensaje entrante. Decide si se puede
   /// mandar mensaje libre.
   ventana_servicio_hasta     DateTime?           @db.Timestamptz(6)

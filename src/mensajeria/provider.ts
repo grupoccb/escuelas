@@ -292,6 +292,27 @@ export class MessagingProvider {
     return recuperados;
   }
 
+  /**
+   * Hace visible la conversación para los asesores (la abre en Chatwoot) SIN marcarla
+   * `en_atencion_humana`: visible no es atendido. El bot sigue si el contacto vuelve y el
+   * reenganche puede salir. Solo aplica a una conversación en `bot`: con una persona atendiendo,
+   * dada de baja o cerrada no hay nada que mostrar. Deja `abierta_para_asesores_en`; si Chatwoot
+   * falla devuelve false y se reintenta en el siguiente barrido.
+   */
+  async abrirParaAsesores(db: BaseDatos, conversacionId: string): Promise<boolean> {
+    const conv = await this.leerConversacion(db, conversacionId);
+    if (conv.estado !== "bot") return false;
+    try {
+      await this.transporte.abrirConversacion(conv.destino);
+    } catch (e) {
+      log.error("abrir_para_asesores_fallido", { conversacionId, error: (e as Error).message });
+      return false;
+    }
+    await db.conversacion.updateMany({ where: { id: conversacionId, abierta_para_asesores_en: null }, data: { abierta_para_asesores_en: this.reloj() } });
+    log.info("abierta_para_asesores", { conversacionId });
+    return true;
+  }
+
   private async pasarAAsesorSiToca(db: BaseDatos, conversacionId: string): Promise<boolean> {
     const conv = await this.leerConversacion(db, conversacionId);
     if (!conv.pasar_a_asesor_pendiente || conv.estado !== "bot") return false;

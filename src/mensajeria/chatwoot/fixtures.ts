@@ -17,6 +17,8 @@ export interface OpcionesPayload {
   sourceId?: string | null;
   canal?: string;
   referral?: Record<string, string>;
+  /** La conversación ya está asignada a una persona (meta.assignee_type "User"). */
+  asignadaAPersona?: boolean;
 }
 
 export function payloadMensajeEntrante(o: OpcionesPayload = {}): Record<string, unknown> {
@@ -45,7 +47,11 @@ export function payloadMensajeEntrante(o: OpcionesPayload = {}): Record<string, 
       inbox_id: o.bandeja ?? 1,
       channel: o.canal ?? "Channel::Api",
       status: o.estado ?? "pending",
-      meta: { sender: { ...contacto, type: "contact" } },
+      meta: {
+        sender: { ...contacto, type: "contact" },
+        assignee: o.asignadaAPersona ? { id: 2, name: "Asesor de prueba", type: "user" } : null,
+        assignee_type: o.asignadaAPersona ? "User" : null,
+      },
     },
   };
 }

@@ -48,8 +48,17 @@ export interface EventoEntrante {
   /** Id del mensaje en Chatwoot. Llave de idempotencia (invariante 8). */
   idMensaje: string;
   contenido: string;
-  /** Estado de la conversación en Chatwoot: pending (bot), open (asesor), resolved, snoozed. */
+  /**
+   * Estado de la conversación en Chatwoot: pending, open, resolved, snoozed. OJO: NO indica que
+   * una persona la atienda. El propio sistema la abre (open) al pasarla a los asesores o al
+   * mostrarla a los 30 min; esa apertura queda `open` sin asesor.
+   */
   estadoConversacion: string;
+  /**
+   * La conversación está asignada a una PERSONA (`meta.assignee_type == "User"`), no a un bot.
+   * Es el respaldo de la señal de asignación por si se perdió el evento `conversation_updated`.
+   */
+  asignadaAPersona?: boolean;
   contacto: { nombre: string | null; telefono: string | null };
   creadoEn: Date | null;
   /**
@@ -108,6 +117,7 @@ export function interpretarEventoChatwoot(payload: unknown): EventoEntrante | nu
     idMensaje: String(idMensaje),
     contenido: typeof p["content"] === "string" ? p["content"] : "",
     estadoConversacion: texto(conversacion?.["status"]) ?? "",
+    asignadaAPersona: texto(objeto(conversacion?.["meta"])?.["assignee_type"]) === "User",
     contacto: {
       nombre: texto(contacto?.["name"]),
       telefono: texto(contacto?.["phone_number"]),
@@ -117,4 +127,65 @@ export function interpretarEventoChatwoot(payload: unknown): EventoEntrante | nu
     numeroReceptor: null,
     crudo: payload,
   };
+}
+
+/**
+ * Una persona tomó la conversación en Chatwoot. Eso (y no que esté "abierta") es lo que activa
+ * `en_atencion_humana`. Chatwoot 4.18 lo avisa de dos maneras al Agent Bot (payloads reales en
+ * `payload-conversacion-asignada.json` y `payload-mensaje-asesor.json`):
+ * - `conversation_updated` con `changed_attributes` que trae `assignee_id` y `meta.assignee_type`
+ *   `User` (asignación a un asesor);
+ * - `message_created` saliente cuyo `sender.type` es `user` (un asesor escribió, sea al contacto
+ *   o una nota privada). Lo que manda el propio sistema trae `sender.type` `agent_bot`.
+ * Todo lo demás (abrir, resolver, cambios de estado, asignar al bot, desasignar) devuelve null.
+ */
+export interface EventoTomaDeConversacion {
+  chatwootAccountId: number;
+  chatwootInboxId: number;
+  chatwootConversacionId: number;
+  via: "asignacion" | "mensaje";
+  /** Id del agente en Chatwoot, si el evento lo trae. */
+  agenteId: number | null;
+  crudo: unknown;
+}
+
+/** El cambio de un atributo en `changed_attributes` (una lista de objetos de una clave, o un objeto). */
+function cambioDe(cambios: unknown, clave: string): Objeto | null {
+  if (Array.isArray(cambios)) {
+    for (const c of cambios) {
+      const cambio = objeto(objeto(c)?.[clave]);
+      if (cambio) return cambio;
+    }
+    return null;
+  }
+  return objeto(objeto(cambios)?.[clave]);
+}
+
+export function interpretarTomaDeConversacion(payload: unknown): EventoTomaDeConversacion | null {
+  const p = objeto(payload);
+  if (!p) return null;
+  const cuenta = entero(objeto(p["account"])?.["id"]);
+  if (cuenta === null) return null;
+
+  if (p["event"] === "conversation_updated") {
+    const nuevoAsesor = entero(cambioDe(p["changed_attributes"], "assignee_id")?.["current_value"]);
+    if (nuevoAsesor === null) return null; // sin cambio de asesor, o se desasignó
+    if (texto(objeto(p["meta"])?.["assignee_type"]) !== "User") return null; // asignada a un bot no cuenta
+    const bandeja = entero(p["inbox_id"]);
+    const conversacion = entero(p["id"]);
+    if (bandeja === null || conversacion === null) return null;
+    return { chatwootAccountId: cuenta, chatwootInboxId: bandeja, chatwootConversacionId: conversacion, via: "asignacion", agenteId: nuevoAsesor, crudo: payload };
+  }
+
+  if (p["event"] === "message_created") {
+    if (p["message_type"] !== "outgoing") return null;
+    const remitente = objeto(p["sender"]);
+    if (texto(remitente?.["type"]) !== "user") return null; // el bot (agent_bot) y el contacto no cuentan
+    const bandeja = entero(objeto(p["inbox"])?.["id"]);
+    const conversacion = entero(objeto(p["conversation"])?.["id"]);
+    if (bandeja === null || conversacion === null) return null;
+    return { chatwootAccountId: cuenta, chatwootInboxId: bandeja, chatwootConversacionId: conversacion, via: "mensaje", agenteId: entero(remitente?.["id"]), crudo: payload };
+  }
+
+  return null;
 }

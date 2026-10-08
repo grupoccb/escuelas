@@ -2,6 +2,7 @@ import { iniciarBarrido } from "./barrido.ts";
 import { correrAutomatizaciones } from "./automatizaciones/motor.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { barrerTiemposDeEspera } from "./captacion/espera.ts";
+import { registrarTomaDeConversacion } from "./captacion/toma.ts";
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { crearApp } from "./http/app.ts";
@@ -19,6 +20,7 @@ const app = crearApp({
   estadosEntrega: new EstadosEntregaChatwoot(),
   registrarEstadoEntrega: (cambio) => registrarEstadoEntrega({ prisma }, cambio),
   procesarEntrante: (evento) => procesarEntrante({ prisma, mensajeria: mensajeria.provider, atribucion }, evento),
+  registrarTomaDeConversacion: (evento) => registrarTomaDeConversacion({ prisma }, evento),
 });
 
 const port = Number(process.env["PORT"] ?? 3000);

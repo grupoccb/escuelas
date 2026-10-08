@@ -34,6 +34,7 @@ try {
       enChatwoot ??= await chatwoot.crearBandejaApi(cuenta, bandeja.nombre);
 
       await chatwoot.asignarBot(cuenta, enChatwoot.id, bot);
+      await chatwoot.sinAsignacionAutomatica(cuenta, enChatwoot.id);
       await db.bandeja_chatwoot.update({
         where: { id: bandeja.id },
         data: { chatwoot_account_id: cuenta, chatwoot_inbox_id: enChatwoot.id },

@@ -37,7 +37,18 @@ En la conversación nueva de la bandeja de la vertical:
 2. Una **nota privada** del bot con nombre, edad, sucursal y teléfono.
 3. El aviso "La conversación fue reabierta por Bot de captación": quedó en **Abiertas**, lista
    para un asesor.
-4. Si contestas como asesor o el contacto vuelve a escribir, el bot ya no interviene.
+4. Si te asignas la conversación o escribes como asesor (mensaje o nota privada), el backend la
+   pasa a atención humana y el bot ya no interviene. Estar **abierta** no basta: lo que cuenta es
+   que una persona la tome.
+
+### Lead a medias (30 minutos)
+
+Si el contacto deja de contestar a mitad de las tres preguntas, a los 30 minutos la conversación
+aparece en **Abiertas** con una nota privada "El contacto dejó de contestar…" y los datos
+parciales. Todavía **nadie la atiende**: el bot sigue si el contacto vuelve a escribir, y a las
+25 h puede salir el reenganche. En el simulador, `--respuestas "Hola|Ana"` deja un lead a medias;
+el aviso sale en el siguiente barrido de un minuto después de que se cumplan los 30 minutos (para
+verlo sin esperar, ajusta `ultimo_mensaje_entrante_en` de la conversación en la base).
 
 ## Cómo está armada
 
@@ -48,6 +59,9 @@ En la conversación nueva de la bandeja de la vertical:
 | Webhook firmado del bot | `src/http/app.ts`, `src/mensajeria/chatwoot/webhook.ts` |
 | Bot (máquina de estados) | `src/captacion/maquina.ts` |
 | Lead, conversación e idempotencia | `src/captacion/entrante.ts` |
+| Aviso a los 30 min (visible, no atendido) | `src/captacion/espera.ts` |
+| Una persona toma la conversación (asignación o primer mensaje) | `src/captacion/toma.ts`, `src/mensajeria/chatwoot/webhook.ts` |
+| Qué eventos manda Chatwoot al bot (experimento) | `scripts/experimento-eventos-chatwoot.ts`, `src/mensajeria/chatwoot/payload-*.json` |
 | Reglas de envío y pase al asesor | `src/mensajeria/provider.ts`, `src/mensajeria/reglas.ts` |
 | Simulador del contacto | `scripts/simular-contacto.ts` |
 | Catálogo de la vertical (programas, grupos, horarios) | `prisma/seed/catalogo.sql` |
@@ -67,6 +81,11 @@ demo igual. Las credenciales son de desarrollo y están en `config/demo-local.en
   el asesor (`tarea_asesor`).
 - Reenganche: a las 25 h sin contestar a mitad de la captura el motor manda la plantilla del seed
   (ficticia). Contra la bandeja API de la demo llega como texto; con Twilio real iría como
-  Content Template. A las 72 h sin respuesta la conversación pasa a un asesor.
+  Content Template. Sale aunque la conversación ya sea visible para los asesores, mientras
+  ninguna persona la haya tomado.
+- Tomar una conversación = asignársela en Chatwoot o mandar el primer mensaje como asesor. Resolverla
+  no devuelve el bot: queda en atención humana (una conversación nueva de Chatwoot sí empieza de cero).
+- Las bandejas se crean con la asignación automática de Chatwoot apagada: nadie debe quedar como
+  asesor sin haberla tomado a propósito.
 - Un contacto que vuelve a escribir en una conversación nueva reutiliza su lead y el bot le
   vuelve a preguntar.

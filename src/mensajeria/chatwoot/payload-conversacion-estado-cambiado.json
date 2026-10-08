@@ -1,0 +1,92 @@
+{
+  "additional_attributes": {},
+  "can_reply": true,
+  "channel": "Channel::Api",
+  "contact_inbox": {
+    "id": 12,
+    "contact_id": 12,
+    "inbox_id": 3,
+    "source_id": "00000000-0000-4000-8000-000000000000",
+    "created_at": "2026-10-08T05:36:21.553Z",
+    "updated_at": "2026-10-08T05:36:21.553Z",
+    "hmac_verified": false,
+    "pubsub_token": "token-de-prueba"
+  },
+  "id": 11,
+  "inbox_id": 3,
+  "messages": [
+    {
+      "id": 61,
+      "content": "Mucho gusto",
+      "account_id": 2,
+      "inbox_id": 3,
+      "conversation_id": 11,
+      "message_type": 1,
+      "created_at": 1791437784,
+      "updated_at": "2026-10-08T05:36:24.145Z",
+      "private": false,
+      "status": "sent",
+      "source_id": null,
+      "content_type": "text",
+      "content_attributes": {},
+      "sender_type": "AgentBot",
+      "sender_id": 2,
+      "external_source_ids": {},
+      "additional_attributes": {},
+      "processed_message_content": "Mucho gusto",
+      "sentiment": {},
+      "conversation": {
+        "assignee_id": null,
+        "unread_count": 1,
+        "last_activity_at": 1791437784,
+        "contact_inbox": {
+          "source_id": "00000000-0000-4000-8000-000000000000"
+        }
+      },
+      "sender": {
+        "id": 2,
+        "name": "Captura N2",
+        "avatar_url": "",
+        "type": "agent_bot"
+      }
+    }
+  ],
+  "labels": [],
+  "meta": {
+    "sender": {
+      "additional_attributes": {},
+      "custom_attributes": {},
+      "email": null,
+      "id": 12,
+      "identifier": null,
+      "name": "Contacto de prueba",
+      "phone_number": "+5215500000000",
+      "thumbnail": "",
+      "blocked": false,
+      "type": "contact"
+    },
+    "assignee": null,
+    "assignee_type": null,
+    "team": null,
+    "hmac_verified": false
+  },
+  "status": "open",
+  "custom_attributes": {},
+  "snoozed_until": null,
+  "unread_count": 1,
+  "first_reply_created_at": null,
+  "priority": null,
+  "waiting_since": 1791437786,
+  "agent_last_seen_at": 0,
+  "contact_last_seen_at": 0,
+  "last_activity_at": 1791437784,
+  "timestamp": 1791437784,
+  "created_at": 1791437781,
+  "updated_at": 1791437786.7459877,
+  "account": {
+    "id": 2,
+    "name": "Demo local"
+  },
+  "event": "conversation_status_changed",
+  "changed_attributes": null
+}
