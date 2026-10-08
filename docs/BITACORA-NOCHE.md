@@ -12,7 +12,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N5 | HECHO | a22b33f | Bot |
 | N6 | HECHO | 57b3a90 | Handoff |
 | N7 | HECHO | d0c0882 | Estados de entrega |
-| N8 | PENDIENTE | | Reenganche |
+| N8 | HECHO | (ver git log) | Reenganche |
 | N9 | PENDIENTE | | Reporte mínimo |
 | N10 | PENDIENTE | | Prueba de fuego (segunda vertical) |
 | N11 | PENDIENTE | | Catálogo de Fase 2 |
@@ -197,3 +197,32 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 **Para Eduardo**
 - Con Twilio real, confirmar que Chatwoot entrega los `message_updated` también para mensajes con plantilla y que el `external_error` trae el código (hoy visto solo con callbacks simulados).
 - Decidir si un `fallido` (p. ej. 63016) debe generar tarea para el asesor.
+
+## N8. Reenganche (bloque 1.6)
+
+**Qué se hizo**
+- **Todas las reglas del invariante 4 dentro de `MessagingProvider`** (`reglas.ts` puro + `provider.ts`), en este orden de precedencia: atención humana (6) → baja (por teléfono, toda la organización; con alcance `marketing` solo bloquea plantillas de marketing) / conversación cerrada → plantilla (debe ser aprobada, activa, viva y de la vertical) → ventana de servicio (5: fuera de ella solo plantilla enviable) → **horario 09:00–20:00 hora de la sucursal, solo para lo iniciado por el sistema** (14, decisión 5: responder no tiene restricción) → **frecuencia** (1 automático por teléfono cada 24 h, `LIMITE_FRECUENCIA_POR_DEFECTO`). Sin zona horaria, lo automático no sale.
+- `MessagingProvider.despachar()` devuelve el resultado por mensaje (`enviado` / `bloqueado` + motivo / `fallido`); el transporte tiene `enviarPlantilla` (falso y Chatwoot).
+- **Motor** `src/automatizaciones/motor.ts`: *programar* (una `automatizacion_ejecucion` por automatización/entidad/ocurrencia; la unicidad es de la base) y *ejecutar* (reclama la ejecución antes de actuar, manda solo por el provider y traduce su resultado: `enviado`, `omitido` con motivo, `descartado`, `fallido`, o reprogramada). No repite ninguna regla.
+- **Horario** (decisiones 5 y 6): lo programado fuera de rango se recorre al siguiente horario válido (con zona horaria y cambio de horario de verano); si con eso llegaría después del evento (`limiteDe`) se **descarta** como `evento_pasado` y se registra. También respeta la ventana propia de cada automatización (CHECK: nunca más ancha que 09:00–20:00).
+- Seed: plantilla ficticia `reenganche_captacion` y automatización a 25 h, una vez (`prisma/seed/demo.sql`).
+- Contrato de plantillas verificado contra el Chatwoot local (bandeja Twilio falsa de N2): una plantilla conocida se resuelve (`template_params` con `name`/`language`/`processed_params`) y el único fallo es salir a Twilio (bloqueado); una desconocida da `Template not found`.
+
+**Verificación**
+- `npm run validar` exit 0 (89 tests) · `npm run test:int` exit 0 (70 tests).
+- Chequeo de mutación: sin el reclamo del motor falla "dos motores a la vez"; sin la regla de horario fallan 3 pruebas (provider, reglas, precedencia). Archivos restaurados y comparados byte a byte.
+- Cubierto: envío a las 26 h y una sola vez, nada antes del tiempo, 3 motores concurrentes → un envío, noche → 09:00 local, motor tardío reprograma, respuesta sin restricción de horario, descarte por evento pasado, atención humana tras programar → omitido, estados que ni se programan (humana/cerrada/baja), baja total y de marketing, tope de frecuencia, plantilla no aprobada/inactiva/de otra vertical (+ tarea), sin plantilla, variables vacías/desconocidas, `max_intentos`, el bot continúa si el contacto contesta.
+
+**Decisiones que tomé**
+- **Cambié el tiempo de espera de N5 de 30 min a 72 h.** Con 30 min el bot pasaba la conversación a un asesor antes de que el reenganche (25 h) pudiera dispararse, y `en_atencion_humana` bloquea toda automatización (invariante 6): el reenganche habría sido código muerto. Ahora: 25 h → plantilla; 72 h sin respuesta → asesor con nota de datos parciales. Alternativa descartada: dejar 30 min y que el reenganche solo aplique a leads que nunca pasaron al asesor (casi ninguno). **Costo:** un lead a medias queda hasta 72 h sin que un asesor lo vea. Es decisión de producto, ver abajo.
+- El reenganche aplica solo a conversaciones del bot con captura incompleta (`nombre`/`edad`/`sucursal`). Una captura completa ya está con una persona.
+- La frecuencia se cuenta por **teléfono en toda la organización**, no por conversación (misma lógica que la baja).
+- Una ejecución reclamada que se queda a medias (el proceso muere) **no** se reintenta sola: preferible no mandar que mandar dos veces (invariante 8). Queda con `ejecutado_en` y estatus `programado`; es detectable. No añadí recuperación.
+- El motor corre en el mismo intervalo de 1 min que el barrido de espera, uno tras otro.
+- La plantilla del seed es ficticia y figura "aprobada" solo para la demo local; en un ambiente real el estado viene de Twilio/Meta.
+
+**Para Eduardo**
+- **Decidir el calendario del lead a medias:** 25 h reenganche / 72 h asesor (lo que dejé) frente a pasar a asesor antes. Los números son constantes: `offset_minutos` (en la tabla `automatizacion`) y `TIEMPO_ESPERA_MS`.
+- La sincronización de plantillas con Twilio y su estado de aprobación real están **pendientes** (requieren credenciales). Hoy `estado_aprobacion` se edita en la tabla.
+- El tope de frecuencia (1 por 24 h) es un valor conservador mío; no hay cifra en los insumos.
+- Un `fallido` de entrega (p. ej. 63016) no crea tarea ni cancela nada (ver N7).

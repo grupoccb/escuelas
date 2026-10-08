@@ -1,3 +1,4 @@
+import { correrAutomatizaciones } from "./automatizaciones/motor.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { barrerTiemposDeEspera } from "./captacion/espera.ts";
 import { crearPrisma } from "./datos/prisma.ts";
@@ -24,11 +25,17 @@ const server = app.listen(port, () => {
   log.info("backend_escuchando", { port, transporte: mensajeria.transporte });
 });
 
-// Tiempo de espera del bot: cada minuto revisa las conversaciones a medio capturar.
+// Cada minuto: el tiempo de espera del bot y las automatizaciones (reenganche). Uno tras otro,
+// no en paralelo, para que no se pisen sobre la misma conversación.
 const barrido = setInterval(() => {
-  barrerTiemposDeEspera({ prisma, mensajeria: mensajeria.provider }).catch((e: unknown) =>
-    log.error("barrido_espera_error", { error: (e as Error).message }),
-  );
+  void (async () => {
+    try {
+      await barrerTiemposDeEspera({ prisma, mensajeria: mensajeria.provider });
+      await correrAutomatizaciones({ prisma, mensajeria: mensajeria.provider });
+    } catch (e) {
+      log.error("barrido_error", { error: (e as Error).message });
+    }
+  })();
 }, 60_000);
 barrido.unref();
 

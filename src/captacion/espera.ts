@@ -16,8 +16,13 @@ import { log } from "../lib/log.ts";
 import type { MessagingProvider } from "../mensajeria/index.ts";
 import { resumenParaAsesor } from "./resumen.ts";
 
-/** Cuánto espera el bot una respuesta antes de pasar la conversación a un asesor. */
-export const TIEMPO_ESPERA_MS = 30 * 60 * 1000;
+/**
+ * Cuánto espera el bot una respuesta antes de pasar la conversación a un asesor. Es mayor que el
+ * reenganche (25 h): primero se le da al contacto una oportunidad con plantilla y, si tampoco
+ * contesta, la conversación pasa a una persona. Una conversación en atención humana no recibe
+ * automatizaciones (invariante 6), así que pasarla antes cancelaría el reenganche.
+ */
+export const TIEMPO_ESPERA_MS = 72 * 60 * 60 * 1000;
 
 export interface DepsEspera {
   prisma: PrismaClient;

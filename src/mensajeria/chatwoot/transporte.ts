@@ -2,7 +2,7 @@
 // Chatwoot solo deja al bot crear mensajes y cambiar el estado de la conversación, que es
 // justo lo que se usa aquí.
 
-import { ErrorTransporte, type DestinoConversacion, type TransporteConversaciones } from "../transporte.ts";
+import { ErrorTransporte, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "../transporte.ts";
 
 export interface ConfigChatwoot {
   url: string;
@@ -25,6 +25,19 @@ export class TransporteChatwoot implements TransporteConversaciones {
     return this.crearMensaje(destino, texto, false);
   }
 
+  /**
+   * Plantilla de Twilio (Content Template) vía Chatwoot: `template_params` con el nombre, el
+   * idioma y las variables por posición. Chatwoot la busca por `friendly_name` entre las
+   * plantillas aprobadas que sincronizó del canal (Twilio::TemplateProcessorService, 4.18).
+   */
+  async enviarPlantilla(destino: DestinoConversacion, plantilla: PlantillaAEnviar): Promise<{ idExterno: string }> {
+    return this.crearMensaje(destino, plantilla.cuerpo, false, {
+      name: plantilla.codigo,
+      language: plantilla.idioma,
+      processed_params: plantilla.variables,
+    });
+  }
+
   async enviarNotaInterna(destino: DestinoConversacion, texto: string): Promise<{ idExterno: string }> {
     return this.crearMensaje(destino, texto, true);
   }
@@ -33,11 +46,17 @@ export class TransporteChatwoot implements TransporteConversaciones {
     await this.post(`${this.rutaConversacion(destino)}/toggle_status`, { status: "open" });
   }
 
-  private async crearMensaje(destino: DestinoConversacion, texto: string, privado: boolean): Promise<{ idExterno: string }> {
+  private async crearMensaje(
+    destino: DestinoConversacion,
+    texto: string,
+    privado: boolean,
+    plantilla?: Record<string, unknown>,
+  ): Promise<{ idExterno: string }> {
     const r = (await this.post(`${this.rutaConversacion(destino)}/messages`, {
       content: texto,
       message_type: "outgoing",
       private: privado,
+      ...(plantilla ? { template_params: plantilla } : {}),
     })) as { id?: unknown };
     if (r.id === undefined || r.id === null) throw new ErrorTransporte("Chatwoot no devolvió id de mensaje");
     return { idExterno: String(r.id) };

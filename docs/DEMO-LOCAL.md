@@ -51,9 +51,13 @@ demo igual. Las credenciales son de desarrollo y están en `config/demo-local.en
 ## Límites
 
 - Sin Twilio: la bandeja es tipo API y el "contacto" es el simulador.
-- Reglas activas en `MessagingProvider`: atención humana, estado de la conversación y ventana
-  de servicio de 24 h. Plantillas, horario, opt-out y frecuencia entran en Fase 1.
-- Fuera de la ventana de servicio no se manda nada, pero todavía no se crea la tarea para el
-  asesor (no existe la tabla).
+- Reglas en `MessagingProvider` (invariante 4): atención humana, baja (por teléfono, en toda la
+  organización), conversación cerrada, plantilla aprobada, ventana de servicio de 24 h, horario
+  09:00–20:00 de la sucursal para lo que inicia el sistema, y tope de frecuencia.
+- Fuera de la ventana de servicio y sin plantilla apta no se manda nada y se crea una tarea para
+  el asesor (`tarea_asesor`).
+- Reenganche: a las 25 h sin contestar a mitad de la captura el motor manda la plantilla del seed
+  (ficticia). Contra la bandeja API de la demo llega como texto; con Twilio real iría como
+  Content Template. A las 72 h sin respuesta la conversación pasa a un asesor.
 - Un contacto que vuelve a escribir en una conversación nueva reutiliza su lead y el bot le
   vuelve a preguntar.

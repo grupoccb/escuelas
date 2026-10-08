@@ -2,12 +2,13 @@
 // backend cuando no hay credenciales de Chatwoot.
 
 import { randomUUID } from "node:crypto";
-import { ErrorTransporte, type DestinoConversacion, type TransporteConversaciones } from "./transporte.ts";
+import { ErrorTransporte, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "./transporte.ts";
 
 export interface EnvioRegistrado {
-  tipo: "mensaje" | "nota_interna" | "abrir";
+  tipo: "mensaje" | "plantilla" | "nota_interna" | "abrir";
   destino: DestinoConversacion;
   texto?: string;
+  plantilla?: PlantillaAEnviar;
 }
 
 export class TransporteFalso implements TransporteConversaciones {
@@ -17,6 +18,11 @@ export class TransporteFalso implements TransporteConversaciones {
 
   async enviarMensaje(destino: DestinoConversacion, texto: string): Promise<{ idExterno: string }> {
     this.registrar({ tipo: "mensaje", destino, texto });
+    return { idExterno: `falso-${randomUUID()}` };
+  }
+
+  async enviarPlantilla(destino: DestinoConversacion, plantilla: PlantillaAEnviar): Promise<{ idExterno: string }> {
+    this.registrar({ tipo: "plantilla", destino, texto: plantilla.cuerpo, plantilla });
     return { idExterno: `falso-${randomUUID()}` };
   }
 
