@@ -6,6 +6,7 @@ import { registrarDesasignacionDeConversacion, registrarTomaDeConversacion } fro
 import { SinInscripciones } from "./catalogo/cupo.ts";
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
+import { origenesPermitidosDesdeEntorno } from "./api/csrf.ts";
 import { crearApp } from "./http/app.ts";
 import { avisoDeTrustProxy, confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./http/config-limites.ts";
 import { LimitadorDeTasa } from "./http/limite.ts";
@@ -37,7 +38,8 @@ const app = crearApp({
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
   twilio,
   // Landing pública por vertical (/l/:vertical): el cuestionario que crea el lead y manda a WhatsApp con su código de rastreo (E1).
-  landing: { prisma },
+  // El POST de la landing solo se acepta desde el origen público configurado (ORIGEN_PUBLICO), o desde el propio host si no hay uno (EE-08).
+  landing: { prisma, origenesPermitidos: origenesPermitidosDesdeEntorno() },
   // API de la aplicación (/api): sesiones, usuarios y recursos. Configuración por variables de entorno.
   // Falla al arrancar (en producción) si falta CLAVE_DATOS_SENSIBLES, en vez de al primer uso.
   api: { prisma, sensibles: { cifrador: cifradorDesdeEntorno() }, directorio: directorioAgentesDesdeEntorno(), fuenteOcupacion },

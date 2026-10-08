@@ -67,6 +67,8 @@ test("validarEnvio: cada campo malo da su mensaje; nada se acepta a medias", () 
   assert.deepEqual(campos({ sucursal_id: "zz" }), ["sucursal_id"], "una sucursal que la vertical no ofrece");
   for (const telefono of ["", "abc", "123", "+0000000000", "5".repeat(31)]) assert.deepEqual(campos({ telefono }), ["telefono"], `teléfono «${telefono}»`);
   assert.deepEqual(campos({ nombre_contacto: "<b>x</b>" }), ["nombre_contacto"]);
+  assert.deepEqual(campos({ nombre_contacto: "x".repeat(121) }), ["nombre_contacto"], "EE-09 (X12): el nombre de contacto también tiene tope de 120");
+  assert.deepEqual(validarEnvio({ ...buenos, nombre_contacto: "x".repeat(120) }, DOS).ok, true);
   // EE-12: solo caracteres invisibles (ancho cero, controles bidireccionales) no es un nombre; EE-05: tampoco una dirección web.
   for (const invisible of ["\u200b", "\u200b\u200b ", "\u202e", "\ufeff"]) assert.deepEqual(campos({ nombre_alumno: invisible }), ["nombre_alumno"], JSON.stringify(invisible));
   assert.deepEqual(campos({ nombre_alumno: "---" }), ["nombre_alumno"], "sin una letra o un número");

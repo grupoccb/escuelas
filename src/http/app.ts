@@ -55,7 +55,7 @@ export interface AppDeps {
   /** API de la aplicación (/api). Sin ella, /api no existe. */
   api?: ApiDepsEntrada;
   /** Landing pública por vertical (/l/:vertical, E1). Sin ella, /l no existe. */
-  landing?: { prisma: PrismaRaiz };
+  landing?: { prisma: PrismaRaiz; origenesPermitidos?: readonly string[] };
   /** Límites de peticiones (B6). Sin ellos no se limita nada: `server.ts` siempre los pasa. */
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
@@ -81,7 +81,7 @@ export function crearApp(deps: AppDeps): Express {
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
 
   // Landing pública (E1): sin sesión; su propia protección contra abuso (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
-  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
+  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
 
   app.get("/salud", async (_req, res) => {
     try {

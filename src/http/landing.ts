@@ -23,12 +23,33 @@ import type { LimitadorDeTasa } from "./limite.ts";
 
 export interface DepsLanding {
   prisma: PrismaRaiz;
+  /** Orígenes desde los que se acepta el envío (`ORIGEN_PUBLICO`); vacío = solo el propio host de la petición. */
+  origenesPermitidos?: readonly string[];
   reloj?: () => Date;
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
 }
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/;
+
+/**
+ * EE-08: ¿el envío viene de la propia página? Un navegador siempre manda `Sec-Fetch-Site` y, en un POST, `Origin`: un formulario de OTRO sitio (o un script
+ * de otra página) trae `cross-site` y su origen, y se rechaza. Sin ninguno de los dos no es un navegador (una prueba, `curl`): no se puede exigir —el límite
+ * por IP es lo que lo frena—. `Origin: null` también pasa: un navegador lo manda en un POST del propio sitio cuando la página lleva `Referrer-Policy:
+ * no-referrer`, que es la que tiene esta (Firefox); ahí manda `Sec-Fetch-Site`.
+ */
+export function origenDelEnvioAceptable(req: Pick<Request, "get">, permitidos: readonly string[]): boolean {
+  if (req.get("sec-fetch-site") === "cross-site") return false;
+  const origen = req.get("origin");
+  if (origen === undefined || origen === "null") return true;
+  let o: URL;
+  try {
+    o = new URL(origen);
+  } catch {
+    return false;
+  }
+  return permitidos.length > 0 ? permitidos.includes(o.origin) : o.host === req.get("host");
+}
 
 /**
  * La CSP de la página. SIN `form-action` (EE-01): Chrome aplica esa directiva también a las redirecciones del envío, y el envío termina con un 303 a
@@ -77,8 +98,9 @@ export function rutasDeLanding(deps: DepsLanding): Router {
       return null;
     }
     if (!landing.aviso) {
-      // Sin aviso de privacidad vigente no hay evidencia de consentimiento: no se recogen datos.
-      error(res, 503, "No disponible por ahora", "Esta página no está disponible en este momento. Inténtalo más tarde.");
+      // Sin aviso de privacidad vigente no hay evidencia de consentimiento: no se recogen datos. Se responde EXACTAMENTE como a una página que no existe (EE-11):
+      // un 503 distinto diría qué verticales existen.
+      error(res, 404, "Página no encontrada", "Revisa el enlace e inténtalo de nuevo.");
       return null;
     }
     return landing;
@@ -92,7 +114,14 @@ export function rutasDeLanding(deps: DepsLanding): Router {
     res.status(200).send(paginaDeFormulario(landing, leerParametros(req.query), { nonce }));
   });
 
-  r.post("/:vertical", express.urlencoded({ extended: false, limit: LIMITE_CUERPO_LANDING, parameterLimit: 40 }), async (req: Request, res: Response) => {
+  // EE-08: un envío que no viene de esta página se rechaza antes de leer el cuerpo y sin tocar la base.
+  const soloDeEstaPagina = (req: Request, res: Response, next: NextFunction): void => {
+    if (origenDelEnvioAceptable(req, deps.origenesPermitidos ?? [])) return next();
+    log.warn("landing_origen_rechazado", { sitio: req.get("sec-fetch-site") ?? null });
+    error(res, 403, "No se pudo enviar", "Envía el formulario desde la página de la escuela.");
+  };
+
+  r.post("/:vertical", soloDeEstaPagina, express.urlencoded({ extended: false, limit: LIMITE_CUERPO_LANDING, parameterLimit: 40 }), async (req: Request, res: Response) => {
     const landing = await landingDe(req, res);
     if (!landing) return;
     const cuerpo = (req.body ?? {}) as Record<string, unknown>;

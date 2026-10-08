@@ -120,7 +120,7 @@ test("E1 GET: el cuestionario sale de las tablas (nombre, color, sucursales, avi
   await otra.text();
 });
 
-test("E1 GET: sin color y con un logo peligroso la página usa el color por omisión y no lo muestra; una sola sucursal no se pregunta; slug raro o inexistente, 404 igual; sin aviso vigente, 503 y sin formulario", async () => {
+test("E1 GET: sin color y con un logo peligroso la página usa el color por omisión y no lo muestra; una sola sucursal no se pregunta; slug raro o inexistente, 404 igual; sin aviso vigente, el mismo 404 y sin formulario", async () => {
   // (La base ya rechaza un color que no sea #RRGGBB; aquí el color falta y el logo es peligroso. `colorValido` se prueba aparte.)
   const m = await mundo({ color: null, logo: "javascript:alert(1)" });
   const html = await (await fetch(`${api.base}${m.ruta}`)).text();
@@ -142,11 +142,14 @@ test("E1 GET: sin color y con un logo peligroso la página usa el color por omis
   await mayus.text();
   // Sin aviso de privacidad vigente no se recogen datos.
   const sin = await mundo({ sinDocumentos: true });
+  // EE-11: igual que una página que no existe (404 y el mismo cuerpo): un 503 distinto diría qué verticales existen.
   const r503 = await fetch(`${api.base}${sin.ruta}`);
-  assert.equal(r503.status, 503);
-  assert.ok(!(await r503.text()).includes("<form"));
+  assert.equal(r503.status, 404);
+  const cuerpoSin = await r503.text();
+  assert.ok(!cuerpoSin.includes("<form"));
+  assert.equal(sinNonce(cuerpoSin), cuerpo404, "el mismo cuerpo que una página inexistente");
   const p503 = await enviar(api.base, sin.ruta, campos(sin));
-  assert.equal(p503.status, 503);
+  assert.equal(p503.status, 404);
   await p503.text();
   assert.equal(await sin.db.lead.count(), 0);
 });
@@ -557,4 +560,93 @@ test("EE-05: quien manda el teléfono de un lead que ya existe no le agrega pros
   assert.equal(r.status, 303);
   await r.text();
   assert.deepEqual((await m.db.prospecto.findMany({ where: { lead_id: sinProspectos.id } })).map((p) => p.nombre), ["Niña Nueva"]);
+});
+
+test("EE-08: un envío que no viene de la propia página (otro sitio) se rechaza con 403 y sin tocar la base; sin cabeceras de navegador, mismo host y Origin: null pasan", async () => {
+  const m = await mundo();
+  const cuerpo = (tel: string) => campos(m, { telefono: tel });
+  const rechazados: [string, Record<string, string>][] = [
+    ["origen de otro sitio", { origin: "https://evil.example" }],
+    ["otro sitio con puerto", { origin: "http://127.0.0.1:1" }],
+    ["Sec-Fetch-Site cross-site", { "sec-fetch-site": "cross-site", origin: "null" }],
+    ["origen ilegible", { origin: "no es una url" }],
+  ];
+  for (const [i, [nombre, cabeceras]] of rechazados.entries()) {
+    const r = await enviar(api.base, m.ruta, cuerpo(`55 8200 000${i}`), cabeceras);
+    assert.equal(r.status, 403, nombre);
+    assert.match(await r.text(), /No se pudo enviar/);
+  }
+  assert.equal(await m.db.lead.count(), 0, "lo rechazado no llegó a la base");
+  const aceptados: [string, Record<string, string>][] = [
+    ["sin cabeceras de navegador (una prueba, curl)", {}],
+    ["el propio host", { origin: api.base, "sec-fetch-site": "same-origin" }],
+    ["Origin: null con la política no-referrer (Firefox)", { origin: "null", "sec-fetch-site": "same-origin" }],
+  ];
+  for (const [i, [nombre, cabeceras]] of aceptados.entries()) {
+    const r = await enviar(api.base, m.ruta, cuerpo(`55 8300 000${i}`), cabeceras);
+    assert.equal(r.status, 303, nombre);
+    await r.text();
+  }
+  assert.equal(await m.db.lead.count(), 3);
+  // El GET no se restringe (se abre desde un anuncio, un QR o un enlace de otro sitio).
+  const get = await fetch(`${api.base}${m.ruta}`, { headers: { "sec-fetch-site": "cross-site" } });
+  assert.equal(get.status, 200);
+  await get.text();
+});
+
+test("EE-08: con orígenes públicos configurados, solo esos valen (ni el propio host)", async () => {
+  const m = await mundo();
+  const fijo = levantarApi(prisma, {}, { landing: { prisma, origenesPermitidos: ["https://app.escuela.example"] } });
+  try {
+    const propio = await enviar(fijo.base, m.ruta, campos(m, { telefono: "55 8400 0001" }), { origin: fijo.base });
+    assert.equal(propio.status, 403, "ni el propio host si no es el configurado");
+    await propio.text();
+    const publico = await enviar(fijo.base, m.ruta, campos(m, { telefono: "55 8400 0001" }), { origin: "https://app.escuela.example" });
+    assert.equal(publico.status, 303);
+    await publico.text();
+    assert.equal(await m.db.lead.count(), 1);
+  } finally {
+    await fijo.cerrar();
+  }
+});
+
+test("EE-09 (L05): el script de la página solo corre con el nonce de la respuesta: la CSP no permite 'unsafe-inline' ni 'unsafe-eval' ni scripts de otros orígenes", async () => {
+  const m = await mundo();
+  const r = await fetch(`${api.base}${m.ruta}`);
+  await r.text();
+  const csp = r.headers.get("content-security-policy") ?? "";
+  const script = /script-src ([^;]+)/.exec(csp)?.[1] ?? "";
+  assert.match(script, /^'nonce-[A-Za-z0-9+/=]+'$/, `script-src solo con nonce: ${script}`);
+  const estilo = /style-src ([^;]+)/.exec(csp)?.[1] ?? "";
+  assert.match(estilo, /^'nonce-[A-Za-z0-9+/=]+'$/, `style-src solo con nonce: ${estilo}`);
+  assert.ok(!/unsafe-|\*/.test(csp.replace(/'nonce-[^']+'/g, "")), csp);
+});
+
+test("EE-09 (X06): la landing de una vertical inactiva (o de una organización dada de baja) no existe: 404", async () => {
+  const m = await mundo();
+  assert.equal((await fetch(`${api.base}${m.ruta}`).then(async (x) => (await x.text(), x.status))), 200);
+  await prisma.vertical.update({ where: { id: m.org.verticalId }, data: { activo: false } });
+  const inactiva = await fetch(`${api.base}${m.ruta}`);
+  assert.equal(inactiva.status, 404);
+  await inactiva.text();
+  const envio = await enviar(api.base, m.ruta, campos(m));
+  assert.equal(envio.status, 404);
+  await envio.text();
+  assert.equal(await m.db.lead.count(), 0);
+  await prisma.vertical.update({ where: { id: m.org.verticalId }, data: { activo: true } });
+  await prisma.organizacion.update({ where: { id: m.org.organizacionId }, data: { eliminado_en: new Date() } });
+  const baja = await fetch(`${api.base}${m.ruta}`);
+  assert.equal(baja.status, 404);
+  await baja.text();
+});
+
+test("EE-09 (X14): el lead de la landing nace en la primera etapa ABIERTA, aunque la de menor orden sea de cierre solo por su tipo (inscrito, perdido)", async () => {
+  const m = await mundo();
+  // La etapa de menor orden pasa a ser «perdido» por su tipo (sin la bandera) y la siguiente es la abierta.
+  await prisma.etapa_pipeline.update({ where: { id: m.org.etapaInicialId }, data: { tipo_sistema: "perdido", orden: 1 } });
+  const abierta = await prisma.etapa_pipeline.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Abierta", orden: 2 } });
+  const r = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8500 0001" }));
+  assert.equal(r.status, 303);
+  await r.text();
+  assert.equal((await m.db.lead.findFirstOrThrow()).etapa_id, abierta.id);
 });
