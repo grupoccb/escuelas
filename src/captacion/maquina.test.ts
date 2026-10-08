@@ -5,6 +5,7 @@ import {
   MAX_INTENTOS,
   avanzar,
   elegirSucursal,
+  esPalabraDeBaja,
   extraerEdad,
   extraerNombre,
   textos,
@@ -123,4 +124,28 @@ test("elegirSucursal por número o por nombre", () => {
   for (const malo of ["3", "0", "", "no sé", "x"]) {
     assert.equal(elegirSucursal(malo, CTX.sucursales), null, malo);
   }
+});
+
+test("palabras de baja: las cuatro, completas, sin importar mayúsculas, acentos ni puntuación", () => {
+  for (const ok of ["BAJA", "baja", "Stop", "STOP.", "  stop  ", "¡Baja!", "CANCELAR", "cancelar", "No molestar", "NO MOLESTAR.", "no  molestar"]) {
+    assert.equal(esPalabraDeBaja(ok), true, ok);
+  }
+});
+
+test("palabras de baja: dentro de una frase o parecidas no cuentan", () => {
+  for (const no of ["quiero cancelar mi clase", "no me molesten", "stopping", "bajas", "no", "hola", "", "Ana", "8"]) {
+    assert.equal(esPalabraDeBaja(no), false, no);
+  }
+});
+
+test("el texto de confirmación de baja no promete nada que el sistema no cumpla", () => {
+  assert.match(textos.confirmacionBaja, /ya no recibirás/);
+  assert.doesNotMatch(textos.confirmacionBaja, /asesor|escr[ií]benos/i);
+});
+
+test("resumen para el asesor cuando el contacto dejó de contestar", () => {
+  const r = textos.resumenAsesor("sin_respuesta", { nombre: "Ana", edad: null, sucursal: null, telefono: "+525511112222" });
+  assert.match(r, /dejó de contestar/);
+  assert.match(r, /Nombre: Ana/);
+  assert.match(r, /Edad: —/);
 });

@@ -392,6 +392,15 @@ enum direccion_mensaje {
   nota_interna
 }
 
+/// Por qué existe un saliente. Decide qué reglas le aplica MessagingProvider: la horaria y la
+/// de frecuencia son solo para `automatizacion` (invariante 14); la confirmación de una baja es
+/// el único mensaje que sale a quien ya pidió la baja.
+enum origen_mensaje {
+  respuesta
+  automatizacion
+  confirmacion_baja
+}
+
 enum estatus_mensaje {
   recibido
   pendiente
@@ -410,6 +419,7 @@ model mensaje {
   plantilla_id     String?           @db.Uuid
   direccion        direccion_mensaje
   estatus          estatus_mensaje
+  origen           origen_mensaje    @default(respuesta)
   cuerpo           String
   variables_usadas Json?
   /// Proveedor que dio el id externo (hoy solo "chatwoot").

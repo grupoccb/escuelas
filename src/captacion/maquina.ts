@@ -28,7 +28,7 @@ export interface EstadoCaptacion {
   sucursalId: string | null;
 }
 
-export type MotivoPaseAsesor = "captura_completa" | "sin_entender";
+export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta";
 
 export interface ResultadoCaptacion {
   estado: EstadoCaptacion;
@@ -61,13 +61,17 @@ export const textos = {
   reintentoNombre: "No alcancé a leer el nombre. ¿Me lo escribes de nuevo? Solo el nombre, por favor.",
   reintentoEdad: "¿Me compartes la edad con número? Por ejemplo: 8",
   reintentoSucursal: (sucursales: OpcionSucursal[]) => `Responde solo con el número de la sucursal:\n${listar(sucursales)}`,
+  /** Única respuesta a una baja: sale una sola vez y es lo último que el sistema le manda. */
+  confirmacionBaja: "Listo, ya no recibirás más mensajes de nuestra parte. Gracias por tu tiempo.",
   sinEntender: "Te comunico con un asesor para ayudarte mejor. En unos minutos te escribe por aquí.",
   /** Nota interna para el asesor al pasarle la conversación. */
   resumenAsesor: (motivo: MotivoPaseAsesor, datos: { nombre: string | null; edad: number | null; sucursal: string | null; telefono: string | null }) =>
     [
       motivo === "captura_completa"
         ? "Datos capturados por el bot:"
-        : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
+        : motivo === "sin_respuesta"
+          ? "El contacto dejó de contestar a mitad de la captura. Datos parciales:"
+          : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
       `• Nombre: ${datos.nombre ?? "—"}`,
       `• Edad: ${datos.edad ?? "—"}`,
       `• Sucursal: ${datos.sucursal ?? "—"}`,
@@ -145,6 +149,15 @@ function fallo(estado: EstadoCaptacion, reintento: string): ResultadoCaptacion {
 
 // ---------------------------------------------------------------------------------------------
 // Interpretación de respuestas
+
+/** Palabras que significan "no me escribas más". Se comparan completas, no como parte de una frase. */
+export const PALABRAS_DE_BAJA = ["baja", "stop", "cancelar", "no molestar"] as const;
+
+/** true si el mensaje es, completo, una palabra de baja ("STOP", "No molestar.", "baja"…). */
+export function esPalabraDeBaja(entrada: string): boolean {
+  const t = normalizar(entrada).replace(/^[\s¡!¿?.,;:"'*_-]+|[\s¡!¿?.,;:"'*_-]+$/g, "");
+  return (PALABRAS_DE_BAJA as readonly string[]).includes(t);
+}
 
 const normalizar = (s: string): string =>
   s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();

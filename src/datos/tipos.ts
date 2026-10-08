@@ -5,6 +5,7 @@ export type {
   paso_captacion as PasoCaptacion,
   direccion_mensaje as DireccionMensaje,
   estatus_mensaje as EstatusMensaje,
+  origen_mensaje as OrigenMensaje,
 } from "../generated/prisma/enums.ts";
 
 import type { Prisma } from "../generated/prisma/client.ts";

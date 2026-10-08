@@ -11,6 +11,7 @@ import type { ValorJson } from "../datos/tipos.ts";
 import { resolverBandejaChatwoot, resolverBandejaPorNumero, type BandejaResuelta } from "../datos/sistema.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
+import { registrarBaja } from "../mensajeria/consentimiento.ts";
 import {
   SinAtribucion,
   ventanaGratisDesde,
@@ -21,7 +22,7 @@ import {
   type MessagingProvider,
   type Saliente,
 } from "../mensajeria/index.ts";
-import { avanzar, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
+import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
 
 const MAX_REINTENTOS = 3;
 
@@ -30,6 +31,7 @@ export type ResultadoEntrante =
   | "duplicado"
   | "sin_automatizacion"
   | "asesor_tomo_conversacion"
+  | "baja"
   | "procesado";
 
 export interface DepsCaptacion {
@@ -113,6 +115,11 @@ async function registrarYAvanzar(
   };
   const ventana = { ventana_servicio_hasta: ventanaServicioDesde(recibidoEn), ultimo_mensaje_entrante_en: recibidoEn };
 
+  // Una baja se atiende antes que todo lo demás y en cualquier estado.
+  if (esPalabraDeBaja(evento.contenido)) {
+    return darDeBaja(tx, mensajeria, conv, evento, recibidoEn, actualizar, ventana);
+  }
+
   // Invariante 6: con una persona atendiendo, solo se registra el mensaje.
   if (conv.estado !== "bot") {
     await actualizar(ventana);
@@ -170,6 +177,72 @@ async function registrarYAvanzar(
   }
   await mensajeria.encolar(tx, conv.id, salientes);
   return { resultado: "procesado", conversacionId: conv.id };
+}
+
+type ConversacionConLead = Awaited<ReturnType<typeof obtenerConversacion>>;
+
+/**
+ * Baja ("BAJA", "STOP", "CANCELAR", "NO MOLESTAR"). Se registra de inmediato, sin pedir otra
+ * confirmación, en el consentimiento de toda la organización, y el sistema responde UNA sola
+ * vez para confirmarla. Una baja repetida, o la de un teléfono que ya estaba dado de baja, no
+ * vuelve a contestar.
+ */
+async function darDeBaja(
+  tx: Consultas,
+  mensajeria: MessagingProvider,
+  conv: ConversacionConLead,
+  evento: EventoEntrante,
+  recibidoEn: Date,
+  actualizar: (datos: Parameters<Consultas["conversacion"]["updateMany"]>[0]["data"]) => Promise<void>,
+  ventana: { ventana_servicio_hasta: Date; ultimo_mensaje_entrante_en: Date },
+): Promise<{ resultado: ResultadoEntrante; conversacionId: string }> {
+  const telefono = conv.lead.telefono;
+  const nueva = telefono
+    ? await registrarBaja(tx, telefono, "palabra_clave", { mensaje_id: evento.llave.id, palabra: evento.contenido.trim() }, recibidoEn)
+    : false;
+
+  if (nueva) {
+    await tx.interaccion.create({
+      data: altaConAlcance({
+        lead_id: conv.lead.id,
+        conversacion_id: conv.id,
+        tipo: "baja" as const,
+        contenido: "El contacto pidió la baja de los mensajes.",
+        datos: { palabra: evento.contenido.trim() },
+      }),
+    });
+  }
+
+  if (conv.estado === "bot" || conv.estado === "cerrada") {
+    await actualizar({ ...ventana, estado: "opt_out", pasar_a_asesor_pendiente: false });
+    // La confirmación es la única respuesta; solo se encola si la baja es nueva o la
+    // conversación aún no estaba en baja (cubre el caso sin teléfono).
+    if (nueva || !telefono) {
+      await mensajeria.encolar(tx, conv.id, [{ tipo: "mensaje", cuerpo: textos.confirmacionBaja, origen: "confirmacion_baja" }]);
+    }
+  } else {
+    await actualizar(ventana);
+    // Con una persona atendiendo el sistema no contesta (invariante 6): se le avisa por tarea.
+    if (conv.estado === "en_atencion_humana") {
+      const pendiente = await tx.tarea_asesor.findFirst({
+        where: { conversacion_id: conv.id, tipo: "revision_manual", estado: "pendiente" },
+        select: { id: true },
+      });
+      // Si dos bajas llegan juntas, el índice único parcial rechaza la segunda y el reintento
+      // de procesarEntrante la ve como ya registrada.
+      if (!pendiente) {
+        await tx.tarea_asesor.create({
+          data: altaConAlcance({
+            lead_id: conv.lead.id,
+            conversacion_id: conv.id,
+            tipo: "revision_manual" as const,
+            descripcion: "El contacto pidió la baja de los mensajes. Ya quedó registrada; confirma con él si hace falta.",
+          }),
+        });
+      }
+    }
+  }
+  return { resultado: "baja", conversacionId: conv.id };
 }
 
 async function obtenerConversacion(

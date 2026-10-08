@@ -1,4 +1,5 @@
 import { procesarEntrante } from "./captacion/entrante.ts";
+import { barrerTiemposDeEspera } from "./captacion/espera.ts";
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { crearApp } from "./http/app.ts";
@@ -20,6 +21,14 @@ const port = Number(process.env["PORT"] ?? 3000);
 const server = app.listen(port, () => {
   log.info("backend_escuchando", { port, transporte: mensajeria.transporte });
 });
+
+// Tiempo de espera del bot: cada minuto revisa las conversaciones a medio capturar.
+const barrido = setInterval(() => {
+  barrerTiemposDeEspera({ prisma, mensajeria: mensajeria.provider }).catch((e: unknown) =>
+    log.error("barrido_espera_error", { error: (e as Error).message }),
+  );
+}, 60_000);
+barrido.unref();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

@@ -13,7 +13,9 @@
 //    en_atencion_humana. Desde ahí ninguna automatización manda nada.
 
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
+import type { OrigenMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
+import { estaDadoDeBaja } from "./consentimiento.ts";
 import { motivoBloqueo, type TipoSaliente } from "./reglas.ts";
 import type { DestinoConversacion, TransporteConversaciones } from "./transporte.ts";
 
@@ -22,6 +24,8 @@ const PROVEEDOR = "chatwoot";
 export interface Saliente {
   tipo: TipoSaliente;
   cuerpo: string;
+  /** Por qué existe. Por defecto, una respuesta al contacto. */
+  origen?: OrigenMensaje;
 }
 
 export interface ResumenDespacho {
@@ -53,6 +57,7 @@ export class MessagingProvider {
           conversacion_id: conversacionId,
           direccion: s.tipo === "mensaje" ? ("saliente" as const) : ("nota_interna" as const),
           estatus: "pendiente" as const,
+          origen: s.origen ?? ("respuesta" as const),
           cuerpo: s.cuerpo,
           proveedor: PROVEEDOR,
         }),
@@ -67,7 +72,7 @@ export class MessagingProvider {
     const pendientes = await db.mensaje.findMany({
       where: { conversacion_id: conversacionId, estatus: "pendiente" },
       orderBy: { secuencia: "asc" },
-      select: { id: true, direccion: true, cuerpo: true },
+      select: { id: true, direccion: true, cuerpo: true, origen: true },
     });
 
     let falloPrevio = false;
@@ -83,7 +88,7 @@ export class MessagingProvider {
       const tipo: TipoSaliente = m.direccion === "nota_interna" ? "nota_interna" : "mensaje";
       const ahora = this.reloj();
       // Si uno anterior falló, los siguientes no salen: llegarían fuera de orden.
-      const motivo = falloPrevio ? "envio_previo_fallido" : motivoBloqueo(conv, tipo, ahora);
+      const motivo = falloPrevio ? "envio_previo_fallido" : motivoBloqueo(conv, tipo, ahora, m.origen);
 
       if (motivo) {
         await db.mensaje.update({ where: { id: m.id }, data: { estatus: "bloqueado", motivo_bloqueo: motivo } });
@@ -158,6 +163,7 @@ export class MessagingProvider {
         motivo_pase_asesor: true,
         chatwoot_conversacion_id: true,
         bandeja_chatwoot: { select: { chatwoot_account_id: true } },
+        lead: { select: { telefono: true } },
       },
     });
     const cuenta = conv.bandeja_chatwoot.chatwoot_account_id;
@@ -166,6 +172,8 @@ export class MessagingProvider {
       chatwootAccountId: cuenta,
       chatwootConversacionId: conv.chatwoot_conversacion_id,
     };
-    return { ...conv, destino };
+    // La baja se consulta por teléfono en toda la organización, no por conversación.
+    const dado_de_baja = conv.lead.telefono ? await estaDadoDeBaja(db, conv.lead.telefono) : false;
+    return { ...conv, destino, dado_de_baja };
   }
 }

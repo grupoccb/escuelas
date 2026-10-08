@@ -5,7 +5,7 @@
 // (invariante 5). Plantillas, horario (14), opt-out y frecuencia entran con sus tablas en
 // Fase 1; mientras tanto nada fuera de ventana se manda.
 
-import type { EstadoConversacion } from "../datos/tipos.ts";
+import type { EstadoConversacion, OrigenMensaje } from "../datos/tipos.ts";
 
 export type TipoSaliente = "mensaje" | "nota_interna";
 
@@ -14,16 +14,30 @@ export type MotivoBloqueo = "atencion_humana" | "opt_out" | "conversacion_cerrad
 export interface EstadoParaReglas {
   estado: EstadoConversacion;
   ventana_servicio_hasta: Date | null;
+  /**
+   * La baja vigente del teléfono en TODA la organización, no solo en esta conversación
+   * (consentimiento). Una baja dada en una vertical aplica a todas.
+   */
+  dado_de_baja?: boolean;
 }
 
 /** Devuelve el motivo por el que NO se puede mandar, o null si se puede. */
-export function motivoBloqueo(conv: EstadoParaReglas, tipo: TipoSaliente, ahora: Date): MotivoBloqueo | null {
+export function motivoBloqueo(
+  conv: EstadoParaReglas,
+  tipo: TipoSaliente,
+  ahora: Date,
+  origen: OrigenMensaje = "respuesta",
+): MotivoBloqueo | null {
   // Sin excepción: ni siquiera una nota interna automática cuando ya atiende una persona.
   if (conv.estado === "en_atencion_humana") return "atencion_humana";
   if (tipo === "nota_interna") return null;
 
-  if (conv.estado === "opt_out") return "opt_out";
-  if (conv.estado === "cerrada") return "conversacion_cerrada";
+  // La confirmación de la baja es lo único que sale a quien ya la pidió. Es una respuesta a su
+  // mensaje, así que sigue sujeta a la ventana de servicio.
+  if (origen !== "confirmacion_baja") {
+    if (conv.estado === "opt_out" || conv.dado_de_baja) return "opt_out";
+    if (conv.estado === "cerrada") return "conversacion_cerrada";
+  }
 
   // Fuera de la ventana de servicio solo cabe una plantilla aprobada; todavía no hay
   // plantillas, así que no se manda.

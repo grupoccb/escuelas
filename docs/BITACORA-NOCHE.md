@@ -9,7 +9,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N2 | HECHO | ecb2c01 | Prueba simulada de atribución y transporte |
 | N3 | HECHO | 4fa5dcf | Esquema de Fase 1 |
 | N4 | HECHO | cf578e5 | Entrada |
-| N5 | PENDIENTE | | Bot |
+| N5 | HECHO | (ver git log) | Bot |
 | N6 | PENDIENTE | | Handoff |
 | N7 | PENDIENTE | | Estados de entrega |
 | N8 | PENDIENTE | | Reenganche |
@@ -128,3 +128,28 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 **Para Eduardo**
 - Confirmar la vía de atribución (el adaptador es solo la A).
 - El número receptor no llega en el payload de Chatwoot; si la vía elegida es la C, ese campo se llena desde `To` de Twilio.
+
+## N5. Bot (bloque 1.3)
+
+**Qué se hizo**
+- Ya existían (de 0.5) las tres preguntas, validaciones y 3 reintentos. Se agregó lo que faltaba:
+- **Palabras de baja** (`BAJA`, `STOP`, `CANCELAR`, `NO MOLESTAR`): `esPalabraDeBaja()` compara la palabra completa (sin importar mayúsculas, acentos ni puntuación); "quiero cancelar mi clase" no cuenta. Se atiende antes que cualquier otra cosa y en cualquier estado.
+- **Consentimiento por organización** (decisión 3): la baja escribe una fila `opt_out` / `todo` en `consentimiento` (`src/mensajeria/consentimiento.ts`) y `MessagingProvider` ahora consulta la baja **por teléfono en toda la organización** antes de enviar (regla opt-out del invariante 4). Probado: una baja en una vertical bloquea los mensajes del mismo teléfono en otra.
+- **Confirmación única**: columna nueva `mensaje.origen` (`respuesta` / `automatizacion` / `confirmacion_baja`; migración `20261008110000_mensaje_origen`). La confirmación es el único saliente que pasa con la baja vigente. Sale una vez: un webhook repetido o una segunda baja no vuelven a contestar.
+- **Tiempo de espera** (`src/captacion/espera.ts`): si el contacto deja de contestar 30 min a mitad de la captura, la conversación pasa al asesor con una nota de datos parciales. No se le escribe al contacto. Se corre cada minuto desde `server.ts` y es idempotente (control de versión).
+
+**Verificación**
+- `npm run validar` exit 0 (65 tests) · `npm run test:int` exit 0 (39 tests).
+- Tests nuevos: palabras de baja (positivas y negativas), reglas con `dado_de_baja` y `confirmacion_baja`, baja a mitad de captura, las cuatro palabras, confirmación única (webhook repetido y bajas repetidas), silencio posterior, baja de organización entre verticales, baja con asesor atendiendo (invariante 6: sin respuesta, con tarea), tiempo de espera (antes/después del umbral, idempotencia, no toca conversaciones con persona).
+
+**Decisiones que tomé**
+- "Confirmación única" = **se registra la baja de inmediato y se manda una sola confirmación**. Alternativa descartada: pedir "responde SÍ para confirmar" (dos pasos): obliga a quien ya dijo STOP a escribir otra vez y es contrario a las reglas de baja de WhatsApp.
+- Si el teléfono **ya estaba** dado de baja (otra vertical), no se manda confirmación: no se le escribe a quien ya está dado de baja.
+- Con `en_atencion_humana` el sistema no contesta ni siquiera la confirmación (invariante 6, sin excepción); la baja queda registrada y se crea una `tarea_asesor` (`revision_manual`) para que una persona confirme.
+- El tiempo de espera **no manda recordatorio al contacto**: eso es una automatización iniciada por el sistema (horario, plantilla fuera de ventana) y es de N8. Alternativa descartada: "¿sigues ahí?" a los 30 min (podría caer fuera de 09:00–20:00).
+- El barrido acepta `organizacionId` opcional (útil para operar una sola organización y para aislar tests: la base de pruebas acumula conversaciones viejas).
+- Palabra exacta para la baja: "CANCELAR" es ambigua (podría ser cancelar una clase); se respeta tal cual lo pidió el plan.
+
+**Para Eduardo**
+- Decidir qué pasa cuando alguien dado de baja **vuelve a escribir** por su cuenta: hoy el bot calla y nadie se entera (queda registrado el mensaje). Propuesta: crear tarea para el asesor. Reactivar (`opt_in`) hoy es manual en la tabla; no hay palabra de alta.
+- Confirmar los 30 min de tiempo de espera (`TIEMPO_ESPERA_MS`).
