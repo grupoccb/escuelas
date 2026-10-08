@@ -380,11 +380,13 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
           efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
         };
       }
-      // Un horario lleno con lista de espera: antes de cerrar se pregunta si quiere entrar a la lista (C9).
-      if (elegida.oferta === "lista_de_espera") {
+      // Un horario lleno con lista de espera: antes de cerrar se pregunta si quiere entrar a la lista (C9). EF-16 (hermano de EC-04): también cuando se
+      // llenó MIENTRAS contestaba (lo cotizado decía «lugar» y hoy dice «lista de espera»): se le dice la verdad en vez de «Anotamos a…».
+      const aElegir: OpcionHorario = hoy.cupo.oferta === "lista_de_espera" ? { ...elegida, oferta: "lista_de_espera", lugares: 0 } : elegida;
+      if (aElegir.oferta === "lista_de_espera") {
         return {
           estado: { ...estado, paso: "lista_espera", intentosFallidos: 0 },
-          respuestas: [textos.preguntaListaEspera(elegida)],
+          respuestas: [textos.preguntaListaEspera(aElegir)],
           pasarAAsesor: null,
           efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
         };

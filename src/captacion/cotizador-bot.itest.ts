@@ -744,6 +744,24 @@ test("EC-04: el horario se llenó entre la cotización y la respuesta (y no tien
   assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, uno.id, "la preferencia queda registrada para el asesor");
 });
 
+test("EF-16 (hermano de EC-04): el horario se llenó entre la cotización y la respuesta y el grupo SÍ permite lista de espera → el bot lo dice y pregunta si quiere la lista; nunca «Anotamos a…»", async () => {
+  const ocupacion = new OcupacionFija();
+  const e = await escenarioBot(prisma, { programas: [{ sucursal: 0, nombre: "Programa P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "Grupo A", horarios: [H(1)], permiteListaEspera: true }, { nombre: "Grupo B", horarios: [H(2)] }], precio: PRECIO }], fuente: ocupacion });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const uno = await e.db.grupo.findFirstOrThrow({ where: { nombre: "Grupo A" } });
+  ocupacion.fijar(uno.id, 10);
+  await c.escribe("1");
+  assert.equal(c.mensajes().at(-1), "El grupo Grupo A (lunes de 16:00 a 17:00) está lleno por ahora. ¿Quieres que te apuntemos en la lista de espera? Si se libera un lugar, un asesor te avisa. Responde sí o no.");
+  const conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "lista_espera");
+  assert.equal(await e.db.lista_espera.count(), 0, "todavía no se apunta a nadie");
+  await c.escribe("sí");
+  assert.equal((await c.conversacion()).paso_captacion, "completo");
+  assert.equal(await e.db.lista_espera.count({ where: { grupo_id: uno.id, estatus: "esperando" } }), 1);
+  assert.ok(!c.mensajes().some((m) => m.startsWith("¡Listo! Anotamos a")), "nunca dice que quedó en un grupo con lugar");
+});
+
 test("EC-12: un NUL en el mensaje no revienta la transacción: se procesa y se guarda sin él, en cualquier paso", async () => {
   const e = await escenarioBot(prisma, DOS_GRUPOS());
   const c = e.contacto();
