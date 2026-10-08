@@ -36,6 +36,8 @@ function montar(extra: { resultado?: ResultadoBorde | Error; token?: string | nu
           if (extra.resultado instanceof Error) throw extra.resultado;
           return extra.resultado ?? "reenviado";
         },
+        reenviarPendientes: async () => ({ reenviados: 0, fallidos: 0, abandonados: 0, errores: 0 }),
+        alertas: { organizacionDesconocida: 0, eventosAbandonados: 0 },
       },
     },
   };
@@ -128,6 +130,7 @@ test("respuestas del borde: sin identificador 400, en curso 503, reenvío fallid
     [new Error("detalle interno: contraseña de la base"), 500],
     ["duplicado", 200],
     ["organizacion_desconocida", 200],
+    ["reenviado_sin_organizacion", 200],
   ];
   for (const [resultado, status] of esperados) {
     const { deps } = montar({ resultado });

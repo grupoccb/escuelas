@@ -41,7 +41,13 @@ export interface ConfigReenviadorHttp {
   timeoutMs?: number;
 }
 
-/** Real: POST con el mismo cuerpo y las cabeceras que se permiten. Cualquier respuesta que no sea 2xx es fallo. */
+/**
+ * Real: POST con el mismo cuerpo y las cabeceras que se permiten. Solo un 2xx es éxito.
+ *
+ * Una redirección NO se sigue (EA-04): `fetch` convertiría el POST en GET sin cuerpo y, si el
+ * destino respondiera 200, el mensaje se daría por reenviado habiéndose perdido. Una 3xx es un fallo
+ * de configuración (p. ej. CHATWOOT_URL en http detrás de un balanceador que redirige a https).
+ */
 export class ReenviadorTwilioHttp implements ReenviadorTwilio {
   private readonly config: ConfigReenviadorHttp;
 
@@ -56,7 +62,9 @@ export class ReenviadorTwilioHttp implements ReenviadorTwilio {
       res = await fetch(url, {
         method: "POST",
         headers: { ...p.cabeceras, "x-reenviado-por": "borde-inscripciones" },
-        body: new Uint8Array(p.cuerpo),
+        // Blob y no un buffer: ante un 401 undici reintenta el envío y un buffer ya cedido queda «detached».
+        body: new Blob([new Uint8Array(p.cuerpo)]),
+        redirect: "manual",
         signal: AbortSignal.timeout(this.config.timeoutMs ?? 10_000),
       });
     } catch (e) {
@@ -64,6 +72,9 @@ export class ReenviadorTwilioHttp implements ReenviadorTwilio {
     }
     // Se vacía el cuerpo para liberar la conexión.
     await res.arrayBuffer().catch(() => undefined);
-    if (!res.ok) throw new ErrorReenvio(`Chatwoot respondió ${res.status} al reenvío`);
+    if (res.status >= 300 && res.status < 400) {
+      throw new ErrorReenvio(`Chatwoot respondió ${res.status} (redirección): no se sigue, el cuerpo del POST se perdería. Revisa la URL de reenvío`);
+    }
+    if (res.status < 200 || res.status >= 300) throw new ErrorReenvio(`Chatwoot respondió ${res.status} al reenvío`);
   }
 }

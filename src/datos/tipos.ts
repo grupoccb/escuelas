@@ -9,7 +9,10 @@ export type {
   tipo_tarea_asesor as TipoTareaAsesor,
 } from "../generated/prisma/enums.ts";
 
-import type { Prisma } from "../generated/prisma/client.ts";
+import { Prisma } from "../generated/prisma/client.ts";
 
 /** Valor que Prisma acepta en una columna JSON. */
 export type ValorJson = Prisma.InputJsonValue;
+
+/** Para poner en NULL una columna JSON (Prisma distingue el NULL de SQL del valor JSON `null`). */
+export const JSON_NULO = Prisma.JsonNull;

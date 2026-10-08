@@ -35,7 +35,7 @@ const server = app.listen(port, () => {
 const barrido = iniciarBarrido({
   intervaloMs: 60_000,
   tarea: async () => {
-    await correrCiclo({ prisma, mensajeria: mensajeria.provider });
+    await correrCiclo({ prisma, mensajeria: mensajeria.provider, twilio: twilio.borde });
   },
 });
 

@@ -9,8 +9,8 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../../testutil/prisma-
 import { altaConAlcance, conAlcance } from "../../datos/alcance.ts";
 import { crearApp } from "../../http/app.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../../testutil/semilla.ts";
-import { Barrera, conGanchos } from "../../testutil/carrera.ts";
-import { RECLAMO_TWILIO_VENCE_MS, crearBordeTwilio } from "./borde.ts";
+import { Barrera, conGanchos, soloOrganizaciones } from "../../testutil/carrera.ts";
+import { MAX_INTENTOS_REENVIO, RECLAMO_TWILIO_VENCE_MS, crearBordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso } from "./reenviador.ts";
 
 const TOKEN = "token-de-prueba";
@@ -42,7 +42,7 @@ async function escuela(numero = `whatsapp:+1555${randomInt(1_000_000, 9_999_999)
   return { ...o, numero };
 }
 
-function entorno(opciones: { normalizarFromAlReenviar?: boolean; reloj?: () => Date; prisma?: PrismaPruebas } = {}) {
+function entorno(opciones: { normalizarFromAlReenviar?: boolean; reenviarSinOrganizacion?: boolean; reloj?: () => Date; prisma?: PrismaPruebas } = {}) {
   const reenviador = new ReenviadorTwilioFalso();
   const borde = crearBordeTwilio({ reenviador, ...opciones, prisma: opciones.prisma ?? prisma });
   const app = crearApp({
@@ -223,16 +223,231 @@ test("aislamiento: el evento queda en la organización dueña del número, no en
   }
 });
 
-test("número receptor desconocido: 200 sin reenviar y sin guardar nada", async () => {
+test("EA-05: número receptor desconocido: se reenvía IGUAL a Chatwoot (sin registro) y queda una alerta visible; el mensaje no se pierde", async () => {
   await escuela();
   const e = entorno();
   try {
     const cuerpo = entrante({ numero: "whatsapp:+15559990000" }, sidNuevo());
     assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
-    assert.equal(e.reenviador.enviados.length, 0);
+    assert.equal(e.reenviador.enviados.length, 1, "se reenvió: antes de A7 Chatwoot lo habría recibido");
+    assert.ok(Buffer.compare(e.reenviador.enviados[0]!.cuerpo, cuerpo) === 0, "byte a byte");
+    assert.equal(e.borde.alertas.organizacionDesconocida, 1, "alerta contada");
     const sinTo = Buffer.from("MessageSid=SM123&Body=hola");
     assert.equal(await e.enviar(ENTRANTES, sinTo), 200);
+    assert.equal(e.reenviador.enviados.length, 2);
+    assert.equal(e.borde.alertas.organizacionDesconocida, 2);
+    // Sin organización no hay dónde guardar el evento.
+    assert.equal(await prisma.evento_twilio.count({ where: { id_mensaje: "SM123" } }), 0);
+
+    // Si el reenvío falla, 502: Twilio puede reintentar.
+    e.reenviador.fallarSi = () => true;
+    assert.equal(await e.enviar(ENTRANTES, entrante({ numero: "whatsapp:+15559990000" }, sidNuevo())), 502);
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-05: sin destino de reenvío (opción apagada) el receptor desconocido solo alerta: 200 y no se reenvía", async () => {
+  await escuela();
+  const e = entorno({ reenviarSinOrganizacion: false });
+  try {
+    assert.equal(await e.enviar(ENTRANTES, entrante({ numero: "whatsapp:+15559990000" }, sidNuevo())), 200);
     assert.equal(e.reenviador.enviados.length, 0);
+    assert.equal(e.borde.alertas.organizacionDesconocida, 1);
+  } finally {
+    e.cerrar();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-03: durabilidad. El evento se guarda ANTES de reenviarlo y un barrido lo reintenta.
+
+const SEG = 1000;
+
+test("EA-03: el cuerpo y las cabeceras se guardan al reclamar y se borran al reenviar", async () => {
+  const o = await escuela();
+  let ahora = new Date("2026-10-08T18:00:00Z");
+  const e = entorno({ reloj: () => ahora });
+  try {
+    const sid = sidNuevo();
+    const cuerpo = entrante(o, sid);
+    e.reenviador.fallarSi = () => true;
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 502);
+    const db = conAlcance(prisma, o.organizacionId);
+    const fallido = await db.evento_twilio.findFirstOrThrow({ where: { id_mensaje: sid } });
+    assert.equal(fallido.estado_proceso, "fallido");
+    assert.ok(fallido.cuerpo && Buffer.compare(Buffer.from(fallido.cuerpo), cuerpo) === 0, "el cuerpo guardado es idéntico");
+    assert.equal((fallido.cabeceras as Record<string, string>)["content-type"], "application/x-www-form-urlencoded");
+
+    e.reenviador.fallarSi = undefined;
+    ahora = new Date(ahora.getTime() + 61 * SEG);
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
+    const hecho = await db.evento_twilio.findFirstOrThrow({ where: { id_mensaje: sid } });
+    assert.deepEqual([hecho.estado_proceso, hecho.cuerpo, hecho.cabeceras], ["reenviado", null, null], "ya reenviado: no se conservan datos de contacto");
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-03: un reenvío fallido se reintenta SOLO (barrido), sin que Twilio vuelva a llamar; el reintento de Twilio después es un duplicado", async () => {
+  const o = await escuela();
+  let ahora = new Date("2026-10-08T18:00:00Z");
+  const e = entorno({ reloj: () => ahora, prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  try {
+    const sid = sidNuevo();
+    const cuerpo = entrante(o, sid);
+    e.reenviador.fallarSi = () => true; // Chatwoot caído o en despliegue
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 502);
+
+    // Todavía no ha pasado el tiempo mínimo entre intentos: no se toca.
+    ahora = new Date(ahora.getTime() + 30 * SEG);
+    assert.deepEqual(await e.borde.reenviarPendientes(), { reenviados: 0, fallidos: 0, abandonados: 0, errores: 0 });
+
+    // Chatwoot vuelve; el barrido del minuto siguiente lo reenvía.
+    e.reenviador.fallarSi = undefined;
+    ahora = new Date(ahora.getTime() + 60 * SEG);
+    assert.deepEqual(await e.borde.reenviarPendientes(), { reenviados: 1, fallidos: 0, abandonados: 0, errores: 0 });
+    assert.equal(e.reenviador.enviados.length, 1);
+    assert.ok(Buffer.compare(e.reenviador.enviados[0]!.cuerpo, cuerpo) === 0, "el cuerpo reenviado es el original");
+    assert.equal(e.reenviador.enviados[0]!.cabeceras["content-type"], "application/x-www-form-urlencoded");
+    const db = conAlcance(prisma, o.organizacionId);
+    const hecho = await db.evento_twilio.findFirstOrThrow({ where: { id_mensaje: sid } });
+    assert.deepEqual([hecho.estado_proceso, hecho.intentos, hecho.error, hecho.cuerpo], ["reenviado", 2, null, null]);
+
+    // Idempotente: otro barrido no repite, y un reintento tardío de Twilio es un duplicado.
+    assert.deepEqual(await e.borde.reenviarPendientes(), { reenviados: 0, fallidos: 0, abandonados: 0, errores: 0 });
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
+    assert.equal(e.reenviador.enviados.length, 1, "llegó a Chatwoot una sola vez");
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-03: el reclamo de un proceso que murió (`procesando` vencido) también lo reenvía el barrido", async () => {
+  const o = await escuela();
+  const ahora = new Date("2026-10-08T18:00:00Z");
+  const e = entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  try {
+    const sid = sidNuevo();
+    const cuerpo = entrante(o, sid);
+    const db = conAlcance(prisma, o.organizacionId);
+    // Un proceso reclamó (guardando el cuerpo) y murió antes de reenviar.
+    await db.evento_twilio.create({
+      data: altaConAlcance({
+        tipo: "entrante" as const,
+        id_mensaje: sid,
+        estado_mensaje: "",
+        estado_proceso: "procesando" as const,
+        reclamado_en: ahora,
+        cuerpo: new Uint8Array(cuerpo),
+        cabeceras: { "content-type": "application/x-www-form-urlencoded" },
+      }),
+    });
+    const r = await e.borde.reenviarPendientes();
+    assert.equal(r.reenviados, 1);
+    assert.ok(Buffer.compare(e.reenviador.enviados[0]!.cuerpo, cuerpo) === 0);
+    assert.equal((await db.evento_twilio.findFirstOrThrow({ where: { id_mensaje: sid } })).estado_proceso, "reenviado");
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-03: un reclamo reciente (en curso) y lo ya reenviado no se tocan", async () => {
+  const o = await escuela();
+  const ahora = new Date("2026-10-08T18:00:00Z");
+  const e = entorno({ reloj: () => new Date(ahora.getTime() + 30 * SEG), prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  try {
+    const db = conAlcance(prisma, o.organizacionId);
+    const base = { tipo: "entrante" as const, estado_mensaje: "", reclamado_en: ahora, cuerpo: new Uint8Array(Buffer.from("MessageSid=x")), cabeceras: {} };
+    await db.evento_twilio.create({ data: altaConAlcance({ ...base, id_mensaje: sidNuevo(), estado_proceso: "procesando" as const }) });
+    await db.evento_twilio.create({ data: altaConAlcance({ ...base, id_mensaje: sidNuevo(), estado_proceso: "reenviado" as const }) });
+    assert.deepEqual(await e.borde.reenviarPendientes(), { reenviados: 0, fallidos: 0, abandonados: 0, errores: 0 });
+    assert.equal(e.reenviador.enviados.length, 0);
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-03: tras MAX_INTENTOS_REENVIO el evento queda `abandonado`, con alerta, y ya no se reintenta", async () => {
+  const o = await escuela();
+  let ahora = new Date("2026-10-08T18:00:00Z");
+  const e = entorno({ reloj: () => ahora, prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  try {
+    const sid = sidNuevo();
+    const cuerpo = entrante(o, sid);
+    e.reenviador.fallarSi = () => true;
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 502);
+    for (let i = 0; i < MAX_INTENTOS_REENVIO + 3; i++) {
+      ahora = new Date(ahora.getTime() + 61 * SEG);
+      await e.borde.reenviarPendientes();
+    }
+    const db = conAlcance(prisma, o.organizacionId);
+    const fila = await db.evento_twilio.findFirstOrThrow({ where: { id_mensaje: sid } });
+    assert.equal(fila.estado_proceso, "abandonado");
+    assert.equal(fila.intentos, MAX_INTENTOS_REENVIO);
+    assert.match(fila.error ?? "", /Abandonado tras/);
+    assert.ok(fila.cuerpo, "el cuerpo se conserva para que una persona lo rescate");
+    assert.equal(e.borde.alertas.eventosAbandonados, 1, "una sola alerta, no una por barrido");
+
+    // Ni el barrido ni un reintento de Twilio lo vuelven a intentar.
+    const antes = e.reenviador.enviados.length;
+    e.reenviador.fallarSi = undefined;
+    ahora = new Date(ahora.getTime() + 61 * SEG);
+    assert.equal((await e.borde.reenviarPendientes()).reenviados, 0);
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
+    assert.equal(e.reenviador.enviados.length, antes);
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-03 (carrera real): dos barridos a la vez sobre el mismo evento pendiente lo reenvían UNA vez", async () => {
+  const o = await escuela();
+  const ahora = new Date("2026-10-08T18:00:00Z");
+  const barrera = new Barrera(2);
+  const raiz = conGanchos(soloOrganizaciones(prisma, [o.organizacionId]), {
+    modelo: "evento_twilio",
+    operacion: "findMany",
+    despues: () => barrera.esperar(),
+  });
+  const e = entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: raiz });
+  try {
+    const sid = sidNuevo();
+    const db = conAlcance(prisma, o.organizacionId);
+    await db.evento_twilio.create({
+      data: altaConAlcance({ tipo: "entrante" as const, id_mensaje: sid, estado_mensaje: "", estado_proceso: "fallido" as const, reclamado_en: ahora, cuerpo: new Uint8Array(entrante(o, sid)), cabeceras: {} }),
+    });
+    e.reenviador.demoraMs = 50;
+    const [a, b] = await Promise.all([e.borde.reenviarPendientes(), e.borde.reenviarPendientes()]);
+    assert.equal(barrera.completa, true, "los dos leyeron el mismo evento pendiente antes de reclamarlo");
+    assert.equal(a.reenviados + b.reenviados, 1);
+    assert.equal(e.reenviador.enviados.length, 1);
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-03/EA-07: el barrido sigue aunque una organización falle", async () => {
+  const a = await escuela();
+  const b = await escuela();
+  const ahora = new Date("2026-10-08T18:00:00Z");
+  let consultas = 0;
+  const raiz = conGanchos(soloOrganizaciones(prisma, [a.organizacionId, b.organizacionId]), {
+    modelo: "evento_twilio",
+    operacion: "findMany",
+    antes: async () => {
+      if (consultas++ === 0) throw new Error("falló la consulta de la primera organización");
+    },
+  });
+  const e = entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: raiz });
+  try {
+    const sid = sidNuevo();
+    await conAlcance(prisma, b.organizacionId).evento_twilio.create({
+      data: altaConAlcance({ tipo: "entrante" as const, id_mensaje: sid, estado_mensaje: "", estado_proceso: "fallido" as const, reclamado_en: ahora, cuerpo: new Uint8Array(entrante(b, sid)), cabeceras: {} }),
+    });
+    const r = await e.borde.reenviarPendientes();
+    assert.equal(r.errores, 1);
+    assert.equal(r.reenviados, 1, "la otra organización sí se atendió");
   } finally {
     e.cerrar();
   }

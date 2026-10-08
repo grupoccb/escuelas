@@ -11,7 +11,7 @@ import { altaConAlcance, conAlcance } from "./datos/alcance.ts";
 import { barrerEspera, TIEMPO_ESPERA_MS } from "./captacion/espera.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { correrCiclo } from "./ciclo.ts";
-import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type EventoEntrante } from "./mensajeria/index.ts";
+import { ENVIO_INCIERTO, MessagingProvider, ReenviadorTwilioFalso, TransporteFalso, crearBordeTwilio, type EventoEntrante } from "./mensajeria/index.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "./testutil/semilla.ts";
 import { conGanchos, soloOrganizaciones } from "./testutil/carrera.ts";
 
@@ -248,4 +248,37 @@ test("EA-01: la conversación de un lead borrado que quedó por abrir no se abre
   const r = await correrCiclo({ prisma: raiz, mensajeria: new MessagingProvider({ transporte, reloj: () => t2 }), reloj: () => t2 });
   assert.equal(r.errores, 0);
   assert.equal(transporte.envios.filter((e) => e.tipo === "abrir").length, 0);
+});
+
+test("EA-03: el ciclo reenvía los eventos de Twilio pendientes aunque la espera o el motor fallen, y si el barrido de Twilio falla el resto corre", async () => {
+  const o = await sembrarOrganizacion(prisma, "Ciclo");
+  const contacto = await contactoAMedias(o);
+  const raiz = soloOrganizaciones(prisma, [o.organizacionId]);
+  const ahora = despues(40 * MIN);
+  const reenviador = new ReenviadorTwilioFalso();
+  const borde = crearBordeTwilio({ prisma: raiz, reenviador, reloj: () => ahora });
+  const db = conAlcance(prisma, o.organizacionId);
+  await db.evento_twilio.create({
+    data: altaConAlcance({
+      tipo: "entrante" as const,
+      id_mensaje: `SM${siguiente++}`,
+      estado_mensaje: "",
+      estado_proceso: "fallido" as const,
+      reclamado_en: new Date(ahora.getTime() - 10 * MIN),
+      cuerpo: new Uint8Array(Buffer.from("MessageSid=SMx&Body=hola")),
+      cabeceras: {},
+    }),
+  });
+  const mensajeria = new MessagingProvider({ transporte: new TransporteFalso(), reloj: () => ahora });
+  const r = await correrCiclo({ prisma: raiz, mensajeria, twilio: borde, reloj: () => ahora });
+  assert.equal(r.twilio?.reenviados, 1);
+  assert.equal(reenviador.enviados.length, 1);
+  assert.equal(await visible(o, contacto.conversacionId), true, "y la espera también corrió");
+
+  // Si el barrido de Twilio lanza, la espera y el motor ya corrieron y el ciclo no lanza.
+  const roto = { ...borde, reenviarPendientes: async () => { throw new Error("Twilio revienta"); } };
+  const otro = await correrCiclo({ prisma: raiz, mensajeria, twilio: roto, reloj: () => ahora });
+  assert.equal(otro.twilio, null);
+  assert.equal(otro.errores, 1);
+  assert.ok(otro.espera && otro.motor);
 });

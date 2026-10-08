@@ -14,7 +14,17 @@ import { crearBordeTwilio, type BordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso, ReenviadorTwilioHttp, type ReenviadorTwilio } from "./reenviador.ts";
 
 export { calcularFirmaTwilio, verificarFirmaTwilio, verificarWebhookTwilio, urlPublicaDe, parsearFormulario, variantesDeUrl, type ParametrosTwilio } from "./firma.ts";
-export { crearBordeTwilio, normalizarFromEnCuerpo, RECLAMO_TWILIO_VENCE_MS, type BordeTwilio, type EntradaBorde, type ResultadoBorde } from "./borde.ts";
+export {
+  crearBordeTwilio,
+  normalizarFromEnCuerpo,
+  MAX_INTENTOS_REENVIO,
+  RECLAMO_TWILIO_VENCE_MS,
+  type AlertasBorde,
+  type BordeTwilio,
+  type EntradaBorde,
+  type ResultadoBorde,
+  type ResumenReenvio,
+} from "./borde.ts";
 export { ReenviadorTwilioFalso, ReenviadorTwilioHttp, ErrorReenvio, type PeticionReenvio, type ReenviadorTwilio, type TipoWebhookTwilio } from "./reenviador.ts";
 
 export interface TwilioConfigurado {
@@ -53,6 +63,12 @@ export function bordeTwilioDesdeEntorno(prisma: PrismaRaiz, env: NodeJS.ProcessE
     authToken,
     publicBaseUrl,
     reenvio,
-    borde: crearBordeTwilio({ prisma, reenviador, normalizarFromAlReenviar: env["TWILIO_NORMALIZAR_FROM_AL_REENVIAR"] === "true" }),
+    borde: crearBordeTwilio({
+      prisma,
+      reenviador,
+      normalizarFromAlReenviar: env["TWILIO_NORMALIZAR_FROM_AL_REENVIAR"] === "true",
+      // Con destino de reenvío configurado, un receptor sin organización se reenvía igual (EA-05).
+      reenviarSinOrganizacion: reenvio === "http",
+    }),
   };
 }

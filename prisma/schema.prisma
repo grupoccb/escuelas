@@ -719,6 +719,8 @@ enum estado_proceso_evento {
   procesando
   reenviado
   fallido
+  /// Se agotaron los reintentos del barrido de reenvío (EA-03). Queda guardado y con alerta; una persona decide.
+  abandonado
 }
 
 /// Webhook de Twilio recibido por el borde (A7) y reenviado a Chatwoot. Es la idempotencia del
@@ -737,6 +739,13 @@ model evento_twilio {
   /// Número de WhatsApp de la escuela con el que se resolvió la organización.
   numero_receptor String?
   estado_proceso  estado_proceso_evento @default(procesando)
+  /// Cuerpo y cabeceras tal como llegaron, guardados MIENTRAS el evento no se haya reenviado (EA-03):
+  /// con ellos el barrido de reenvío puede reintentar sin que Twilio vuelva a llamar. Se borran al
+  /// reenviarlo: son datos de contacto y ya no hacen falta.
+  cuerpo          Bytes?
+  cabeceras       Json?
+  /// Cuántas veces se reclamó el evento. Es también el candado del reclamo vencido: se compara este
+  /// contador, no una fecha (EA-20).
   intentos        Int                   @default(1)
   reclamado_en    DateTime              @default(now()) @db.Timestamptz(6)
   reenviado_en    DateTime?             @db.Timestamptz(6)
