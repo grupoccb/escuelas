@@ -79,6 +79,7 @@ model organizacion {
   promociones_aplicaciones   promocion_aplicacion[]
   cotizaciones               cotizacion[]
   lista_espera               lista_espera[]
+  clases_muestra             clase_muestra[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -108,6 +109,11 @@ model configuracion_organizacion {
   /// Cuántas horas tiene una familia para tomar el lugar que se le ofreció de la lista de espera antes de que el asesor
   /// decida si pasa al siguiente (C9).
   lista_espera_oferta_horas Int                            @default(48)
+  /// Con cuánta anticipación mínima (minutos) se puede agendar una clase muestra: la clase debe empezar al menos
+  /// este tiempo después de ahora (D1).
+  clase_muestra_anticipacion_min Int                       @default(120)
+  /// Hasta cuántos días hacia adelante se puede agendar una clase muestra (D1).
+  clase_muestra_horizonte_dias   Int                       @default(60)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -137,6 +143,9 @@ model vertical {
   /// otra sucursal, horarios, precio y promoción, lista de espera) en vez de pasar directo al asesor. Apagado
   /// (por omisión): la captura de tres preguntas y el pase al asesor no cambian (decisión 15 del plan).
   cotizador_whatsapp_activo Boolean   @default(false)
+  /// ¿El bot de WhatsApp agenda la clase muestra después de que el contacto elige horario (D1)? Solo tiene efecto con
+  /// `cotizador_whatsapp_activo` encendido. Apagado (por omisión): el bot cierra como antes.
+  clase_muestra_whatsapp_activo Boolean @default(false)
   activo                    Boolean   @default(true)
   creado_en                 DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
@@ -300,6 +309,18 @@ model campana {
   @@index([organizacion_id])
 }
 
+/// Qué papel juega una etapa en la lógica del sistema (D1). El código NUNCA busca etapas por nombre: los nombres son de la
+/// escuela y cambian; busca por este tipo. Una etapa sin tipo es solo una etapa de la escuela.
+enum tipo_sistema_etapa {
+  nuevo
+  contactado
+  muestra_agendada
+  muestra_asistida
+  negociacion
+  inscrito
+  perdido
+}
+
 /// Etapas del embudo, configurables. Los nombres viven aquí, no en código.
 model etapa_pipeline {
   id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -309,6 +330,8 @@ model etapa_pipeline {
   es_ganado                  Boolean   @default(false)
   es_perdido                 Boolean   @default(false)
   dias_alerta_sin_movimiento Int?
+  /// Papel de la etapa para el sistema (nulo = etapa propia de la escuela). A lo más una viva por tipo y organización.
+  tipo_sistema               tipo_sistema_etapa?
   creado_en                  DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en             DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en               DateTime? @db.Timestamptz(6)
@@ -353,6 +376,7 @@ model lead {
   tareas_asesor    tarea_asesor[]
   cotizaciones     cotizacion[]
   lista_espera     lista_espera[]
+  clases_muestra   clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -387,6 +411,7 @@ model prospecto {
   programa_sugerido programa?      @relation(fields: [programa_sugerido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   cotizaciones      cotizacion[]
   lista_espera      lista_espera[]
+  clases_muestra    clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -446,6 +471,8 @@ enum paso_captacion {
   horario
   /// C9: eligió un horario lleno y se le pregunta si quiere entrar a la lista de espera.
   lista_espera
+  /// D1: se le propusieron fechas de clase muestra y espera su elección.
+  fecha_muestra
   completo
 }
 
@@ -485,6 +512,9 @@ model conversacion {
   /// El usuario del sistema que corresponde a ese agente (`usuario.chatwoot_agent_id`), si lo hay. Así
   /// se sabe qué asesor tiene cada conversación. Nulo si nadie la tiene o el agente no está vinculado.
   asignada_a_usuario_id         String?             @db.Uuid
+  /// D1: las fechas de clase muestra que el bot le propuso al contacto (grupo y sesiones, tal como se las numeró), para que
+  /// el número que responda apunte a lo que vio aunque pasen las horas. `{ grupo_id, fechas: [ISO…] }`; nulo si no hay.
+  muestra_ofrecida              Json?
   creado_en                     DateTime            @default(now()) @db.Timestamptz(6)
   actualizado_en                DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en                  DateTime?           @db.Timestamptz(6)
@@ -497,6 +527,7 @@ model conversacion {
   interacciones    interaccion[]
   tareas_asesor    tarea_asesor[]
   cotizaciones     cotizacion[]
+  clases_muestra   clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -968,6 +999,7 @@ model grupo {
   horarios              grupo_horario[]
   cotizaciones_elegidas cotizacion[]
   lista_espera          lista_espera[]
+  clases_muestra        clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1211,6 +1243,7 @@ model usuario {
   conversaciones_asignadas conversacion[]         @relation("conversacion_asignada")
   aplicaciones_autorizadas promocion_aplicacion[] @relation("aplicacion_autorizada_por")
   cotizaciones             cotizacion[]           @relation("cotizacion_creada_por")
+  clases_muestra_agendadas clase_muestra[]        @relation("clase_agendada_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1539,5 +1572,64 @@ model lista_espera {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([grupo_id])
+  @@index([lead_id])
+}
+
+// ── Clase muestra (D1) ─────────────────────────────────────────────────────────────────
+
+enum estatus_clase_muestra {
+  /// Vigente: ocupa un lugar en su sesión.
+  agendada
+  asistio
+  no_asistio
+  /// Se movió a otra fecha (la nueva apunta a esta con `reprogramada_de_id`).
+  reagendada
+  cancelada
+}
+
+enum origen_clase_muestra {
+  bot
+  usuario
+}
+
+/// La clase de prueba de un prospecto en un grupo, en una SESIÓN concreta (`fecha_hora`: un instante, no un día de la
+/// semana). Ocupa un lugar de esa sesión mientras está `agendada`: lugares de la sesión = cupo del grupo − ocupados − clases
+/// muestra agendadas de esa fecha. La fecha coincide siempre con un `grupo_horario` del grupo en la zona horaria de la
+/// sucursal. Un prospecto tiene a lo más una vigente por grupo (índice único parcial en la migración).
+/// `notas` NO es para datos de salud (alergias, condiciones, medicamentos): esos van en la ficha cifrada (src/sensibles/).
+model clase_muestra {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id         String                @db.Uuid
+  lead_id                 String                @db.Uuid
+  prospecto_id            String                @db.Uuid
+  grupo_id                String                @db.Uuid
+  fecha_hora              DateTime              @db.Timestamptz(6)
+  estatus                 estatus_clase_muestra @default(agendada)
+  agendada_por            origen_clase_muestra
+  /// El usuario que la agendó (solo si `agendada_por = usuario`).
+  agendada_por_usuario_id String?               @db.Uuid
+  /// La conversación donde el bot la agendó (solo si `agendada_por = bot`).
+  conversacion_id         String?               @db.Uuid
+  /// La clase que esta reemplaza (reprogramar = cancelar la anterior y agendar la nueva en una transacción).
+  reprogramada_de_id      String?               @db.Uuid
+  motivo_cancelacion      String?
+  notas                   String?
+  creado_en               DateTime              @default(now()) @db.Timestamptz(6)
+  actualizado_en          DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en            DateTime?             @db.Timestamptz(6)
+
+  organizacion     organizacion    @relation(fields: [organizacion_id], references: [id])
+  lead             lead            @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospecto        prospecto       @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupo            grupo           @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  agendada_por_usr usuario?        @relation("clase_agendada_por", fields: [agendada_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  conversacion     conversacion?   @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  reprogramada_de  clase_muestra?  @relation("clase_reprogramada", fields: [reprogramada_de_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  reprogramaciones clase_muestra[] @relation("clase_reprogramada")
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([grupo_id, fecha_hora])
+  @@index([prospecto_id])
   @@index([lead_id])
 }

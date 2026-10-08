@@ -6,6 +6,8 @@
 // repite con el estado nuevo.
 
 import { SinInscripciones, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { agendarClaseMuestra, proximasSesionesConLugar } from "../clases-muestra/agenda.ts";
+import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
 import { snapshotDeCotizacion } from "../cotizador/cotizacion.ts";
@@ -14,7 +16,7 @@ import { altaListaEspera } from "../lista-espera/lista-espera.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
-import type { ValorJson } from "../datos/tipos.ts";
+import { JSON_NULO_SQL, type ValorJson } from "../datos/tipos.ts";
 import { resolverBandejaChatwoot, resolverBandejaPorNumero, type BandejaResuelta } from "../datos/sistema.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
@@ -34,7 +36,7 @@ import {
   type Saliente,
 } from "../mensajeria/index.ts";
 import { resumenParaAsesor } from "./resumen.ts";
-import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EfectoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
+import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EfectoCaptacion, type EstadoCaptacion, type OpcionFechaMuestra, type OpcionSucursal } from "./maquina.ts";
 
 // Un conflicto de versión o de unicidad vuelve a correr la transacción con el estado nuevo. Con varias familias entrando a la
 // lista de espera del mismo grupo a la vez (C9), cada intento fallido significa que OTRA ganó la posición; el tope deja pasar a
@@ -91,7 +93,7 @@ export async function procesarEntrante(
   // Fuera de la transacción: la fuente puede ser externa (otras vías consultan a un tercero).
   const atribucion = await (deps.atribucion ?? new SinAtribucion()).obtener(evento);
 
-  let r: { resultado: ResultadoEntrante; conversacionId: string } | undefined;
+  let r: { resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean } | undefined;
   for (let intento = 1; !r; intento++) {
     try {
       r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion, deps.fuenteOcupacion ?? new SinInscripciones()));
@@ -104,6 +106,9 @@ export async function procesarEntrante(
   // También en duplicados: si un intento anterior se cortó, termina de despachar lo que quedó.
   // Un lead borrado no recibe nada.
   if (r.resultado !== "ignorado") await deps.mensajeria.despachar(db, r.conversacionId);
+  // D1: el bot agendó una clase muestra y sigue atendiendo; la conversación se hace visible para los asesores (la nota sale
+  // antes). Si Chatwoot no la abre, `visible_a_asesores_en` sin `abierta_para_asesores_en` hace que el barrido de espera lo reintente.
+  if (r.abrirParaAsesores) await deps.mensajeria.abrirParaAsesores(db, r.conversacionId);
   log.info("entrante_procesado", { resultado: r.resultado, conversacionId: r.conversacionId });
   return r;
 }
@@ -116,7 +121,7 @@ async function registrarYAvanzar(
   recibidoEn: Date,
   atribucion: Atribucion | null,
   fuente: FuenteOcupacion,
-): Promise<{ resultado: ResultadoEntrante; conversacionId: string }> {
+): Promise<{ resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean }> {
   const previo = await tx.mensaje.findFirst({
     where: { proveedor: evento.llave.proveedor, id_externo: evento.llave.id },
     select: { conversacion_id: true },
@@ -186,6 +191,7 @@ async function registrarYAvanzar(
     ahora: recibidoEn,
     conversacionId: conv.id,
     prospectoId: prospecto?.id ?? null,
+    muestraOfrecida: conv.muestra_ofrecida,
   });
   const estado: EstadoCaptacion = {
     paso: conv.paso_captacion,
@@ -202,6 +208,8 @@ async function registrarYAvanzar(
     paso_captacion: r.estado.paso,
     intentos_fallidos: r.estado.intentosFallidos,
     ...(r.pasarAAsesor ? { pasar_a_asesor_pendiente: true, motivo_pase_asesor: r.pasarAAsesor } : {}),
+    // D1: visible para los asesores (la apertura la hace procesarEntrante) sin pasarles la conversación.
+    ...(r.notaAAsesores && !conv.visible_a_asesores_en ? { visible_a_asesores_en: recibidoEn } : {}),
   });
   await tx.lead.update({
     where: { id: conv.lead.id },
@@ -227,14 +235,16 @@ async function registrarYAvanzar(
     }
   }
   // Lo que la máquina pidió guardar (la cotización que mandó, el horario que eligió el contacto).
-  if (prospectoId) await aplicarEfectos(tx, r.efectos ?? [], { leadId: conv.lead.id, conversacionId: conv.id, prospectoId, sucursalId: r.estado.sucursalId, fuente });
+  if (prospectoId) await aplicarEfectos(tx, r.efectos ?? [], { leadId: conv.lead.id, conversacionId: conv.id, prospectoId, sucursalId: r.estado.sucursalId, fuente, ahora: recibidoEn });
 
   const salientes: Saliente[] = r.respuestas.map((cuerpo) => respuestaA(entrante.id, cuerpo));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
     salientes.push({ tipo: "nota_interna", origen: "respuesta", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.pasarAAsesor) });
+  } else if (r.notaAAsesores) {
+    salientes.push({ tipo: "nota_interna", origen: "respuesta", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.notaAAsesores) });
   }
   await mensajeria.encolar(tx, conv.id, salientes);
-  return { resultado: "procesado", conversacionId: conv.id };
+  return { resultado: "procesado", conversacionId: conv.id, ...(r.notaAAsesores ? { abrirParaAsesores: true } : {}) };
 }
 
 /**
@@ -271,7 +281,7 @@ async function entrarAListaDeEspera(tx: Consultas, grupoId: string, c: { leadId:
 async function aplicarEfectos(
   tx: Consultas,
   efectos: readonly EfectoCaptacion[],
-  c: { leadId: string; conversacionId: string; prospectoId: string; sucursalId: string | null; fuente: FuenteOcupacion },
+  c: { leadId: string; conversacionId: string; prospectoId: string; sucursalId: string | null; fuente: FuenteOcupacion; ahora: Date },
 ): Promise<void> {
   for (const e of efectos) {
     if (e.tipo === "guardar_cotizacion") {
@@ -291,6 +301,15 @@ async function aplicarEfectos(
       await elegirHorario(tx, { conversacionId: c.conversacionId, prospectoId: c.prospectoId, grupoId: e.grupoId });
     } else if (e.tipo === "entrar_lista_espera") {
       await entrarAListaDeEspera(tx, e.grupoId, c);
+    } else if (e.tipo === "ofrecer_fechas_muestra") {
+      await tx.conversacion.updateMany({ where: { id: c.conversacionId }, data: { muestra_ofrecida: { grupo_id: e.grupoId, fechas: e.fechas } } });
+    } else if (e.tipo === "agendar_muestra") {
+      // Bajo el candado del cupo del grupo (lo toma `agendarClaseMuestra`): la última plaza la gana una persona. Si ya no cabe
+      // (otra familia o un asesor la tomó entre el cálculo del contexto y aquí), se repite el mensaje entero: el contexto nuevo
+      // ya no ofrece esa fecha y el bot le manda las que quedan.
+      const r = await agendarClaseMuestra(tx, { ahora: c.ahora, fuente: c.fuente, origen: { tipo: "bot", conversacionId: c.conversacionId } }, { prospectoId: c.prospectoId, grupoId: e.grupoId, fechaHora: new Date(e.fechaHora) });
+      if (!r.ok) throw new ConflictoVersion();
+      await tx.conversacion.updateMany({ where: { id: c.conversacionId }, data: { muestra_ofrecida: JSON_NULO_SQL } });
     }
     // `programa_sugerido` ya viajó en el estado y se guardó con el prospecto.
   }
@@ -454,21 +473,23 @@ async function obtenerConversacion(
 }
 
 /** Pasos en los que el bot consulta el catálogo: solo ahí se carga (cuesta unas cuantas consultas). */
-const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera"];
+const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera", "fecha_muestra"];
 
 async function contextoCaptacion(
   tx: Consultas,
   verticalId: string,
-  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date; conversacionId: string; prospectoId: string | null },
+  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date; conversacionId: string; prospectoId: string | null; muestraOfrecida: unknown },
 ): Promise<ContextoCaptacion> {
-  const vertical = await tx.vertical.findUniqueOrThrow({ where: { id: verticalId }, select: { nombre: true, cotizador_whatsapp_activo: true } });
+  const vertical = await tx.vertical.findUniqueOrThrow({ where: { id: verticalId }, select: { nombre: true, cotizador_whatsapp_activo: true, clase_muestra_whatsapp_activo: true } });
   const filas = await tx.sucursal_vertical.findMany({
     where: { vertical_id: verticalId, activo: true, sucursal: { activo: true, eliminado_en: null } },
     select: { sucursal: { select: { id: true, nombre: true, direccion: true, zona_horaria: true } } },
   });
   const ordenadas = filas.map((f) => f.sucursal).sort((a, b) => a.nombre.localeCompare(b.nombre, "es-MX"));
   const sucursales: OpcionSucursal[] = ordenadas.map((s) => ({ id: s.id, nombre: s.nombre, direccion: s.direccion }));
-  if (!vertical.cotizador_whatsapp_activo || !PASOS_CON_CATALOGO.includes(o.paso)) return { nombreVertical: vertical.nombre, sucursales };
+  // Con la clase muestra encendida, un «gracias» después de agendar no pasa la conversación a una persona.
+  const claseAgendada = vertical.clase_muestra_whatsapp_activo && vertical.cotizador_whatsapp_activo && o.paso === "completo" && o.prospectoId ? await claseAgendadaDe(tx, o.prospectoId) : null;
+  if (!vertical.cotizador_whatsapp_activo || !PASOS_CON_CATALOGO.includes(o.paso)) return { nombreVertical: vertical.nombre, sucursales, ...(claseAgendada ? { claseAgendada } : {}) };
 
   // La fecha de la consulta (precio y promociones vigentes hoy) es la local de la sucursal del contacto; si aún no
   // eligió, la de la primera que ofrece la vertical.
@@ -480,10 +501,67 @@ async function contextoCaptacion(
   const esperaHorario = o.paso === "horario" || o.paso === "lista_espera";
   const guardada = esperaHorario && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId, catalogo.fecha) : null;
   const cotizacionGuardada = guardada && guardada.opciones.length > 0 ? guardada : null;
+  const claseMuestra = vertical.clase_muestra_whatsapp_activo && (o.paso === "horario" || o.paso === "fecha_muestra") && o.prospectoId
+    ? await contextoClaseMuestra(tx, { ...o, prospectoId: o.prospectoId, zona, opcionesDeHorario: cotizacionGuardada?.opciones.map((x) => x.grupoId) ?? [], grupoElegidoId: cotizacionGuardada?.grupoElegidoId ?? null })
+    : null;
   return {
     nombreVertical: vertical.nombre,
     sucursales,
     // EC-02: si espera un horario y su cotización ya no vale (venció o no tiene opciones), la máquina manda una nueva.
     cotizador: { verticalId, catalogo, sucursalSinPrograma, vigenciaDias: cotizacionVigenciaDias, cotizacionGuardada, ...(esperaHorario && !cotizacionGuardada ? { cotizacionVencida: true } : {}) },
+    ...(claseMuestra ? { claseMuestra } : {}),
   };
+}
+
+/** Cuántas fechas se le proponen al contacto a lo más. */
+const FECHAS_PROPUESTAS = 5;
+
+const aOpcion = (fechaHora: Date, lugares: number, zona: string): OpcionFechaMuestra => ({ fechaHora: fechaHora.toISOString(), nombre: describirSesion(fechaHora, zona).completa, lugares });
+
+/** La clase muestra vigente del prospecto, como texto («lunes 12 de octubre a las 16:00»), o null. */
+async function claseAgendadaDe(tx: Consultas, prospectoId: string): Promise<{ texto: string } | null> {
+  const c = await tx.clase_muestra.findFirst({
+    where: { prospecto_id: prospectoId, estatus: "agendada" },
+    orderBy: { fecha_hora: "asc" },
+    select: { fecha_hora: true, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } },
+  });
+  return c ? { texto: describirSesion(c.fecha_hora, c.grupo.programa.sucursal.zona_horaria).completa } : null;
+}
+
+/**
+ * D1: lo que el bot necesita para proponer y agendar la clase muestra. Las próximas sesiones con lugar de cada grupo que se le
+ * cotizó (para cuando elija uno), la propuesta que ya se le hizo (con los lugares de HOY, como la lista que vio) y las clases que
+ * el prospecto ya tiene agendadas. Las sesiones y sus lugares los calcula código (`proximasSesionesConLugar`), no el bot.
+ */
+async function contextoClaseMuestra(
+  tx: Consultas,
+  o: { ahora: Date; fuente: FuenteOcupacion; prospectoId: string; muestraOfrecida: unknown; zona: string; opcionesDeHorario: string[]; grupoElegidoId: string | null },
+): Promise<NonNullable<ContextoCaptacion["claseMuestra"]>> {
+  const ofrecida = leerPropuesta(o.muestraOfrecida);
+  const grupos = new Set([...o.opcionesDeHorario, ...(ofrecida ? [ofrecida.grupoId] : []), ...(o.grupoElegidoId ? [o.grupoElegidoId] : [])]);
+  const proximasPorGrupo: Record<string, OpcionFechaMuestra[]> = {};
+  const todasPorGrupo = new Map<string, Map<number, number>>();
+  for (const grupoId of grupos) {
+    const sesiones = await proximasSesionesConLugar(tx, o.fuente, grupoId, o.ahora, { maximo: 60, incluirLlenas: true });
+    todasPorGrupo.set(grupoId, new Map(sesiones.map((s) => [s.fechaHora.getTime(), s.lugares])));
+    proximasPorGrupo[grupoId] = sesiones.filter((s) => s.lugares > 0).slice(0, FECHAS_PROPUESTAS).map((s) => aOpcion(s.fechaHora, s.lugares, o.zona));
+  }
+  const opciones = ofrecida
+    ? ofrecida.fechas.map((iso) => aOpcion(new Date(iso), todasPorGrupo.get(ofrecida.grupoId)?.get(new Date(iso).getTime()) ?? 0, o.zona))
+    : [];
+  const yaAgendada: Record<string, OpcionFechaMuestra> = {};
+  const vigentes = await tx.clase_muestra.findMany({ where: { prospecto_id: o.prospectoId, estatus: "agendada" }, select: { grupo_id: true, fecha_hora: true } });
+  for (const v of vigentes) yaAgendada[v.grupo_id] = aOpcion(v.fecha_hora, 0, o.zona);
+  const nombresDeGrupo: Record<string, string> = {};
+  for (const g of await tx.grupo.findMany({ where: { id: { in: [...grupos] } }, select: { id: true, nombre: true } })) nombresDeGrupo[g.id] = g.nombre;
+  return { proximasPorGrupo, ofrecida: ofrecida ? { grupoId: ofrecida.grupoId, opciones } : null, yaAgendada, nombresDeGrupo };
+}
+
+/** `conversacion.muestra_ofrecida` tal como lo guardó el efecto `ofrecer_fechas_muestra`; null si no hay o no tiene la forma. */
+function leerPropuesta(valor: unknown): { grupoId: string; fechas: string[] } | null {
+  if (typeof valor !== "object" || valor === null || Array.isArray(valor)) return null;
+  const v = valor as Record<string, unknown>;
+  const fechas = v["fechas"];
+  if (typeof v["grupo_id"] !== "string" || !Array.isArray(fechas) || !fechas.every((f) => typeof f === "string" && !Number.isNaN(new Date(f).getTime()))) return null;
+  return { grupoId: v["grupo_id"], fechas: fechas as string[] };
 }

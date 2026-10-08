@@ -29,5 +29,5 @@ test("permisosDe(rol) coincide con tienePermiso para cada permiso", () => {
   for (const rol of ROLES) {
     assert.deepEqual(permisosDe(rol), PERMISOS.filter((p) => tienePermiso(rol, p)));
   }
-  assert.deepEqual(permisosDe("maestro"), ["grupos:leer", "catalogo:leer", "salud:leer", "salud:escribir"]);
+  assert.deepEqual(permisosDe("maestro"), ["clases_muestra:leer", "grupos:leer", "catalogo:leer", "salud:leer", "salud:escribir"]);
 });

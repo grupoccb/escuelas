@@ -112,6 +112,27 @@ export function fechaISO(): Esquema<string> {
   };
 }
 
+/**
+ * Un instante con zona: `AAAA-MM-DDThh:mm[:ss[.sss]]` seguido de `Z` o de un desfase `±hh:mm`. Sin zona NO se acepta (sería
+ * ambiguo). Devuelve el instante como `Date`.
+ */
+export function instanteISO(): Esquema<Date> {
+  return {
+    leer(valor, ruta, errores) {
+      const m = typeof valor === "string" ? /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(valor) : null;
+      if (!m) return falla(errores, ruta, "Debe ser una fecha y hora con zona, p. ej. 2026-10-12T16:00:00-06:00");
+      // JavaScript acepta el 30 de febrero (lo corre a marzo): el día tiene que existir en el calendario.
+      const [anio, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
+      const calendario = new Date(Date.UTC(anio, mes - 1, dia));
+      if (calendario.getUTCFullYear() !== anio || calendario.getUTCMonth() !== mes - 1 || calendario.getUTCDate() !== dia) return falla(errores, ruta, "No es una fecha y hora del calendario");
+      const d = new Date(valor as string);
+      if (Number.isNaN(d.getTime())) return falla(errores, ruta, "No es una fecha y hora del calendario");
+      const anioUtc = d.getUTCFullYear();
+      return anioUtc >= ANIO_MINIMO && anioUtc <= ANIO_MAXIMO ? d : falla(errores, ruta, `El año debe estar entre ${ANIO_MINIMO} y ${ANIO_MAXIMO}`);
+    },
+  };
+}
+
 /** Rango de años que aceptan las fechas de la API (EC-07). */
 export const ANIO_MINIMO = 1900;
 export const ANIO_MAXIMO = 2999;

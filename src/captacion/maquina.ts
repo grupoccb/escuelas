@@ -25,7 +25,7 @@ export const MAX_INTENTOS = 3;
  * 30 min se avisa a los asesores (`espera.ts`) y el reenganche de 25 h puede salir (`motor.ts`). Un solo lugar:
  * un paso nuevo que espera respuesta se agrega aquí.
  */
-export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera"];
+export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera", "fecha_muestra"];
 
 export interface OpcionSucursal {
   id: string;
@@ -62,12 +62,37 @@ export interface ContextoCotizadorBot {
   cotizacionVencida?: boolean;
 }
 
+/** Una sesión de clase muestra que se le propone al contacto (D1). `nombre` es el texto numerado («lunes 12 de octubre a las 16:00»). */
+export interface OpcionFechaMuestra {
+  /** El instante de la sesión, ISO 8601 en UTC. */
+  fechaHora: string;
+  nombre: string;
+  /** Lugares de esa sesión HOY (0 = ya no alcanza o ya no es agendable). */
+  lugares: number;
+}
+
+/** La clase muestra en el bot (D1). Solo existe si la vertical la tiene encendida además del cotizador. */
+export interface ContextoClaseMuestraBot {
+  /** Las próximas sesiones CON lugar de cada grupo que se le cotizó (por id de grupo), listas para proponer (a lo más 5). */
+  proximasPorGrupo: Record<string, OpcionFechaMuestra[]>;
+  /** Lo que ya se le propuso (guardado en la conversación), con los lugares de hoy; null si no hay propuesta. */
+  ofrecida: { grupoId: string; opciones: OpcionFechaMuestra[] } | null;
+  /** La clase muestra que el prospecto ya tiene agendada en un grupo (por id de grupo), si la hay. */
+  yaAgendada: Record<string, OpcionFechaMuestra>;
+  /** Nombre de cada grupo involucrado (por id), para los textos. */
+  nombresDeGrupo: Record<string, string>;
+}
+
 export interface ContextoCaptacion {
   nombreVertical: string;
   /** Sucursales activas que ofrecen la vertical, en el orden en que se muestran. */
   sucursales: OpcionSucursal[];
   /** Presente solo si la vertical tiene el cotizador de WhatsApp encendido. */
   cotizador?: ContextoCotizadorBot;
+  /** Presente solo si, además, la vertical tiene encendida la clase muestra por WhatsApp (D1). */
+  claseMuestra?: ContextoClaseMuestraBot;
+  /** La clase muestra agendada que el prospecto tiene (D1): con ella, un «gracias» no pasa la conversación a una persona. */
+  claseAgendada?: { texto: string } | null;
 }
 
 export interface EstadoCaptacion {
@@ -82,6 +107,9 @@ export interface EstadoCaptacion {
 
 export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta" | "sin_programa" | "pidio_asesor";
 
+/** Por qué se le deja una nota a los asesores: los motivos de pase y el aviso de una clase muestra agendada por el bot (D1). */
+export type MotivoDeNota = MotivoPaseAsesor | "muestra_agendada";
+
 /** Lo que la máquina pide hacer en la base; lo ejecuta quien la llama, en su transacción. */
 export type EfectoCaptacion =
   | { tipo: "programa_sugerido"; programaId: string }
@@ -90,7 +118,11 @@ export type EfectoCaptacion =
   /** El contacto eligió este horario (grupo) de la cotización guardada; null = lo descartó. */
   | { tipo: "elegir_grupo"; grupoId: string | null }
   /** El contacto aceptó entrar a la lista de espera de este grupo lleno (C9). */
-  | { tipo: "entrar_lista_espera"; grupoId: string };
+  | { tipo: "entrar_lista_espera"; grupoId: string }
+  /** Se le propusieron estas sesiones de clase muestra de un grupo (D1): se guardan para que el número que responda apunte a lo que vio. */
+  | { tipo: "ofrecer_fechas_muestra"; grupoId: string; fechas: string[] }
+  /** El contacto eligió esta sesión (ISO): se agenda su clase muestra (D1). */
+  | { tipo: "agendar_muestra"; grupoId: string; fechaHora: string };
 
 export interface ResultadoCaptacion {
   estado: EstadoCaptacion;
@@ -98,6 +130,12 @@ export interface ResultadoCaptacion {
   pasarAAsesor: MotivoPaseAsesor | null;
   /** Solo viene cuando hay algo que hacer. */
   efectos?: EfectoCaptacion[];
+  /**
+   * Nota interna para los asesores SIN pasarles la conversación (D1): el bot agendó una clase muestra y sigue atendiendo
+   * (los recordatorios lo necesitan: con una persona a cargo, ninguna automatización sale — invariante 6). La conversación
+   * se hace visible para los asesores (se abre en Chatwoot) pero no se marca `en_atencion_humana`.
+   */
+  notaAAsesores?: "muestra_agendada";
 }
 
 export const ESTADO_INICIAL: EstadoCaptacion = {
@@ -167,6 +205,20 @@ export const textos = {
   cierreConHorario: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
     `¡Listo! Anotamos a ${nombre} en ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}${o.oferta === "lista_de_espera" ? ", en lista de espera" : ""}. Un asesor te escribe por aquí en unos minutos para confirmar y resolver tus dudas.`,
   pidioAsesor: "Claro, te comunico con un asesor. Te escribe por aquí en unos minutos.",
+  /** D1: se le proponen las próximas sesiones de clase muestra del grupo que eligió. */
+  proponerFechasMuestra: (nombre: string, o: OpcionHorario, fechas: OpcionFechaMuestra[]) =>
+    `Para ${nombre} podemos agendar una clase muestra en ${o.nombre} (${o.horarioTexto}). Estas son las próximas fechas con lugar; responde con el número de la que prefieras, o escribe «asesor» para hablar con una persona:\n${listarFechas(fechas)}`,
+  reintentoFechaMuestra: (fechas: OpcionFechaMuestra[]) => `Responde con el número de la fecha, o escribe «asesor» para hablar con una persona:\n${listarFechas(fechas)}`,
+  /** D1: la fecha que eligió ya no tiene lugar; quedan estas. */
+  fechaMuestraSinLugar: (fechas: OpcionFechaMuestra[]) => `Esa fecha ya no tiene lugar. Estas son las que quedan; responde con el número de la que prefieras:\n${listarFechas(fechas)}`,
+  /** D1: ninguna sesión tiene lugar (o el grupo no tiene más): lo atiende una persona. */
+  sinFechasMuestra: "Por ahora no hay fechas con lugar para la clase muestra. Te comunico con un asesor para ofrecerte otra opción; te escribe por aquí en unos minutos.",
+  muestraAgendada: (nombre: string, grupo: string, fecha: OpcionFechaMuestra, sucursal: string | null) =>
+    `¡Listo! Agendamos la clase muestra de ${nombre} en ${grupo}${sucursal ? `, sucursal ${sucursal}` : ""}: ${fecha.nombre}. Te mandamos un recordatorio antes de la clase. Si necesitas cambiar la fecha, escríbenos por aquí.`,
+  /** D1: ya tenía una clase muestra vigente en ese grupo (la agendó una persona mientras tanto). */
+  muestraYaAgendada: (nombre: string, fecha: OpcionFechaMuestra) => `${nombre} ya tiene agendada su clase muestra: ${fecha.nombre}. Si quieres cambiarla, escribe «asesor».`,
+  /** D1: un agradecimiento después de agendar no pasa la conversación a una persona. */
+  deNada: (fecha: string) => `¡Con gusto! Te esperamos en la clase muestra (${fecha}). Si necesitas cambiar la fecha o tienes dudas, escribe «asesor».`,
   /** EC-02 / EC-01: lo que el contacto vio ya no vale; se le manda la cotización de hoy. */
   cotizacionVencida: "Tu cotización anterior ya venció; te mando una actualizada.",
   horarioNoDisponible: "Ese horario ya no está disponible; te mando las opciones actualizadas.",
@@ -189,7 +241,7 @@ export const textos = {
   sinEntender: "Te comunico con un asesor para ayudarte mejor. En unos minutos te escribe por aquí.",
   /** Nota interna para el asesor al pasarle la conversación. */
   resumenAsesor: (
-    motivo: MotivoPaseAsesor,
+    motivo: MotivoDeNota,
     datos: {
       nombre: string | null;
       edad: number | null;
@@ -208,6 +260,8 @@ export const textos = {
     [
       motivo === "captura_completa"
         ? "Datos capturados por el bot:"
+        : motivo === "muestra_agendada"
+          ? "El bot agendó una clase muestra. Nadie ha tomado la conversación: el bot sigue atendiendo y los recordatorios saldrán solos hasta que una persona la tome (asígnatela o escríbele). Datos capturados:"
         : motivo === "sin_respuesta"
           ? "El contacto dejó de contestar a mitad de la captura. Nadie la ha tomado: el bot sigue atendiendo si vuelve. Asígnatela o escríbele para tomarla. Datos parciales:"
           : motivo === "pidio_asesor"
@@ -236,6 +290,10 @@ function descripcionDeSucursal(s: OpcionSucursal): string {
 
 function listarConDireccion(sucursales: OpcionSucursal[]): string {
   return sucursales.map((s, i) => `${i + 1}. ${descripcionDeSucursal(s)}`).join("\n");
+}
+
+function listarFechas(fechas: OpcionFechaMuestra[]): string {
+  return fechas.map((f, i) => `${i + 1}. ${f.nombre} · ${f.lugares === 1 ? "1 lugar" : `${f.lugares} lugares`}`).join("\n");
 }
 
 function listarProgramas(programas: OpcionPrograma[]): string {
@@ -315,6 +373,9 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
           efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
         };
       }
+      // D1: con la clase muestra encendida, antes de cerrar se le proponen las próximas fechas con lugar de ese grupo.
+      const muestra = proponerClaseMuestra(estado, ctx, elegida);
+      if (muestra) return muestra;
       const programa = ctx.cotizador?.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
       const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
       return {
@@ -375,7 +436,29 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       return conPrograma({ ...estado, intentosFallidos: 0 }, elegido.id, ctx);
     }
 
+    case "fecha_muestra": {
+      if (!ctx.cotizador || !ctx.claseMuestra) return completar(estado, ctx); // el interruptor se apagó con la propuesta pendiente (como EC-03)
+      if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado);
+      const propuesta = ctx.claseMuestra.ofrecida;
+      const grupoId = propuesta?.grupoId ?? ctx.cotizador.cotizacionGuardada?.grupoElegidoId ?? null;
+      if (!grupoId) return completar(estado, ctx);
+      const ya = ctx.claseMuestra.yaAgendada[grupoId];
+      if (ya) return agendada(estado, ctx, grupoId, ya, false);
+      const proximas = ctx.claseMuestra.proximasPorGrupo[grupoId] ?? [];
+      const opciones = propuesta?.opciones ?? [];
+      // Sin propuesta guardada no hay a qué número responder: se le manda una nueva.
+      if (opciones.length === 0) return reproponerFechas(estado, grupoId, proximas, textos.fechaMuestraSinLugar);
+      const elegida = elegirOpcion(entrada, opciones);
+      if (!elegida) return fallo(estado, textos.reintentoFechaMuestra(opciones));
+      // Se llenó (o ya no alcanza la anticipación) mientras contestaba: las que quedan.
+      if (elegida.lugares < 1) return reproponerFechas(estado, grupoId, proximas, textos.fechaMuestraSinLugar);
+      return agendada(estado, ctx, grupoId, elegida, true);
+    }
+
     case "completo":
+      // Ya agendó su clase muestra y solo da las gracias: el bot sigue con la conversación (con una persona a cargo, los
+      // recordatorios no saldrían: invariante 6). Cualquier otra cosa se pasa a una persona.
+      if (ctx.claseAgendada && esAgradecimiento(entrada)) return { estado, respuestas: [textos.deNada(ctx.claseAgendada.texto)], pasarAAsesor: null };
       // Ya se capturó todo. Si llega otro mensaje es porque el pase al asesor no terminó: se
       // vuelve a pedir, sin contestar nada.
       return { estado, respuestas: [], pasarAAsesor: "captura_completa" };
@@ -497,6 +580,55 @@ function cotizarDeNuevo(estado: EstadoCaptacion, ctx: ContextoCaptacion, aviso: 
   return { ...r, respuestas: r.respuestas.map((m, i) => (i === 0 ? `${aviso}\n\n${m}` : m)) };
 }
 
+/**
+ * D1: el contacto eligió un horario con lugar y la vertical agenda la clase muestra: se le proponen las próximas fechas con
+ * lugar de ese grupo (a lo más 5) y se espera su elección. null si no se aplica (sin clase muestra, o ese grupo no tiene
+ * fechas con lugar: entonces se cierra como antes y un asesor lo resuelve).
+ */
+function proponerClaseMuestra(estado: EstadoCaptacion, ctx: ContextoCaptacion, elegida: OpcionHorario): ResultadoCaptacion | null {
+  if (!ctx.claseMuestra || elegida.oferta !== "lugar") return null;
+  const ya = ctx.claseMuestra.yaAgendada[elegida.grupoId];
+  if (ya) return agendada(estado, ctx, elegida.grupoId, ya, false);
+  const fechas = ctx.claseMuestra.proximasPorGrupo[elegida.grupoId] ?? [];
+  if (fechas.length === 0) return null;
+  return {
+    estado: { ...estado, paso: "fecha_muestra", intentosFallidos: 0 },
+    respuestas: [textos.proponerFechasMuestra(estado.nombre ?? "", elegida, fechas)],
+    pasarAAsesor: null,
+    efectos: [
+      { tipo: "elegir_grupo", grupoId: elegida.grupoId },
+      { tipo: "ofrecer_fechas_muestra", grupoId: elegida.grupoId, fechas: fechas.map((f) => f.fechaHora) },
+    ],
+  };
+}
+
+/** La propuesta ya no sirve (se llenó o no hay propuesta): las fechas con lugar de hoy, o a una persona si no queda ninguna. */
+function reproponerFechas(estado: EstadoCaptacion, grupoId: string, fechas: OpcionFechaMuestra[], texto: (f: OpcionFechaMuestra[]) => string): ResultadoCaptacion {
+  if (fechas.length === 0) return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [textos.sinFechasMuestra], pasarAAsesor: "captura_completa", efectos: [{ tipo: "elegir_grupo", grupoId }] };
+  return {
+    estado: { ...estado, paso: "fecha_muestra", intentosFallidos: 0 },
+    respuestas: [texto(fechas)],
+    pasarAAsesor: null,
+    efectos: [{ tipo: "ofrecer_fechas_muestra", grupoId, fechas: fechas.map((f) => f.fechaHora) }],
+  };
+}
+
+/**
+ * Quedó (o ya estaba) agendada: se confirma. El bot NO pasa la conversación a una persona —seguiría callado y los
+ * recordatorios no saldrían—; deja una nota a los asesores y la hace visible.
+ */
+function agendada(estado: EstadoCaptacion, ctx: ContextoCaptacion, grupoId: string, fecha: OpcionFechaMuestra, nueva: boolean): ResultadoCaptacion {
+  const grupo = ctx.claseMuestra?.nombresDeGrupo[grupoId] ?? "";
+  const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
+  return {
+    estado: { ...estado, paso: "completo", intentosFallidos: 0 },
+    respuestas: [nueva ? textos.muestraAgendada(estado.nombre ?? "", grupo, fecha, sucursal) : textos.muestraYaAgendada(estado.nombre ?? "", fecha)],
+    pasarAAsesor: null,
+    notaAAsesores: "muestra_agendada",
+    ...(nueva ? { efectos: [{ tipo: "agendar_muestra" as const, grupoId, fechaHora: fecha.fechaHora }] } : {}),
+  };
+}
+
 function pidioAsesor(estado: EstadoCaptacion): ResultadoCaptacion {
   return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [textos.pidioAsesor], pasarAAsesor: "pidio_asesor" };
 }
@@ -560,6 +692,12 @@ export function extraerEdad(entrada: string): number | null {
   if (candidatos.size !== 1) return null;
   const [edad] = candidatos;
   return edad !== undefined && edad >= 1 && edad <= 99 ? edad : null;
+}
+
+const AGRADECIMIENTOS = new Set(["gracias", "muchas gracias", "mil gracias", "ok gracias", "ok", "okay", "listo", "perfecto", "excelente", "genial", "enterado", "de acuerdo", "vale", "gracias por la informacion", "ok muchas gracias", "ahi estaremos", "ahi nos vemos"]);
+/** Un agradecimiento o un «enterado» (completo, sin acentos ni signos). */
+export function esAgradecimiento(entrada: string): boolean {
+  return AGRADECIMIENTOS.has(normalizar(entrada).replace(/[¡!¿?.,;:"'*_-]+/g, " ").replace(/\s+/g, " ").trim());
 }
 
 const AFIRMATIVAS = new Set(["si", "sip", "claro", "ok", "okay", "dale", "va", "vale", "bueno", "acepto", "quiero", "por favor", "de acuerdo", "esta bien", "si por favor", "si claro", "si quiero", "si me interesa", "me interesa"]);

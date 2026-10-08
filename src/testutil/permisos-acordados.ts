@@ -14,6 +14,8 @@ export const PERMISOS_ACORDADOS = {
   "cotizador:leer": ["administrador", "asesor"],
   "lista_espera:leer": ["administrador", "asesor", "recepcion"],
   "lista_espera:escribir": ["administrador", "asesor"],
+  "clases_muestra:leer": ["administrador", "asesor", "maestro"],
+  "clases_muestra:escribir": ["administrador", "asesor"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:escribir": ["administrador"],

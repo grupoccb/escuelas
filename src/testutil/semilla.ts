@@ -67,7 +67,7 @@ export async function sembrarOrganizacion(prisma: PrismaPruebas, nombre = "Organ
 export async function fijarConfiguracion(
   prisma: PrismaPruebas,
   organizacionId: string,
-  valores: { max_automaticos_por_dia?: number; max_marketing_por_ventana?: number; ventana_marketing_dias?: number; sucursal_sin_programa?: "ofrecer_otra" | "avisar_asesor"; cotizacion_vigencia_dias?: number; lista_espera_oferta_horas?: number },
+  valores: { max_automaticos_por_dia?: number; max_marketing_por_ventana?: number; ventana_marketing_dias?: number; sucursal_sin_programa?: "ofrecer_otra" | "avisar_asesor"; cotizacion_vigencia_dias?: number; lista_espera_oferta_horas?: number; clase_muestra_anticipacion_min?: number; clase_muestra_horizonte_dias?: number },
 ): Promise<void> {
   const viva = await prisma.configuracion_organizacion.findFirst({ where: { organizacion_id: organizacionId, eliminado_en: null } });
   if (viva) await prisma.configuracion_organizacion.update({ where: { id: viva.id }, data: valores });
@@ -183,4 +183,57 @@ export class OcupacionFija {
   async ocupados(_db: Consultas, grupoId: string): Promise<number> {
     return this.ocupados_.get(grupoId) ?? 0;
   }
+}
+
+// ── Embudo y familias (D1 en adelante) ────────────────────────────────────────────────────────────────────
+
+export type TipoDeEtapa = "nuevo" | "contactado" | "muestra_agendada" | "muestra_asistida" | "negociacion" | "inscrito" | "perdido";
+
+/**
+ * El embudo de ejemplo con su `tipo_sistema` (el código nunca busca etapas por nombre): la etapa inicial que ya trae
+ * `sembrarOrganizacion` pasa a ser `nuevo` y se crean las demás en orden. Devuelve el id de cada tipo.
+ */
+export async function sembrarEmbudo(prisma: PrismaPruebas, org: OrganizacionDePrueba): Promise<Record<TipoDeEtapa, string>> {
+  await prisma.etapa_pipeline.update({ where: { id: org.etapaInicialId }, data: { tipo_sistema: "nuevo" } });
+  const ids = { nuevo: org.etapaInicialId } as Record<TipoDeEtapa, string>;
+  const resto: [TipoDeEtapa, string, boolean, boolean][] = [
+    ["contactado", "Etapa B", false, false],
+    ["muestra_agendada", "Etapa C", false, false],
+    ["muestra_asistida", "Etapa D", false, false],
+    ["negociacion", "Etapa E", false, false],
+    ["inscrito", "Etapa F", true, false],
+    ["perdido", "Etapa G", false, true],
+  ];
+  let orden = 2;
+  for (const [tipo, nombre, ganado, perdido] of resto) {
+    const e = await prisma.etapa_pipeline.create({ data: { organizacion_id: org.organizacionId, nombre, orden: orden++, es_ganado: ganado, es_perdido: perdido, tipo_sistema: tipo } });
+    ids[tipo] = e.id;
+  }
+  return ids;
+}
+
+let contadorDeFamilias = 0;
+
+/** Un lead con su prospecto (una familia que escribió). Teléfono único por llamada. */
+export async function sembrarFamilia(
+  prisma: PrismaPruebas,
+  org: OrganizacionDePrueba,
+  o: { sucursalId?: string | null; nombre?: string; edad?: number; telefono?: string | null; etapaId?: string } = {},
+): Promise<{ leadId: string; prospectoId: string; telefono: string | null }> {
+  const n = ++contadorDeFamilias;
+  const telefono = o.telefono === undefined ? `+5255${String(30_000_000 + ((n * 7919 + Date.now()) % 60_000_000))}` : o.telefono;
+  const lead = await prisma.lead.create({
+    data: {
+      organizacion_id: org.organizacionId,
+      vertical_interes_id: org.verticalId,
+      sucursal_interes_id: o.sucursalId === undefined ? org.sucursales[0]!.id : o.sucursalId,
+      etapa_id: o.etapaId ?? org.etapaInicialId,
+      nombre_contacto: "Mamá",
+      telefono,
+    },
+  });
+  const prospecto = await prisma.prospecto.create({
+    data: { organizacion_id: org.organizacionId, lead_id: lead.id, vertical_interes_id: org.verticalId, nombre: o.nombre ?? `Niño ${n}`, edad_declarada: o.edad ?? 8, origen: "asesor" },
+  });
+  return { leadId: lead.id, prospectoId: prospecto.id, telefono };
 }

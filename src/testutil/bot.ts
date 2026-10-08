@@ -8,13 +8,15 @@ import { procesarEntrante, type DepsCaptacion } from "../captacion/entrante.ts";
 import { MessagingProvider, TransporteFalso, type EnvioRegistrado, type EventoEntrante } from "../mensajeria/index.ts";
 import type { FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { PrismaPruebas } from "./prisma-pruebas.ts";
-import { sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, type ProgramaParaSembrar, type ProgramaSembrado } from "./semilla.ts";
+import { sembrarEmbudo, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, type ProgramaParaSembrar, type ProgramaSembrado, type TipoDeEtapa } from "./semilla.ts";
 
 let siguienteMensaje = randomInt(1_000_000, 2_000_000_000);
 
 export interface EscenarioBot {
   org: OrganizacionDePrueba;
   db: BaseDatos;
+  /** El embudo sembrado (solo con la opción `embudo`). */
+  etapas: Record<TipoDeEtapa, string> | null;
   transporte: TransporteFalso;
   programas: ProgramaSembrado[];
   /** Un contacto nuevo (su conversación y su teléfono). */
@@ -43,6 +45,10 @@ export interface OpcionesEscenarioBot {
   nombre?: string;
   /** Enciende el cotizador de WhatsApp de la vertical (por omisión, sí: es el caso que prueban estos tests). */
   cotizador?: boolean;
+  /** Enciende también la clase muestra por WhatsApp (D1). Por omisión, no. */
+  claseMuestra?: boolean;
+  /** Siembra el embudo con sus tipos de sistema (`sembrarEmbudo`) para que las clases muestra muevan la etapa. */
+  embudo?: boolean;
   fuente?: FuenteOcupacion;
   /** Programas por sucursal: índice 0 = la primera sucursal (Norte), 1 = la segunda (Sur). */
   programas?: (Omit<ProgramaParaSembrar, "sucursalId"> & { sucursal: 0 | 1 })[];
@@ -52,6 +58,8 @@ export async function escenarioBot(prisma: PrismaPruebas, o: OpcionesEscenarioBo
   const org = await sembrarOrganizacion(prisma, o.nombre ?? "Bot cotizador");
   const db = conAlcance(prisma, org.organizacionId);
   if (o.cotizador ?? true) await prisma.vertical.update({ where: { id: org.verticalId }, data: { cotizador_whatsapp_activo: true } });
+  if (o.claseMuestra) await prisma.vertical.update({ where: { id: org.verticalId }, data: { clase_muestra_whatsapp_activo: true } });
+  const etapas = o.embudo ? await sembrarEmbudo(prisma, org) : null;
   const programas: ProgramaSembrado[] = [];
   for (const p of o.programas ?? []) {
     const { sucursal, ...resto } = p;
@@ -100,5 +108,5 @@ export async function escenarioBot(prisma: PrismaPruebas, o: OpcionesEscenarioBo
       notas: () => transporte.envios.filter((e) => delContacto(e) && e.tipo === "nota_interna").map((e) => e.texto ?? ""),
     };
   };
-  return { org, db, transporte, programas, contacto, deps };
+  return { org, db, etapas, transporte, programas, contacto, deps };
 }

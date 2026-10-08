@@ -4,10 +4,11 @@
 import type { Consultas } from "../datos/alcance.ts";
 import { resumenDeCotizacion } from "../cotizador/cotizacion.ts";
 import { deFecha } from "../catalogo/precios.ts";
+import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { entradasVivasDe } from "../lista-espera/lista-espera.ts";
-import { textos, type MotivoPaseAsesor } from "./maquina.ts";
+import { textos, type MotivoDeNota } from "./maquina.ts";
 
-export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: MotivoPaseAsesor): Promise<string> {
+export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: MotivoDeNota): Promise<string> {
   const lead = await tx.lead.findFirstOrThrow({ where: { id: leadId } });
   const prospecto = await tx.prospecto.findFirst({ where: { lead_id: lead.id, origen: "bot" } });
   const sucursal = lead.sucursal_interes_id
@@ -29,6 +30,15 @@ export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: M
     ...(cotizacion ? resumenDeCotizacion({ snapshot: cotizacion.snapshot, vigenteHasta: deFecha(cotizacion.vigente_hasta), grupoElegidoId: cotizacion.grupo_elegido_id }) : []),
     ...enLista.map((e) => `• Lista de espera: ${e.grupo} (posición ${e.posicion}${e.estatus === "ofrecido" ? ", ya se le ofreció un lugar" : ""})`),
   ];
+  // D1: la clase muestra agendada (la más próxima), con su grupo y la hora de pared de la sucursal.
+  const clase = prospecto
+    ? await tx.clase_muestra.findFirst({
+        where: { prospecto_id: prospecto.id, estatus: "agendada" },
+        orderBy: { fecha_hora: "asc" },
+        select: { fecha_hora: true, grupo: { select: { nombre: true, programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } },
+      })
+    : null;
+  if (clase) lineasDeCotizacion.push(`• Clase muestra: ${describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).completa} (${clase.grupo.nombre})`);
   const campana = lead.campana_id ? await tx.campana.findFirst({ where: { id: lead.campana_id }, select: { nombre: true } }) : null;
 
   const origen = lead.anuncio_id

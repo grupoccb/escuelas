@@ -259,3 +259,13 @@ test("obsoleto: la atención humana sigue mandando (invariante 6, sin excepción
   const conv = { estado: "en_atencion_humana" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA };
   assert.equal(evaluarReglas(entrada({ conv, edadMs: 99 * 60_000, vigenciaMs: 60_000 })), "atencion_humana");
 });
+
+test("D3: con límite exclusivo, llegar AL inicio del evento ya se descarta (un recordatorio no sirve a la hora de la clase)", () => {
+  // Programado a las 07:00 locales del jueves 8 de octubre de 2026 (13:00Z): el siguiente horario válido son las 09:00 (15:00Z).
+  const programado = new Date("2026-10-08T13:00:00Z");
+  const nueve = new Date("2026-10-08T15:00:00Z");
+  assert.equal(recorrerODescartar(programado, MX, nueve)?.toISOString(), nueve.toISOString(), "inclusivo: llegar justo al límite todavía vale");
+  assert.equal(recorrerODescartar(programado, MX, nueve, undefined, true), null, "exclusivo: justo al inicio, se descarta");
+  assert.equal(recorrerODescartar(programado, MX, new Date(nueve.getTime() + 1), undefined, true)?.toISOString(), nueve.toISOString(), "un instante antes del inicio todavía vale");
+  assert.equal(recorrerODescartar(programado, MX, null, undefined, true)?.toISOString(), nueve.toISOString());
+});

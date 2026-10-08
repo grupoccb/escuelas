@@ -178,7 +178,7 @@ export interface VentanaHoraria {
 /** 09:00–20:00 todos los días. Ninguna automatización puede salirse de aquí (CHECK en la base). */
 export const HORARIO_DE_ENVIO: VentanaHoraria = { inicioMin: 9 * 60, finMin: 20 * 60, dias: [0, 1, 2, 3, 4, 5, 6] };
 
-interface ParteLocal {
+export interface ParteLocal {
   anio: number;
   mes: number;
   dia: number;
@@ -188,7 +188,8 @@ interface ParteLocal {
 
 const DIAS_ABREVIADOS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function partesLocales(instante: Date, zona: string): ParteLocal {
+/** El reloj de pared de una zona IANA en ese instante: fecha, minutos desde la medianoche y día de la semana (0 = domingo). */
+export function partesLocales(instante: Date, zona: string): ParteLocal {
   const formato = new Intl.DateTimeFormat("en-US", {
     timeZone: zona,
     hourCycle: "h23",
@@ -218,8 +219,12 @@ function desfaseMin(instante: Date, zona: string): number {
   return (comoUtc - alMinuto) / 60_000;
 }
 
-/** El instante UTC que en esa zona es la fecha y la hora local dadas. */
-function instanteLocal(anio: number, mes: number, dia: number, minutos: number, zona: string): Date {
+/**
+ * El instante UTC que en esa zona es la fecha y la hora local dadas. Una hora que NO existe (el salto de primavera) se
+ * corre hacia adelante y una que existe dos veces (el retroceso de otoño) da la primera: quien necesite saber si la hora
+ * local pedida existe compara `partesLocales(resultado)` con lo pedido (`instanteDeSesion`, D1).
+ */
+export function instanteLocal(anio: number, mes: number, dia: number, minutos: number, zona: string): Date {
   const supuesto = Date.UTC(anio, mes - 1, dia, 0, minutos);
   let resultado = supuesto - desfaseMin(new Date(supuesto), zona) * 60_000;
   // Si el desfase cambió entre el supuesto y el resultado (cambio de horario), se corrige.
@@ -250,13 +255,19 @@ export function siguienteHorarioValido(desde: Date, zona: string, ventana: Venta
 /**
  * Recorre lo programado fuera de horario al siguiente horario válido. Si con eso llegaría
  * después del evento (`limite`), devuelve null: se descarta y se registra, nunca se manda tarde.
+ *
+ * Por omisión el límite es inclusivo (llegar justo AL límite todavía vale). Con `limiteExclusivo` llegar al límite o
+ * después se descarta: es el caso de un recordatorio, que no sirve a la hora en que empieza la clase (D3).
  */
 export function recorrerODescartar(
   programado: Date,
   zona: string,
   limite: Date | null,
   ventana: VentanaHoraria = HORARIO_DE_ENVIO,
+  limiteExclusivo = false,
 ): Date | null {
   const siguiente = siguienteHorarioValido(programado, zona, ventana);
-  return limite && siguiente.getTime() > limite.getTime() ? null : siguiente;
+  if (!limite) return siguiente;
+  const pasado = limiteExclusivo ? siguiente.getTime() >= limite.getTime() : siguiente.getTime() > limite.getTime();
+  return pasado ? null : siguiente;
 }

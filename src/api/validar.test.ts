@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ErrorApi } from "./errores.ts";
-import { booleano, booleanoDeTexto, correo, entero, enteroDeTexto, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "./validar.ts";
+import { booleano, booleanoDeTexto, correo, entero, enteroDeTexto, enumerado, fechaISO, instanteISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "./validar.ts";
 
 function detalles(fn: () => unknown): { campo?: string; mensaje: string }[] {
   try {
@@ -94,4 +94,13 @@ test("EC-07: fechaISO acepta fechas del calendario entre 1900 y 2999 y rechaza e
     assert.equal(detalles(() => parsear(fechaISO(), mal)).length, 1, mal);
   }
   assert.equal(detalles(() => parsear(fechaISO(), 20261008)).length, 1);
+});
+
+test("D1: instanteISO exige zona (Z o ±hh:mm), acepta segundos y milisegundos y devuelve el instante", () => {
+  assert.equal(parsear(instanteISO(), "2026-10-12T16:00:00-06:00").toISOString(), "2026-10-12T22:00:00.000Z");
+  assert.equal(parsear(instanteISO(), "2026-10-12T22:00Z").toISOString(), "2026-10-12T22:00:00.000Z");
+  assert.equal(parsear(instanteISO(), "2026-10-13T07:00:00.500+09:00").toISOString(), "2026-10-12T22:00:00.500Z");
+  for (const mal of ["2026-10-12T16:00:00", "2026-10-12", "12/10/2026 16:00", "2026-10-12 16:00:00Z", "2026-13-12T16:00:00Z", "2026-02-30T16:00:00Z", "2026-10-12T25:00:00Z", "2026-10-12T24:00:00Z", "2026-04-31T10:00:00Z", "0000-01-01T00:00:00Z", "3000-01-01T00:00:00Z", 1760000000000, null]) {
+    assert.equal(detalles(() => parsear(instanteISO(), mal)).length, 1, String(mal));
+  }
 });

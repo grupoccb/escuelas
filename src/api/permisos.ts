@@ -27,6 +27,9 @@ export const MATRIZ_DE_PERMISOS = {
   // Lista de espera (C9): quién espera un lugar en un grupo lleno. Quitar y mover es del asesor y el administrador.
   "lista_espera:leer": ["administrador", "asesor", "recepcion"],
   "lista_espera:escribir": ["administrador", "asesor"],
+  // Clase muestra (D1): agendar, reprogramar y cancelar es del asesor y el administrador; el maestro solo lee las de SUS grupos.
+  "clases_muestra:leer": ["administrador", "asesor", "maestro"],
+  "clases_muestra:escribir": ["administrador", "asesor"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
