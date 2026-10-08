@@ -1747,3 +1747,41 @@ $ npm run test:int    → exit 0 · tests 835 · pass 835 · fail 0
 **Para Eduardo**
 - **[SUPUESTO]** el texto de la bienvenida y que salga de lunes a sábado, de 09:00 a 20:00.
 - Decisión de producto: ¿la bienvenida debe salir también al segundo tutor/abuela? Hoy solo al responsable de pago.
+
+## Cierre de la etapa F (F-pre, F1 a F7) — para quien audite y para la etapa H
+
+**Estado.** F-pre, F1, F2, F3, F4, F5, F6 y F7 HECHOS (commits `F-pre:`, `F1:` … `F7:`). La etapa G no se tocó (instrucción de Eduardo). Sin auditar ni etiquetar (lo hace quien coordina).
+
+**Verificación del último commit de código (`F7:`)**
+```
+$ npm run validar                      → exit 0 · tests 506 · pass 506 · fail 0
+$ npm run test:int                     → exit 0 · tests 835 · pass 835 · fail 0   (1.ª corrida)
+$ npm run test:int                     → exit 0 · tests 835 · pass 835 · fail 0   (2.ª corrida seguida)
+$ DATABASE_URL_PRUEBAS=…/vacia_f_pruebas npm run test:int → exit 0 · tests 835 · pass 835 · fail 0   (base NUEVA y vacía; luego se borró)
+```
+Una intermitencia vista una vez en `validar` (`src/http/twilio.test.ts`, «respuestas del borde…»: 404 en vez de 500) que ya estaba anotada desde C; no se reprodujo en la corrida siguiente.
+
+**Tablas nuevas:** `tutor`, `alumno`, `tutor_alumno`, `inscripcion`, `motivo_baja`, `inscripcion_movimiento` (solo anexar). **Columnas nuevas:** `lead.tutor_id`, `prospecto.alumno_id`, `promocion_aplicacion.descuento|meses_gratis` (y su FK a `inscripcion`), `inscripcion.motivo_baja_id|congelada_desde`, `configuracion_organizacion.modo_cierre`, `clase_muestra.listo_para_cerrar_en|por`. **Enums:** `evento_disparador.inscripcion_creada`, `tipo_tarea_asesor.listo_para_cerrar`, `acceso_dato_sensible.accion = trasladar`. **Migraciones:** `20261016000000_familia`, `…010000_inscripcion`, `…011000_cupo_en_la_base`, `…020000_traslado_salud`, `…030000_cambios_de_inscripcion`, `…040000_modo_de_cierre`, `…041000_tarea_listo_para_cerrar_indice`, `…050000_bienvenida_inscripcion`. La siguiente debe usar `20261017…` o mayor.
+
+**Helpers nuevos:** `src/familias/{familia,alcance,cross-sell}.ts`; `src/inscripciones/{inscribir,cambios,corte,hermanos,bienvenida,presentar,alcance}.ts`; `src/conversion/{convertir,cierre}.ts`; `src/sensibles/traslado.ts`; `InscripcionesActivas` (`src/catalogo/cupo.ts`); `autorizaUsoDeImagen` y `problemasDeReglamentoVigente` (`src/legal/aceptaciones.ts`); `consumirCupo(db, id, contexto)` (F-pre); testutil `sembrarAlumno`, `sembrarMotivoBaja`.
+**Permisos nuevos:** `tutores:leer|escribir`, `alumnos:leer|escribir`, `inscripciones:leer|escribir`, `conversion:leer|ejecutar` (el maestro la tiene en la matriz, la ruta se la concede solo con `maestro_en_sitio`), `clases_muestra:listo_para_cerrar`.
+
+**Decisiones abiertas para Eduardo (resumen)**
+1. `es_contacto_emergencia` se llama `es_contacto_urgencia` (el nombre original es una raíz sensible para `check:sensibles`; no se debilitó la guarda).
+2. Un alumno de mostrador sin lead/prospecto no puede inscribirse hasta que haya una vía para registrar la aceptación del reglamento (la evidencia cuelga del prospecto).
+3. Cuando difieren el horario cotizado y el recomendado por el maestro, gana el cotizado.
+4. Inscripciones con fecha de inicio pasada (alumnos que ya venían) se rechazan.
+5. Beneficios diferidos y cupo de promoción de quien se da de baja antes de pagar.
+6. Qué modo de cierre usará la escuela; el modo en sitio no cobra.
+7. Si la bienvenida debe salir también al segundo tutor.
+8. Un solo responsable de pago por alumno.
+9. Las apagadas: apagar una automatización no cancela sus ejecuciones ya programadas (heredado).
+
+**Lo que necesita la etapa H (finanzas)**
+- **Cargos (H1).** Por inscripción: `inscripcion.precio_inscripcion_aplicado` y `precio_mensualidad_aplicado` son el precio de LISTA congelado; `descuento_inscripcion_aplicado`, `descuento_mensualidad_aplicado` y `meses_gratis_aplicados` lo que valieron las promociones inmediatas (el descuento de mensualidad rige en CADA mensualidad; los meses gratis son las primeras n). `monto = precio`, `descuento = descuento_*`, `monto_final = monto − descuento`. `dia_corte_pago` (1–31) con la regla de fin de mes de `src/inscripciones/corte.ts` (`fechaDeCorte`, `proximoCorte`); `fecha_inicio` es el primer día de clases. Cobra al tutor con `tutor_alumno.es_responsable_pago` (a lo más uno por alumno).
+- **Diferidos (H4).** `promocion_aplicacion` con `estatus = pendiente` (uniforme gratis al pagar la primera mensualidad…), ligadas a la inscripción y al beneficio (`beneficio.tipo`, `descripcion`); `entregado` + `fecha_entrega` + `autorizado_por_id` al cumplirse. **Ignorar las de una inscripción en `baja`** (no se cancelan solas). La lista de uniformes por entregar sale de ahí.
+- **Estado de cuenta por familia (H3).** La familia es el `tutor`; sus alumnos, `tutor_alumno`; sus inscripciones, `inscripcion` activas/congeladas. Una congelada no ocupa lugar ni (decisión de H) genera cargo mensual mientras lo esté: `congelada_desde` y el historial `inscripcion_movimiento` dicen desde cuándo. Una baja lleva `fecha_baja`.
+- **Pagos (H2).** Registro manual; el cobro no cambia con el modo de cierre. `inscripcion_id` y `lead_id` ya enlazan con el origen para el costo por alumno inscrito.
+- **Productos (H5).** `promocion_beneficio.producto_id` sigue siendo un uuid sin FK hasta que exista `producto`.
+- **Expediente (G5).** Trayectoria: `inscripcion` + `inscripcion_movimiento`; comercial: `inscripcion.lead_id/cotizacion_id`, `lead_etapa_historial`, hermanos (`src/inscripciones/hermanos.ts`), motivo de baja; la salud va aparte con `leerSensible` (sujeto `alumno`).
+- **Defensas en la base** que H debe seguir: cupo (`inscripcion_cupo_maximo`), importes con CHECK, únicos parciales; el dinero solo con `src/lib/dinero.ts`.
