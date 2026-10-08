@@ -39,3 +39,9 @@ test("D5: el registro de la clase muestra lo ven el administrador, el asesor y e
   }
   assert.deepEqual([...MATRIZ_DE_PERMISOS["registro_muestra:reabrir"]], ["administrador"]);
 });
+
+test("E3: el QR de una campaña lo bajan el administrador y el asesor; recepción y maestro no", () => {
+  assert.deepEqual([...MATRIZ_DE_PERMISOS["campanas:qr"]], ["administrador", "asesor"]);
+  assert.equal(tienePermiso("recepcion", "campanas:qr"), false);
+  assert.equal(tienePermiso("maestro", "campanas:qr"), false);
+});

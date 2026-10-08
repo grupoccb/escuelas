@@ -20,6 +20,7 @@ export const PERMISOS_ACORDADOS = {
   "registro_muestra:leer": ["administrador", "asesor", "maestro"],
   "registro_muestra:escribir": ["administrador", "asesor", "maestro"],
   "registro_muestra:reabrir": ["administrador"],
+  "campanas:qr": ["administrador", "asesor"],
   "avisos_maestro:leer": ["administrador", "maestro"],
   "avisos_maestro:escribir": ["administrador", "maestro"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],

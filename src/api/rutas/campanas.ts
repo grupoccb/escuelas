@@ -14,11 +14,22 @@
 // Un código de campaña (el del QR, el del anuncio) lo usan muchas personas: cada LEAD NUEVO que escribe con él cuenta un uso (`usos`, con el tope `max_usos`
 // si lo tiene). Sin `codigo` se genera uno (8 caracteres sin ambiguos); con `codigo` se valida su forma. La sucursal y la vertical del código, si no se
 // mandan, son las de la campaña. Los códigos de LEAD (los de la landing) los crea el sistema y no se crean aquí.
-// El QR de una campaña vive en `GET /api/campanas/:id/qr` (E3).
+//   GET    /api/campanas/:id/qr?sucursal_id=&vertical_id=&formato=svg|png|url&mm=&escala=&descargar=true     (campanas:qr: administrador y asesor)
+//
+// E3, el QR de una campaña: apunta a la landing de la vertical (`/l/<vertical>?c=<código>&s=<sucursal>`) con el código de rastreo de ESA campaña y ESA sucursal, así que
+// cada par (campaña, sucursal) tiene su propio QR. El código se reutiliza si ya existe uno que sirve para el par y se crea (una sola vez, bajo candado) si no. `formato=svg`
+// (por omisión; `mm` = lado impreso, 20 a 300, 60 por omisión) o `png` (`escala` = píxeles por módulo, 1 a 40, 16 por omisión) se pueden descargar con `descargar=true`;
+// `formato=url` devuelve el JSON con la URL y el código. El asesor solo pide sucursales de su alcance. La base pública sale de `ORIGEN_PUBLICO`/`PUBLIC_BASE_URL`.
 
 import { Router } from "express";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
+import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
+import { resolverVerticalPublica } from "../../datos/sistema.ts";
+import { nombreDeArchivo, resolverBaseUrl, urlDeLanding } from "../../captacion/landing-url.ts";
+import { QrDemasiadoLargo, crearQr } from "../../qr/qr.ts";
+import { qrAPng, qrASvg } from "../../qr/render.ts";
+import { veSucursal } from "../alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { formatearCodigo, generarCodigo, normalizarCodigoEscrito } from "../../captacion/codigos.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -27,7 +38,7 @@ import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
-import { booleano, booleanoDeTexto, entero, enumerado, fechaISO, instanteISO, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
+import { booleano, booleanoDeTexto, entero, enteroDeTexto, enumerado, fechaISO, instanteISO, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const ORIGENES = ["facebook", "instagram", "tiktok", "google", "referido", "presencial", "otro"] as const;
 const TIPOS = ["campana", "lead"] as const;
@@ -77,7 +88,16 @@ const esquemaAltaCodigo = objeto({
 });
 const esquemaCambioCodigo = objeto({ activo: opcional(booleano()), max_usos: opcional(nulable(entero({ min: 1, max: 1_000_000 }))), vigente_desde: opcional(nulable(instanteISO())), vigente_hasta: opcional(nulable(instanteISO())) });
 
-export function rutasDeCampanas(_deps: DepsApi): Router {
+const esquemaQr = objeto({
+  sucursal_id: opcional(uuid()),
+  vertical_id: opcional(uuid()),
+  formato: opcional(enumerado(["svg", "png", "url"] as const)),
+  mm: opcional(enteroDeTexto({ min: 20, max: 300 })),
+  escala: opcional(enteroDeTexto({ min: 1, max: 40 })),
+  descargar: opcional(booleanoDeTexto()),
+});
+
+export function rutasDeCampanas(deps: DepsApi): Router {
   const r = Router();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
@@ -164,6 +184,81 @@ export function rutasDeCampanas(_deps: DepsApi): Router {
       await registrarCambio(tx, ctx, { entidad: "campana", entidadId: id, accion: "eliminar", antes: instantaneaCampana(antes) });
     });
     res.status(204).end();
+  });
+
+  // ── El QR de una campaña (E3) ──
+  r.get("/campanas/:id/qr", requierePermiso("campanas:qr"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const q = parsearQuery(esquemaQr, req.query);
+    const campana = await ctx.db.campana.findFirst({ where: { id }, select: { id: true, nombre: true, vertical_id: true, sucursal_id: true } });
+    if (!campana) throw noEncontrado();
+    // La vertical a la que apunta la landing: la de la campaña (o la que se pida, si la campaña no tiene).
+    if (campana.vertical_id && q.vertical_id && campana.vertical_id !== q.vertical_id) throw validacion([{ campo: "vertical_id", mensaje: "La campaña es de otra vertical" }]);
+    const verticalId = campana.vertical_id ?? q.vertical_id;
+    if (!verticalId) throw validacion([{ campo: "vertical_id", mensaje: "La campaña no tiene vertical: asígnasela a la campaña o indica `vertical_id`" }]);
+    const vertical = await ctx.db.vertical.findFirst({ where: { id: verticalId, activo: true }, select: { id: true, slug: true, nombre: true } });
+    if (!vertical) throw validacion([{ campo: "vertical_id", mensaje: "No es una vertical activa de la organización" }]);
+    // La sucursal: la pedida, o la de la campaña, o ninguna (QR general). Tiene que ser una de las que da la vertical y, para el asesor, de su alcance.
+    const sucursalId = q.sucursal_id ?? campana.sucursal_id ?? null;
+    const alcance = await ctx.alcance();
+    if (sucursalId === null && !alcance.todas) throw validacion([{ campo: "sucursal_id", mensaje: "Elige la sucursal del QR" }]);
+    if (sucursalId !== null) {
+      if (!veSucursal(alcance, sucursalId)) throw noEncontrado();
+      const ofrece = await ctx.db.sucursal_vertical.findFirst({ where: { vertical_id: vertical.id, sucursal_id: sucursalId, activo: true, sucursal: { activo: true, eliminado_en: null } }, select: { id: true } });
+      if (!ofrece) throw validacion([{ campo: "sucursal_id", mensaje: "La vertical no se imparte en esa sucursal" }]);
+    }
+    const sucursal = sucursalId ? await ctx.db.sucursal.findFirst({ where: { id: sucursalId }, select: { nombre: true } }) : null;
+
+    // El código de ESTA campaña y ESTA sucursal: el que ya sirve, o uno nuevo (una sola vez aunque lo pidan varios a la vez).
+    const ahora = ctx.ahora();
+    const codigo = await transaccionConBloqueo(ctx.db, ctx.organizacionId, `qr:${campana.id}:${sucursalId ?? "general"}`, async (tx) => {
+      const existentes = (await tx.codigo_rastreo.findMany({
+        where: { tipo: "campana", campana_id: campana.id, sucursal_id: sucursalId, activo: true, AND: [{ OR: [{ vigente_desde: null }, { vigente_desde: { lte: ahora } }] }, { OR: [{ vigente_hasta: null }, { vigente_hasta: { gt: ahora } }] }] },
+        select: SELECCION_CODIGO,
+        orderBy: [{ creado_en: "asc" }, { id: "asc" }],
+      })) as FilaCodigo[];
+      const sirve = existentes.find((c) => c.max_usos === null || c.usos < c.max_usos);
+      if (sirve) return sirve;
+      for (let intento = 0; intento < 10; intento++) {
+        const candidato = generarCodigo();
+        if (await tx.codigo_rastreo.findFirst({ where: { codigo: candidato }, select: { id: true } })) continue;
+        const c = (await tx.codigo_rastreo.create({
+          data: altaConAlcance({ codigo: candidato, tipo: "campana" as const, campana_id: campana.id, sucursal_id: sucursalId, vertical_id: vertical.id }),
+          select: SELECCION_CODIGO,
+        })) as FilaCodigo;
+        await registrarCambio(tx, ctx, { entidad: "codigo_rastreo", entidadId: c.id, accion: "crear", despues: instantaneaCodigo(c) });
+        return c;
+      }
+      throw conflicto("No se pudo generar un código libre; inténtalo de nuevo");
+    });
+
+    // La URL: la base pública, el slug de la vertical (con el de la organización si el de la vertical se repite), el código y la sucursal.
+    const base = resolverBaseUrl({ origenesPermitidos: deps.origenesPermitidos, publicBaseUrl: process.env["PUBLIC_BASE_URL"], protocolo: req.protocol, host: req.get("host"), produccion: process.env["NODE_ENV"] === "production" });
+    if (!base) throw conflicto("Falta configurar el origen público del sistema (ORIGEN_PUBLICO) para armar el QR");
+    let orgSlug: string | null = null;
+    if (!(await resolverVerticalPublica(deps.prisma, vertical.slug, null))) {
+      orgSlug = (await ctx.db.organizacion.findFirst({ where: { id: ctx.organizacionId }, select: { slug: true } }))?.slug ?? null;
+      if (!orgSlug) throw conflicto("El identificador de la vertical se repite entre organizaciones y la organización no tiene identificador (slug) para distinguirla");
+    }
+    const url = urlDeLanding({ base, verticalSlug: vertical.slug, orgSlug, codigo: codigo.codigo, sucursalId });
+    const formato = q.formato ?? "svg";
+    if (formato === "url") {
+      res.json({ url, ...presentarCodigo(codigo), vertical_id: vertical.id, sucursal_id: sucursalId });
+      return;
+    }
+    let qr;
+    try {
+      qr = crearQr(url, "M");
+    } catch (e) {
+      if (e instanceof QrDemasiadoLargo) throw validacion([{ mensaje: "La URL de la landing es demasiado larga para un QR" }]);
+      throw e;
+    }
+    const nombre = `${nombreDeArchivo("qr", campana.nombre, sucursal?.nombre ?? "general")}.${formato}`;
+    if (q.descargar) res.setHeader("Content-Disposition", `attachment; filename="${nombre}"`);
+    res.setHeader("X-Codigo-Rastreo", codigo.codigo);
+    if (formato === "png") res.type("png").send(qrAPng(qr, { escala: q.escala ?? 16 }));
+    else res.type("image/svg+xml").send(qrASvg(qr, { mm: q.mm ?? 60, titulo: `QR de ${campana.nombre}${sucursal ? ` · ${sucursal.nombre}` : ""}` }));
   });
 
   // ── Códigos de rastreo ──

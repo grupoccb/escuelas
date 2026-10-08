@@ -37,6 +37,8 @@ export const MATRIZ_DE_PERMISOS = {
   "registro_muestra:leer": ["administrador", "asesor", "maestro"],
   "registro_muestra:escribir": ["administrador", "asesor", "maestro"],
   "registro_muestra:reabrir": ["administrador"],
+  // Código QR de una campaña (E3): lo bajan quienes arman el material de captación, el administrador y el asesor (de sus sucursales).
+  "campanas:qr": ["administrador", "asesor"],
   // Avisos al maestro (D2): los suyos. El administrador los tiene por regla (todos los permisos), pero solo ve los de su propio instructor, si lo es.
   "avisos_maestro:leer": ["administrador", "maestro"],
   "avisos_maestro:escribir": ["administrador", "maestro"],

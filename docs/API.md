@@ -202,6 +202,18 @@ el mismo lead escribiendo dos veces con el código cuenta una. **Vía de anuncio
 **Administración** (`src/api/rutas/campanas.ts`): `GET|POST /api/campanas`, `GET|PATCH|DELETE /api/campanas/:id` (lectura `catalogo:leer`, escritura `catalogo:escribir`; la fuente de un QR en sucursal es la campaña con `origen = presencial`, que es lo que leerán los reportes I1/I2; una campaña con códigos o leads no se borra) y `GET|POST /api/codigos-rastreo`, `PATCH|DELETE /api/codigos-rastreo/:id` (todo `catalogo:escribir`): sin `codigo` se genera uno; con él se valida y normaliza; la sucursal y la vertical son las de la campaña si no se mandan;
 el tope no baja de los usos; la baja libera el código; los de lead los crea el sistema y no se editan aquí.
 
+## Código QR de una campaña (E3)
+
+`GET /api/campanas/:id/qr?sucursal_id=&vertical_id=&formato=svg|png|url&mm=&escala=&descargar=true` (`campanas:qr`: administrador y asesor; el asesor solo pide sucursales de su alcance, fuera de él 404). El QR codifica la URL de la landing de la vertical con el código de rastreo **de esa campaña y esa sucursal** (`https://<origen público>/l/<vertical>?c=<código>&s=<sucursal>`, más `org=` solo si el slug de la vertical se repite entre organizaciones). Cada par (campaña, sucursal) tiene su propio código y su propio QR; el código se crea una sola vez (bajo candado, también con peticiones simultáneas) y se reutiliza mientras sirva (activo, vigente y sin agotar). Sin `sucursal_id` se usa la de la campaña; si tampoco hay, el QR es general (el asesor tiene que elegir una de las suyas). La vertical es la de la campaña (si la campaña no tiene, `vertical_id` es obligatorio) y debe impartirse en la sucursal.
+
+- `formato=svg` (por omisión): `image/svg+xml`, `mm` = lado impreso (20 a 300, 60 por omisión), zona de silencio de 4 módulos, un solo `<path>`.
+- `formato=png`: escala de grises de 8 bits, `escala` = píxeles por módulo (1 a 40, 16 por omisión).
+- `formato=url`: JSON `{url, codigo, codigo_formateado, vertical_id, sucursal_id, ...}`.
+- `descargar=true` agrega `Content-Disposition: attachment` con un nombre ASCII seguro (`qr-<campaña>-<sucursal>.svg|png`). La respuesta lleva `X-Codigo-Rastreo`.
+- La base pública sale de `ORIGEN_PUBLICO` (el primero) o `PUBLIC_BASE_URL`; fuera de producción, del host de la petición; en producción nunca del `Host` (409 si falta la configuración).
+- Los booleanos de la query son `true` o `false`. Los QR usan corrección M; si la URL no cabe en la versión 10 (213 bytes) responde 400.
+- La fuente `presencial` queda en la campaña (`campana.origen`) para los reportes I1/I2: el lead que entra por el QR hereda `campana_id` y la sucursal.
+
 ## Rutas
 
 | Método y ruta | Permiso | Descripción |
@@ -235,6 +247,7 @@ el tope no baja de los usos; la baja libera el código; los de lead los crea el 
 | `POST /api/campanas` `{nombre, origen, vertical_id?, sucursal_id?, anuncio_id?, fecha_inicio?, fecha_fin?, activo?}` · `PATCH`/`DELETE /api/campanas/:id` | `catalogo:escribir` | Alta, cambio y baja lógica (409 con códigos o leads) |
 | `GET /api/codigos-rastreo?campana_id=&sucursal_id=&tipo=&activo=` | `catalogo:escribir` | Códigos con sus usos y tope |
 | `POST /api/codigos-rastreo` `{campana_id, sucursal_id?, vertical_id?, codigo?, max_usos?, vigente_desde?, vigente_hasta?}` · `PATCH`/`DELETE /api/codigos-rastreo/:id` | `catalogo:escribir` | Crea (genera o valida el código; 409 si ya existe vivo), cambia `activo`/tope/vigencia (el tope no baja de los usos) y da de baja |
+| `GET /api/campanas/:id/qr?sucursal_id=&formato=svg\|png\|url` | `campanas:qr` | QR imprimible de la campaña por sucursal (crea o reutiliza su código de rastreo) |
 | `GET /api/lista-espera?grupo_id=&prospecto_id=&estatus=&limite=&pagina=` | `lista_espera:leer` (administrador, asesor, recepción) | La fila de espera por grupo y posición, con prospecto, contacto y teléfono. Sin `estatus` trae las vivas. Alcance por la sucursal del programa del grupo |
 | `PATCH /api/lista-espera/:id` `{posicion}` | `lista_espera:escribir` (administrador, asesor) | Mueve a alguien que espera a otra posición (1..N); las demás se recorren. 400 fuera de rango; 409 si ya se le ofreció un lugar o ya no está en la fila; registra el cambio |
 | `DELETE /api/lista-espera/:id` | `lista_espera:escribir` | Quita de la fila (`cancelado`, sin borrar nada); las demás se recorren. 409 si ya no estaba; registra el cambio |

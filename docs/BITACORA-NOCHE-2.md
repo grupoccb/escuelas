@@ -41,7 +41,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D8 | HECHO | ver `git log` (`D8:`) | Lead frío y promoción por vencer sobre el motor: eventos nuevos, `aviso_promocion` (uno por lead y promoción), plantillas de marketing por el provider con frecuencia, bajas, horario y atención humana |
 | E1 | HECHO | ver `git log` (`E1:`) | Landing pública `/l/:vertical` con cuestionario: lead + prospecto idempotentes, aviso de privacidad con evidencia, consentimiento por formulario, atribución, `wa.me` con código de rastreo, anti-abuso y XSS; el bot no vuelve a preguntar lo capturado |
 | E2 | HECHO | ver `git log` (`E2:`) | Código de rastreo en el primer mensaje: parser, limpieza del texto del bot, atribución al lead con consumo condicional, primera atribución conservada, CTWA intacto y API de campañas y códigos |
-| E3 | PENDIENTE | | Códigos QR |
+| E3 | HECHO | ver `git log` (`E3:`) | QR por campaña y sucursal: codificador propio (SVG y PNG), URL de la landing con código de rastreo, descarga para imprimir y pruebas de ida y vuelta con un lector independiente |
 | F1 | PENDIENTE | | Tutor, alumno y relación M:N |
 | F2 | PENDIENTE | | Conversión en una transacción |
 | F3 | PENDIENTE | | Inscripción |
@@ -1424,3 +1424,29 @@ Mutaciones atrapadas: consumo sin condición (la concurrencia forzada rompe el t
 **Para Eduardo**
 - Pendiente de producto: unir la familia del lead de la landing con el lead de WhatsApp cuando escriben desde teléfonos distintos (hoy quedan ligados, no fusionados).
 - Pendiente de producto: ¿el código de campaña debe vencer o tener tope por omisión? Hoy no tiene ninguno.
+
+
+## E3. Código QR por campaña y sucursal
+
+**Qué se hizo**
+- **`src/qr/qr.ts`:** codificador de QR propio, sin dependencias (modo de bytes UTF-8, versiones 1 a 10, correcciones L, M y Q, Reed-Solomon sobre GF(256), intercalado de bloques, las 8 máscaras con las cuatro reglas de penalización, información de formato y de versión con BCH). Determinista. `QrDemasiadoLargo` si el texto no cabe (213 bytes con M).
+- **`src/qr/render.ts`:** SVG (un solo `<path>`, tamaño físico en mm, zona de silencio de 4 módulos, título escapado) y PNG (escala de grises, CRC y deflate de `node:zlib`).
+- **`src/captacion/landing-url.ts`:** `urlDeLanding`, `resolverBaseUrl` (en producción nunca confía en `Host`) y `nombreDeArchivo`.
+- **Ruta** `GET /api/campanas/:id/qr` (`src/api/rutas/campanas.ts`, permiso nuevo `campanas:qr` para administrador y asesor): crea o reutiliza, bajo candado, el código de rastreo del par (campaña, sucursal), registra el alta en `registro_cambio` y devuelve SVG, PNG o la URL en JSON; descarga con nombre seguro.
+- **Dependencia de desarrollo:** `jsqr@1.4.0` (exacta, solo `devDependencies`), lector de QR en JavaScript puro, sin dependencias propias ni módulos nativos, licencia Apache-2.0. `npm audit` no la señala: las 4 altas que reporta son las de Prisma (mysql2, deepmerge-ts) que ya existían antes de E3 (no se usó `audit fix --force`). Motivo: probar el codificador contra un lector independiente en lugar de contra mí mismo.
+
+**Verificación**
+Tests nuevos: `qr.test.ts` (9: ida y vuelta con jsQR en las versiones 1 a 10 y los tres niveles, en el borde de cada versión; UTF-8; estructura del estándar: buscadores, sincronía, módulo oscuro, BCH de formato y de versión, capacidades y bits sobrantes; SVG y PNG con su CRC); `landing-url.test.ts` (3); `qr.itest.ts` (8): el SVG y el PNG descargados se decodifican a la URL con el código y la sucursal, QR distintos por campaña y sucursal, un solo código con ocho peticiones simultáneas, permisos y alcance, validaciones, nombre de archivo seguro, recorrido completo (escanear, llenar la landing, lead atribuido a la campaña `presencial`) y `org=` cuando el slug se repite.
+Mutación atrapada: un candado distinto por petición rompe la prueba de concurrencia.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Codificador propio y lector solo en desarrollo.** Alternativa descartada: una librería de generación en producción (otra dependencia en el camino de datos de cada campaña, sin necesidad: el estándar para bytes cabe en 300 líneas y queda verificado por el lector).
+2. **Un código de campaña por (campaña, sucursal), reutilizado.** Alternativa descartada: un código nuevo por descarga (miles de códigos huérfanos y QR distintos para el mismo cartel).
+3. **Corrección M y versión mínima.** Alternativa descartada: Q o H (QR más densos y difíciles de leer en un cartel pequeño, sin necesidad en una URL corta).
+4. **La base pública sale de la configuración y no del `Host` en producción.** Un QR impreso con una URL envenenada seguiría vivo para siempre.
+5. **Sin `sucursal_id` ni sucursal en la campaña, el QR es general; el asesor tiene que elegir una de las suyas.** Evita que un asesor genere un QR sin su alcance.
+6. **`descargar=true`**, no `1`, porque la validación de la query solo acepta `true|false` en todo el API.
+
+**Para Eduardo**
+- Pendiente de producto: una página con todos los QR de una campaña para imprimir en lote (hoy se baja de uno en uno por sucursal) y logotipo en el centro (la corrección M lo toleraría, pero no se hizo).
+- Para I1/I2: la fuente de los leads de un QR es `campana.origen = presencial` y el código `codigo_rastreo` (campaña + sucursal), con `usos` por código.
