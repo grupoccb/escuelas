@@ -104,10 +104,17 @@ export function fechaISO(): Esquema<string> {
     leer(valor, ruta, errores) {
       if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return falla(errores, ruta, "Debe ser una fecha AAAA-MM-DD");
       const d = new Date(`${valor}T00:00:00.000Z`);
-      return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === valor ? valor : falla(errores, ruta, "No es una fecha del calendario");
+      if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== valor) return falla(errores, ruta, "No es una fecha del calendario");
+      // EC-07: el año 0000 es válido para JavaScript pero no para Postgres (500), y 9999 desborda al sumar días.
+      const anio = Number(valor.slice(0, 4));
+      return anio >= ANIO_MINIMO && anio <= ANIO_MAXIMO ? valor : falla(errores, ruta, `El año debe estar entre ${ANIO_MINIMO} y ${ANIO_MAXIMO}`);
     },
   };
 }
+
+/** Rango de años que aceptan las fechas de la API (EC-07). */
+export const ANIO_MINIMO = 1900;
+export const ANIO_MAXIMO = 2999;
 
 export function booleano(): Esquema<boolean> {
   return {

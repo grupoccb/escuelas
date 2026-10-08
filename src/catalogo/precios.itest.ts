@@ -271,3 +271,15 @@ test("CARRERA en la base: dos transacciones que insertan vigencias que se trasla
   assert.match(String((resultados.find((r) => r.status === "rejected") as PromiseRejectedResult).reason), /precio_vigencia_excl|write conflict or a deadlock/);
   assert.equal(await prisma.precio.count({ where: { programa_id: p } }), 1);
 });
+
+test("EC-07: una fecha fuera de 1900–2999 (el año 0000 no existe en Postgres) responde 400, no 500, en alta, filtro y cotizador", async () => {
+  const p = await programaNuevo();
+  const r = await alta(p, "0000-01-01");
+  assert.equal(r.estado, 400);
+  assert.equal(r.cuerpo.error.detalles?.[0]?.campo, "vigencia_desde");
+  assert.equal((await alta(p, "9999-12-31")).estado, 400);
+  assert.equal((await admin.get("/api/precios?vigente_en=0000-01-01")).estado, 400);
+  const cot = await admin.get(`/api/cotizador?vertical_id=${org.verticalId}&sucursal_id=${org.sucursales[0]!.id}&edad=5&fecha=0000-01-01`);
+  assert.equal(cot.estado, 400);
+  assert.equal((await historial(p)).length, 0, "no quedó nada guardado");
+});

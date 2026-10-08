@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ErrorApi } from "./errores.ts";
-import { booleano, booleanoDeTexto, correo, entero, enteroDeTexto, enumerado, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "./validar.ts";
+import { booleano, booleanoDeTexto, correo, entero, enteroDeTexto, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "./validar.ts";
 
 function detalles(fn: () => unknown): { campo?: string; mensaje: string }[] {
   try {
@@ -86,4 +86,12 @@ test("query: enteros y booleanos llegan como texto; un parámetro repetido es un
   assert.equal(detalles(() => parsearQuery(q, { n: { a: "1" } })).length, 1);
   assert.equal(detalles(() => parsearQuery(q, { b: "si" })).length, 1);
   assert.equal(detalles(() => parsearQuery(q, { otro: "x" })).length, 1);
+});
+
+test("EC-07: fechaISO acepta fechas del calendario entre 1900 y 2999 y rechaza el año 0000, 3000 y lo imposible (nunca llega un 500 de la base)", () => {
+  for (const ok of ["1900-01-01", "2024-02-29", "2026-10-08", "2999-12-31"]) assert.equal(parsear(fechaISO(), ok), ok, ok);
+  for (const mal of ["0000-01-01", "0001-01-01", "1899-12-31", "3000-01-01", "9999-12-31", "2026-02-30", "2025-02-29", "2026-13-01", "26-10-08", "2026-1-8", ""]) {
+    assert.equal(detalles(() => parsear(fechaISO(), mal)).length, 1, mal);
+  }
+  assert.equal(detalles(() => parsear(fechaISO(), 20261008)).length, 1);
 });
