@@ -9,12 +9,12 @@
 // vuelve a seleccionarse. Dos barridos simultáneos no pasan dos veces: el cambio exige la
 // misma versión de la conversación.
 
-import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
+import { conAlcance } from "../datos/alcance.ts";
 import type { PrismaClient } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import type { MessagingProvider } from "../mensajeria/index.ts";
-import { textos } from "./maquina.ts";
+import { resumenParaAsesor } from "./resumen.ts";
 
 /** Cuánto espera el bot una respuesta antes de pasar la conversación a un asesor. */
 export const TIEMPO_ESPERA_MS = 30 * 60 * 1000;
@@ -62,29 +62,8 @@ export async function barrerTiemposDeEspera(deps: DepsEspera): Promise<number> {
         });
         if (marcada.count !== 1) return false; // otro proceso la tocó: en el siguiente barrido
 
-        const prospecto = await tx.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } });
-        const sucursal = conv.lead.sucursal_interes_id
-          ? await tx.sucursal.findFirst({ where: { id: conv.lead.sucursal_interes_id }, select: { nombre: true } })
-          : null;
-        await tx.interaccion.create({
-          data: altaConAlcance({
-            lead_id: conv.lead.id,
-            conversacion_id: conv.id,
-            tipo: "pase_a_asesor" as const,
-            contenido: "El contacto dejó de contestar a mitad de la captura.",
-            datos: { motivo: "sin_respuesta", paso: conv.paso_captacion },
-          }),
-        });
         await deps.mensajeria.encolar(tx, conv.id, [
-          {
-            tipo: "nota_interna",
-            cuerpo: textos.resumenAsesor("sin_respuesta", {
-              nombre: prospecto?.nombre ?? null,
-              edad: prospecto?.edad_declarada ?? null,
-              sucursal: sucursal?.nombre ?? null,
-              telefono: conv.lead.telefono,
-            }),
-          },
+          { tipo: "nota_interna", cuerpo: await resumenParaAsesor(tx, conv.lead.id, "sin_respuesta") },
         ]);
         return true;
       });

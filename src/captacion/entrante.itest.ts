@@ -71,7 +71,7 @@ test("loop completo: tres preguntas, lead con los datos, nota al asesor y conver
       ["mensaje", textos.preguntaEdad("Sofía")],
       ["mensaje", textos.preguntaSucursal(org.sucursales)],
       ["mensaje", textos.cierre("Sofía", "Sur")],
-      ["nota_interna", textos.resumenAsesor("captura_completa", { nombre: "Sofía", edad: 8, sucursal: "Sur", telefono: "+525512340001" })],
+      ["nota_interna", textos.resumenAsesor("captura_completa", { nombre: "Sofía", edad: 8, sucursal: "Sur", telefono: "+525512340001", contacto: "Mamá", origen: null })],
       ["abrir", undefined],
     ],
   );

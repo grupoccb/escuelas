@@ -22,6 +22,7 @@ import {
   type MessagingProvider,
   type Saliente,
 } from "../mensajeria/index.ts";
+import { resumenParaAsesor } from "./resumen.ts";
 import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
 
 const MAX_REINTENTOS = 3;
@@ -165,15 +166,7 @@ async function registrarYAvanzar(
 
   const salientes: Saliente[] = r.respuestas.map((cuerpo) => ({ tipo: "mensaje", cuerpo }));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
-    salientes.push({
-      tipo: "nota_interna",
-      cuerpo: textos.resumenAsesor(r.pasarAAsesor, {
-        nombre: r.estado.nombre,
-        edad: r.estado.edad,
-        sucursal: ctx.sucursales.find((s) => s.id === r.estado.sucursalId)?.nombre ?? null,
-        telefono: conv.lead.telefono,
-      }),
-    });
+    salientes.push({ tipo: "nota_interna", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.pasarAAsesor) });
   }
   await mensajeria.encolar(tx, conv.id, salientes);
   return { resultado: "procesado", conversacionId: conv.id };

@@ -10,7 +10,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N3 | HECHO | 4fa5dcf | Esquema de Fase 1 |
 | N4 | HECHO | cf578e5 | Entrada |
 | N5 | HECHO | a22b33f | Bot |
-| N6 | PENDIENTE | | Handoff |
+| N6 | HECHO | (ver git log) | Handoff |
 | N7 | PENDIENTE | | Estados de entrega |
 | N8 | PENDIENTE | | Reenganche |
 | N9 | PENDIENTE | | Reporte mínimo |
@@ -153,3 +153,23 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 **Para Eduardo**
 - Decidir qué pasa cuando alguien dado de baja **vuelve a escribir** por su cuenta: hoy el bot calla y nadie se entera (queda registrado el mensaje). Propuesta: crear tarea para el asesor. Reactivar (`opt_in`) hoy es manual en la tabla; no hay palabra de alta.
 - Confirmar los 30 min de tiempo de espera (`TIEMPO_ESPERA_MS`).
+
+## N6. Handoff (bloque 1.4)
+
+**Qué se hizo**
+- Ya existía (0.5) el pase: nota interna → `toggle_status open` en Chatwoot → `en_atencion_humana`. Se verificó el orden con test: la nota sale **antes** de abrir, y abrir ocurre una sola vez.
+- **Resumen para el asesor** unificado en `src/captacion/resumen.ts` (se arma desde la base, no desde memoria): nombre, edad, sucursal, teléfono, contacto (el adulto) y origen (`Anuncio «…» · campaña «…»` o "directo, sin anuncio"). Lo usan el bot y el tiempo de espera.
+- **Interacción `pase_a_asesor`** registrada en un solo lugar (`MessagingProvider`) para todo pase, con el motivo (`captura_completa`, `sin_entender`, `sin_respuesta`, `falla_envio`).
+- **Fuera de ventana y sin plantilla apta** (invariante 5): un mensaje libre bloqueado por `fuera_de_ventana` no se manda y el provider crea una `tarea_asesor` `sin_plantilla_apta` (con el texto que no salió). Una sola pendiente por conversación (reintentos no la duplican; índice parcial de N3). Con atención humana el bloqueo es por el invariante 6 y **no** genera tarea.
+
+**Verificación**
+- `npm run validar` exit 0 (65 tests) · `npm run test:int` exit 0 (44 tests).
+- Tests nuevos (`handoff.itest.ts`): orden nota→abrir, resumen con y sin anuncio/campaña, interacción con motivo, pase por no entender, fuera de ventana (sin envío, estatus `bloqueado`, tarea única tras dos reintentos), atención humana sin tarea.
+
+**Decisiones que tomé**
+- La tarea se crea desde `MessagingProvider`, no desde cada automatización: la regla es del invariante 4 y N8 la reutiliza. "Plantilla apta" hoy se resume en "el saliente no trae plantilla"; N8 añade la selección/validación de plantillas aprobadas y reutiliza este mismo camino cuando no hay una.
+- No cambio la etapa del pipeline al hacer el pase (la etapa "Contactado" es del asesor). Alternativa descartada: mover el lead automáticamente a la segunda etapa.
+- Se actualizó la expectativa exacta de la nota en el test del loop completo (ahora lleva contacto y origen): sigue fijando el texto completo.
+
+**Para Eduardo**
+- En Chatwoot el resumen es una nota privada. Si prefieres atributos personalizados del contacto además de la nota, es una adición en el transporte de Chatwoot.

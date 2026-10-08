@@ -65,7 +65,19 @@ export const textos = {
   confirmacionBaja: "Listo, ya no recibirás más mensajes de nuestra parte. Gracias por tu tiempo.",
   sinEntender: "Te comunico con un asesor para ayudarte mejor. En unos minutos te escribe por aquí.",
   /** Nota interna para el asesor al pasarle la conversación. */
-  resumenAsesor: (motivo: MotivoPaseAsesor, datos: { nombre: string | null; edad: number | null; sucursal: string | null; telefono: string | null }) =>
+  resumenAsesor: (
+    motivo: MotivoPaseAsesor,
+    datos: {
+      nombre: string | null;
+      edad: number | null;
+      sucursal: string | null;
+      telefono: string | null;
+      /** El adulto que escribe. */
+      contacto?: string | null;
+      /** Anuncio y campaña de origen; null = entró directo, sin anuncio. */
+      origen?: string | null;
+    },
+  ) =>
     [
       motivo === "captura_completa"
         ? "Datos capturados por el bot:"
@@ -76,6 +88,8 @@ export const textos = {
       `• Edad: ${datos.edad ?? "—"}`,
       `• Sucursal: ${datos.sucursal ?? "—"}`,
       `• Teléfono: ${datos.telefono ?? "—"}`,
+      ...(datos.contacto !== undefined ? [`• Contacto: ${datos.contacto ?? "—"}`] : []),
+      ...(datos.origen !== undefined ? [`• Origen: ${datos.origen ?? "directo, sin anuncio"}`] : []),
     ].join("\n"),
 };
 
