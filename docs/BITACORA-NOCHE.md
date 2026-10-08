@@ -306,7 +306,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 ## Estado en que dejo el entorno
 
-- **Rama** `noche-fase1`, 24 commits sobre `main` (que no se tocó). Sin `git push`, merge ni reescritura de historia.
+- **Rama** `noche-fase1` (los commits de la noche: `git log main..noche-fase1`); `main` no se tocó. Sin `git push`, merge ni reescritura de historia.
 - **Dependencias nuevas:** ninguna (`pg` ya estaba; se usa en pruebas para ejecutar los seeds).
 - **Docker (proyecto principal):** reconstruido con `docker compose up -d --build --wait`, sin `down -v`. `chatwoot` y `chatwoot-sidekiq` resuelven los dominios de Twilio a loopback (guarda contra tráfico real); `demo-preparar` aplica también el seed del catálogo.
 - **Restos de N2 en el Chatwoot local:** bandeja `N2 Twilio falso` (con una plantilla ficticia en su canal), Agent Bot `Captura N2` apuntando a una IP que ya no escucha, y contactos y mensajes de prueba. No afectan la demo (otra bandeja, otro bot). Se borran desde Ajustes → Bandejas.
