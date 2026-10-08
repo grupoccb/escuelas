@@ -4,7 +4,7 @@ import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { crearApp } from "./http/app.ts";
 import { log } from "./lib/log.ts";
-import { AtribucionDesdeChatwoot, mensajeriaDesdeEntorno } from "./mensajeria/index.ts";
+import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, mensajeriaDesdeEntorno, registrarEstadoEntrega } from "./mensajeria/index.ts";
 
 const prisma = crearPrisma();
 const mensajeria = mensajeriaDesdeEntorno();
@@ -14,6 +14,8 @@ const atribucion = new AtribucionDesdeChatwoot();
 const app = crearApp({
   pingDb: () => pingBaseDatos(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
+  estadosEntrega: new EstadosEntregaChatwoot(),
+  registrarEstadoEntrega: (cambio) => registrarEstadoEntrega({ prisma }, cambio),
   procesarEntrante: (evento) => procesarEntrante({ prisma, mensajeria: mensajeria.provider, atribucion }, evento),
 });
 

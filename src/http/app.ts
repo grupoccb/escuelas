@@ -3,7 +3,13 @@
 
 import express, { type Express } from "express";
 import { log } from "../lib/log.ts";
-import { interpretarEventoChatwoot, verificarWebhookChatwoot, type EventoEntrante } from "../mensajeria/index.ts";
+import {
+  interpretarEventoChatwoot,
+  verificarWebhookChatwoot,
+  type CambioDeEstado,
+  type EventoEntrante,
+  type FuenteEstadosEntrega,
+} from "../mensajeria/index.ts";
 
 export interface AppDeps {
   /** Verifica que la base responde. Lanza si no. */
@@ -11,6 +17,9 @@ export interface AppDeps {
   /** Secreto del Agent Bot de Chatwoot. Sin él, el webhook rechaza todo. */
   secretoWebhookChatwoot: string | null;
   procesarEntrante(evento: EventoEntrante): Promise<{ resultado: string }>;
+  /** De dónde salen los estados de entrega (enviado, entregado, leído, fallido). */
+  estadosEntrega: FuenteEstadosEntrega;
+  registrarEstadoEntrega(cambio: CambioDeEstado): Promise<string>;
   reloj?: () => Date;
 }
 
@@ -47,7 +56,18 @@ export function crearApp(deps: AppDeps): Express {
 
     const evento = interpretarEventoChatwoot(payload);
     if (!evento) {
-      res.json({ ok: true, resultado: "ignorado" });
+      // No es un mensaje del contacto: puede ser un cambio de estado de entrega de un saliente.
+      const cambio = deps.estadosEntrega.interpretar(payload);
+      if (!cambio) {
+        res.json({ ok: true, resultado: "ignorado" });
+        return;
+      }
+      try {
+        res.json({ ok: true, resultado: await deps.registrarEstadoEntrega(cambio) });
+      } catch (e) {
+        log.error("webhook_chatwoot_estado_error", { error: (e as Error).message });
+        res.status(500).json({ ok: false });
+      }
       return;
     }
 

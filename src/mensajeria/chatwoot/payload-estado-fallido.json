@@ -1,0 +1,128 @@
+{
+  "account": {
+    "id": 2,
+    "name": "Demo local"
+  },
+  "additional_attributes": {},
+  "content_attributes": {
+    "external_error": "63016 - Fuera de la ventana de 24 h"
+  },
+  "content_type": "text",
+  "content": "segundo",
+  "conversation": {
+    "additional_attributes": {},
+    "can_reply": true,
+    "channel": "Channel::TwilioSms",
+    "contact_inbox": {
+      "id": 5,
+      "contact_id": 5,
+      "inbox_id": 2,
+      "source_id": "whatsapp:+5215512345679",
+      "created_at": "2026-10-08T03:43:18.977Z",
+      "updated_at": "2026-10-08T03:43:18.977Z",
+      "hmac_verified": false,
+      "pubsub_token": "ed8BijKzMjL4XRdFE4r7yRQ5"
+    },
+    "id": 5,
+    "inbox_id": 2,
+    "messages": [
+      {
+        "id": 43,
+        "content": "segundo",
+        "account_id": 2,
+        "inbox_id": 2,
+        "conversation_id": 5,
+        "message_type": 1,
+        "created_at": 1791431134,
+        "updated_at": "2026-10-08T03:45:39.906Z",
+        "private": false,
+        "status": "failed",
+        "source_id": "SMn2saliente00000000000000000002",
+        "content_type": "text",
+        "content_attributes": {
+          "external_error": "63016 - Fuera de la ventana de 24 h"
+        },
+        "sender_type": "User",
+        "sender_id": 2,
+        "external_source_ids": {},
+        "additional_attributes": {},
+        "processed_message_content": "segundo",
+        "sentiment": {},
+        "conversation": {
+          "assignee_id": null,
+          "unread_count": 1,
+          "last_activity_at": 1791431134,
+          "contact_inbox": {
+            "source_id": "whatsapp:+5215512345679"
+          }
+        },
+        "sender": {
+          "id": 2,
+          "name": "Asesor demo",
+          "available_name": "Asesor demo",
+          "avatar_url": "",
+          "type": "user",
+          "availability_status": null,
+          "thumbnail": ""
+        }
+      }
+    ],
+    "labels": [],
+    "meta": {
+      "sender": {
+        "additional_attributes": {},
+        "custom_attributes": {},
+        "email": null,
+        "id": 5,
+        "identifier": null,
+        "name": "Contacto N2b",
+        "phone_number": "+5215512345679",
+        "thumbnail": "",
+        "blocked": false,
+        "type": "contact"
+      },
+      "assignee": {
+        "id": 2,
+        "name": "Captura N2",
+        "avatar_url": "",
+        "type": "agent_bot"
+      },
+      "assignee_type": "AgentBot",
+      "team": null,
+      "hmac_verified": false
+    },
+    "status": "pending",
+    "custom_attributes": {},
+    "snoozed_until": null,
+    "unread_count": 1,
+    "first_reply_created_at": "2026-10-08T03:45:06.242Z",
+    "priority": null,
+    "waiting_since": 0,
+    "agent_last_seen_at": 0,
+    "contact_last_seen_at": 0,
+    "last_activity_at": 1791431134,
+    "timestamp": 1791431134,
+    "created_at": 1791430998,
+    "updated_at": 1791431134.7303271,
+    "account": {
+      "id": 2,
+      "name": "Demo local"
+    }
+  },
+  "created_at": "2026-10-08T03:45:34.727Z",
+  "id": 43,
+  "inbox": {
+    "id": 2,
+    "name": "N2 Twilio falso"
+  },
+  "message_type": "outgoing",
+  "private": false,
+  "sender": {
+    "id": 2,
+    "name": "Asesor demo",
+    "email": "asesor@demo.test",
+    "type": "user"
+  },
+  "source_id": "SMn2saliente00000000000000000002",
+  "event": "message_updated"
+}

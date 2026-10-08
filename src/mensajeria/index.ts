@@ -11,6 +11,15 @@ export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
 export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
 export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";
 export { AtribucionDesdeChatwoot } from "./chatwoot/atribucion.ts";
+export { EstadosEntregaChatwoot } from "./chatwoot/estados.ts";
+export {
+  registrarEstadoEntrega,
+  siguienteEstatus,
+  type CambioDeEstado,
+  type EstadoDeEntrega,
+  type FuenteEstadosEntrega,
+  type ResultadoEstado,
+} from "./estados.ts";
 export {
   interpretarEventoChatwoot,
   verificarWebhookChatwoot,

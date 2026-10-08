@@ -11,7 +11,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N4 | HECHO | cf578e5 | Entrada |
 | N5 | HECHO | a22b33f | Bot |
 | N6 | HECHO | 57b3a90 | Handoff |
-| N7 | PENDIENTE | | Estados de entrega |
+| N7 | HECHO | (ver git log) | Estados de entrega |
 | N8 | PENDIENTE | | Reenganche |
 | N9 | PENDIENTE | | Reporte mínimo |
 | N10 | PENDIENTE | | Prueba de fuego (segunda vertical) |
@@ -173,3 +173,27 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 **Para Eduardo**
 - En Chatwoot el resumen es una nota privada. Si prefieres atributos personalizados del contacto además de la nota, es una adición en el transporte de Chatwoot.
+
+## N7. Estados de entrega (bloque 1.5)
+
+**Qué se hizo**
+- **Fuente detrás de una interfaz** (`FuenteEstadosEntrega`, `src/mensajeria/estados.ts`) según P3: hoy `EstadosEntregaChatwoot` interpreta el `message_updated` que Chatwoot entrega al Agent Bot (estado en `conversation.messages[].status`; error en `content_attributes.external_error`). Un callback directo de Twilio sería otro adaptador.
+- `registrarEstadoEntrega()` guarda por mensaje: `estatus` (`enviado`/`entregado`/`leido`/`fallido`), `entregado_en`, `leido_en`, `error`, `error_codigo` y `id_proveedor` (MessageSid; columna nueva, migración `20261008120000_mensaje_id_proveedor`), para que otra fuente pueda encontrar el mensaje por SID.
+- El webhook `/webhooks/chatwoot` (misma firma, invariante 9) ahora también registra cambios de estado; si el registro falla responde 500 para que Chatwoot reintente.
+- `MessagingProvider` ya no puede retroceder un mensaje: su marca `enviado` es condicional a seguir `enviando` (si un evento de entrega lo adelantó, no lo pisa).
+
+**Verificación**
+- `npm run validar` exit 0 (74 tests) · `npm run test:int` exit 0 (52 tests).
+- Los tests de la fuente usan los dos payloads **reales** capturados en N2 (`leído` y `fallido 63016`), copiados a `src/mensajeria/chatwoot/payload-estado-*.json`.
+- Cubierto: avance de estados, idempotencia, fuera de orden sin retroceso, `fallido` no pisa lo ya entregado, entrega real reemplaza un fallo (y limpia el error), `leído` sin `entregado` marca ambas horas, búsqueda por MessageSid, bandeja/mensaje desconocidos sin lanzar, aislamiento entre organizaciones.
+
+**Decisiones que tomé**
+- Un `leído` sin `entregado` previo fija también `entregado_en` con la misma hora (leer implica haber recibido). Alternativa descartada: dejarlo nulo (daría "leído" sin entrega, incoherente en reportes).
+- La hora del cambio es el `updated_at` del mensaje en el evento de Chatwoot; si no viene, la de recepción. Es aproximada (Chatwoot no expone la hora del callback de Twilio).
+- Un `fallido` posterior a `entregado`/`leído` se ignora (el contacto ya lo recibió). Un estado de entrega posterior a un `fallido` lo reemplaza.
+- Un evento que llega antes de que `MessagingProvider` guarde el `id_externo` del mensaje se pierde (`mensaje_desconocido`, log informativo). En la práctica el callback de Twilio tarda órdenes de magnitud más que ese guardado; no se agregó cola de reintento.
+- No creo tarea al asesor por un `fallido`: no estaba en el alcance. El fallo queda en el mensaje y en el log (`entrega_fallida`).
+
+**Para Eduardo**
+- Con Twilio real, confirmar que Chatwoot entrega los `message_updated` también para mensajes con plantilla y que el `external_error` trae el código (hoy visto solo con callbacks simulados).
+- Decidir si un `fallido` (p. ej. 63016) debe generar tarea para el asesor.

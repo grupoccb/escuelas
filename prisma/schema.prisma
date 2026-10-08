@@ -426,6 +426,9 @@ model mensaje {
   proveedor        String
   /// Id del mensaje en el proveedor. Para los entrantes es la llave de idempotencia (invariante 8).
   id_externo       String?
+  /// Id del proveedor de mensajería (el MessageSid de Twilio) cuando un evento de entrega lo
+  /// trae. Permite que otra fuente de estados (callback directo de Twilio) encuentre el mensaje.
+  id_proveedor     String?
   motivo_bloqueo   String?
   error            String?
   error_codigo     Int?

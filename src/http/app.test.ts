@@ -3,16 +3,24 @@ import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { crearApp, type AppDeps } from "./app.ts";
 import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
-import type { EventoEntrante } from "../mensajeria/index.ts";
+import { readFileSync } from "node:fs";
+import { EstadosEntregaChatwoot, type CambioDeEstado, type EventoEntrante } from "../mensajeria/index.ts";
 import { payloadMensajeEntrante } from "../mensajeria/chatwoot/fixtures.ts";
 
 const SECRETO = "secreto-de-prueba";
 const AHORA = new Date("2026-10-07T18:00:00Z");
 
-function deps(extra: Partial<AppDeps> = {}): AppDeps & { recibidos: EventoEntrante[] } {
+function deps(extra: Partial<AppDeps> = {}): AppDeps & { recibidos: EventoEntrante[]; estados: CambioDeEstado[] } {
   const recibidos: EventoEntrante[] = [];
+  const estados: CambioDeEstado[] = [];
   return {
     recibidos,
+    estados,
+    estadosEntrega: new EstadosEntregaChatwoot(),
+    registrarEstadoEntrega: async (c) => {
+      estados.push(c);
+      return "actualizado";
+    },
     pingDb: async () => {},
     secretoWebhookChatwoot: SECRETO,
     procesarEntrante: async (e) => {
@@ -118,5 +126,29 @@ test("si el procesamiento falla responde 500 para que Chatwoot reintente", async
   const d = deps({ procesarEntrante: async () => { throw new Error("base caída"); } });
   const cuerpo = JSON.stringify(payloadMensajeEntrante({ id: 83 }));
   const r = await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
+  assert.equal(r.status, 500);
+});
+
+const ESTADO_LEIDO = readFileSync(new URL("../mensajeria/chatwoot/payload-estado-leido.json", import.meta.url), "utf8");
+
+test("un cambio de estado de entrega firmado se registra (P3)", async () => {
+  const d = deps();
+  const r = await pedir(d, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO));
+  assert.deepEqual([r.status, r.body], [200, { ok: true, resultado: "actualizado" }]);
+  assert.equal(d.estados.length, 1);
+  assert.equal(d.estados[0]!.estado, "leido");
+  assert.equal(d.recibidos.length, 0, "no es un mensaje del contacto");
+});
+
+test("un cambio de estado sin firma válida se rechaza y no se registra (invariante 9)", async () => {
+  const d = deps();
+  const r = await pedir(d, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO, undefined, "otro-secreto"));
+  assert.equal(r.status, 401);
+  assert.equal(d.estados.length, 0);
+});
+
+test("si registrar el estado falla responde 500 para que Chatwoot reintente", async () => {
+  const d = deps({ registrarEstadoEntrega: async () => { throw new Error("base caída"); } });
+  const r = await pedir(d, "POST", "/webhooks/chatwoot", ESTADO_LEIDO, firmado(ESTADO_LEIDO));
   assert.equal(r.status, 500);
 });

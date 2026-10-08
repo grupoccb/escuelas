@@ -122,10 +122,12 @@ export class MessagingProvider {
       }
 
       // Ya salió. Si esto falla, el mensaje se queda en "enviando" y no se vuelve a mandar.
-      await db.mensaje.update({
-        where: { id: m.id },
+      // Condicional: si un evento de entrega ya lo adelantó, no se retrocede el estado.
+      const marcado = await db.mensaje.updateMany({
+        where: { id: m.id, estatus: "enviando" },
         data: { estatus: "enviado", id_externo: idExterno, enviado_en: ahora },
       });
+      if (marcado.count === 0) await db.mensaje.update({ where: { id: m.id }, data: { id_externo: idExterno, enviado_en: ahora } });
       if (tipo === "mensaje") {
         await db.conversacion.updateMany({ where: { id: conversacionId }, data: { ultimo_mensaje_saliente_en: ahora } });
       }
