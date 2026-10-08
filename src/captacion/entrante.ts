@@ -6,6 +6,7 @@
 // repite con el estado nuevo.
 
 import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { leerConfiguracion } from "../configuracion/index.ts";
 import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
@@ -367,7 +368,7 @@ async function obtenerConversacion(
 }
 
 /** Pasos en los que el bot consulta el catálogo: solo ahí se carga (cuesta unas cuantas consultas). */
-const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa"];
+const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal"];
 
 async function contextoCaptacion(
   tx: Consultas,
@@ -388,5 +389,6 @@ async function contextoCaptacion(
   const zona = (ordenadas.find((s) => s.id === o.sucursalDelLead) ?? ordenadas[0])?.zona_horaria;
   if (!zona) return { nombreVertical: vertical.nombre, sucursales };
   const catalogo = await cargarCatalogoCotizable(tx, { verticalId, fecha: fechaLocal(o.ahora, zona), fuente: o.fuente });
-  return { nombreVertical: vertical.nombre, sucursales, cotizador: { verticalId, catalogo } };
+  const { sucursalSinPrograma } = await leerConfiguracion(tx);
+  return { nombreVertical: vertical.nombre, sucursales, cotizador: { verticalId, catalogo, sucursalSinPrograma } };
 }

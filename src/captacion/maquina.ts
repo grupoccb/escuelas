@@ -11,7 +11,8 @@
 // la de siempre: tres preguntas y pase al asesor. La máquina no escribe nada: pide efectos (`efectos`) que ejecuta
 // quien la llama dentro de su transacción.
 
-import { cotizar } from "../cotizador/cotizar.ts";
+import type { PoliticaSucursalSinPrograma } from "../configuracion/index.ts";
+import { cotizar, sucursalesConPrograma } from "../cotizador/cotizar.ts";
 import type { CatalogoCotizable } from "../cotizador/tipos.ts";
 import type { PasoCaptacion } from "../datos/tipos.ts";
 
@@ -22,7 +23,7 @@ export const MAX_INTENTOS = 3;
  * 30 min se avisa a los asesores (`espera.ts`) y el reenganche de 25 h puede salir (`motor.ts`). Un solo lugar:
  * un paso nuevo que espera respuesta se agrega aquí.
  */
-export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa"];
+export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal"];
 
 export interface OpcionSucursal {
   id: string;
@@ -42,6 +43,8 @@ export interface OpcionPrograma {
 export interface ContextoCotizadorBot {
   verticalId: string;
   catalogo: CatalogoCotizable;
+  /** Qué hacer si la sucursal elegida no tiene programa para la edad (configuración de la organización; C7). */
+  sucursalSinPrograma: PoliticaSucursalSinPrograma;
 }
 
 export interface ContextoCaptacion {
@@ -62,7 +65,7 @@ export interface EstadoCaptacion {
   programaId?: string | null;
 }
 
-export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta";
+export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta" | "sin_programa";
 
 /** Lo que la máquina pide hacer en la base; lo ejecuta quien la llama, en su transacción. */
 export type EfectoCaptacion = { tipo: "programa_sugerido"; programaId: string };
@@ -103,6 +106,17 @@ export const textos = {
   preguntaPrograma: (nombre: string, edad: number, programas: OpcionPrograma[]) =>
     `Para ${nombre} (${edad} años) tenemos estas opciones. ¿Cuál te interesa? Responde con el número:\n${listarProgramas(programas)}`,
   reintentoPrograma: (programas: OpcionPrograma[]) => `Responde solo con el número del programa:\n${listarProgramas(programas)}`,
+  /** C7: la sucursal elegida no tiene programa para su edad y hay una sola alternativa. */
+  ofrecerOtraSucursal: (nombre: string, edad: number, sucursalElegida: string, otra: OpcionSucursal) =>
+    `En la sucursal ${sucursalElegida} por ahora no tenemos clases para ${nombre} (${edad} años), pero en la sucursal ${descripcionDeSucursal(otra)} sí. ¿Quieres que te cotice ahí? Responde sí o no.`,
+  /** C7: hay varias sucursales con programa. */
+  ofrecerOtrasSucursales: (nombre: string, edad: number, sucursalElegida: string, otras: OpcionSucursal[]) =>
+    `En la sucursal ${sucursalElegida} por ahora no tenemos clases para ${nombre} (${edad} años), pero sí en estas sucursales. Responde con el número de la que prefieras, o «no» para que te atienda un asesor:\n${listarConDireccion(otras)}`,
+  reintentoOtraSucursal: (otras: OpcionSucursal[]) =>
+    otras.length === 1 ? `Responde sí o no: ¿te cotizo en la sucursal ${otras[0]!.nombre}?` : `Responde con el número de la sucursal, o «no» para que te atienda un asesor:\n${listarConDireccion(otras)}`,
+  /** C7: sin programa para su edad y nada que ofrecer (o prefiere a una persona): pasa al asesor. */
+  sinPrograma: (nombre: string, edad: number, sucursal: string) =>
+    `Por ahora no encontré un programa para ${nombre} (${edad} años) en la sucursal ${sucursal}. Te comunico con un asesor para revisar opciones; te escribe por aquí en unos minutos.`,
   cierreConPrograma: (nombre: string, programa: string, sucursal: string | null) =>
     `¡Gracias! Ya tengo los datos de ${nombre} para ${programa}${sucursal ? ` en la sucursal ${sucursal}` : ""}. Un asesor te escribe por aquí en unos minutos con horarios y costos.`,
   /** Única respuesta a una baja: sale una sola vez y es lo último que el sistema le manda. */
@@ -129,7 +143,9 @@ export const textos = {
         ? "Datos capturados por el bot:"
         : motivo === "sin_respuesta"
           ? "El contacto dejó de contestar a mitad de la captura. Nadie la ha tomado: el bot sigue atendiendo si vuelve. Asígnatela o escríbele para tomarla. Datos parciales:"
-          : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
+          : motivo === "sin_programa"
+            ? "La sucursal elegida no tiene programa para la edad y el contacto no pasó a otra sucursal (no hay otra con programa, no quiso, o la política de la organización es avisar al asesor). Datos capturados:"
+            : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
       `• Nombre: ${datos.nombre ?? "—"}`,
       `• Edad: ${datos.edad ?? "—"}`,
       `• Sucursal: ${datos.sucursal ?? "—"}`,
@@ -142,6 +158,14 @@ export const textos = {
 
 function listar(sucursales: OpcionSucursal[]): string {
   return sucursales.map((s, i) => `${i + 1}. ${s.nombre}`).join("\n");
+}
+
+function descripcionDeSucursal(s: OpcionSucursal): string {
+  return s.direccion ? `${s.nombre} (${s.direccion})` : s.nombre;
+}
+
+function listarConDireccion(sucursales: OpcionSucursal[]): string {
+  return sucursales.map((s, i) => `${i + 1}. ${descripcionDeSucursal(s)}`).join("\n");
 }
 
 function listarProgramas(programas: OpcionPrograma[]): string {
@@ -188,6 +212,15 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       return conSucursal({ ...estado, sucursalId: sucursal.id, intentosFallidos: 0 }, ctx);
     }
 
+    case "otra_sucursal": {
+      const otras = otrasSucursalesConPrograma(estado, ctx);
+      if (otras.length === 0) return sinPrograma(estado, ctx); // el catálogo cambió: ya no hay nada que ofrecer
+      const respuesta = interpretarOtraSucursal(entrada, otras);
+      if (respuesta === "no") return sinPrograma({ ...estado, intentosFallidos: 0 }, ctx);
+      if (respuesta === null) return fallo(estado, textos.reintentoOtraSucursal(otras));
+      return conSucursal({ ...estado, sucursalId: respuesta.id, intentosFallidos: 0 }, ctx, true);
+    }
+
     case "programa": {
       const opciones = programasDeLaEdad(estado, ctx);
       const elegido = elegirOpcion(entrada, opciones);
@@ -221,16 +254,49 @@ function programasDeLaEdad(estado: EstadoCaptacion, ctx: ContextoCaptacion): Opc
   return c.programas.map((p) => ({ id: p.programaId, nombre: p.nombre, descripcionPublica: p.descripcionPublica }));
 }
 
-/** Ya se sabe la sucursal: sin cotizador se cierra como siempre; con él, se busca programa. */
-function conSucursal(estado: EstadoCaptacion, ctx: ContextoCaptacion): ResultadoCaptacion {
+/**
+ * Ya se sabe la sucursal: sin cotizador se cierra como siempre; con él, se busca programa. Si no hay ninguno
+ * (C7) se aplica la política de la organización. `yaOfrecida` = la sucursal viene de aceptar una oferta: si
+ * aun así no hubiera programa, no se ofrece otra vez (nada de ciclos), se pasa al asesor.
+ */
+function conSucursal(estado: EstadoCaptacion, ctx: ContextoCaptacion, yaOfrecida = false): ResultadoCaptacion {
   if (!ctx.cotizador || estado.sucursalId === null || estado.edad === null) return completar(estado, ctx);
   const programas = programasDeLaEdad(estado, ctx);
-  if (programas.length === 0) return completar(estado, ctx); // C7 decide qué hacer cuando no hay programa
+  if (programas.length === 0) {
+    // Un catálogo vacío para la vertical no es «sin programa para su edad»: es que aún no se cargó. Se cierra como siempre.
+    if (ctx.cotizador.catalogo.programas.length === 0) return completar(estado, ctx);
+    const otras = yaOfrecida || ctx.cotizador.sucursalSinPrograma === "avisar_asesor" ? [] : otrasSucursalesConPrograma(estado, ctx);
+    if (otras.length === 0) return sinPrograma(estado, ctx);
+    const nombre = estado.nombre ?? "";
+    const elegida = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? "";
+    return {
+      estado: { ...estado, paso: "otra_sucursal", intentosFallidos: 0 },
+      respuestas: [otras.length === 1 ? textos.ofrecerOtraSucursal(nombre, estado.edad, elegida, otras[0]!) : textos.ofrecerOtrasSucursales(nombre, estado.edad, elegida, otras)],
+      pasarAAsesor: null,
+    };
+  }
   if (programas.length === 1) return conPrograma(estado, programas[0]!.id, ctx);
   return {
     estado: { ...estado, paso: "programa", intentosFallidos: 0 },
     respuestas: [textos.preguntaPrograma(estado.nombre ?? "", estado.edad, programas)],
     pasarAAsesor: null,
+  };
+}
+
+/** Las otras sucursales (no la elegida) que sí tienen programa para su edad, en el orden en que se muestran. */
+function otrasSucursalesConPrograma(estado: EstadoCaptacion, ctx: ContextoCaptacion): OpcionSucursal[] {
+  if (!ctx.cotizador || estado.edad === null) return [];
+  const con = new Set(sucursalesConPrograma(ctx.cotizador.catalogo, { verticalId: ctx.cotizador.verticalId, edadDeclarada: estado.edad }));
+  return ctx.sucursales.filter((s) => s.id !== estado.sucursalId && con.has(s.id));
+}
+
+/** Sin programa y sin otra sucursal que ofrecer (o el contacto prefiere a una persona): pasa al asesor con nota. */
+function sinPrograma(estado: EstadoCaptacion, ctx: ContextoCaptacion): ResultadoCaptacion {
+  const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? "";
+  return {
+    estado: { ...estado, paso: "completo" },
+    respuestas: [textos.sinPrograma(estado.nombre ?? "", estado.edad ?? 0, sucursal)],
+    pasarAAsesor: "sin_programa",
   };
 }
 
@@ -300,6 +366,25 @@ export function extraerEdad(entrada: string): number | null {
   if (candidatos.size !== 1) return null;
   const [edad] = candidatos;
   return edad !== undefined && edad >= 1 && edad <= 99 ? edad : null;
+}
+
+const AFIRMATIVAS = new Set(["si", "sip", "claro", "ok", "okay", "dale", "va", "vale", "bueno", "acepto", "quiero", "por favor", "de acuerdo", "esta bien", "si por favor", "si claro", "si quiero", "si me interesa", "me interesa"]);
+const NEGATIVAS = new Set(["no", "nel", "nop", "no gracias", "no quiero", "asesor", "un asesor", "con un asesor", "una persona", "persona", "prefiero un asesor"]);
+
+/** «sí» / «no» (completos, sin importar acentos, mayúsculas ni signos). */
+export function esAfirmativa(entrada: string): boolean {
+  return AFIRMATIVAS.has(sinSignos(entrada));
+}
+export function esNegativa(entrada: string): boolean {
+  return NEGATIVAS.has(sinSignos(entrada));
+}
+const sinSignos = (entrada: string): string => normalizar(entrada).replace(/[¡!¿?.,;:"'*_-]+/g, " ").replace(/\s+/g, " ").trim();
+
+/** Respuesta a la oferta de otra sucursal: la elegida, «no» (prefiere a un asesor) o null (no se entendió). */
+function interpretarOtraSucursal(entrada: string, otras: OpcionSucursal[]): OpcionSucursal | "no" | null {
+  if (esNegativa(entrada)) return "no";
+  if (otras.length === 1 && esAfirmativa(entrada)) return otras[0]!;
+  return elegirOpcion(entrada, otras);
 }
 
 /** Acepta el número de la lista o el nombre de la sucursal. */

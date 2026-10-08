@@ -27,7 +27,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C4 | HECHO | c4bdc80 | Catálogo completo de las tres verticales del insumo (14 programas, 18 grupos, 31 horarios) con salones, instructores, precios y promociones de ejemplo; las tres verificaciones como tests |
 | C5 | HECHO | ver sección | Cotizador determinista: `src/cotizador/` (puro + capa de consulta), `programa.fecha_corte_edad`, `edadCumplida`, horarios en español, `GET /api/cotizador` |
 | C6 | HECHO | ver sección | Varios programas para una edad: el bot (máquina pura) pregunta cuál, lo guarda en `prospecto.programa_sugerido_id`; `vertical.cotizador_whatsapp_activo` |
-| C7 | PENDIENTE | | Otra sucursal |
+| C7 | HECHO | ver sección | Otra sucursal: política `configuracion_organizacion.sucursal_sin_programa` (`ofrecer_otra` por defecto | `avisar_asesor`), paso `otra_sucursal` |
 | C8 | PENDIENTE | | Cotización guardada y cotizador por WhatsApp |
 | C9 | PENDIENTE | | Lista de espera |
 | D1 | PENDIENTE | | Clase muestra: agendar, reprogramar, cancelar |
@@ -871,3 +871,29 @@ Tests nuevos: `maquina-cotizador.test.ts` (9: un programa, varios con la lista e
 
 **Para Eduardo**
 - Con el cotizador encendido, **un contacto cuya edad cae en un programa recibe un cierre distinto** («… para <programa> en la sucursal …»). Es el comportamiento pedido; apagar el interruptor de la vertical lo deja como antes.
+
+## C7. Otra sucursal (decisión 8)
+
+**Qué se hizo**
+- **Configuración** (patrón de `src/configuracion/index.ts`): columna `configuracion_organizacion.sucursal_sin_programa` (enum `politica_sucursal_sin_programa`: `ofrecer_otra` por defecto | `avisar_asesor`), campo `sucursalSinPrograma` en `ConfiguracionOrganizacion` y en `CONFIGURACION_POR_DEFECTO` (el test que compara los defaults del código con los de la columna lo cubre). Migración `20261012020000_sucursal_sin_programa` (enum nuevo, valor `otra_sucursal` en `paso_captacion` y una columna con default: sin pérdida de datos).
+- **Bot (máquina pura):** con el cotizador encendido y **sin programa para la edad en la sucursal elegida**: con `ofrecer_otra` y al menos una otra sucursal que sí lo tenga, paso `otra_sucursal`: «En la sucursal X por ahora no tenemos clases para N (E años), pero en la sucursal Y (dirección) sí. ¿Quieres que te cotice ahí? Responde sí o no.» (con varias, lista numerada con dirección). **Sí / el número / el nombre** → se recotiza allí (cambia `lead.sucursal_interes_id`, y sigue C6: un programa se anota, varios se preguntan). **No / «asesor»**, o ninguna otra sucursal con programa, o política `avisar_asesor` → pasa al asesor con motivo nuevo `sin_programa` y nota («La sucursal elegida no tiene programa para la edad y el contacto no pasó a otra sucursal…», con los datos capturados). Respuestas que no se entienden reintentan y a la tercera `sin_entender`.
+- `PASOS_A_MEDIAS` incluye `otra_sucursal` (aviso de 30 min y reenganche). `sí`/`no` se reconocen completos, sin importar acentos, mayúsculas ni signos («¡Sí, por favor!»).
+- **Un catálogo vacío para la vertical NO es «sin programa para su edad»:** significa que el catálogo aún no se cargó; la captura cierra como siempre (así el cotizador encendido no rompe una vertical sin catálogo).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 371 · pass 371 · fail 0
+$ npm run test:int    → exit 0 · tests 422 · pass 422 · fail 0
+```
+Tests nuevos: 12 en `maquina-cotizador.test.ts` (oferta con una y con varias sucursales y con dirección, aceptar por sí/número/nombre/«¡Sí, por favor!», rechazar, tercer fallo, `avisar_asesor`, sin otra sucursal, catálogo vacío, recotizar con varios programas, la nota) y 8 en `cotizador-bot.itest.ts` (aceptar: cambia la sucursal del lead y anota el programa; rechazar; política `avisar_asesor`; la política es por organización; sin alternativa; cotizador apagado; reintentos; aviso de 30 min). Cambié por diseño las aserciones de `configuracion.itest.ts` que comparaban el objeto de configuración completo (ahora trae `sucursalSinPrograma: "ofrecer_otra"`); no se debilitó ninguna.
+Mutaciones atrapadas: aceptar un «sí» con varias opciones, que «no» no pase al asesor, quitar la guarda de catálogo vacío, ignorar la política `avisar_asesor`. **Equivalentes** (sobreviven): excluir la sucursal elegida de «las otras» (nunca tiene programa, así que no aparece) y la guarda `yaOfrecida` (con el mismo catálogo, una sucursal ofrecida siempre tiene programa; es defensa por si un cambio posterior rompe esa simetría).
+
+**Decisiones que tomé**
+- *La política vive en la configuración de la organización, no en la vertical:* así lo pide el plan («configurable») y el patrón de A6; alternativa descartada: columna en `vertical` (más flexible pero no se pidió y duplica el mecanismo).
+- *Una frase libre («mejor un asesor, gracias») no cuenta como «no»:* solo las respuestas completas conocidas; lo demás reintenta y a la tercera pasa al asesor, como el resto del bot (determinista, sin interpretar texto libre).
+- *Con la política `avisar_asesor` y también cuando no hay alternativa el contacto recibe un mensaje claro* («Por ahora no encontré un programa para N… Te comunico con un asesor») en vez del cierre de siempre, que decía «te escribe con horarios y costos».
+
+**Para Eduardo**
+- **[SUPUESTO]** los textos de las ofertas y de «sin programa» (genéricos, en `src/captacion/maquina.ts`): revisar el tono.
+- No hay API ni pantalla para cambiar la política todavía (J8, administración de mensajería). Hoy se cambia con SQL: `UPDATE configuracion_organizacion SET sucursal_sin_programa = 'avisar_asesor'`.
+- Las direcciones de las sucursales de la demo siguen vacías: la oferta sale sin dirección hasta que la escuela las dé.

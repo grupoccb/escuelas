@@ -5,9 +5,10 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { escenarioBot } from "../testutil/bot.ts";
+import { escenarioBot, type OpcionesEscenarioBot } from "../testutil/bot.ts";
 import { barrerTiemposDeEspera } from "./espera.ts";
 import { MessagingProvider } from "../mensajeria/index.ts";
+import { fijarConfiguracion } from "../testutil/semilla.ts";
 import { textos } from "./maquina.ts";
 
 let prisma: PrismaPruebas;
@@ -22,7 +23,7 @@ const H = (dia: number, ini = 960, fin = 1020): [number, number, number] => [dia
 const PRECIO = { inscripcion: "500.00", mensualidad: "800.00" };
 
 /** Norte: un programa para niños y dos alternativas para adultos; Sur: un programa para todas las edades. */
-function catalogoBase(): Parameters<typeof escenarioBot>[1] {
+function catalogoBase(): OpcionesEscenarioBot {
   return {
     programas: [
       { sucursal: 0, nombre: "Programa niños", edadMin: 3, edadMax: 12, grupos: [{ nombre: "Niños tarde", horarios: [H(1)] }], precio: PRECIO },
@@ -120,4 +121,107 @@ test("C6: el programa sugerido de un prospecto solo puede ser de su organizació
     prisma.prospecto.updateMany({ where: { lead_id: conv.lead_id }, data: { programa_sugerido_id: otra.programas[0]!.id } }),
     /foreign key|clave foránea|prospecto_programa_sugerido/i,
   );
+});
+
+// ── C7: la sucursal elegida no tiene programa para la edad (decisión 8) ──────────────────────────────
+
+// En el catálogo base, Norte no tiene programa para los 13 y 14 años; Sur sí (3 a 99).
+const EDAD_SIN_PROGRAMA_EN_NORTE = "14";
+
+test("C7: por defecto ofrece la otra sucursal; si el contacto acepta, recotiza allí, cambia la sucursal del lead y anota el programa", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1");
+  assert.equal(c.mensajes().at(-1), "En la sucursal Norte por ahora no tenemos clases para Marta (14 años), pero en la sucursal Sur sí. ¿Quieres que te cotice ahí? Responde sí o no.");
+  let conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "otra_sucursal");
+  assert.equal(conv.estado, "bot");
+  assert.equal(conv.lead.sucursal_interes_id, e.org.sucursales[0]!.id, "mientras no acepte, sigue en la que eligió");
+
+  await c.escribe("sí");
+  conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "completo");
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.lead.sucursal_interes_id, e.org.sucursales[1]!.id, "ahora es Sur");
+  const prospecto = await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
+  assert.equal(prospecto.programa_sugerido_id, (await e.db.programa.findFirstOrThrow({ where: { nombre: "Programa sur" } })).id);
+  assert.equal(c.mensajes().at(-1), textos.cierreConPrograma("Marta", "Programa sur", "Sur"));
+  assert.match(c.notas().at(-1)!, /• Sucursal: Sur\n• Programa: Programa sur/);
+});
+
+test("C7: si no acepta, pasa al asesor con nota (motivo sin_programa) y no cambia nada de lo capturado", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1", "no");
+  const conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.motivo_pase_asesor, "sin_programa");
+  assert.equal(conv.lead.sucursal_interes_id, e.org.sucursales[0]!.id);
+  assert.equal(c.mensajes().at(-1), textos.sinPrograma("Marta", 14, "Norte"));
+  assert.match(c.notas().at(-1)!, /no tiene programa para la edad/);
+  assert.match(c.notas().at(-1)!, /• Edad: 14/);
+  assert.equal((await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).programa_sugerido_id, null);
+});
+
+test("C7: con la política avisar_asesor pasa directo, sin ofrecer otra sucursal", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  await fijarConfiguracion(prisma, e.org.organizacionId, { sucursal_sin_programa: "avisar_asesor" });
+  const c = e.contacto();
+  await c.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1");
+  const conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.motivo_pase_asesor, "sin_programa");
+  assert.ok(!c.mensajes().some((m) => m.includes("¿Quieres que te cotice ahí?")));
+});
+
+test("C7: la política es por organización: cambiarla en una no afecta a otra", async () => {
+  const a = await escenarioBot(prisma, catalogoBase());
+  const b = await escenarioBot(prisma, catalogoBase());
+  await fijarConfiguracion(prisma, a.org.organizacionId, { sucursal_sin_programa: "avisar_asesor" });
+  const ca = a.contacto();
+  const cb = b.contacto();
+  await ca.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1");
+  await cb.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1");
+  assert.equal((await ca.conversacion()).estado, "en_atencion_humana");
+  assert.equal((await cb.conversacion()).paso_captacion, "otra_sucursal");
+});
+
+test("C7: si ninguna otra sucursal tiene programa para la edad, pasa al asesor aunque la política sea ofrecer_otra", async () => {
+  const e = await escenarioBot(prisma, { programas: catalogoBase().programas!.filter((p) => p.sucursal === 0) });
+  const c = e.contacto();
+  await c.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1");
+  const conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.motivo_pase_asesor, "sin_programa");
+});
+
+test("C7: con el cotizador apagado la misma edad cierra como siempre (sin consultar el catálogo)", async () => {
+  const e = await escenarioBot(prisma, { ...catalogoBase(), cotizador: false });
+  const c = e.contacto();
+  await c.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1");
+  const conv = await c.conversacion();
+  assert.equal(conv.motivo_pase_asesor, "captura_completa");
+  assert.equal(c.mensajes().at(-1), textos.cierre("Marta", "Norte"));
+});
+
+test("C7: respuestas que no se entienden reintentan y a la tercera pasa al asesor", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1", "tal vez", "mmm");
+  assert.equal(c.mensajes().at(-1), "Responde sí o no: ¿te cotizo en la sucursal Sur?");
+  await c.escribe("quién sabe");
+  const conv = await c.conversacion();
+  assert.equal(conv.motivo_pase_asesor, "sin_entender");
+  assert.equal(conv.estado, "en_atencion_humana");
+});
+
+test("C7: se interrumpe en la oferta de otra sucursal → a los 30 min se avisa a los asesores", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  const t0 = new Date("2026-10-08T16:00:00Z");
+  for (const t of ["Hola", "Marta", EDAD_SIN_PROGRAMA_EN_NORTE, "1"]) await c.escribe(t, t0);
+  const despues = new Date(t0.getTime() + 31 * 60 * 1000);
+  const avisadas = await barrerTiemposDeEspera({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => despues }), organizacionId: e.org.organizacionId, reloj: () => despues });
+  assert.equal(avisadas, 1);
+  assert.equal((await c.conversacion()).estado, "bot");
 });

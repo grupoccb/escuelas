@@ -10,12 +10,18 @@
 
 import type { Consultas } from "../datos/alcance.ts";
 
+/** Qué hace el bot cuando la sucursal elegida no tiene programa para la edad (C7, decisión 8 del plan). */
+export const POLITICAS_SUCURSAL_SIN_PROGRAMA = ["ofrecer_otra", "avisar_asesor"] as const;
+export type PoliticaSucursalSinPrograma = (typeof POLITICAS_SUCURSAL_SIN_PROGRAMA)[number];
+
 export interface ConfiguracionOrganizacion {
   /** Mensajes automáticos por teléfono en una ventana móvil de 24 h. */
   maxAutomaticosPorDia: number;
   /** Mensajes de marketing por teléfono dentro de la ventana de `ventanaMarketingDias`. */
   maxMarketingPorVentana: number;
   ventanaMarketingDias: number;
+  /** `ofrecer_otra` (por defecto): el bot ofrece la(s) otra(s) sucursal(es) con programa; `avisar_asesor`: pasa directo. */
+  sucursalSinPrograma: PoliticaSucursalSinPrograma;
 }
 
 /** Lo que vale cuando la organización no tiene fila. Mismos valores que los defaults de la columna. */
@@ -23,12 +29,14 @@ export const CONFIGURACION_POR_DEFECTO: Readonly<ConfiguracionOrganizacion> = Ob
   maxAutomaticosPorDia: 3,
   maxMarketingPorVentana: 1,
   ventanaMarketingDias: 7,
+  sucursalSinPrograma: "ofrecer_otra",
 });
 
 interface FilaConfiguracion {
   max_automaticos_por_dia: number;
   max_marketing_por_ventana: number;
   ventana_marketing_dias: number;
+  sucursal_sin_programa: PoliticaSucursalSinPrograma;
 }
 
 function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
@@ -36,13 +44,14 @@ function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
     maxAutomaticosPorDia: f.max_automaticos_por_dia,
     maxMarketingPorVentana: f.max_marketing_por_ventana,
     ventanaMarketingDias: f.ventana_marketing_dias,
+    sucursalSinPrograma: f.sucursal_sin_programa,
   };
 }
 
 /** La configuración de la organización del scope; los valores por defecto si no hay fila. */
 export async function leerConfiguracion(db: Consultas): Promise<ConfiguracionOrganizacion> {
   const fila = await db.configuracion_organizacion.findFirst({
-    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true },
+    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true },
   });
   return fila ? desdeFila(fila) : { ...CONFIGURACION_POR_DEFECTO };
 }

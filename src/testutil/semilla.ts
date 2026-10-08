@@ -67,7 +67,7 @@ export async function sembrarOrganizacion(prisma: PrismaPruebas, nombre = "Organ
 export async function fijarConfiguracion(
   prisma: PrismaPruebas,
   organizacionId: string,
-  valores: { max_automaticos_por_dia?: number; max_marketing_por_ventana?: number; ventana_marketing_dias?: number },
+  valores: { max_automaticos_por_dia?: number; max_marketing_por_ventana?: number; ventana_marketing_dias?: number; sucursal_sin_programa?: "ofrecer_otra" | "avisar_asesor" },
 ): Promise<void> {
   const viva = await prisma.configuracion_organizacion.findFirst({ where: { organizacion_id: organizacionId, eliminado_en: null } });
   if (viva) await prisma.configuracion_organizacion.update({ where: { id: viva.id }, data: valores });
