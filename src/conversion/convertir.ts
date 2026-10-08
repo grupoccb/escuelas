@@ -122,7 +122,7 @@ async function registroDe(tx: Consultas | BaseDatos, prospectoId: string) {
  * Junta lo ya capturado y calcula lo que falta. SOLO LEE. La usan la vista previa y la conversión (esta, dentro de su candado), así que
  * lo que la vista previa dice que falta es exactamente lo que la conversión exigirá.
  */
-export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada: EntradaDeConversion, ahora: Date): Promise<Plan | null> {
+export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada: EntradaDeConversion, ahora: Date, alcance: AlcanceDeConversion = {}): Promise<Plan | null> {
   const lead = await tx.lead.findFirst({
     where: { id: leadId },
     select: { id: true, nombre_contacto: true, telefono: true, tutor_id: true, sucursal_interes_id: true, prospectos: { where: { eliminado_en: null }, select: { id: true, nombre: true, alumno_id: true }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] } },
@@ -186,9 +186,11 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
     }
     let sucursalDeGrupo: string | null = null;
     if (grupoId) {
-      const g = await tx.grupo.findFirst({ where: { id: grupoId, activo: true }, select: { id: true, programa: { select: { id: true, vertical_id: true, sucursal_id: true } } } });
+      // EF-01: el grupo (el que se manda o el que se deduce de la cotización o de la recomendación del maestro) tiene que estar en el alcance de
+      // quien convierte, igual que en `POST /api/inscripciones`: la conversión no es un camino lateral para repartir el cupo de otra sucursal.
+      const g = await tx.grupo.findFirst({ where: { id: grupoId, activo: true, ...(alcance.filtroDeGrupos ?? {}) }, select: { id: true, programa: { select: { id: true, vertical_id: true, sucursal_id: true } } } });
       if (!g) {
-        faltantes.push(falta(ruta(p.id, "grupo_id"), "El grupo no existe o ya no está activo"));
+        faltantes.push(falta(ruta(p.id, "grupo_id"), "El grupo no existe, ya no está activo o no es de tu alcance"));
         grupoId = null;
       } else {
         sucursalDeGrupo = g.programa.sucursal_id;
@@ -224,6 +226,11 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
   return { leadId: lead.id, leadTelefono: telefonoLead, leadTutorId: lead.tutor_id, sucursalDelLead: lead.sucursal_interes_id, prospectos, faltantes };
 }
 
+/** Lo que limita a quien convierte. `filtroDeGrupos` es una condición de Prisma sobre `grupo` (su alcance de sucursales); sin ella, todos. */
+export interface AlcanceDeConversion {
+  filtroDeGrupos?: Record<string, unknown> | undefined;
+}
+
 export interface VistaPrevia {
   leadId: string;
   /** No falta nada: se puede convertir sin capturar más. */
@@ -236,8 +243,8 @@ export interface VistaPrevia {
 }
 
 /** Lo que falta por capturar para convertir al lead (nada de lo ya capturado). null si el lead no existe. */
-export async function vistaPreviaDeConversion(db: BaseDatos, leadId: string, entrada: EntradaDeConversion, ahora: Date): Promise<VistaPrevia | null> {
-  const plan = await planear(db, leadId, entrada, ahora);
+export async function vistaPreviaDeConversion(db: BaseDatos, leadId: string, entrada: EntradaDeConversion, ahora: Date, alcance: AlcanceDeConversion = {}): Promise<VistaPrevia | null> {
+  const plan = await planear(db, leadId, entrada, ahora, alcance);
   if (!plan) return null;
   const hayTrabajo = plan.prospectos.some((p) => !p.alumnoId || (p.grupoId !== null && p.inscripcionActivaId === null));
   return { leadId, listo: plan.faltantes.length === 0, yaConvertido: !hayTrabajo && plan.faltantes.length === 0, faltantes: plan.faltantes, prospectos: plan.prospectos.map((p) => ({ prospectoId: p.prospectoId, yaConvertido: p.alumnoId !== null })) };
@@ -265,7 +272,7 @@ class ConversionAbortada extends Error {
   }
 }
 
-export interface OpcionesDeConversion {
+export interface OpcionesDeConversion extends AlcanceDeConversion {
   cifrador?: Cifrador;
 }
 
@@ -277,7 +284,7 @@ export async function convertirLead(db: BaseDatos, ctx: Pick<ContextoApi, "usuar
   let cierres: InscripcionCreada["listaDeEspera"][] = [];
   try {
     const resultado = await transaccionConBloqueo(db, ctx.organizacionId, claveDeCandado(leadId), async (tx): Promise<ResultadoDeConversion> => {
-      const plan = await planear(tx, leadId, entrada, ahora);
+      const plan = await planear(tx, leadId, entrada, ahora, { filtroDeGrupos: opciones.filtroDeGrupos });
       if (!plan) throw new ConversionAbortada({ motivo: "lead_inexistente" });
       if (plan.faltantes.length > 0) throw new ConversionAbortada({ motivo: "faltan_datos", faltantes: plan.faltantes });
 

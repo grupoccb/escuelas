@@ -109,6 +109,12 @@ export function rutasDeConversion(deps: DepsApi): Router {
   const r = Router();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
+  /** Los grupos que quien convierte puede ver: los de sus sucursales (EF-01). `undefined` = todos (administrador). */
+  async function filtroDeGrupos(ctx: ContextoApi): Promise<Record<string, unknown> | undefined> {
+    const f = filtroDeSucursal(await ctx.alcanceCatalogo());
+    return f ? { programa: { sucursal_id: f } } : undefined;
+  }
+
   /**
    * El lead, si lo ve quien pregunta. Para el maestro: solo con el modo «maestro en sitio» (403 si no) y devuelve los prospectos que son suyos
    * (con clase muestra asistida en un grupo suyo; ninguno = 404). Para los demás, `null` (sin restricción de prospectos).
@@ -129,7 +135,7 @@ export function rutasDeConversion(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const propios = await acceso(ctx, id);
-    const v = await vistaPreviaDeConversion(ctx.db, id, propios ? { prospectos: propios.map((prospectoId) => ({ prospectoId })) } : {}, ctx.ahora());
+    const v = await vistaPreviaDeConversion(ctx.db, id, propios ? { prospectos: propios.map((prospectoId) => ({ prospectoId })) } : {}, ctx.ahora(), { filtroDeGrupos: await filtroDeGrupos(ctx) });
     if (!v) throw noEncontrado();
     res.json({ lead_id: v.leadId, listo: v.listo, ya_convertido: v.yaConvertido, faltantes: v.faltantes, prospectos: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, ya_convertido: p.yaConvertido })) });
   });
@@ -141,19 +147,23 @@ export function rutasDeConversion(deps: DepsApi): Router {
     const propios = await acceso(ctx, id);
     const entrada = aEntrada(cuerpo, ctx.usuario.rol === "administrador");
     if (propios) {
-      // El maestro: solo sus alumnos y solo grupos de las sucursales donde da clases.
+      // El maestro: solo sus alumnos.
       if (entrada.prospectos) {
         if (entrada.prospectos.some((p) => !propios.includes(p.prospectoId))) throw noEncontrado();
       } else {
         entrada.prospectos = propios.map((prospectoId) => ({ prospectoId }));
       }
-      const sucursales = await ctx.alcanceCatalogo();
-      for (const p of entrada.prospectos) {
+    }
+    // EF-01: el grupo que se manda tiene que ser de las sucursales de quien convierte (el asesor y el maestro; el administrador, cualquiera). El que se
+    // deduce de la cotización o de la recomendación del maestro lo comprueba la propia conversión con el mismo filtro.
+    const filtro = await filtroDeGrupos(ctx);
+    if (filtro) {
+      for (const p of entrada.prospectos ?? []) {
         const g = p.inscripcion?.grupoId;
-        if (g && !(await ctx.db.grupo.findFirst({ where: { id: g, ...(filtroDeSucursal(sucursales) ? { programa: { sucursal_id: filtroDeSucursal(sucursales)! } } : {}) }, select: { id: true } }))) throw noEncontrado("No se encontró el grupo");
+        if (g && !(await ctx.db.grupo.findFirst({ where: { id: g, ...filtro }, select: { id: true } }))) throw noEncontrado("No se encontró el grupo");
       }
     }
-    const h = await convertirLead(ctx.db, ctx, id, entrada, { ...(deps.sensibles.cifrador ? { cifrador: deps.sensibles.cifrador } : {}) });
+    const h = await convertirLead(ctx.db, ctx, id, entrada, { filtroDeGrupos: filtro, ...(deps.sensibles.cifrador ? { cifrador: deps.sensibles.cifrador } : {}) });
     if (!h.ok) {
       if (h.motivo === "lead_inexistente") throw noEncontrado();
       if (h.motivo === "faltan_datos") throw conflicto("Faltan datos para convertir al lead", [{ campo: "motivo", mensaje: "faltan_datos" }, ...h.faltantes]);

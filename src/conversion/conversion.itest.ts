@@ -385,6 +385,38 @@ test("permisos y alcance: recepción y maestro no convierten, el asesor del sur 
   assert.equal((await asesorNorte.post(`${url}/convertir`, { prospectos: [{ prospecto_id: f.prospectoId, desconocido: 1 }] })).estado, 400);
 });
 
+test("EF-01: la conversión no reparte el cupo de otra sucursal — el grupo, mandado o deducido de la cotización, tiene que ser del alcance de quien convierte (el administrador sí puede)", async () => {
+  const gNorte = await grupoNuevo({ sucursalId: norte, cupo: 3 });
+  const gSur = await grupoNuevo({ sucursalId: sur, cupo: 3 });
+  const f = await leadDelBot({ nombre: "Ajeno", sucursalId: sur });
+  await aceptaReglamento(f.leadId, f.prospectoId);
+  const cuerpo = (grupoId?: string) => ({ tutor: { parentesco: "madre" }, prospectos: [{ prospecto_id: f.prospectoId, alumno: { apellidos: "Soto", fecha_nacimiento: "2019-01-01" }, ...(grupoId ? { inscripcion: { grupo_id: grupoId } } : {}) }] });
+  const enNorte = () => prisma.inscripcion.count({ where: { grupo_id: gNorte.grupoId } });
+  const sinAlumno = async () => assert.equal((await prisma.prospecto.findFirstOrThrow({ where: { id: f.prospectoId } })).alumno_id, null, "no quedó nada a medias");
+  // Mandado por el asesor del SUR: el grupo del norte no existe para él (como en POST /api/inscripciones).
+  assert.equal((await asesorSur.post(`/api/leads/${f.leadId}/convertir`, cuerpo(gNorte.grupoId))).estado, 404);
+  assert.equal(await enNorte(), 0);
+  await sinAlumno();
+  // Deducido: la familia eligió ese horario al cotizar. La vista previa y la conversión lo tratan como un dato que falta, no como una inscripción en el norte.
+  await prisma.cotizacion.create({ data: { organizacion_id: org.organizacionId, lead_id: f.leadId, prospecto_id: f.prospectoId, programa_id: gNorte.programaId, sucursal_id: norte, origen: "asesor", creado_por_usuario_id: adminId, grupo_elegido_id: gNorte.grupoId, fecha: new Date("2026-11-09"), vigente_hasta: new Date("2026-11-16"), snapshot: {} } });
+  const previa = await asesorSur.get<Previa>(`/api/leads/${f.leadId}/conversion`);
+  assert.equal(previa.cuerpo.listo, false);
+  assert.ok(previa.cuerpo.faltantes.some((x) => x.campo.endsWith("grupo_id") && x.mensaje.includes("alcance")), JSON.stringify(previa.cuerpo.faltantes));
+  const r = await asesorSur.post<Errores>(`/api/leads/${f.leadId}/convertir`, cuerpo());
+  assert.equal(r.estado, 409);
+  assert.equal(await enNorte(), 0);
+  await sinAlumno();
+  // Lo suyo sí: el grupo del sur, mandado por el asesor del sur.
+  const g = await asesorSur.post(`/api/leads/${f.leadId}/convertir`, cuerpo(gSur.grupoId));
+  assert.equal(g.estado, 201, JSON.stringify(g.cuerpo));
+  // El administrador no tiene restricción de sucursal.
+  const f2 = await leadDelBot({ nombre: "Admin", sucursalId: sur });
+  await aceptaReglamento(f2.leadId, f2.prospectoId);
+  const a = await admin.post(`/api/leads/${f2.leadId}/convertir`, { tutor: { parentesco: "madre" }, prospectos: [{ prospecto_id: f2.prospectoId, alumno: { apellidos: "Soto", fecha_nacimiento: "2019-01-01" }, inscripcion: { grupo_id: gNorte.grupoId } }] });
+  assert.equal(a.estado, 201, JSON.stringify(a.cuerpo));
+  assert.equal(await enNorte(), 1);
+});
+
 test("el aislamiento entre organizaciones: el lead de otra organización es 404 y el teléfono igual en otra organización es otro tutor", async () => {
   const otra = await sembrarOrganizacion(prisma, "Conversión ajena");
   const e2 = await sembrarEmbudo(prisma, otra);
