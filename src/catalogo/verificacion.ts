@@ -1,6 +1,9 @@
 // Las tres consultas de verificación de docs/insumos/seed-sucursales-horarios.sql, hechas sobre el
 // catálogo cargado por el scope de organización (nunca SQL crudo fuera de src/datos/):
-//   1. traslapes de edad dentro de una misma vertical y sucursal (debe dar CERO);
+//   1. traslapes de edad dentro de una misma vertical y sucursal (debe dar CERO errores). Dos programas marcados
+//      `permite_traslape` son ALTERNATIVAS (un estilo, no un rango de edad: el caso conocido de REVISION-INSUMOS C9,
+//      decisión 9 del plan) y no son error: salen aparte en `alternativasPorEdad`, «varios programas para una misma
+//      edad», que el cotizador (C6) resuelve preguntando cuál;
 //   2. resumen de capacidad por sucursal y vertical;
 //   3. choques de salón (debe dar CERO) —ahora con la tabla `salon` (C1), no con texto— y, de paso,
 //      choques de instructor.
@@ -16,6 +19,8 @@ export interface ProgramaCatalogo {
   sucursalId: string;
   edadMin: number;
   edadMax: number;
+  /** Alternativa: puede convivir con otros programas para una misma edad. Por omisión, no. */
+  permiteTraslape?: boolean;
 }
 export interface GrupoCatalogo {
   id: string;
@@ -63,6 +68,7 @@ export async function cargarCatalogo(db: Consultas): Promise<Catalogo> {
       sucursalId: p.sucursal_id,
       edadMin: p.edad_min,
       edadMax: p.edad_max,
+      permiteTraslape: p.permite_traslape,
     })),
     grupos: grupos.map((g) => ({ id: g.id, nombre: g.nombre, programaId: g.programa_id, salonId: g.salon_id, instructorId: g.instructor_id, cupoMaximo: g.cupo_maximo, activo: g.activo })),
     horarios: horarios.map((h) => ({ grupoId: h.grupo_id, dia: h.dia_semana, inicioMin: h.hora_inicio_min, finMin: h.hora_fin_min })),
@@ -83,24 +89,49 @@ export interface TraslapeDeEdad {
   programaB: string;
 }
 
-/** Dos programas de la misma vertical y sucursal que aceptan la misma edad. Debe ser vacío. */
-export function traslapesDeEdad(c: Catalogo): TraslapeDeEdad[] {
-  const salida: TraslapeDeEdad[] = [];
+export interface AlternativaPorEdad extends TraslapeDeEdad {
+  /** Las edades en las que los dos programas son opciones a la vez (ambos extremos incluidos). */
+  edadDesde: number;
+  edadHasta: number;
+}
+
+/** Los pares de programas de la misma vertical y sucursal que aceptan al menos una misma edad. */
+function paresQueSeTraslapan(c: Catalogo): [ProgramaCatalogo, ProgramaCatalogo][] {
+  const pares: [ProgramaCatalogo, ProgramaCatalogo][] = [];
   for (const a of c.programas) {
     for (const b of c.programas) {
       if (a.id >= b.id) continue;
       if (a.verticalId !== b.verticalId || a.sucursalId !== b.sucursalId) continue;
-      if (a.edadMin <= b.edadMax && b.edadMin <= a.edadMax) {
-        salida.push({
-          sucursal: c.sucursales.get(a.sucursalId) ?? a.sucursalId,
-          vertical: c.verticales.get(a.verticalId) ?? a.verticalId,
-          programaA: a.nombre,
-          programaB: b.nombre,
-        });
-      }
+      if (a.edadMin <= b.edadMax && b.edadMin <= a.edadMax) pares.push([a, b]);
     }
   }
-  return salida.sort((x, y) => alfabetico(x.sucursal, y.sucursal) || alfabetico(x.programaA, y.programaA));
+  return pares;
+}
+
+const filaDeTraslape = (c: Catalogo, a: ProgramaCatalogo, b: ProgramaCatalogo): TraslapeDeEdad => ({
+  sucursal: c.sucursales.get(a.sucursalId) ?? a.sucursalId,
+  vertical: c.verticales.get(a.verticalId) ?? a.verticalId,
+  programaA: a.nombre,
+  programaB: b.nombre,
+});
+
+/**
+ * Dos programas de la misma vertical y sucursal que aceptan la misma edad SIN estar los dos marcados como
+ * alternativas (`permite_traslape`). Debe ser vacío.
+ */
+export function traslapesDeEdad(c: Catalogo): TraslapeDeEdad[] {
+  return paresQueSeTraslapan(c)
+    .filter(([a, b]) => !(a.permiteTraslape === true && b.permiteTraslape === true))
+    .map(([a, b]) => filaDeTraslape(c, a, b))
+    .sort((x, y) => alfabetico(x.sucursal, y.sucursal) || alfabetico(x.programaA, y.programaA));
+}
+
+/** Los traslapes de edad que SÍ son intencionales (los dos programas permiten el traslape): varios programas para una misma edad. */
+export function alternativasPorEdad(c: Catalogo): AlternativaPorEdad[] {
+  return paresQueSeTraslapan(c)
+    .filter(([a, b]) => a.permiteTraslape === true && b.permiteTraslape === true)
+    .map(([a, b]) => ({ ...filaDeTraslape(c, a, b), edadDesde: Math.max(a.edadMin, b.edadMin), edadHasta: Math.min(a.edadMax, b.edadMax) }))
+    .sort((x, y) => alfabetico(x.sucursal, y.sucursal) || alfabetico(x.programaA, y.programaA));
 }
 
 // ── 2. Resumen de capacidad ─────────────────────────────────────────────────────────────

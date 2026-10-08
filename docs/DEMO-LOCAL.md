@@ -104,7 +104,8 @@ firmado no se ahoga. Detalle y variables en `docs/API.md`. En la demo local todo
 | Borde de Twilio (firma, reintentos, reenvío a Chatwoot) | `src/mensajeria/twilio/`, rutas en `src/http/app.ts` |
 | Usuarios, sesiones y contraseñas | `src/auth/`, `src/api/rutas/sesion.ts`, `scripts/crear-usuario.ts` |
 | Simulador del contacto | `scripts/simular-contacto.ts` |
-| Catálogo de la vertical (programas, grupos, horarios) | `prisma/seed/catalogo.sql` |
+| Catálogo de la primera vertical (programas, grupos, horarios, salón «Dojo») | `prisma/seed/catalogo.sql` |
+| Catálogo COMPLETO de las tres verticales del insumo: 14 programas, 18 grupos, 31 horarios, salones, instructores, precios y promociones de ejemplo `[SUPUESTO]` | `prisma/seed/catalogo-completo.sql` (el servicio `demo-preparar` lo corre después de `catalogo.sql`; crea también las bandejas de Ballet y Baile) |
 | Reporte de leads por campaña, sucursal y etapa | `npm run reporte:leads` |
 | Segunda vertical, solo con filas (opcional) | `prisma/seed/segunda-vertical.sql` |
 

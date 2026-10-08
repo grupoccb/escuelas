@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calcularCupo } from "./cupo.ts";
-import { choquesDeInstructor, choquesDeSalon, resumenDeCapacidad, traslapesDeEdad, type Catalogo } from "./verificacion.ts";
+import { alternativasPorEdad, choquesDeInstructor, choquesDeSalon, resumenDeCapacidad, traslapesDeEdad, type Catalogo } from "./verificacion.ts";
 
 // Nombres neutros a propósito: los reales viven en las tablas (invariante 2).
 const SUC = new Map([["s1", "Norte"], ["s2", "Sur"]]);
@@ -34,6 +34,24 @@ test("sin traslape: rangos contiguos, otra sucursal u otra vertical", () => {
 
 test("un rango contenido en otro también es traslape", () => {
   assert.equal(traslapesDeEdad(catalogo({ programas: [programa("a", "v1", "s1", 3, 99), programa("b", "v1", "s1", 6, 7)] })).length, 1);
+});
+
+test("alternativas: dos programas que se traslapan y están MARCADOS como alternativas no son error; salen aparte con las edades compartidas", () => {
+  const alt = (id: string, min: number, max: number, permite: boolean) => ({ ...programa(id, "v1", "s1", min, max), permiteTraslape: permite });
+  const c = catalogo({ programas: [alt("a", 15, 99, true), alt("b", 15, 99, true), alt("c", 3, 5, false)] });
+  assert.deepEqual(traslapesDeEdad(c), [], "no es un error del catálogo");
+  assert.deepEqual(alternativasPorEdad(c), [{ sucursal: "Norte", vertical: "Vertical Uno", programaA: "Pa", programaB: "Pb", edadDesde: 15, edadHasta: 99 }]);
+  // Solo uno marcado (o ninguno): SÍ es error, y no cuenta como alternativa.
+  const soloUno = catalogo({ programas: [alt("a", 15, 99, true), alt("b", 15, 99, false)] });
+  assert.equal(traslapesDeEdad(soloUno).length, 1);
+  assert.deepEqual(alternativasPorEdad(soloUno), []);
+  assert.equal(traslapesDeEdad(catalogo({ programas: [alt("a", 15, 99, false), alt("b", 15, 99, false)] })).length, 1);
+  // Las edades compartidas son la intersección, no la unión.
+  const parcial = catalogo({ programas: [alt("a", 10, 20, true), alt("b", 15, 40, true)] });
+  assert.deepEqual(alternativasPorEdad(parcial).map((x) => [x.edadDesde, x.edadHasta]), [[15, 20]]);
+  // Otra sucursal u otra vertical: ni error ni alternativa.
+  const sep = catalogo({ programas: [alt("a", 15, 99, true), { ...alt("b", 15, 99, true), sucursalId: "s2" }] });
+  assert.deepEqual([traslapesDeEdad(sep), alternativasPorEdad(sep)], [[], []]);
 });
 
 // ── 2. Capacidad ──────────────────────────────────────────────────────────────────────

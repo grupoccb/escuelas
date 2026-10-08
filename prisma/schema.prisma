@@ -104,14 +104,24 @@ model configuracion_organizacion {
 }
 
 model vertical {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizacion_id String    @db.Uuid
-  nombre          String
-  slug            String
-  activo          Boolean   @default(true)
-  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
-  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  eliminado_en    DateTime? @db.Timestamptz(6)
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String    @db.Uuid
+  nombre              String
+  slug                String
+  /// Cómo se llama el avance del alumno en esta vertical (los textos viven aquí, no en código: invariante 2).
+  /// Nulo si la vertical no usa progresión.
+  etiqueta_progresion String?
+  /// Cómo se llama el evento de la vertical.
+  etiqueta_evento     String?
+  /// ¿Esta vertical lleva progresión (niveles, grados)? La usa G3.
+  usa_progresion      Boolean   @default(false)
+  /// Color de marca `#RRGGBB` para la interfaz y la landing; nulo = el de la organización.
+  color_marca         String?
+  logo_url            String?
+  activo              Boolean   @default(true)
+  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime? @db.Timestamptz(6)
 
   organizacion        organizacion         @relation(fields: [organizacion_id], references: [id])
   sucursal_verticales sucursal_vertical[]
@@ -839,6 +849,10 @@ model programa {
   edad_max            Int
   nivel               String?
   descripcion_publica String?
+  /// Verdadero = este programa convive con otros para una misma edad en su vertical y sucursal: son ALTERNATIVAS
+  /// (un estilo, no un rango de edad) y el cotizador pregunta cuál (decisión 9 del plan). Si dos programas de la
+  /// misma vertical y sucursal se traslapan en edad y NO ambos lo permiten, es un error del catálogo.
+  permite_traslape    Boolean   @default(false)
   activo              Boolean   @default(true)
   creado_en           DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)

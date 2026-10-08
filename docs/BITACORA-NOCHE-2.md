@@ -24,7 +24,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C1 | HECHO | ver sección | Instructores y salones: tabla `salon`, `grupo.salon_id`, choques de salón e instructor (función pura + API 409 + disparadores en la base) |
 | C2 | HECHO | ver sección | Precios versionados por fecha (exclusión btree_gist), `precioVigente`, `src/lib/dinero.ts` en centavos `bigint` y `check:dinero` |
 | C3 | HECHO | ver sección | Promociones: tablas del modelo, resolutor puro (prioridad, acumulación, cupo, montos exactos), consumo de cupo atómico y API CRUD |
-| C4 | PENDIENTE | | Catálogo de las tres verticales |
+| C4 | HECHO | ver sección | Catálogo completo de las tres verticales del insumo (14 programas, 18 grupos, 31 horarios) con salones, instructores, precios y promociones de ejemplo; las tres verificaciones como tests |
 | C5 | PENDIENTE | | Cotizador determinista |
 | C6 | PENDIENTE | | Varios programas para una edad |
 | C7 | PENDIENTE | | Otra sucursal |
@@ -759,3 +759,27 @@ Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe 
 **Para Eduardo**
 - Las promociones de ejemplo `[SUPUESTO]` (inscripción gratis, uniforme al pagar la primera mensualidad, descuento por hermanos) llegan con el seed de C4.
 - Decisión abierta de negocio: ¿una promoción NO acumulable debe excluir también a las acumulables? Hoy no (arriba).
+
+## C4. Catálogo de las tres verticales del insumo
+
+**Qué se hizo**
+- **Migración `20261011030000_verticales_y_traslape`:** `vertical` gana `etiqueta_progresion`, `etiqueta_evento`, `usa_progresion`, `color_marca` (CHECK `#RRGGBB`) y `logo_url`; todas nulables salvo `usa_progresion` (falso por defecto) con un CHECK: si usa progresión, debe traer su etiqueta. `programa` gana **`permite_traslape`** (falso por defecto).
+- **Seed `prisma/seed/catalogo-completo.sql`** (después de `demo.sql` y `catalogo.sql`; idempotente; ids de 3 dígitos finales): completa la organización de demo con las otras dos verticales, sus `sucursal_vertical`, **canal y bandeja** de Ballet y Baile, los salones, los programas, grupos y horarios que faltaban (**14 programas, 18 grupos y 31 horarios** en total, como la revisión del insumo), cinco instructores de ejemplo con sus sucursales, **precios de ejemplo para los 14 programas**, **tres promociones de ejemplo** (inscripción gratis; uniforme gratis al pagar la primera mensualidad, que queda pendiente; descuento por hermanos) y los textos de las tres verticales (Karate «Cinturón»/«Examen», Ballet «Nivel»/«Recital» y Baile «Nivel»/«Showcase» sin progresión). Se integró en `docker-compose.yml` (`demo-preparar`) y en `docs/DEMO-LOCAL.md`. `scripts/preparar-chatwoot.ts` no necesitó cambios: recorre las bandejas y reutiliza la de Chatwoot que ya exista por id o por nombre, así que no duplica; solo crea las de Ballet y Baile la primera vez.
+- **Verificación 1 con alternativas:** `traslapesDeEdad` ya no cuenta como error el traslape entre dos programas que tienen `permite_traslape`; `alternativasPorEdad` los lista aparte, con las edades compartidas. Es el caso conocido del insumo (los dos programas de baile de 15 a 99 en una sucursal: «varios programas para una misma edad», decisión 9; el cotizador de C6 preguntará cuál). Marcar solo uno, o ninguno, sí es error.
+- **Las tres verificaciones del insumo, como tests** sobre el catálogo completo (`catalogo-completo.itest.ts`): traslape de edades (0 errores y 1 alternativa), capacidad por sucursal (**184 y 116**) y choques de salón (**0**, con la tabla `salon`; también 0 de instructor).
+
+**Verificación**
+- `npm run validar` y `npm run test:int` → exit 0 (conteos en el cierre de la etapa C). El seed se aplicó además dos veces sobre una copia de la base de la demo (14/18/31, 3 bandejas, 0 grupos sin instructor) y `prueba-de-fuego.itest.ts` (N10) pasa sin cambios.
+- `catalogo-completo.itest.ts` (9): cuentas exactas del insumo, los textos y colores de las verticales (y los CHECK), las tres verificaciones, 14 precios vigentes con la misma mensualidad en las dos sucursales, las tres promociones con el resolutor de C3 (inscripción gratis, uniforme pendiente, 10 % por hermanos y fuera de vigencia), una bandeja por vertical sin duplicados, que `segunda-vertical.sql` (comparte los ids de Ballet) corre después sin duplicar, y que `demo.sql` + `segunda-vertical.sql` siguen dando 1 y 2 verticales.
+- Mutaciones atrapadas: ignorar `permite_traslape`, subir un cupo (rompe 184), solapar un horario del seed (la base rechaza la carga: los disparadores de C1 validan el seed), agregar un grupo de más.
+
+**Decisiones que tomé**
+- *`permite_traslape` como bandera del programa* (la opción que sugería el encargo): genérica, sin términos de vertical, editable. Alternativa descartada: otra dimensión «estilo» en el modelo (más grande y sin necesidad todavía).
+- *Las etiquetas de la vertical solo se llenan si siguen vacías:* correr el seed otra vez no pisa lo que el administrador haya editado.
+- *Un instructor de ejemplo por sucursal y vertical, sin choques:* para que la demo tenga a quién asignar y los disparadores de C1 queden ejercitados con datos reales.
+- *Precios de ejemplo iguales en las dos sucursales.* Inscripción $500–$700, mensualidad $700–$1,000 según el programa. **Todo [SUPUESTO].**
+
+**Para Eduardo**
+- **[SUPUESTO] en `catalogo-completo.sql`** (todo editable desde administración cuando J7 exista): colores de marca de las tres verticales; capacidad de los salones nuevos (30); cupos de los 9 grupos nuevos (los de Ballet y Baile del insumo no estaban marcados, el contexto §12 dice que el cupo real está pendiente); las horas de fin de los horarios que en el insumo solo traían la de inicio (45 o 60 min); los 5 instructores (nombres, teléfonos ficticios y reparto); **los 14 precios**; y las 3 promociones (vigentes hasta 2027-12-31).
+- Las direcciones de las sucursales siguen vacías (`[PENDIENTE]` en el insumo).
+- **Ids de los seeds** para quien construya encima (C5–C9): organización `…001`; verticales Karate `…101`, Ballet `…102`, Baile `…103`; sucursales Águilas `…201`, Centenario `…202`; canal/bandeja `…401` (Karate), `…402` (Ballet), `…403` (Baile); salones `…531`/`…532` (Dojo de cada sucursal), `…533` (Salón 2 de Águilas), `…534` (Salón 1 de Centenario); programas nuevos `…111`–`…118` (los 6 de la primera vertical tienen ids aleatorios: se buscan por sucursal y nombre); grupos nuevos `…131`–`…139`; instructores `…521` (Maestro demo, ligado al usuario maestro) y `…522`–`…526`; promociones `…551`–`…553`, beneficios `…561`–`…563`. Usuarios de la demo `…501`–`…504`.
