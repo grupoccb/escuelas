@@ -2,8 +2,8 @@
 // `ficha_salud` (`check:capas` lo impone). Reglas:
 //
 // - Quién: el permiso `salud:leer` / `salud:escribir` de la matriz (administrador y maestro) Y, para el
-//   maestro, que el sujeto sea de uno de SUS grupos (`maestroDelSujeto`; mientras no exista la
-//   inscripción —F1/F3— esa comprobación devuelve false: el maestro queda fuera, falla CERRADO).
+//   maestro, que el sujeto sea de uno de SUS grupos (`maestroDelSujeto`: un prospecto con clase muestra
+//   en un grupo suyo; un alumno aún no existe —F1/F3— y falla CERRADO).
 // - Cada lectura y cada escritura deja una fila en `acceso_dato_sensible` (quién, a quién, qué campos
 //   —solo sus nombres—, motivo, ruta), en la MISMA transacción que la lectura: si no se puede
 //   registrar, no se lee. TODO intento denegado también se registra (EB-01), con su causa: falta de
@@ -41,12 +41,19 @@ export class ErrorAccesoSensible extends Error {
 }
 
 /**
- * ¿Es el sujeto de un grupo de este maestro? Hoy no hay inscripciones (llegan con F1/F3), así que NO:
- * el maestro no puede leer ninguna ficha todavía. Cuando exista la relación inscripción → grupo →
- * instructor ↔ usuario, se implementa AQUÍ y solo aquí.
+ * ¿Es el sujeto de un grupo de este maestro? Un PROSPECTO es de su maestro mientras tenga una clase muestra vigente o
+ * ya dada (agendada, asistió, no asistió) en un grupo cuyo instructor está ligado a ese usuario (D5): una clase cancelada o
+ * reagendada ya no le da acceso. Un ALUMNO llega con la inscripción (F1/F3): hasta entonces nadie es de un maestro (falla
+ * cerrado). La regla se implementa AQUÍ y solo aquí.
  */
 export type MaestroDelSujeto = (db: Consultas | BaseDatos, usuarioId: string, sujetoTipo: SujetoSalud, sujetoId: string) => Promise<boolean>;
-export const maestroDelSujetoPorDefecto: MaestroDelSujeto = async () => false;
+export const maestroDelSujetoPorDefecto: MaestroDelSujeto = async (db, usuarioId, sujetoTipo, sujetoId) => {
+  if (sujetoTipo !== "prospecto") return false;
+  const n = await db.clase_muestra.count({
+    where: { prospecto_id: sujetoId, estatus: { in: ["agendada", "asistio", "no_asistio"] }, grupo: { instructor: { usuario_id: usuarioId, eliminado_en: null } } },
+  });
+  return n > 0;
+};
 
 export interface OpcionesSensibles {
   cifrador?: Cifrador;
@@ -77,7 +84,7 @@ async function registrarAcceso(
   tx: Consultas,
   actor: ActorSensible,
   p: Peticion,
-  accion: "leer" | "escribir",
+  accion: "leer" | "escribir" | "validar",
   resultado: "permitido" | "denegado",
   campos: readonly CampoSensible[],
   causa: ErrorAccesoSensible["motivo"] | null = null,
@@ -195,6 +202,37 @@ export async function guardarSensible(
     if (e instanceof ErrorAccesoSensible) await registrarDenegado(db, actor, p, "escribir", e.motivo, campos);
     throw e;
   }
+}
+
+/**
+ * Compara el contacto de emergencia guardado con unas personas (los tutores del registro) SIN mostrar nada: devuelve
+ * `true` si alguna es la misma (`mismaPersona` decide con los valores, que no salen de esta función). Es una validación
+ * interna del sistema —el asesor, que no puede leer salud, también necesita que se cumpla «el contacto de emergencia es
+ * distinto del tutor»—, así que NO exige `salud:leer` pero deja constancia con la acción `validar` (quién la provocó, sobre
+ * quién y qué campo). `null` si no hay contacto guardado o el sujeto no existe.
+ */
+export async function contactoDeEmergenciaCoincide(
+  db: BaseDatos,
+  actor: ActorSensible,
+  p: Peticion,
+  mismaPersona: (contacto: { nombre: string; telefono: string }) => boolean,
+  opciones?: OpcionesSensibles,
+): Promise<boolean | null> {
+  const cifrador = cifradorDe(opciones);
+  return db.$transaction(async (tx) => {
+    if (!(await existeSujeto(tx, p.sujetoTipo, p.sujetoId))) return null;
+    const fila = await tx.ficha_salud.findFirst({ where: { sujeto_tipo: p.sujetoTipo, sujeto_id: p.sujetoId }, select: { contacto_emergencia: true } });
+    if (!fila?.contacto_emergencia) return null;
+    await registrarAcceso(tx, actor, p, "validar", "permitido", ["contacto_emergencia"]);
+    const c = JSON.parse(cifrador.descifrar(fila.contacto_emergencia, aad(actor, p, "contacto_emergencia"))) as { nombre?: unknown; telefono?: unknown };
+    return typeof c.nombre === "string" && typeof c.telefono === "string" ? mismaPersona({ nombre: c.nombre, telefono: c.telefono }) : false;
+  });
+}
+
+/** Qué campos de la ficha tienen dato (solo presencia: no se descifra nada). */
+export async function camposConDato(db: BaseDatos | Consultas, sujetoTipo: SujetoSalud, sujetoId: string): Promise<CampoSensible[]> {
+  const fila = (await db.ficha_salud.findFirst({ where: { sujeto_tipo: sujetoTipo, sujeto_id: sujetoId }, select: Object.fromEntries(CAMPOS_SENSIBLES.map((c) => [c, true])) as Record<CampoSensible, true> })) as Partial<Record<CampoSensible, string | null>> | null;
+  return fila ? CAMPOS_SENSIBLES.filter((c) => fila[c] != null) : [];
 }
 
 export interface FiltroAccesos {

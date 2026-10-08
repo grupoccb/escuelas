@@ -31,6 +31,9 @@ export const CAMPOS_AUDITABLES = {
   // `notas` NO se audita: es texto libre y no debe llevar datos de salud (decisión 12).
   clase_muestra: ["lead_id", "prospecto_id", "grupo_id", "fecha_hora", "estatus", "agendada_por", "reprogramada_de_id", "motivo_cancelacion", "asistencia_marcada_en"],
   aviso_maestro: ["leido_en"],
+  // D5: SOLO campos no identificables. El registro de cambios es de solo anexar y no se purga: nada de nombres, fechas de nacimiento,
+  // teléfonos ni salud. `secciones` dice QUÉ partes del registro se tocaron (alumno, tutores, salud, antecedentes, observacion).
+  registro_clase_muestra: ["estatus", "motivo_clase", "practico_antes", "interes_percibido", "grupo_recomendado_id", "salud_completa", "secciones"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

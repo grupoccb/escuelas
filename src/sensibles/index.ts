@@ -8,6 +8,8 @@ export {
   listarAccesos,
   registrarDenegado,
   maestroDelSujetoPorDefecto,
+  camposConDato,
+  contactoDeEmergenciaCoincide,
   type ActorSensible,
   type FichaLeida,
   type FilaAcceso,
@@ -17,3 +19,19 @@ export {
   type Peticion,
   type SujetoSalud,
 } from "./ficha.ts";
+export {
+  contactoDeEntradaEsTutor,
+  contactoGuardadoEsTutor,
+  ERROR_CONTACTO_ES_TUTOR,
+  estadoDeSalud,
+  guardarSaludDelRegistro,
+  leerEntradaDeSalud,
+  MENSAJE_SIN_SALUD,
+  mencionaSalud,
+  mismaPersona,
+  puedeEscribirSalud,
+  rechazarEscrituraDeSalud,
+  type EntradaDeSalud,
+  type EstadoDeSalud,
+  type PersonaDelRegistro,
+} from "./registro-salud.ts";

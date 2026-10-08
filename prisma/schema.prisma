@@ -82,6 +82,8 @@ model organizacion {
   clases_muestra             clase_muestra[]
   conversaciones_instructor  conversacion_instructor[]
   avisos_maestro             aviso_maestro[]
+  registros_clase_muestra    registro_clase_muestra[]
+  registros_tutor            registro_tutor[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -382,6 +384,7 @@ model lead {
   cotizaciones     cotizacion[]
   lista_espera     lista_espera[]
   clases_muestra   clase_muestra[]
+  registros_clase_muestra registro_clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -417,6 +420,7 @@ model prospecto {
   cotizaciones      cotizacion[]
   lista_espera      lista_espera[]
   clases_muestra    clase_muestra[]
+  registros_clase_muestra registro_clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1019,6 +1023,7 @@ model grupo {
   cotizaciones_elegidas cotizacion[]
   lista_espera          lista_espera[]
   clases_muestra        clase_muestra[]
+  registros_recomendado registro_clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1264,6 +1269,8 @@ model usuario {
   cotizaciones             cotizacion[]           @relation("cotizacion_creada_por")
   clases_muestra_agendadas clase_muestra[]        @relation("clase_agendada_por")
   clases_muestra_marcadas  clase_muestra[]        @relation("clase_asistencia_por")
+  registros_creados        registro_clase_muestra[] @relation("registro_creado_por")
+  registros_cerrados       registro_clase_muestra[] @relation("registro_cerrado_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1656,6 +1663,7 @@ model clase_muestra {
   reprogramaciones clase_muestra[] @relation("clase_reprogramada")
   avisos_maestro   aviso_maestro[]
   tareas_asesor    tarea_asesor[]
+  registros        registro_clase_muestra[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1743,4 +1751,143 @@ model aviso_maestro {
   @@index([organizacion_id])
   @@index([instructor_id, creado_en])
   @@index([entrega, programado_para])
+}
+
+// ── Registro de la clase muestra (D5) ──────────────────────────────────────────────────
+
+enum estatus_registro_muestra {
+  /// Se está capturando: puede estar a medias.
+  borrador
+  /// Tiene todo lo necesario para convertir a la familia sin recapturar (alumno, tutores, salud, antecedentes).
+  completo
+  /// Revisado y bloqueado (exige el reglamento aceptado, D6). Solo un administrador lo reabre.
+  cerrado
+}
+
+enum sexo_persona {
+  femenino
+  masculino
+  otro
+}
+
+enum turno_escolar {
+  matutino
+  vespertino
+  jornada_completa
+}
+
+/// Catálogo de motivos por los que buscan la clase (contexto, sección 8). Es un enum de la base; las etiquetas para la
+/// persona viven en la interfaz, no en código de negocio.
+enum motivo_clase_muestra {
+  disciplina
+  condicion_fisica
+  socializacion
+  competencia
+  otro
+}
+
+enum interes_percibido {
+  alto
+  medio
+  bajo
+}
+
+/// Lo que el maestro (o el asesor) captura de una clase muestra, 1:1 con la clase (índice único parcial). Es estructura, no
+/// texto: el alumno, sus tutores (`registro_tutor`), sus antecedentes y la observación del maestro viven en columnas y filas
+/// para que F2 convierta a la familia en tutor y alumno SIN recapturar nada (invariante 13: nada de `alumno.telefono_mama`).
+///
+/// LOS DATOS DE SALUD NO ESTÁN AQUÍ: alergias, condiciones médicas, medicamentos, contacto de emergencia y la autorización de
+/// atención médica se guardan SOLO cifrados en `ficha_salud` (src/sensibles/), ligados al prospecto. Este modelo solo lleva dos
+/// banderas de presencia (`salud_contacto_registrado`, `salud_completa`) que mantiene el módulo sensible, para saber si falta
+/// capturarlos sin descifrar nada. `notas_maestro` es texto libre SIN salud.
+model registro_clase_muestra {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id  String                   @db.Uuid
+  clase_muestra_id String                   @db.Uuid
+  prospecto_id     String                   @db.Uuid
+  lead_id          String                   @db.Uuid
+  estatus          estatus_registro_muestra @default(borrador)
+
+  /// Alumno (nombre completo y fecha de nacimiento del acta, no la edad que dijo el papá).
+  alumno_nombre           String?
+  alumno_apellidos        String?
+  alumno_fecha_nacimiento DateTime?      @db.Date
+  alumno_sexo             sexo_persona?
+  escuela_nombre          String?
+  escuela_turno           turno_escolar?
+  talla_uniforme          String?
+
+  /// Antecedentes: si ha practicado antes, dónde y qué nivel traía; el motivo por el que buscan la clase.
+  practico_antes       Boolean?
+  practico_donde       String?
+  practico_nivel       String?
+  motivo_clase         motivo_clase_muestra?
+  motivo_clase_detalle String?
+
+  /// Observación del maestro (si asistió es `clase_muestra.estatus`: una sola fuente).
+  nivel_observado      String?
+  /// El grupo que recomienda el maestro; puede ser distinto del que se cotizó.
+  grupo_recomendado_id String?            @db.Uuid
+  interes_percibido    interes_percibido?
+  notas_maestro        String?
+
+  /// Banderas de presencia de la ficha de salud (sin valores). Las mantiene src/sensibles/.
+  salud_contacto_registrado Boolean @default(false)
+  salud_completa            Boolean @default(false)
+
+  completo_en            DateTime? @db.Timestamptz(6)
+  cerrado_en             DateTime? @db.Timestamptz(6)
+  cerrado_por_usuario_id String?   @db.Uuid
+  creado_por_usuario_id  String    @db.Uuid
+  creado_en              DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en           DateTime? @db.Timestamptz(6)
+
+  organizacion      organizacion     @relation(fields: [organizacion_id], references: [id])
+  clase_muestra     clase_muestra    @relation(fields: [clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospecto         prospecto        @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead              lead             @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupo_recomendado grupo?           @relation(fields: [grupo_recomendado_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  creado_por        usuario          @relation("registro_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cerrado_por       usuario?         @relation("registro_cerrado_por", fields: [cerrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  tutores           registro_tutor[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([prospecto_id])
+  @@index([lead_id])
+  @@index([clase_muestra_id])
+}
+
+/// Un adulto del registro: quien lleva al alumno, quien paga, el segundo adulto autorizado para recogerlo… Una fila por persona,
+/// con el teléfono normalizado (invariante 7). F2 los convierte en `tutor` (un tutor por teléfono) y en `tutor_alumno`
+/// (`es_responsable_pago`, `puede_recoger`) sin volver a preguntar nada. A lo más uno responsable de pago y uno que lo lleva
+/// por registro, y un teléfono no se repite (índices únicos parciales).
+model registro_tutor {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String    @db.Uuid
+  registro_id         String    @db.Uuid
+  posicion            Int
+  nombre              String
+  apellidos           String?
+  /// Texto libre: «madre», «abuelo», «el mismo alumno» (cuando es adulto)…
+  parentesco          String
+  /// E.164, de normalizarTelefono().
+  telefono            String
+  correo              String?
+  es_responsable_pago Boolean   @default(false)
+  /// Quien lo lleva a la clase.
+  lo_lleva            Boolean   @default(false)
+  /// Adulto autorizado para recogerlo.
+  puede_recoger       Boolean   @default(false)
+  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion           @relation(fields: [organizacion_id], references: [id])
+  registro     registro_clase_muestra @relation(fields: [registro_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([registro_id])
 }

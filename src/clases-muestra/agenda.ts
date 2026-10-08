@@ -17,6 +17,7 @@ import { leerConfiguracion } from "../configuracion/index.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
 import { crearAvisoMaestro } from "./avisos.ts";
+import { trasladarRegistroDeClase } from "./registro.ts";
 import { darPorRecuperadoAlProspecto } from "./asistencia.ts";
 import { cancelarRecordatoriosDeClase, programarRecordatoriosDeClase } from "./recordatorios.ts";
 import { problemaDeFecha, sesionesAgendables, type HorarioDeGrupo, type ProblemaDeFecha } from "./sesiones.ts";
@@ -248,6 +249,7 @@ export async function reprogramarClaseMuestra(tx: Consultas, c: ContextoDeAgenda
   const cerrada = await tx.clase_muestra.updateMany({ where: { id: vieja.id, estatus: "agendada" }, data: { estatus: "reagendada" } });
   if (cerrada.count !== 1) return { ok: false, motivo: "clase_no_vigente" };
   const clase = await crearClase(tx, c, { prospecto, grupo, fechaHora: entrada.fechaHora, notas: entrada.notas ?? null, reprogramadaDeId: vieja.id });
+  await trasladarRegistroDeClase(tx, vieja.id, clase.id); // D5: lo capturado es del alumno, no de la fecha
   // D2: el instructor del grupo nuevo recibe «reprogramada» (con la fecha anterior); si la clase cambió de instructor, el de antes recibe «cancelada».
   const grupoViejo = await tx.grupo.findFirst({ where: { id: vieja.grupo_id }, select: { instructor_id: true, programa: { select: { sucursal: { select: { zona_horaria: true } } } } } });
   const zonaVieja = grupoViejo?.programa.sucursal.zona_horaria ?? grupo.zona;

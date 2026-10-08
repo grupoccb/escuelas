@@ -20,12 +20,12 @@ import { log } from "../lib/log.ts";
 import { MessagingProvider, TransporteFalso, registrarEstadoEntrega, type EventoEntrante } from "../mensajeria/index.ts";
 import { colectarLogs, type ColectorDeLogs } from "../testutil/logs.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, sembrarFamilia, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { escenarioBot } from "../testutil/bot.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra } from "../clases-muestra/agenda.ts";
 import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
 import { marcarAsistencia } from "../clases-muestra/asistencia.ts";
-import { sembrarUsuario } from "../testutil/api.ts";
+import { levantarApi, sembrarUsuario } from "../testutil/api.ts";
 import { crearCifrador } from "./cifrado.ts";
 import { ErrorAccesoSensible, guardarSensible, leerSensible } from "./index.ts";
 
@@ -279,4 +279,88 @@ test("D1-D4: ningún centinela de salud aparece en el aviso al maestro, los reco
   } finally {
     await cliente.end();
   }
+});
+
+test("D5: ningún centinela de salud aparece en logs, respuestas, errores, registro de cambios ni en ninguna tabla tras capturar, validar, completar y cerrar el registro de la clase muestra", async () => {
+  const AHORA = new Date("2026-11-10T18:00:00Z");
+  const organizacion = await sembrarOrganizacion(prisma, "Fuga registro");
+  const db = conAlcance(prisma, organizacion.organizacionId);
+  const api = levantarApi(prisma, { reloj: () => AHORA, sensibles: { cifrador } });
+  const colector: ColectorDeLogs = colectarLogs();
+  const respuestas: string[] = [];
+  try {
+    const entrar = async (rol: "administrador" | "asesor" | "maestro") => {
+      const u = await sembrarUsuario(prisma, organizacion.organizacionId, { rol, sucursales: rol === "asesor" ? [organizacion.sucursales[0]!.id] : [] });
+      const c = api.cliente();
+      assert.equal((await c.login(organizacion.slug, u.correo, u.contrasena)).estado, 201);
+      return { c, id: u.id };
+    };
+    const admin = await entrar("administrador");
+    const asesor = await entrar("asesor");
+    const maestro = await entrar("maestro");
+    const instructor = await prisma.instructor.create({ data: { organizacion_id: organizacion.organizacionId, usuario_id: maestro.id, nombre: "Maestro" } });
+    const programa = await sembrarPrograma(prisma, organizacion, { sucursalId: organizacion.sucursales[0]!.id, nombre: "Programa", edadMin: 3, edadMax: 14, grupos: [{ nombre: "Grupo", cupoMaximo: 20, horarios: [[1, 960, 1020]] }] });
+    await prisma.grupo.update({ where: { id: programa.grupos[0]!.id }, data: { instructor_id: instructor.id } });
+    const familia = await sembrarFamilia(prisma, organizacion, { sucursalId: organizacion.sucursales[0]!.id });
+    const clase = await prisma.clase_muestra.create({ data: { organizacion_id: organizacion.organizacionId, lead_id: familia.leadId, prospecto_id: familia.prospectoId, grupo_id: programa.grupos[0]!.id, fecha_hora: new Date("2026-11-09T22:00:00Z"), agendada_por: "usuario", agendada_por_usuario_id: admin.id } });
+    const url = `/api/clases-muestra/${clase.id}/registro`;
+    const anotar = <T>(r: { estado: number; cuerpo: T }): { estado: number; cuerpo: T } => {
+      respuestas.push(JSON.stringify(r.cuerpo));
+      return r;
+    };
+    const tutor = { nombre: "Rosa", apellidos: "Mena", parentesco: "madre", telefono: "+525511112222", correo: "rosa@correo.test", es_responsable_pago: true, lo_lleva: true };
+
+    // El asesor captura todo menos la salud; intenta la salud y se le niega (la respuesta tampoco repite el valor).
+    assert.equal(anotar(await asesor.c.patch(url, { alumno: { nombre: "Mateo", apellidos: "Soto", fecha_nacimiento: "2018-05-04", sexo: "masculino" }, tutores: [tutor], antecedentes: { practico_antes: false, motivo_clase: "disciplina" } })).estado, 200);
+    assert.equal(anotar(await asesor.c.patch(url, { salud: { alergias: CENTINELAS.alergias } })).estado, 403);
+    // Errores de validación con valores de salud dentro: el error no los repite.
+    const malos = [
+      { salud: { alergias: CENTINELAS.alergias, contacto_emergencia: { nombre: CENTINELAS.contacto_emergencia.nombre, telefono: "12" } } },
+      { salud: { medicamentos: CENTINELAS.medicamentos, desconocido: CENTINELAS.condiciones_medicas } },
+      { salud: { contacto_emergencia: { nombre: "Rosa Mena", telefono: TEL_EMERGENCIA } } },
+      { observacion: { notas: `Tiene alergia: ${CENTINELAS.alergias}` } },
+      { observacion: { nivel_observado: `toma ${CENTINELAS.medicamentos}` } },
+    ];
+    for (const m of malos) assert.equal(anotar(await maestro.c.patch(url, m)).estado, 400);
+    // El maestro captura la salud con los centinelas; el administrador también (otra vez, con la lectura que la ruta de salud permite).
+    assert.equal(anotar(await maestro.c.patch(url, { salud: { alergias: CENTINELAS.alergias, condiciones_medicas: CENTINELAS.condiciones_medicas, medicamentos: CENTINELAS.medicamentos, contacto_emergencia: { ...CENTINELAS.contacto_emergencia, parentesco: "tía" }, autorizacion_atencion_medica: true } })).estado, 200);
+    // El asesor cambia los tutores (valida el contacto sin leerlo); un tutor igual al contacto se rechaza sin repetirlo.
+    assert.equal(anotar(await asesor.c.patch(url, { tutores: [tutor, { nombre: "Otra", parentesco: "tía", telefono: TEL_EMERGENCIA }] })).estado, 400);
+    assert.equal(anotar(await asesor.c.patch(url, { tutores: [tutor, { nombre: "Pedro", parentesco: "abuelo", telefono: "+525533334444", puede_recoger: true }] })).estado, 200);
+    assert.equal(anotar(await admin.c.patch(url, { observacion: { asistio: true, interes_percibido: "alto" } })).estado, 200);
+    assert.equal(anotar(await maestro.c.post(`${url}/completar`, {})).estado, 200);
+    assert.equal(anotar(await asesor.c.get(url)).estado, 200);
+    assert.equal(anotar(await maestro.c.get(url)).estado, 200);
+    assert.equal(anotar(await admin.c.post(`${url}/cerrar`, {})).estado, 200);
+    assert.equal(anotar(await admin.c.post(`${url}/reabrir`, {})).estado, 200);
+    // Lo que SÍ puede salir: el maestro lee la ficha por la ruta de salud (control positivo: el dato está en el sistema).
+    const leida = anotar(await maestro.c.get<{ campos: { alergias: string } }>(`/api/salud/prospecto/${familia.prospectoId}?motivo=fuga`));
+    assert.equal(leida.cuerpo.campos.alergias, CENTINELAS.alergias);
+    respuestas.pop(); // esa respuesta es la única autorizada a llevar el valor
+  } finally {
+    colector.detener();
+    await api.cerrar();
+  }
+  assert.ok(colector.lineas.length >= 3 && /acceso_dato_sensible_denegado/.test(colector.texto()), `el colector vio los logs de los inicios de sesión y de la denegación (${colector.lineas.length})`);
+  assert.deepEqual(fugas(colector.texto()), [], "logs");
+  assert.deepEqual(fugas(respuestas.join("\n")), [], "respuestas y errores de la API (menos la lectura autorizada de la ruta de salud)");
+  const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
+  await cliente.connect();
+  try {
+    const tablas = (await cliente.query<{ table_name: string }>(`SELECT DISTINCT table_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'organizacion_id'`)).rows.map((r) => r.table_name);
+    assert.ok(tablas.includes("registro_clase_muestra") && tablas.includes("registro_tutor") && tablas.includes("registro_cambio") && tablas.includes("acceso_dato_sensible"));
+    let filas = 0;
+    for (const tabla of tablas) {
+      const r = await cliente.query<{ j: string }>(`SELECT row_to_json(t)::text AS j FROM "${tabla}" t WHERE organizacion_id = $1`, [organizacion.organizacionId]);
+      for (const fila of r.rows) {
+        filas++;
+        assert.deepEqual(fugas(fila.j), [], `tabla ${tabla}`);
+      }
+    }
+    assert.ok(filas > 15, `se revisaron ${filas} filas`);
+  } finally {
+    await cliente.end();
+  }
+  assert.ok(await db.registro_cambio.count({ where: { entidad_tipo: "registro_clase_muestra" } }) >= 4, "el registro de cambios sí tiene entradas");
+  assert.ok(await db.acceso_dato_sensible.count({ where: { accion: "validar" } }) >= 1, "la comparación interna del contacto quedó registrada como «validar»");
 });

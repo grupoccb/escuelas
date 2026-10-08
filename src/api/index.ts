@@ -40,6 +40,7 @@ import { rutasDelMaestro } from "./rutas/maestro.ts";
 import { rutasDePrecios } from "./rutas/precios.ts";
 import { rutasDePromociones } from "./rutas/promociones.ts";
 import { rutasDeRegistroCambios } from "./rutas/registro-cambios.ts";
+import { rutasDeRegistroMuestra } from "./rutas/registro-muestra.ts";
 import { rutasDeSalud } from "./rutas/salud.ts";
 import { rutasDeSesionPropia, rutasPublicasDeSesion } from "./rutas/sesion.ts";
 import { rutasDeTareas } from "./rutas/tareas.ts";
@@ -111,6 +112,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeCotizaciones(deps));
   api.use(rutasDeListaEspera(deps));
   api.use(rutasDeClasesMuestra(deps));
+  api.use(rutasDeRegistroMuestra(deps));
   api.use(rutasDelMaestro(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));

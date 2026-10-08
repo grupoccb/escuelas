@@ -32,6 +32,11 @@ export const MATRIZ_DE_PERMISOS = {
   "clases_muestra:escribir": ["administrador", "asesor"],
   // Marcar asistió / no asistió (D4): el maestro de ese grupo, el asesor y el administrador.
   "clases_muestra:asistencia": ["administrador", "asesor", "maestro"],
+  // Registro de la clase muestra (D5): lo captura el maestro de ese grupo, el asesor de la sucursal y el administrador. Recepción no lo ve. La
+  // sección de salud sigue su propio marco (`salud:leer` / `salud:escribir`: administrador y maestro). Reabrir un registro cerrado: solo el administrador.
+  "registro_muestra:leer": ["administrador", "asesor", "maestro"],
+  "registro_muestra:escribir": ["administrador", "asesor", "maestro"],
+  "registro_muestra:reabrir": ["administrador"],
   // Avisos al maestro (D2): los suyos. El administrador los tiene por regla (todos los permisos), pero solo ve los de su propio instructor, si lo es.
   "avisos_maestro:leer": ["administrador", "maestro"],
   "avisos_maestro:escribir": ["administrador", "maestro"],

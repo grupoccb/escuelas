@@ -237,6 +237,20 @@ export function objeto<const S extends Record<string, Esquema<unknown>>>(campos:
   };
 }
 
+/**
+ * Un objeto cualquiera, sin mirar sus campos: para pasarlo tal cual a quien lo valida con su propio esquema. Existe porque
+ * los datos de salud solo pueden nombrarse dentro de `src/sensibles/` (`check:sensibles`): la ruta que los recibe los trata como
+ * opacos y los entrega a ese módulo.
+ */
+export function objetoOpaco(): Esquema<Record<string, unknown>> {
+  return {
+    leer(valor, ruta, errores) {
+      if (typeof valor !== "object" || valor === null || Array.isArray(valor)) return falla(errores, ruta, "Debe ser un objeto");
+      return valor as Record<string, unknown>;
+    },
+  };
+}
+
 // ── Query string: todo llega como texto ────────────────────────────────────────────────
 
 export function enteroDeTexto(opciones: { min?: number; max?: number } = {}): Esquema<number> {

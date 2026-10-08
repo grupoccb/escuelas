@@ -35,7 +35,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D2 | HECHO | 576f00e | Aviso al maestro: `aviso_maestro` (lista en la aplicación + unidad de envío), `MessagingProvider.avisarAInstructor` con todas las reglas, `conversacion_instructor` y plantillas del seed |
 | D3 | HECHO | 7df6d8d | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
 | D4 | HECHO | de73e25 | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
-| D5 | PENDIENTE | | Registro del maestro |
+| D5 | HECHO | ver `git log` (`D5:`) | Registro del maestro por API: `registro_clase_muestra` + `registro_tutor`, salud solo con `guardarSensible()`, borrador → completo → cerrado, permisos por rol, conversión sin recaptura |
 | D6 | PENDIENTE | | Reglamento y autorización de imagen |
 | D7 | PENDIENTE | | Embudo con historial |
 | D8 | PENDIENTE | | Lead frío y promoción por vencer |
@@ -1229,3 +1229,39 @@ Las migraciones también se aplicaron sobre una copia con datos de la base de la
 5. Avisar a la familia cuando una persona reprograma o cancela su clase (hoy no sale nada por WhatsApp).
 6. Textos de todas las plantillas y del bot, tiempos y topes: `[SUPUESTO]`.
 7. `CHATWOOT_ADMIN_TOKEN` en producción para abrir la conversación del instructor (sin él, solo la lista y una tarea); verificar el alta de contacto y conversación contra Chatwoot real.
+
+
+## D5. Registro del maestro (sección 8 del contexto)
+
+**Qué se hizo**
+- **Migración `20261015000000_registro_clase_muestra`:** `registro_clase_muestra` (1:1 con la clase, índice único parcial; estatus `borrador|completo|cerrado`; alumno, antecedentes y observación como columnas; dos banderas de presencia de la salud) y `registro_tutor` (una fila por adulto con teléfono normalizado y banderas `es_responsable_pago`, `lo_lleva`, `puede_recoger`; índices únicos parciales: un responsable de pago, uno que lo lleva y un teléfono por registro). Enums `estatus_registro_muestra`, `sexo_persona`, `turno_escolar`, `motivo_clase_muestra` (`disciplina|condicion_fisica|socializacion|competencia|otro`), `interes_percibido`. CHECK de coherencia (estatus ↔ sellos, quien no practicó no tiene dónde ni nivel, detalle del motivo solo con motivo, salud completa ⇒ contacto). La acción `validar` se agrega al CHECK de `acceso_dato_sensible`.
+- **Servicio** `src/clases-muestra/registro.ts` (+ reglas puras en `registro-reglas.ts`): `guardarRegistro` (valida TODO antes de escribir; candado por clase; tutores por reemplazo del conjunto con `id` para conservar filas), `completarRegistro`, `cerrarRegistro` (con un punto de enganche `agregarRequisitoDeCierre` para D6), `reabrirRegistro`, `leerRegistro`, `trasladarRegistroDeClase` (reprogramar lleva el registro a la clase nueva) y **`registroDeProspectoParaConversion`** (lo que F2 lee para crear tutor, alumno y `tutor_alumno` sin preguntar nada).
+- **Salud** `src/sensibles/registro-salud.ts`: la sección `salud` del PATCH es un objeto opaco para la ruta (la guarda `check:sensibles` impide nombrar esos campos fuera de `src/sensibles/`); `leerEntradaDeSalud` la valida (esquema cerrado, teléfono con `normalizarTelefono()`), `guardarSaludDelRegistro` la guarda con `guardarSensible()` (cifrada, permiso `salud:escribir`, regla del maestro, constancia). `estadoDeSalud` dice qué falta SIN descifrar. **El contacto de emergencia debe ser otra persona que los tutores** (mismo teléfono normalizado o mismo nombre sin acentos): al capturarlo (en memoria, antes de escribir), al cambiar los adultos y al completar (`contactoDeEmergenciaCoincide`: compara dentro del módulo, no devuelve valores y deja la acción `validar` en el registro de accesos).
+- **`maestroDelSujeto` real para prospectos** (en `ficha.ts`): el maestro accede a la ficha de un prospecto con clase muestra agendada, asistida o no asistida en un grupo cuyo instructor es él; cancelada o reagendada ya no. Alumnos siguen fallando cerrado hasta F1.
+- **API** (`src/api/rutas/registro-muestra.ts`): `GET|PATCH /api/clases-muestra/:id/registro`, `POST …/completar|cerrar|reabrir`. Permisos nuevos `registro_muestra:leer|escribir` (administrador, asesor, maestro) y `registro_muestra:reabrir` (administrador). Alcance: el maestro por sus grupos, el asesor por sucursal (`alcanceDeClases`). Documentado en `docs/API.md`.
+- **Registro de cambios sin datos identificables:** `registro_clase_muestra` audita solo `estatus`, `motivo_clase`, `practico_antes`, `interes_percibido`, `grupo_recomendado_id`, `salud_completa` y `secciones` (qué partes se tocaron). Un test comprueba que no aparecen nombres, fechas de nacimiento, teléfonos, correos ni escuela.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 458 · pass 458 · fail 0
+$ npm run test:int    → exit 0 · tests 635 · pass 635 · fail 0
+```
+Tests nuevos: `registro-reglas.test.ts` (4) y `registro-salud.test.ts` (4) puros; `registro.itest.ts` (12): cada campo, las validaciones (fecha de nacimiento razonable con sus bordes, sexo, correo, teléfonos, duplicados, dos responsables, `id` de otro registro, antecedentes incoherentes, notas con salud, grupo de otra vertical, campos desconocidos), borrador → completo → cerrado, asistió o no con la regla de D4 (el rechazo revierte la petición entera), permisos por rol (recepción 403; el asesor captura todo menos la salud, y su intento de salud deja constancia sin guardar lo demás), IDOR (adulto de otro registro, clase de otra organización, otro maestro, otra sucursal), la salud solo cifrada, el contacto de emergencia distinto en los tres momentos, concurrencia (6 capturas simultáneas de secciones distintas: un registro, ninguna se pierde), reprogramar, la conversión sin recaptura y las restricciones de la tabla. `fuga.itest.ts`: un flujo nuevo (D5) con centinelas que ejecuta capturas, rechazos de validación con el valor dentro, completar, cerrar y reabrir y exige que no aparezcan en logs, en NINGUNA respuesta ni error de la API (salvo la lectura autorizada por la ruta de salud), ni en ninguna tabla.
+Mutación atrapada: quitar el candado de la captura → el test de concurrencia falla (índice único del registro).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La salud del registro vive en `ficha_salud` del PROSPECTO, no en el registro.** El registro lleva solo dos banderas de presencia. Alternativa descartada: columnas cifradas en el registro (duplica la ficha y obliga a migrar al convertir). F2 mueve la ficha del prospecto al alumno.
+2. **El asesor captura el registro pero NO la salud** (según el marco de B4: `salud:escribir` es del administrador y el maestro). Un asesor que manda la sección recibe 403 y no se guarda nada de esa petición; el registro de un asesor no llega a `completo` hasta que el maestro o el administrador capturan la salud. Alternativa descartada: dejar que el asesor escriba salud; contradice la decisión 12.
+3. **Los valores de salud no se devuelven en el registro**: solo banderas y qué falta; para verlos, `GET /api/salud/prospecto/:id` (permiso, motivo y constancia). Alternativa descartada: incluirlos en el GET del registro (dos puertas de lectura para lo mismo).
+4. **«Asistió o no» no se duplica**: es `clase_muestra.estatus`; `observacion.asistio` llama a las reglas de D4 en la misma transacción. Alternativa descartada: una columna `asistio` en el registro (dos fuentes que se contradicen).
+5. **Completo = lo necesario para convertir** (alumno, un adulto con responsable de pago, antecedentes y la ficha de salud entera, aunque la respuesta sea «ninguna»); la observación del maestro no se exige para completar (se captura después de la clase) pero **cerrar** pide el interés percibido si la clase se dio. Completar es una acción explícita, nunca automática.
+6. **Un teléfono por adulto, un responsable de pago y uno que lo lleva por registro.** Alternativa descartada: permitir dos adultos con el mismo teléfono: F1 define «un tutor por teléfono normalizado».
+7. **Tutores = lista completa por reemplazo** (con `id` se conserva la fila). Alternativa descartada: endpoints por adulto (más rutas y más estados intermedios para una pantalla de celular).
+8. **Las notas libres se rechazan si mencionan salud** (lista corta de raíces en `src/sensibles/`). No es una garantía, es un freno; la fuga real la cubren la sección de salud y el test de fuga.
+9. **El registro de cambios no guarda nombres ni fechas de nacimiento** (es de solo anexar y nunca se purga): solo qué secciones se tocaron. Si Eduardo quiere ver el antes y el después de un dato, habría que decidir una política de retención.
+10. **Reprogramar lleva el registro** (borrador o completo) a la clase nueva; uno cerrado se queda. Se tocó `agenda.ts` con una sola línea.
+
+**Para Eduardo**
+- Revisar la decisión 2 (el asesor no captura salud): en la práctica, ¿quién la captura el día de la clase cuando el maestro no está? Hoy: el maestro del grupo o el administrador.
+- **[SUPUESTO]** edad válida 1–99 años; catálogo de motivos tal como lo pidió el encargo; qué cuenta como «completo».
+- F2 debe llamar a `registroDeProspectoParaConversion` y mover la ficha de salud del prospecto al alumno con el módulo de datos sensibles.
