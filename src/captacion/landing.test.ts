@@ -43,6 +43,12 @@ test("validarEnvio: lo correcto sale limpio (nombre compactado, teléfono normal
   // El nombre de contacto es opcional.
   const sin = validarEnvio({ ...buenos, nombre_contacto: "" }, DOS);
   assert.ok(sin.ok && sin.datos.nombreContacto === null);
+  // Nombres de verdad no se rechazan por el filtro: acentos, apóstrofos, puntos de iniciales, números romanos, guiones, una sola letra.
+  for (const nombre of ["María José Pérez-Soto", "O'Brien", "J. Luis", "Ana B.", "Luis II", "李小龍", "Nadia\u200b Ruiz"]) {
+    const r = validarEnvio({ ...buenos, nombre_alumno: nombre, nombre_contacto: nombre }, DOS);
+    assert.ok(r.ok, nombre);
+  }
+  assert.equal(validarEnvio({ ...buenos, nombre_alumno: "Nadia\u200b Ruiz" }, DOS).ok && (validarEnvio({ ...buenos, nombre_alumno: "Nadia\u200b Ruiz" }, DOS) as { datos: { nombreAlumno: string } }).datos.nombreAlumno, "Nadia Ruiz", "el carácter invisible se quita");
 });
 
 test("validarEnvio: cada campo malo da su mensaje; nada se acepta a medias", () => {
@@ -61,6 +67,13 @@ test("validarEnvio: cada campo malo da su mensaje; nada se acepta a medias", () 
   assert.deepEqual(campos({ sucursal_id: "zz" }), ["sucursal_id"], "una sucursal que la vertical no ofrece");
   for (const telefono of ["", "abc", "123", "+0000000000", "5".repeat(31)]) assert.deepEqual(campos({ telefono }), ["telefono"], `teléfono «${telefono}»`);
   assert.deepEqual(campos({ nombre_contacto: "<b>x</b>" }), ["nombre_contacto"]);
+  // EE-12: solo caracteres invisibles (ancho cero, controles bidireccionales) no es un nombre; EE-05: tampoco una dirección web.
+  for (const invisible of ["\u200b", "\u200b\u200b ", "\u202e", "\ufeff"]) assert.deepEqual(campos({ nombre_alumno: invisible }), ["nombre_alumno"], JSON.stringify(invisible));
+  assert.deepEqual(campos({ nombre_alumno: "---" }), ["nombre_alumno"], "sin una letra o un número");
+  for (const web of ["Paga aquí https://pago.example/x", "www.ejemplo.com", "ver ejemplo.com", "http://x", "mira://raro", "oferta.mx hoy"]) {
+    assert.deepEqual(campos({ nombre_alumno: web }), ["nombre_alumno"], web);
+    assert.deepEqual(campos({ nombre_contacto: web }), ["nombre_contacto"], web);
+  }
   assert.deepEqual(campos({ acepta_aviso: undefined }), ["acepta_aviso"]);
   assert.deepEqual(campos({ acepta_aviso: "no" }), ["acepta_aviso"]);
   // Todos los errores juntos, no el primero.

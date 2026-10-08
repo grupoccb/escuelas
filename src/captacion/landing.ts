@@ -5,13 +5,15 @@
 // Un envío, de punta a punta, en este orden y sin duplicar nada si se repite:
 //   1. el teléfono pasa por `normalizarTelefono()` (invariante 7);
 //   2. bajo un candado por (teléfono, vertical): se encuentra o se crea el LEAD (mismo teléfono y vertical = el mismo lead, a lo más uno por el índice
-//      único de la base) con la atribución de la landing (utm_* y el código de campaña) SOLO si es nuevo: un lead que ya existe conserva la suya y
-//      nadie puede reescribirlo mandando su teléfono; y el PROSPECTO (el niño o alumno) con su nombre y edad, reutilizando el que ya tiene ese nombre y edad;
+//      único de la base) con la atribución de la landing (utm_* y el código de campaña, que se consume ANTES con cambio condicional: EE-02) SOLO si es nuevo: un
+//      lead que ya existe conserva la suya, no recibe prospectos nuevos (EE-05) y nadie puede reescribirlo mandando su teléfono; y el PROSPECTO (el niño o
+//      alumno) con su nombre y edad, reutilizando el que ya tiene ese nombre y edad;
 //   3. la aceptación del aviso de privacidad vigente queda como evidencia (`aceptacion_legal`, canal web, con IP y agente: D6);
 //   4. el consentimiento (`consentimiento`, opt-in por formulario) con esa evidencia, EXCEPTO si el teléfono tiene una baja: el formulario no prueba que
 //      quien lo llena sea el dueño del número, así que no levanta una baja (invariante de bajas);
 //   5. el enlace de WhatsApp (`wa.me`) con el mensaje prellenado y el código de rastreo del lead (E2).
-// Quien llena el formulario recibe SIEMPRE la misma respuesta, exista o no el lead: no se puede averiguar qué teléfonos ya están en el sistema.
+// Quien llena el formulario recibe SIEMPRE la misma respuesta, exista o no el lead (el canal de WhatsApp sale de la sucursal que eligió: EE-04): no se puede
+// averiguar qué teléfonos ya están en el sistema.
 
 import { type BaseDatos, type Consultas, altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
@@ -25,6 +27,7 @@ import { normalizarTelefono } from "../lib/telefono.ts";
 import { estaDadoDeBaja } from "../mensajeria/consentimiento.ts";
 import { normalizarNombre } from "../sensibles/campos.ts";
 import { buscarCodigoUsable, codigoDeLead, formatearCodigo, generarCodigo, normalizarCodigoEscrito } from "./codigos.ts";
+import { consumirCodigo } from "./rastreo.ts";
 
 export const PARAMETROS_UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -120,11 +123,18 @@ export interface ErroresDelEnvio {
 }
 
 const COMPACTAR = /\s+/g;
+/** Caracteres de formato invisibles (ancho cero, controles bidireccionales…): no son parte de un nombre y sirven para esconder texto (EE-12). */
+const INVISIBLES = /[\p{Cf}\u2028\u2029]/gu;
+/** Un nombre tiene al menos una letra o un número. */
+const CON_LETRAS = /[\p{L}\p{N}]/u;
+/** Direcciones web dentro de un nombre (EE-05): el bot las repetiría al contacto en su saludo. */
+const DIRECCION_WEB = /(?:https?:|www\.|:\/\/|[\p{L}\p{N}-]\.(?:com|net|org|mx|io|co|me|app|link|xyz|top|site|ly)\b)/iu;
 const nombreLimpio = (t: unknown, max: number): string | null => {
   if (typeof t !== "string") return null;
-  const limpio = sinControl(t.normalize("NFKC")).replace(COMPACTAR, " ");
-  return limpio.length >= 1 && limpio.length <= max ? limpio : null;
+  const limpio = sinControl(t.normalize("NFKC").replace(INVISIBLES, "")).replace(COMPACTAR, " ");
+  return limpio.length >= 1 && limpio.length <= max && CON_LETRAS.test(limpio) ? limpio : null;
 };
+const raro = (t: string): boolean => /[<>]/.test(t) || DIRECCION_WEB.test(t);
 
 export type ResultadoDeValidacion = { ok: true; datos: DatosDelEnvio } | { ok: false; errores: ErroresDelEnvio };
 
@@ -133,7 +143,7 @@ export function validarEnvio(cuerpo: Record<string, unknown>, landing: Pick<Land
   const campos: ErroresDelEnvio["campos"] = {};
   const alumno = nombreLimpio(cuerpo["nombre_alumno"], 120);
   if (!alumno) campos.nombre_alumno = "Escribe el nombre de quien tomará la clase (hasta 120 caracteres).";
-  else if (/[<>]/.test(alumno)) campos.nombre_alumno = "El nombre solo puede llevar letras, números y signos de puntuación comunes.";
+  else if (raro(alumno)) campos.nombre_alumno = "El nombre solo puede llevar letras, números y signos de puntuación comunes (sin direcciones web).";
 
   const edadTexto = typeof cuerpo["edad"] === "string" ? cuerpo["edad"].trim() : "";
   const edad = /^\d{1,2}$/.test(edadTexto) ? Number(edadTexto) : null;
@@ -156,7 +166,7 @@ export function validarEnvio(cuerpo: Record<string, unknown>, landing: Pick<Land
   const nc = cuerpo["nombre_contacto"];
   if (typeof nc === "string" && nc.trim() !== "") {
     nombreContacto = nombreLimpio(nc, 120);
-    if (!nombreContacto || /[<>]/.test(nombreContacto)) campos.nombre_contacto = "Escribe tu nombre (hasta 120 caracteres, sin símbolos raros) o déjalo en blanco.";
+    if (!nombreContacto || raro(nombreContacto)) campos.nombre_contacto = "Escribe tu nombre (hasta 120 caracteres, sin símbolos raros) o déjalo en blanco.";
   }
 
   if (!["on", "si", "sí", "1", "true"].includes(typeof cuerpo["acepta_aviso"] === "string" ? cuerpo["acepta_aviso"].toLowerCase() : "")) campos.acepta_aviso = "Para continuar necesitamos que aceptes el aviso de privacidad.";
@@ -225,7 +235,10 @@ export async function registrarEnvioDeLanding(prisma: PrismaRaiz, landing: Landi
     if (!lead) {
       // La atribución es del PRIMER contacto: solo un lead nuevo la recibe.
       const campana = parametros.codigo ? await buscarCodigoUsable(tx, parametros.codigo, ahora) : null;
-      const delCodigo = campana && campana.tipo === "campana" && (campana.verticalId === null || campana.verticalId === landing.verticalId) ? campana : null;
+      let delCodigo = campana && campana.tipo === "campana" && (campana.verticalId === null || campana.verticalId === landing.verticalId) ? campana : null;
+      // EE-02: el uso se CONSUME primero, con el cambio condicional (activo y bajo el tope): ocho leads distintos que leyeron «queda un uso» a la vez compiten
+      // aquí y solo cuantos caben quedan atribuidos. Si el lead no llega a crearse, la transacción entera —consumo incluido— se revierte.
+      if (delCodigo && !(await consumirCodigo(tx, delCodigo))) delCodigo = null;
       const atribucion: Record<string, unknown> = { fuente: "landing", ...(delCodigo ? { codigo_rastreo: delCodigo.codigo, campana_id: delCodigo.campanaId, sucursal_del_codigo_id: delCodigo.sucursalId } : {}), ...(Object.keys(parametros.utm).length > 0 ? { utm: parametros.utm } : {}) };
       lead = await tx.lead.create({
         data: altaConAlcance({
@@ -242,13 +255,13 @@ export async function registrarEnvioDeLanding(prisma: PrismaRaiz, landing: Landi
       });
       await registrarAltaDeLead(tx, lead.id, etapaInicial.id, ahora);
       esNuevo = true;
-      // Un código de campaña se «registra»: cuenta una vez más (con tope, si lo tiene).
-      if (delCodigo) await tx.codigo_rastreo.updateMany({ where: { id: delCodigo.id, OR: [{ max_usos: null }, { usos: { lt: delCodigo.maxUsos ?? 0 } }] }, data: { usos: { increment: 1 } } });
     }
     // El prospecto: el mismo nombre y la misma edad es el mismo niño; otro es otro prospecto del mismo lead.
     const prospectos = await tx.prospecto.findMany({ where: { lead_id: lead.id }, select: { id: true, nombre: true, edad_declarada: true, origen: true }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] });
     const mismo = prospectos.find((p) => p.nombre !== null && comparable(p.nombre) === comparable(datos.nombreAlumno) && p.edad_declarada === datos.edad);
-    let prospectoId = mismo?.id;
+    // EE-05: a un lead que YA existía (y ya tiene a alguien) nadie le agrega prospectos mandando su teléfono: el formulario no prueba que sea el dueño. Un hermano
+    // se agrega por WhatsApp o lo registra el asesor. La aceptación del aviso se liga al prospecto que ya tenía.
+    let prospectoId = mismo?.id ?? (!esNuevo ? prospectos[0]?.id : undefined);
     if (!prospectoId) {
       // El primero es del bot (el bot de WhatsApp continúa sobre él sin preguntar lo que ya se sabe); los demás, de la landing.
       const origen = prospectos.some((p) => p.origen === "bot") ? ("landing" as const) : ("bot" as const);
@@ -284,6 +297,8 @@ export async function registrarEnvioDeLanding(prisma: PrismaRaiz, landing: Landi
     }
   }
 
-  const numero = await numeroDeContacto(db, landing.verticalId, creado.sucursalId);
+  // EE-04: el canal sale de la sucursal que ELIGIÓ quien llenó el formulario, no de la del lead que ya existiera con ese teléfono: así la respuesta no cambia
+  // según el teléfono exista o no.
+  const numero = await numeroDeContacto(db, landing.verticalId, datos.sucursalId ?? creado.sucursalId);
   return { ok: true, leadId: creado.leadId, prospectoId: creado.prospectoId, creado: creado.esNuevo, codigo: creado.codigo, enlace: numero ? enlaceDeWhatsapp(numero, landing.nombre, creado.codigo) : null };
 }

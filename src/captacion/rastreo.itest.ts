@@ -9,6 +9,7 @@ import { conAlcance } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { escenarioBot, type EscenarioBot } from "../testutil/bot.ts";
 import { sembrarOrganizacion } from "../testutil/semilla.ts";
+import { fechaLocal } from "../lib/horario.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { AtribucionSimulada, MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
 import { procesarEntrante } from "./entrante.ts";
@@ -282,4 +283,51 @@ test("E2 concurrencia FORZADA: dos leads nuevos usan a la vez un código con un 
   assert.equal(await m.usos("UNJKQQ72"), 1);
   const atribuidos = [await m.lead(a), await m.lead(b)].filter((l) => l.campana_id !== null);
   assert.equal(atribuidos.length, 1, "uno solo recibió la campaña");
+});
+
+test("EE-03: una campaña apagada, dada de baja, vencida o que aún no empieza apaga sus códigos también en el bot; el último día vale completo", async () => {
+  const m = await mundo();
+  const hoy = fechaLocal(new Date(), "America/Mexico_City");
+  const mas = (dias: number): Date => new Date(Date.parse(`${hoy}T00:00:00Z`) + dias * 86_400_000);
+  const casos: [string, Record<string, unknown>, boolean][] = [
+    ["APAGADK4", { activo: false }, false],
+    ["BAJACQK4", { eliminado_en: new Date() }, false],
+    ["VENCDEK4", { fecha_fin: mas(-1) }, false],
+    ["FUTURAK4", { fecha_inicio: mas(1) }, false],
+    ["UTMDAAK4", { fecha_inicio: mas(-5), fecha_fin: mas(0) }, true],
+    ["SNFCHAK4", {}, true],
+  ];
+  for (const [codigo, datos, vale] of casos) {
+    const campana = await prisma.campana.create({ data: { organizacion_id: m.e.org.organizacionId, nombre: `Campaña ${codigo}`, origen: "presencial", ...datos } });
+    await m.crear(codigo, { campana_id: campana.id });
+    const tel = telefonoNuevo();
+    const r = await m.entra(`Hola, mi código es ${codigo}`, { telefono: tel });
+    assert.equal(r.resultado, "procesado", codigo);
+    const lead = await m.lead(tel);
+    assert.equal(lead.campana_id, vale ? campana.id : null, `${codigo}: ${vale ? "atribuye" : "se ignora"}`);
+    assert.equal(await m.usos(codigo), vale ? 1 : 0, `${codigo}: usos`);
+  }
+});
+
+test("EE-09 (R08): un código de campaña de OTRA vertical no atribuye en el bot de esta", async () => {
+  const m = await mundo();
+  const otraVertical = await prisma.vertical.create({ data: { organizacion_id: m.e.org.organizacionId, nombre: "Otra", slug: `o-${randomInt(1, 1_000_000)}` } });
+  await m.crear("XTRAVQK4", { vertical_id: otraVertical.id });
+  const tel = telefonoNuevo();
+  await m.entra("Hola, mi código es XTRAVQK4", { telefono: tel });
+  const lead = await m.lead(tel);
+  assert.equal(lead.campana_id, null);
+  assert.equal(lead.atribucion, null);
+  assert.equal(await m.usos("XTRAVQK4"), 0);
+});
+
+test("EE-16: un mensaje con decenas de supuestos códigos no revienta la consulta: solo se buscan los primeros diez", async () => {
+  const m = await mundo();
+  await m.crear("QR7M2KXA");
+  const basura = Array.from({ length: 60 }, (_, i) => `ZK${2 + (i % 8)}${2 + Math.floor(i / 8)}-3W4V`).join(" ");
+  const tel = telefonoNuevo();
+  const r = await m.entra(`${basura} Mi código es QR7M-2KXA`, { telefono: tel });
+  assert.equal(r.resultado, "procesado");
+  // El código real quedó más allá de los diez primeros candidatos: no se busca (el costo de la consulta está acotado); el lead se crea igual.
+  assert.equal((await m.lead(tel)).campana_id, null);
 });

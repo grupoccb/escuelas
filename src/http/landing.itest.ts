@@ -6,6 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomInt } from "node:crypto";
 import { conAlcance } from "../datos/alcance.ts";
+import { fechaLocal } from "../lib/horario.ts";
 import { limitesDesdeEntorno } from "./config-limites.ts";
 import { LimitadorDeTasa } from "./limite.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
@@ -207,7 +208,7 @@ test("E1 POST: crea el lead y el prospecto, el aviso de privacidad con su eviden
   assert.equal(await m.db.mensaje.count(), 0);
 });
 
-test("E1 POST: idempotente — reenviar, doble clic y envíos simultáneos dejan UN lead, UN prospecto, UNA aceptación, UN consentimiento y el MISMO código; otro nombre es otro prospecto", async () => {
+test("E1 POST: idempotente — reenviar, doble clic y envíos simultáneos dejan UN lead, UN prospecto, UNA aceptación, UN consentimiento y el MISMO código; otro niño con el teléfono de un lead existente NO le agrega prospectos (EE-05)", async () => {
   const m = await mundo();
   const rs = await Promise.all([1, 2, 3, 4, 5, 6].map(() => enviar(api.base, m.ruta, campos(m))));
   assert.deepEqual(rs.map((r) => r.status), [303, 303, 303, 303, 303, 303]);
@@ -225,14 +226,15 @@ test("E1 POST: idempotente — reenviar, doble clic y envíos simultáneos dejan
   await otra.text();
   assert.equal(await m.db.lead.count(), 1);
   assert.equal(await m.db.prospecto.count(), 1);
-  // Otro niño con el mismo teléfono: el mismo lead, otro prospecto (el primero fue del bot; este es de la landing).
+  // EE-05: otro niño con el teléfono de un lead que YA existía: el formulario no prueba que sea su dueño, así que no se le agregan prospectos (un hermano
+  // se agrega por WhatsApp o lo registra el asesor). El envío no falla ni se distingue, y la aceptación se liga al prospecto que ya tenía.
   const hermano = await enviar(api.base, m.ruta, campos(m, { nombre_alumno: "Lucía Soto", edad: "5" }));
   assert.equal(hermano.status, 303);
   await hermano.text();
   assert.equal(await m.db.lead.count(), 1);
   const prospectos = await m.db.prospecto.findMany({ orderBy: { creado_en: "asc" }, select: { nombre: true, origen: true } });
-  assert.deepEqual(prospectos.map((p) => [p.nombre, p.origen]), [["Mateo Soto", "bot"], ["Lucía Soto", "landing"]]);
-  assert.equal(await m.db.aceptacion_legal.count(), 2, "una aceptación por prospecto");
+  assert.deepEqual(prospectos.map((p) => [p.nombre, p.origen]), [["Mateo Soto", "bot"]]);
+  assert.equal(await m.db.aceptacion_legal.count(), 1, "la misma aceptación del mismo prospecto: no se duplica");
   assert.equal(await m.db.consentimiento.count(), 1, "el consentimiento del teléfono no se repite");
   // Quien reenvía no sobreescribe al lead: el nombre de contacto y la atribución siguen siendo los del primero.
   const l = await m.db.lead.findFirstOrThrow();
@@ -452,4 +454,107 @@ test("E1 concurrencia FORZADA: ocho envíos del mismo teléfono llegan al mismo 
   } finally {
     await forzada.cerrar();
   }
+});
+
+/** Una campaña con un código de campaña (por omisión sin tope). */
+async function campanaConCodigo(m: Mundo, campana: Record<string, unknown>, codigo: string, extra: Record<string, unknown> = {}) {
+  const c = await prisma.campana.create({ data: { organizacion_id: m.org.organizacionId, nombre: `Campaña ${codigo}`, origen: "presencial", ...campana } });
+  await prisma.codigo_rastreo.create({ data: { organizacion_id: m.org.organizacionId, codigo, tipo: "campana", campana_id: c.id, ...extra } });
+  return c;
+}
+
+test("EE-02 concurrencia FORZADA: ocho leads distintos usan a la vez un código de UN solo uso — se atribuye UNO y el tope no se rebasa", async () => {
+  const m = await mundo();
+  const c = await campanaConCodigo(m, {}, "QR7M2KXA", { max_usos: 1 });
+  const barrera = new Barrera(8);
+  // La barrera va entre la lectura del código y su consumo: los ocho leen «queda un uso» y luego compiten de verdad.
+  const raiz = conGanchos(prisma, { modelo: "codigo_rastreo", operacion: "findFirst", cuando: (a) => (a["where"] as Record<string, unknown> | undefined)?.["AND"] !== undefined, despues: async () => barrera.esperar(3000) });
+  const forzada = levantarApi(prisma, {}, { landing: { prisma: raiz } });
+  try {
+    const rs = await Promise.all(Array.from({ length: 8 }, (_, i) => enviar(forzada.base, m.ruta, campos(m, { telefono: `55 7000 000${i}`, c: "QR7M2KXA" }))));
+    for (const r of rs) await r.text();
+    assert.ok(barrera.completa, "los ocho leyeron el código a la vez");
+    assert.deepEqual(rs.map((r) => r.status), Array(8).fill(303));
+    assert.equal(await m.db.lead.count(), 8);
+    assert.equal(await m.db.lead.count({ where: { campana_id: c.id } }), 1, "solo UNO queda atribuido a la campaña");
+    assert.equal((await m.db.codigo_rastreo.findFirstOrThrow({ where: { codigo: "QR7M2KXA" } })).usos, 1);
+  } finally {
+    await forzada.cerrar();
+  }
+});
+
+test("EE-03: una campaña apagada, dada de baja, vencida o que aún no empieza apaga sus códigos (landing); el último día vale completo", async () => {
+  const m = await mundo();
+  const hoy = fechaLocal(new Date(), "America/Mexico_City");
+  const mas = (dias: number): Date => new Date(Date.parse(`${hoy}T00:00:00Z`) + dias * 86_400_000);
+  const casos: [string, Record<string, unknown>, boolean][] = [
+    ["APAGADK4", { activo: false }, false],
+    ["BAJACQK4", { eliminado_en: new Date() }, false],
+    ["VENCDEK4", { fecha_fin: mas(-1) }, false],
+    ["FUTURAK4", { fecha_inicio: mas(1) }, false],
+    ["UTMDAAK4", { fecha_inicio: mas(-5), fecha_fin: mas(0) }, true],
+    ["PRMRDAK4", { fecha_inicio: mas(0), fecha_fin: mas(3) }, true],
+    ["SNFCHAK4", {}, true],
+  ];
+  for (const [i, [codigo, campana, vale]] of casos.entries()) {
+    const c = await campanaConCodigo(m, campana, codigo);
+    const r = await enviar(api.base, m.ruta, campos(m, { telefono: `55 7100 000${i}`, c: codigo }));
+    assert.equal(r.status, 303, codigo);
+    await r.text();
+    const atribuidos = await m.db.lead.count({ where: { campana_id: c.id } });
+    assert.equal(atribuidos, vale ? 1 : 0, `${codigo}: ${vale ? "atribuye" : "se ignora"}`);
+    assert.equal((await m.db.codigo_rastreo.findFirstOrThrow({ where: { codigo } })).usos, vale ? 1 : 0, `${codigo}: usos`);
+  }
+});
+
+test("EE-09 (L16): un código de campaña de OTRA vertical de la organización no atribuye en la landing de esta (el lead se crea sin atribución y el código no cuenta)", async () => {
+  const m = await mundo();
+  const otraVertical = await prisma.vertical.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Otra", slug: `o-${randomBytes(4).toString("hex")}` } });
+  const c = await campanaConCodigo(m, { vertical_id: otraVertical.id }, "XTRAVQK4", { vertical_id: otraVertical.id });
+  const r = await enviar(api.base, m.ruta, campos(m, { c: "XTRAVQK4" }));
+  assert.equal(r.status, 303);
+  await r.text();
+  assert.equal(await m.db.lead.count({ where: { campana_id: c.id } }), 0);
+  assert.equal((await m.db.lead.findFirstOrThrow()).atribucion !== null && JSON.stringify((await m.db.lead.findFirstOrThrow()).atribucion).includes("XTRAVQK4"), false);
+  assert.equal((await m.db.codigo_rastreo.findFirstOrThrow({ where: { codigo: "XTRAVQK4" } })).usos, 0);
+});
+
+test("EE-04: el canal de WhatsApp sale de la sucursal que ELIGIÓ quien llena el formulario, exista o no ya un lead con ese teléfono (sin oráculo)", async () => {
+  const m = await mundo();
+  const numeroSur = numeroUnico();
+  await prisma.canal_whatsapp.create({ data: { organizacion_id: m.org.organizacionId, vertical_id: m.org.verticalId, sucursal_id: m.org.sucursales[1]!.id, nombre_publico: "Sur", numero_whatsapp: `whatsapp:+${numeroSur}` } });
+  await prisma.canal_whatsapp.update({ where: { id: m.org.canalId }, data: { sucursal_id: m.org.sucursales[0]!.id } });
+  const norte = m.org.sucursales[0]!.id;
+  const sur = m.org.sucursales[1]!.id;
+  const destino = async (telefono: string, sucursal: string): Promise<string> => {
+    const r = await enviar(api.base, m.ruta, campos(m, { telefono, sucursal_id: sucursal }));
+    assert.equal(r.status, 303);
+    await r.text();
+    return decodeURIComponent(r.headers.get("location") ?? "").replace(/[A-Z2-9]{4}-[A-Z2-9]{4}/, "CODIGO");
+  };
+  // Un lead de Norte ya existe con ese teléfono; alguien manda el mismo teléfono eligiendo Sur: la respuesta es la de un teléfono NUEVO que elige Sur.
+  await destino("55 8000 0001", norte);
+  const existenteEligiendoSur = await destino("55 8000 0001", sur);
+  const nuevoEligiendoSur = await destino("55 8000 0002", sur);
+  assert.ok(nuevoEligiendoSur.startsWith(`https://wa.me/${numeroSur}?`), "el nuevo que elige Sur va al canal de Sur");
+  assert.equal(existenteEligiendoSur, nuevoEligiendoSur, "el existente que elige Sur recibe lo mismo: no se averigua si ya era lead");
+});
+
+test("EE-05: quien manda el teléfono de un lead que ya existe no le agrega prospectos ni cambia nada de él (nombre, atribución, prospecto)", async () => {
+  const m = await mundo();
+  const primero = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8100 0001" }));
+  await primero.text();
+  const lead0 = await m.db.lead.findFirstOrThrow({ include: { prospectos: true } });
+  const intruso = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8100 0001", nombre_alumno: "Otro Niño", edad: "5", nombre_contacto: "Intruso", utm_source: "otra" }));
+  assert.equal(intruso.status, 303);
+  await intruso.text();
+  const lead1 = await m.db.lead.findFirstOrThrow({ include: { prospectos: true } });
+  assert.deepEqual(lead1.prospectos.map((p) => p.id), lead0.prospectos.map((p) => p.id), "ni un prospecto más");
+  assert.deepEqual([lead1.nombre_contacto, lead1.atribucion], [lead0.nombre_contacto, lead0.atribucion]);
+  // Un lead sin ningún prospecto (lo dio de alta una persona) sí recibe el del formulario: no hay nada que proteger y es lo que se pidió.
+  const sinProspectos = await prisma.lead.create({ data: { organizacion_id: m.org.organizacionId, vertical_interes_id: m.org.verticalId, etapa_id: m.org.etapaInicialId, telefono: "+525581000002", nombre_contacto: "Alta manual" } });
+  const r = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8100 0002", nombre_alumno: "Niña Nueva", edad: "6" }));
+  assert.equal(r.status, 303);
+  await r.text();
+  assert.deepEqual((await m.db.prospecto.findMany({ where: { lead_id: sinProspectos.id } })).map((p) => p.nombre), ["Niña Nueva"]);
 });

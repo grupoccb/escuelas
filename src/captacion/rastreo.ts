@@ -12,7 +12,7 @@
 
 import { type Consultas } from "../datos/alcance.ts";
 import type { ValorJson } from "../datos/tipos.ts";
-import { esCodigoValido, type CodigoVigente } from "./codigos.ts";
+import { campanaVigenteParaElCodigo, esCodigoValido, SELECCION_DE_CAMPANA, type CampanaDelCodigo, type CodigoVigente } from "./codigos.ts";
 
 export interface CandidatoDeCodigo {
   codigo: string;
@@ -59,23 +59,31 @@ export interface RastreoDelMensaje {
   encontrados: number;
 }
 
-const SELECCION = { id: true, codigo: true, tipo: true, campana_id: true, sucursal_id: true, vertical_id: true, lead_id: true, usos: true, max_usos: true, activo: true, vigente_desde: true, vigente_hasta: true } as const;
+const SELECCION = { id: true, codigo: true, tipo: true, campana_id: true, sucursal_id: true, vertical_id: true, lead_id: true, usos: true, max_usos: true, activo: true, vigente_desde: true, vigente_hasta: true, campana: { select: SELECCION_DE_CAMPANA } } as const;
+
+/** EE-16: a lo más tantos candidatos por mensaje se buscan en la tabla (un mensaje de WhatsApp no llega ni a 4 096 caracteres; esto acota la consulta). */
+export const MAX_CANDIDATOS_POR_MENSAJE = 10;
 
 /**
  * Busca los códigos del texto en la organización. Quita del texto los que ella CONOCE (existan en su tabla aunque ya no sirvan) y deja intacto lo demás: una
  * palabra que solo se parece a un código («casa 2345») no se toca. `usable` es el primero que sirve ahora. Una sola consulta.
  */
 export async function resolverCodigosDeMensaje(tx: Consultas, texto: string, ahora: Date): Promise<RastreoDelMensaje> {
-  const candidatos = candidatosDeCodigo(texto);
+  const candidatos = candidatosDeCodigo(texto).slice(0, MAX_CANDIDATOS_POR_MENSAJE);
   if (candidatos.length === 0) return { textoLimpio: texto, usable: null, encontrados: 0 };
   const filas = await tx.codigo_rastreo.findMany({ where: { codigo: { in: [...new Set(candidatos.map((c) => c.codigo))] } }, select: SELECCION });
   const conocidos = new Map(filas.map((f) => [f.codigo, f]));
-  const sirve = (f: (typeof filas)[number]): boolean =>
-    f.activo && (f.vigente_desde === null || f.vigente_desde.getTime() <= ahora.getTime()) && (f.vigente_hasta === null || f.vigente_hasta.getTime() > ahora.getTime()) && (f.max_usos === null || f.usos < f.max_usos);
+  const sirve = async (f: (typeof filas)[number]): Promise<boolean> =>
+    f.activo &&
+    (f.vigente_desde === null || f.vigente_desde.getTime() <= ahora.getTime()) &&
+    (f.vigente_hasta === null || f.vigente_hasta.getTime() > ahora.getTime()) &&
+    (f.max_usos === null || f.usos < f.max_usos) &&
+    // EE-03: una campaña apagada, dada de baja o fuera de sus fechas apaga sus códigos.
+    (await campanaVigenteParaElCodigo(tx, { sucursal_id: f.sucursal_id, vertical_id: f.vertical_id, campana: f.campana as CampanaDelCodigo | null }, ahora));
   let usable: CodigoVigente | null = null;
   for (const c of candidatos) {
     const f = conocidos.get(c.codigo);
-    if (f && sirve(f)) {
+    if (f && (await sirve(f))) {
       usable = { id: f.id, codigo: f.codigo, tipo: f.tipo, campanaId: f.campana_id, sucursalId: f.sucursal_id, verticalId: f.vertical_id, leadId: f.lead_id, usos: f.usos, maxUsos: f.max_usos };
       break;
     }
