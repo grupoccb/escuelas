@@ -195,10 +195,12 @@ interface Progreso {
 
 async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<void> {
   for (const e of await leerVencidas(db, ahora)) {
-    // Reclamar antes de actuar: solo quien gana el reclamo manda (invariante 8).
+    // Reclamar antes de actuar: solo quien gana el reclamo manda (invariante 8). Se guarda la hora
+    // REAL del reclamo, no la del inicio de la corrida: con una corrida larga o con réplicas, un
+    // reclamo que luce más viejo de lo que es lo resolvería otro proceso mientras el envío sigue (EA-13).
     const reclamo = await db.automatizacion_ejecucion.updateMany({
       where: { id: e.id, estatus: "programado", ejecutado_en: null },
-      data: { ejecutado_en: ahora },
+      data: { ejecutado_en: deps.reloj?.() ?? new Date(), reclamos: { increment: 1 } },
     });
     if (reclamo.count !== 1) continue;
     const progreso: Progreso = {};
@@ -342,10 +344,12 @@ async function recuperarAbandonadas(deps: DepsMotor, db: BaseDatos, ahora: Date,
 type EjecucionAbandonada = Awaited<ReturnType<BaseDatos["automatizacion_ejecucion"]["findMany"]>>[number];
 
 async function recuperarUna(deps: DepsMotor, db: BaseDatos, e: EjecucionAbandonada, ahora: Date, resumen: ResumenMotor): Promise<void> {
-  // Quien gana este reclamo (mismo ejecutado_en que se leyó) resuelve; los demás motores la saltan.
+  // Quien gana este reclamo (mismo contador de reclamos que se leyó) resuelve; los demás motores la
+  // saltan. Se compara un contador, no la fecha: `Date` tiene milisegundos y la columna
+  // microsegundos, así que una fila escrita por SQL nunca coincidía y no se recuperaba jamás (EA-20).
   const reclamo = await db.automatizacion_ejecucion.updateMany({
-    where: { id: e.id, estatus: "programado", ejecutado_en: e.ejecutado_en },
-    data: { ejecutado_en: ahora },
+    where: { id: e.id, estatus: "programado", reclamos: e.reclamos },
+    data: { ejecutado_en: deps.reloj?.() ?? new Date(), reclamos: { increment: 1 } },
   });
   if (reclamo.count !== 1) return;
 
@@ -377,8 +381,11 @@ async function recuperarUna(deps: DepsMotor, db: BaseDatos, e: EjecucionAbandona
       break;
     }
     case "enviando": {
-      await deps.mensajeria.recuperarEnviosInciertos(db, { desde: ahora, mensajeId: mensaje.id });
-      await cierre("fallido", ENVIO_INCIERTO);
+      // Solo es incierto si el PROPIO mensaje lleva más de ENVIO_INCIERTO_MS reclamado (EA-13): la
+      // ejecución puede lucir vieja mientras su envío acaba de empezar. Si es reciente, está en curso:
+      // la ejecución se queda como está y la resuelve un barrido posterior.
+      const marcado = await deps.mensajeria.recuperarEnviosInciertos(db, { desde: new Date(ahora.getTime() - ENVIO_INCIERTO_MS), mensajeId: mensaje.id });
+      if (marcado > 0) await cierre("fallido", ENVIO_INCIERTO);
       break;
     }
     case "bloqueado":

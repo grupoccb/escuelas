@@ -239,3 +239,23 @@ test("lo mismo con frecuencia: la plantilla fuera de ventana cuenta como iniciad
 test("la respuesta con la ventana abierta sigue sin horario ni frecuencia (decisión 5)", () => {
   assert.equal(evaluarReglas(entrada({ ahora: NOCHE_MX, origen: "respuesta", automaticosRecientes: 9, zonaHoraria: null })), null);
 });
+
+// ---------------------------------------------------------------------------------------------
+// EA-09: un pendiente que lleva demasiado tiempo esperando ya no es de este momento
+
+test("obsoleto: un pendiente con más edad que su vigencia no se manda, ni libre ni con plantilla ni como nota", () => {
+  const vigenciaMs = 10 * 60_000;
+  assert.equal(evaluarReglas(entrada({ edadMs: vigenciaMs + 1, vigenciaMs })), "obsoleto");
+  assert.equal(evaluarReglas(entrada({ edadMs: vigenciaMs + 1, vigenciaMs, plantilla: APROBADA })), "obsoleto");
+  assert.equal(evaluarReglas(entrada({ edadMs: vigenciaMs + 1, vigenciaMs, tipo: "nota_interna" })), "obsoleto");
+  assert.equal(evaluarReglas(entrada({ edadMs: 3 * 24 * 60 * 60_000, vigenciaMs, origen: "respuesta" })), "obsoleto");
+  // Justo en el límite todavía sale; sin vigencia o sin edad, no caduca.
+  assert.equal(evaluarReglas(entrada({ edadMs: vigenciaMs, vigenciaMs })), null);
+  assert.equal(evaluarReglas(entrada({ edadMs: 99 * 24 * 60 * 60_000 })), null);
+  assert.equal(evaluarReglas(entrada({ vigenciaMs })), null);
+});
+
+test("obsoleto: la atención humana sigue mandando (invariante 6, sin excepción)", () => {
+  const conv = { estado: "en_atencion_humana" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA };
+  assert.equal(evaluarReglas(entrada({ conv, edadMs: 99 * 60_000, vigenciaMs: 60_000 })), "atencion_humana");
+});

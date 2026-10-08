@@ -128,9 +128,11 @@ async function reclamar(
   if (existente.estado_proceso === "reenviado") return "duplicado";
   const vencido = existente.estado_proceso === "fallido" || existente.reclamado_en.getTime() < ahora.getTime() - RECLAMO_TWILIO_VENCE_MS;
   if (!vencido) return "en_curso"; // otro proceso lo está reenviando ahora mismo
-  // Quien gana este reclamo (mismo estado y hora que se leyeron) reenvía; los demás esperan.
+  // Quien gana este reclamo (mismo estado y mismo número de intentos que se leyeron) reenvía; los
+  // demás esperan. Se compara el contador `intentos`, no la fecha `reclamado_en`: un `Date` tiene
+  // milisegundos y la columna microsegundos, así que una fila escrita por SQL nunca coincidía (EA-20).
   const r = await db.evento_twilio.updateMany({
-    where: { id: existente.id, estado_proceso: existente.estado_proceso, reclamado_en: existente.reclamado_en },
+    where: { id: existente.id, estado_proceso: existente.estado_proceso, intentos: existente.intentos },
     data: { estado_proceso: "procesando", reclamado_en: ahora, intentos: { increment: 1 }, error: null },
   });
   return r.count === 1 ? "reclamado" : "en_curso";

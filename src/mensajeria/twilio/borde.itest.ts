@@ -329,6 +329,27 @@ test("EA-08 (A7l): varios reintentos que encuentran el MISMO reclamo vencido a l
   }
 });
 
+test("EA-20: un reclamo vencido cuya hora se escribió por SQL con microsegundos también se reclama de nuevo (el candado compara un contador)", async () => {
+  const o = await escuela();
+  const ahora = new Date("2026-10-08T18:00:00Z");
+  const e = entorno({ reloj: () => new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 5000) });
+  try {
+    const sid = sidNuevo();
+    const cuerpo = entrante(o, sid);
+    const creado = await conAlcance(prisma, o.organizacionId).evento_twilio.create({
+      data: altaConAlcance({ tipo: "entrante" as const, id_mensaje: sid, estado_mensaje: "", estado_proceso: "procesando" as const, reclamado_en: ahora }),
+    });
+    // Como lo dejaría un `now()` de SQL: microsegundos que un `Date` de JavaScript no puede representar.
+    await prisma.$executeRaw`UPDATE evento_twilio SET reclamado_en = '2026-10-08T18:00:00.123456Z'::timestamptz WHERE id = ${creado.id}::uuid`;
+    assert.equal(await e.enviar(ENTRANTES, cuerpo), 200, "se reclamó pese a los microsegundos");
+    assert.equal(e.reenviador.enviados.length, 1);
+    const hecho = await conAlcance(prisma, o.organizacionId).evento_twilio.findFirstOrThrow({ where: { id_mensaje: sid } });
+    assert.deepEqual([hecho.estado_proceso, hecho.intentos], ["reenviado", 2]);
+  } finally {
+    e.cerrar();
+  }
+});
+
 test("`From` se normaliza antes de reenviar SOLO si se enciende la opción (apagada por defecto)", async () => {
   const o = await escuela();
   const apagada = entorno();

@@ -593,6 +593,93 @@ test("recuperación: dos motores a la vez la resuelven una sola vez", async () =
 });
 
 // ---------------------------------------------------------------------------------------------
+// EA-13: el reclamo guarda la hora real y la recuperación mira la edad del propio envío
+
+test("EA-13: el reclamo de la ejecución guarda la hora REAL del reclamo, no la del inicio de la corrida", async () => {
+  const s = await escenario();
+  const inicio = en(T0, 26);
+  const quince = new Date(inicio.getTime() + 15 * MINUTO);
+  // El reloj marca el inicio de la corrida y, cuando ya fue larga, 15 min después.
+  let llamadas = 0;
+  const reloj = () => (llamadas++ === 0 ? inicio : quince);
+  const r = await s.motor(inicio, { reloj });
+  assert.equal(r.enviadas, 1);
+  const [e] = await s.ejecuciones();
+  assert.equal(e!.ejecutado_en?.toISOString(), quince.toISOString(), "la hora del reclamo, no la del inicio de la corrida");
+  assert.equal(e!.reclamos, 1);
+});
+
+test("EA-13: una ejecución que luce vieja pero cuyo envío acaba de empezar NO se marca incierta ni deja tarea falsa", async () => {
+  const s = await escenario();
+  const ahora = en(T0, 26);
+  // A reclamó la ejecución hace 12 min (corrida larga); su envío arrancó hace 1 min y sigue en curso.
+  const m = await s.db.mensaje.create({
+    data: { organizacion_id: s.o.organizacionId, conversacion_id: s.conversacionId, direccion: "saliente", estatus: "enviando", origen: "automatizacion", cuerpo: "recordatorio", proveedor: "chatwoot" },
+  });
+  await s.db.mensaje.updateMany({ where: { id: m.id }, data: { actualizado_en: new Date(ahora.getTime() - MINUTO) } });
+  await s.db.automatizacion_ejecucion.create({
+    data: {
+      organizacion_id: s.o.organizacionId,
+      automatizacion_id: s.automatizacion.id,
+      entidad_tipo: "conversacion",
+      entidad_id: s.conversacionId,
+      ocurrencia: 1,
+      programado_para: en(ahora, -1),
+      ejecutado_en: new Date(ahora.getTime() - 12 * MINUTO),
+      mensaje_id: m.id,
+    },
+  });
+
+  const r = await s.motor(ahora);
+  assert.equal(r.recuperadas, 0, "el envío está en curso: no es de nadie más");
+  assert.equal((await s.db.mensaje.findUniqueOrThrow({ where: { id: m.id } })).estatus, "enviando");
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId } }), 0, "ninguna tarea falsa");
+  assert.equal((await s.ejecuciones())[0]!.estatus, "programado");
+
+  // El envío termina bien; en el siguiente barrido la ejecución queda enviada, no incierta.
+  await s.db.mensaje.updateMany({ where: { id: m.id }, data: { estatus: "enviado", id_externo: "cw-en-curso" } });
+  const despues = await s.motor(en(ahora, 11 * MINUTO));
+  assert.equal(despues.recuperadas, 1);
+  const [e] = await s.ejecuciones();
+  assert.deepEqual([e!.estatus, e!.motivo_omision], ["enviado", null]);
+
+  // Y si el envío SIGUE sin resultado pasados 5 min de SU edad, entonces sí es incierto.
+  const s2 = await escenario();
+  const m2 = await s2.db.mensaje.create({
+    data: { organizacion_id: s2.o.organizacionId, conversacion_id: s2.conversacionId, direccion: "saliente", estatus: "enviando", origen: "automatizacion", cuerpo: "recordatorio", proveedor: "chatwoot" },
+  });
+  await s2.db.mensaje.updateMany({ where: { id: m2.id }, data: { actualizado_en: new Date(ahora.getTime() - 6 * MINUTO) } });
+  await s2.db.automatizacion_ejecucion.create({
+    data: { organizacion_id: s2.o.organizacionId, automatizacion_id: s2.automatizacion.id, entidad_tipo: "conversacion", entidad_id: s2.conversacionId, ocurrencia: 1, programado_para: en(ahora, -1), ejecutado_en: new Date(ahora.getTime() - 12 * MINUTO), mensaje_id: m2.id },
+  });
+  const incierto = await s2.motor(ahora);
+  assert.equal(incierto.recuperadas >= 1, true);
+  assert.deepEqual([(await s2.ejecuciones())[0]!.estatus, (await s2.ejecuciones())[0]!.motivo_omision], ["fallido", ENVIO_INCIERTO]);
+  assert.equal(await s2.db.tarea_asesor.count({ where: { conversacion_id: s2.conversacionId, tipo: "envio_incierto" } }), 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-20: los candados no comparan fechas
+
+test("EA-20: una ejecución reclamada cuya hora se escribió por SQL con microsegundos también se recupera (el candado compara un contador)", async () => {
+  const s = await escenario();
+  const ahora = en(T0, 26);
+  const e = await s.db.automatizacion_ejecucion.create({
+    data: { organizacion_id: s.o.organizacionId, automatizacion_id: s.automatizacion.id, entidad_tipo: "conversacion", entidad_id: s.conversacionId, ocurrencia: 1, programado_para: en(ahora, -1) },
+  });
+  // Un backfill o un `now()` de SQL: la hora trae microsegundos que un `Date` de JavaScript no representa.
+  const hora = new Date(ahora.getTime() - RECLAMO_VENCE_MS - MINUTO).toISOString().replace(/\.(\d{3})Z$/, ".$1456Z");
+  await prisma.$executeRaw`UPDATE automatizacion_ejecucion SET ejecutado_en = ${hora}::timestamptz WHERE id = ${e.id}::uuid`;
+  const fila = await prisma.$queryRaw<{ micro: string }[]>`SELECT to_char(ejecutado_en, 'US') AS micro FROM automatizacion_ejecucion WHERE id = ${e.id}::uuid`;
+  assert.match(fila[0]!.micro, /456$/, "la fila tiene microsegundos que un Date de JavaScript no representa");
+
+  const r = await s.motor(ahora);
+  assert.equal(r.recuperadas, 1, "se recuperó pese a los microsegundos");
+  const [despues] = await s.ejecuciones();
+  assert.deepEqual([despues!.estatus, despues!.motivo_omision], ["fallido", "ejecucion_abandonada"]);
+});
+
+// ---------------------------------------------------------------------------------------------
 // F1-06: el reenganche revalida antes de encolar
 
 test("F1-06: si el contacto escribió después de programarse, el reenganche no sale (contacto_respondio)", async () => {

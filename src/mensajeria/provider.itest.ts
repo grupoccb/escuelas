@@ -8,7 +8,7 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { fijarConfiguracion, sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
-import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, ErrorOrigenSaliente, MessagingProvider, TransporteFalso, asegurarTareaAsesor, respuestaA, type Saliente } from "./index.ts";
+import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, ErrorOrigenSaliente, MessagingProvider, PENDIENTE_VIGENCIA_MS, TransporteFalso, asegurarTareaAsesor, respuestaA, type Saliente } from "./index.ts";
 
 let prisma: PrismaPruebas;
 
@@ -175,6 +175,53 @@ test("una etiqueta de origen distinta de `respuesta` basta para ser del sistema,
   const [id] = await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [{ tipo: "mensaje", cuerpo: "recordatorio", origen: "automatizacion" }]));
   const r = await s.provider.despachar(s.db, s.conv.id);
   assert.deepEqual(r.resultados.find((x) => x.mensajeId === id), { mensajeId: id, resultado: "bloqueado", motivo: "fuera_de_horario" });
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-09: un pendiente huérfano no sale días después, antes de lo nuevo
+
+test("EA-09: un pendiente de hace 3 días no sale antes de la respuesta nueva: queda bloqueado/obsoleto, sin tarea", async () => {
+  const s = await escenario(MEDIODIA);
+  const transporte = new TransporteFalso();
+  // Hace 3 días el proceso murió entre encolar y despachar: el mensaje quedó `pendiente`.
+  const viejo = new MessagingProvider({ transporte, reloj: () => MEDIODIA });
+  const entranteViejo = await sembrarEntrante(s.db, s.conv.id);
+  const [idViejo] = await s.db.$transaction((tx) => viejo.encolar(tx, s.conv.id, [respuestaA(entranteViejo, "VIEJO: ¿cuál es tu nombre?")]));
+
+  // Hoy el contacto vuelve a escribir y el bot contesta lo nuevo.
+  const hoy = new Date(MEDIODIA.getTime() + 3 * 24 * HORA);
+  await s.db.conversacion.update({ where: { id: s.conv.id }, data: { ventana_servicio_hasta: new Date(hoy.getTime() + 24 * HORA) } });
+  const nuevo = new MessagingProvider({ transporte, reloj: () => hoy });
+  const entranteNuevo = await sembrarEntrante(s.db, s.conv.id);
+  const [idNuevo] = await s.db.$transaction((tx) => nuevo.encolar(tx, s.conv.id, [respuestaA(entranteNuevo, "Mucho gusto. ¿Qué edad tiene Ana?")]));
+  const r = await nuevo.despachar(s.db, s.conv.id);
+
+  assert.deepEqual(r.resultados, [
+    { mensajeId: idViejo, resultado: "bloqueado", motivo: "obsoleto" },
+    { mensajeId: idNuevo, resultado: "enviado" },
+  ]);
+  assert.deepEqual(transporte.envios.map((e) => e.texto), ["Mucho gusto. ¿Qué edad tiene Ana?"], "lo viejo no salió, ni antes ni después");
+  const m = await s.db.mensaje.findUniqueOrThrow({ where: { id: idViejo! } });
+  assert.deepEqual([m.estatus, m.motivo_bloqueo], ["bloqueado", "obsoleto"]);
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conv.id } }), 0, "sin tarea: el bot repregunta");
+});
+
+test("EA-09: la vigencia del pendiente es configurable y se mide con el reloj del provider (10 min por defecto)", async () => {
+  const sale = async (esperaMs: number, vigenciaPendienteMs?: number) => {
+    const s = await escenario(MEDIODIA);
+    const transporte = new TransporteFalso();
+    const entrante = await sembrarEntrante(s.db, s.conv.id);
+    const antes = new MessagingProvider({ transporte, reloj: () => MEDIODIA });
+    const [id] = await s.db.$transaction((tx) => antes.encolar(tx, s.conv.id, [respuestaA(entrante, "hola")]));
+    const despues = new MessagingProvider({ transporte, reloj: () => new Date(MEDIODIA.getTime() + esperaMs), ...(vigenciaPendienteMs ? { vigenciaPendienteMs } : {}) });
+    await despues.despachar(s.db, s.conv.id);
+    return (await s.db.mensaje.findUniqueOrThrow({ where: { id: id! } })).estatus;
+  };
+  assert.equal(PENDIENTE_VIGENCIA_MS, 10 * MINUTO);
+  assert.equal(await sale(10 * MINUTO), "enviado", "justo en el límite todavía sale");
+  assert.equal(await sale(10 * MINUTO + 1000), "bloqueado");
+  assert.equal(await sale(30 * MINUTO, HORA), "enviado", "con una vigencia de 1 h, 30 min sí salen");
+  assert.equal(await sale(2 * HORA, HORA), "bloqueado");
 });
 
 // ---------------------------------------------------------------------------------------------

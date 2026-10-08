@@ -3,6 +3,7 @@
 //
 // En orden de precedencia:
 // 1. atención humana (invariante 6), sin excepción, ni siquiera para notas internas;
+// 1b. obsoleto: un pendiente que lleva demasiado tiempo esperando ya no es de este momento (EA-09);
 // 2. baja (opt-out) y conversación cerrada;
 // 3. plantilla: lo que lleva plantilla debe ser una aprobada y activa;
 // 4. ventana de servicio (invariante 5): fuera de ella solo cabe una plantilla aprobada;
@@ -21,6 +22,7 @@ export type TipoSaliente = "mensaje" | "nota_interna";
 
 export type MotivoBloqueo =
   | "atencion_humana"
+  | "obsoleto"
   | "opt_out"
   | "conversacion_cerrada"
   | "plantilla_no_apta"
@@ -64,6 +66,10 @@ export interface EntradaReglas {
   marketingRecientes?: number;
   /** Tope de marketing por ventana (`max_marketing_por_ventana`). Sin dato, no se limita. */
   limiteMarketing?: number;
+  /** Cuánto lleva el mensaje en `pendiente`. Con `vigenciaMs`, decide si ya es obsoleto. */
+  edadMs?: number;
+  /** Tope de espera de un pendiente antes de darlo por obsoleto. Sin dato, no caduca. */
+  vigenciaMs?: number;
 }
 
 /** true si la ventana de servicio sigue abierta: hay un mensaje entrante vigente que contestar. */
@@ -86,6 +92,10 @@ export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
 
   // Sin excepción: ni siquiera una nota interna automática cuando ya atiende una persona.
   if (conv.estado === "en_atencion_humana") return "atencion_humana";
+  // Un pendiente de hace días (el proceso murió entre encolarlo y mandarlo) saldría fuera de
+  // contexto y antes de la respuesta nueva. No se manda y no hay tarea: el bot vuelve a preguntar
+  // cuando el contacto escriba (EA-09). Aplica también a las notas: un resumen viejo engaña.
+  if (e.edadMs !== undefined && e.vigenciaMs !== undefined && e.edadMs > e.vigenciaMs) return "obsoleto";
   if (tipo === "nota_interna") return null;
 
   // La confirmación de la baja es lo único que sale a quien ya la pidió. Es una respuesta a su

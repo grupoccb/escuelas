@@ -10,6 +10,7 @@ export {
   MessagingProvider,
   ENVIO_INCIERTO,
   ENVIO_INCIERTO_MS,
+  PENDIENTE_VIGENCIA_MS,
   ErrorOrigenSaliente,
   confirmacionBajaA,
   respuestaA,

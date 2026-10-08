@@ -634,6 +634,10 @@ model automatizacion_ejecucion {
   ocurrencia        Int               @default(1)
   programado_para   DateTime          @db.Timestamptz(6)
   ejecutado_en      DateTime?         @db.Timestamptz(6)
+  /// Cuántas veces se reclamó la ejecución (el motor al ejecutarla, el recuperador al resolverla).
+  /// Es el candado del recuperador: se compara este contador, no una fecha (EA-20: un `Date` de
+  /// JavaScript tiene milisegundos y la columna microsegundos, así que la igualdad nunca coincidía).
+  reclamos          Int               @default(0)
   estatus           estatus_ejecucion @default(programado)
   /// fuera_de_ventana / opt_out / atencion_humana / tope_frecuencia / sin_plantilla / evento_pasado
   motivo_omision    String?

@@ -36,6 +36,13 @@ const DIA_MS = 24 * 60 * 60 * 1000;
  */
 export const ENVIO_INCIERTO_MS = 5 * 60 * 1000;
 
+/**
+ * Cuánto puede esperar un mensaje `pendiente` antes de que `despachar` lo dé por obsoleto
+ * (`bloqueado`/`obsoleto`, sin tarea). Un pendiente se despacha segundos después de encolarse;
+ * uno de hace más de esto quedó huérfano (EA-09). Configurable por proveedor.
+ */
+export const PENDIENTE_VIGENCIA_MS = 10 * 60 * 1000;
+
 /** Plantilla aprobada que lleva el mensaje; con ella el mensaje puede salir fuera de la ventana. */
 export interface PlantillaDeSaliente {
   id: string;
@@ -108,20 +115,25 @@ interface MensajePendiente {
   origen: OrigenMensaje;
   plantilla_id: string | null;
   variables_usadas: unknown;
+  creado_en: Date;
 }
 
 export interface DepsMessagingProvider {
   transporte: TransporteConversaciones;
   reloj?: () => Date;
+  /** Cuánto puede esperar un pendiente antes de ser obsoleto. Por defecto `PENDIENTE_VIGENCIA_MS`. */
+  vigenciaPendienteMs?: number;
 }
 
 export class MessagingProvider {
   private readonly transporte: TransporteConversaciones;
   private readonly reloj: () => Date;
+  private readonly vigenciaPendienteMs: number;
 
   constructor(deps: DepsMessagingProvider) {
     this.transporte = deps.transporte;
     this.reloj = deps.reloj ?? (() => new Date());
+    this.vigenciaPendienteMs = deps.vigenciaPendienteMs ?? PENDIENTE_VIGENCIA_MS;
   }
 
   /** Registra salientes pendientes dentro de la transacción del llamador. Devuelve sus ids, en orden. */
@@ -137,6 +149,8 @@ export class MessagingProvider {
           variables_usadas: plantilla?.variables ?? undefined,
           direccion: s.tipo === "mensaje" ? ("saliente" as const) : ("nota_interna" as const),
           estatus: "pendiente" as const,
+          // La edad del pendiente se mide con el reloj del provider (el de los tests también).
+          creado_en: this.reloj(),
           origen: s.origen,
           cuerpo: s.cuerpo,
           proveedor: PROVEEDOR,
@@ -172,7 +186,7 @@ export class MessagingProvider {
     const pendientes = await db.mensaje.findMany({
       where: { conversacion_id: conversacionId, estatus: "pendiente" },
       orderBy: { secuencia: "asc" },
-      select: { id: true, direccion: true, cuerpo: true, origen: true, plantilla_id: true, variables_usadas: true },
+      select: { id: true, direccion: true, cuerpo: true, origen: true, plantilla_id: true, variables_usadas: true, creado_en: true },
     });
 
     // Los topes de frecuencia son de la organización (configuracion_organizacion): se leen una vez y solo si hacen falta.
@@ -332,6 +346,8 @@ export class MessagingProvider {
           tipo,
           origen: m.origen,
           ahora,
+          edadMs: ahora.getTime() - m.creado_en.getTime(),
+          vigenciaMs: this.vigenciaPendienteMs,
           plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
           zonaHoraria: conv.zonaHoraria,
           automaticosRecientes: iniciadoPorSistema && conteo ? await this.enviadosAlTelefono(tx, conv.lead.telefono, m.id, new Date(ahora.getTime() - DIA_MS)) : 0,

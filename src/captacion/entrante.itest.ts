@@ -55,6 +55,37 @@ async function conversacionDe(chatwootConversacionId: number) {
   });
 }
 
+test("EA-09: si el proceso murió con la respuesta del bot sin mandar, días después NO sale antes de la respuesta nueva", async () => {
+  const { transporte, conversacion, evento } = nuevoEntorno();
+  const hace3Dias = new Date("2026-10-05T18:00:00Z");
+  const hoy = new Date("2026-10-08T18:00:00Z");
+  // Hace 3 días el proceso murió entre guardar la respuesta (pendiente) y mandarla.
+  class MuereAlDespachar extends MessagingProvider {
+    override async despachar(): Promise<never> {
+      throw new Error("el proceso murió");
+    }
+  }
+  await assert.rejects(
+    procesarEntrante({ prisma, mensajeria: new MuereAlDespachar({ transporte, reloj: () => hace3Dias }), reloj: () => hace3Dias }, evento("Hola")),
+    /el proceso murió/,
+  );
+  assert.equal(transporte.envios.length, 0);
+  const viejo = (await conversacionDe(conversacion)).mensajes.find((m) => m.direccion === "saliente")!;
+  assert.equal(viejo.estatus, "pendiente");
+
+  // Hoy el contacto responde y se procesa normal: sale lo nuevo y lo viejo ya no.
+  const r = await procesarEntrante({ prisma, mensajeria: new MessagingProvider({ transporte, reloj: () => hoy }), reloj: () => hoy }, evento("Ana"));
+  assert.equal(r.resultado, "procesado");
+  const textos = transporte.envios.filter((e) => e.tipo === "mensaje").map((e) => e.texto);
+  assert.equal(textos.length, 1, "solo sale la respuesta de hoy");
+  assert.ok(!textos.includes(viejo.cuerpo), "la pregunta de hace 3 días no se repite antes de la respuesta nueva");
+  const conv = await conversacionDe(conversacion);
+  const despues = conv.mensajes.find((m) => m.id === viejo.id)!;
+  assert.deepEqual([despues.estatus, despues.motivo_bloqueo], ["bloqueado", "obsoleto"]);
+  assert.equal(await conAlcance(prisma, org.organizacionId).tarea_asesor.count({ where: { conversacion_id: conv.id } }), 0);
+  assert.equal(conv.paso_captacion, "edad", "el bot siguió con lo nuevo");
+});
+
 test("loop completo: tres preguntas, lead con los datos, nota al asesor y conversación abierta", async () => {
   const { transporte, deps, conversacion, evento } = nuevoEntorno();
   const contacto = { nombre: "Mamá", telefono: "+5215512340001" };
