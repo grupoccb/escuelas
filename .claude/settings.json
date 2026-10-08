@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push *)",
+      "Bash(docker compose down *)",
+      "Bash(docker volume rm *)",
+      "Bash(aws *)",
+      "Bash(twilio *)",
+      "Bash(npm audit fix *)"
+    ]
+  }
+}

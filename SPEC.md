@@ -58,6 +58,17 @@ Resultado: `docs/DECISION-ATRIBUCION.md` con la vía elegida, la evidencia y el 
 
 Decidir y documentar en `docs/DECISION-CUENTAS-TWILIO.md`: una WABA con tres senders o una subcuenta y WABA por vertical. Define la forma de `canal_whatsapp`. Confirmar con Twilio antes de decidir.
 
+### 0.5 Demo local
+
+Objetivo: ver el loop de captación completo en Chatwoot local, sin Twilio, antes de construir sobre él.
+
+- **Esquema mínimo:** solo las tablas que la demo necesita, todas con `organizacion_id` y `eliminado_en`. Es un subconjunto de 1.1; ahí se completa.
+- **Seed:** una organización, una vertical y dos sucursales, con datos tomados de `seed-sucursales-horarios.sql`.
+- **Chatwoot local:** bandeja tipo API y Agent Bot conectado al backend, configurados con un script reproducible que sobrevive a `docker compose down -v`.
+- **Bot:** máquina de estados de tres preguntas (nombre, edad, sucursal), creación del lead y paso de la conversación a "open" en Chatwoot.
+- **Simulador:** script que hace de contacto escribiendo en la bandeja.
+- Sin Twilio. Respeta los invariantes 4, 6, 7, 9, 10 y 11.
+
 ### Gates de Fase 0
 
 - [ ] **G0.1** `docker compose up` levanta Postgres, Chatwoot y backend. `npm test` en verde. `check:generico` falla cuando se siembra un término prohibido.
@@ -66,6 +77,7 @@ Decidir y documentar en `docs/DECISION-CUENTAS-TWILIO.md`: una WABA con tres sen
 - [ ] **G0.3b** Prueba con anuncio real: el lead queda registrado con campaña y clic. Requiere G0.5.
 - [ ] **G0.4** Decisión de cuentas de Twilio documentada.
 - [ ] **G0.5** Externo: verificación del perfil de WhatsApp de karate iniciada en Meta.
+- [ ] **G0.6** Demo local: Eduardo corre el script de simulación y ve en Chatwoot la conversación completa, con los tres datos capturados y la conversación en "open".
 
 Fase 1 puede arrancar con G0.1 a G0.4 y G0.3a en verde. G0.3b bloquea el lanzamiento, no la construcción.
 

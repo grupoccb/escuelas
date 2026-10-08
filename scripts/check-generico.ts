@@ -33,7 +33,7 @@ const CARPETAS_EXCLUIDAS = new Set(["node_modules", ".git", "coverage", "dist"])
 
 const EXTENSIONES = new Set([
   ".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".sql", ".prisma",
-  ".yml", ".yaml", ".html", ".hbs", ".txt",
+  ".yml", ".yaml", ".html", ".hbs", ".txt", ".rb", ".env",
 ]);
 
 const ARCHIVOS_EXCLUIDOS = new Set(["package-lock.json"]);

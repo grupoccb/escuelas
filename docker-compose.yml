@@ -1,9 +1,13 @@
 # Todo local (CLAUDE.md, invariante 12): Postgres de la app, Chatwoot y backend.
 #
-#   docker compose up -d --build
+#   docker compose up -d --build --wait
 #
 # Puertos: backend :3000 · Chatwoot :3001 · Postgres de la app :5432.
 # Chatwoot trae su propio Postgres (con pgvector, que exige) y Redis; no comparte base con la app.
+#
+# Demo local (SPEC 0.5): al levantar, chatwoot-setup configura la cuenta, el asesor y el Agent
+# Bot, y demo-preparar migra, siembra y crea la bandeja. Todo es idempotente y se reconstruye
+# igual después de `docker compose down -v`. Credenciales de desarrollo: config/demo-local.env.
 
 x-chatwoot-env: &chatwoot-env
   RAILS_ENV: production
@@ -18,6 +22,13 @@ x-chatwoot-env: &chatwoot-env
   POSTGRES_PASSWORD: chatwoot
   POSTGRES_DATABASE: chatwoot
   REDIS_URL: redis://chatwoot-redis:6379
+  # Solo local: deja que los webhooks del bot lleguen al backend por la red interna.
+  SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
+
+x-backend: &backend
+  build: .
+  image: inscripciones-backend:local
+  env_file: config/demo-local.env
 
 services:
   postgres:
@@ -37,15 +48,18 @@ services:
       retries: 10
 
   backend:
-    build: .
+    <<: *backend
     environment:
       DATABASE_URL: postgresql://inscripciones:inscripciones@postgres:5432/inscripciones
       PORT: "3000"
     ports:
       - "3000:3000"
+    # Arranca cuando la demo quedó preparada: así `up --wait` falla si la preparación falla.
     depends_on:
       postgres:
         condition: service_healthy
+      demo-preparar:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/salud || exit 1"]
       interval: 5s
@@ -112,6 +126,37 @@ services:
     depends_on:
       chatwoot-prepare:
         condition: service_completed_successfully
+
+  # Demo: cuenta, asesor y Agent Bot en Chatwoot (chatwoot/setup.rb). Corre y termina.
+  chatwoot-setup:
+    image: chatwoot/chatwoot:v4.18.0
+    env_file: config/demo-local.env
+    environment: *chatwoot-env
+    volumes:
+      - ./chatwoot/setup.rb:/setup/setup.rb:ro
+    command: ["bundle", "exec", "rails", "runner", "/setup/setup.rb"]
+    depends_on:
+      chatwoot-prepare:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Demo: migraciones, seed y bandeja de Chatwoot conectada al bot. Corre y termina.
+  demo-preparar:
+    <<: *backend
+    environment:
+      DATABASE_URL: postgresql://inscripciones:inscripciones@postgres:5432/inscripciones
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && npx prisma db execute --file prisma/seed/demo.sql && node scripts/preparar-chatwoot.ts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chatwoot:
+        condition: service_healthy
+      chatwoot-setup:
+        condition: service_completed_successfully
+    restart: "no"
 
 volumes:
   postgres-data:

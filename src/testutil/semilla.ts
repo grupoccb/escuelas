@@ -1,0 +1,43 @@
+// Organización de prueba con una vertical, dos sucursales y una bandeja de Chatwoot. Usa el
+// cliente sin scope porque las organizaciones no se crean desde el scope (invariante 1). Los
+// ids de Chatwoot son aleatorios para que las corridas no choquen entre sí.
+
+import { randomInt, randomUUID } from "node:crypto";
+import type { PrismaClient } from "../datos/prisma.ts";
+
+export interface OrganizacionDePrueba {
+  organizacionId: string;
+  verticalId: string;
+  sucursales: { id: string; nombre: string }[];
+  bandejaId: string;
+  chatwootAccountId: number;
+  chatwootInboxId: number;
+}
+
+export async function sembrarOrganizacion(prisma: PrismaClient, nombre = "Organización de prueba"): Promise<OrganizacionDePrueba> {
+  const organizacion = await prisma.organizacion.create({ data: { nombre: `${nombre} ${randomUUID().slice(0, 8)}` } });
+  const org = organizacion.id;
+  const vertical = await prisma.vertical.create({
+    data: { organizacion_id: org, nombre: "Vertical Prueba", slug: "vertical-prueba" },
+  });
+  const sucursales = [];
+  for (const nombreSucursal of ["Norte", "Sur"]) {
+    const s = await prisma.sucursal.create({
+      data: { organizacion_id: org, nombre: nombreSucursal, zona_horaria: "America/Mexico_City" },
+    });
+    await prisma.sucursal_vertical.create({ data: { organizacion_id: org, sucursal_id: s.id, vertical_id: vertical.id } });
+    sucursales.push({ id: s.id, nombre: s.nombre });
+  }
+  const chatwootAccountId = randomInt(1_000_000, 2_000_000_000);
+  const chatwootInboxId = randomInt(1_000_000, 2_000_000_000);
+  const bandeja = await prisma.bandeja_chatwoot.create({
+    data: {
+      organizacion_id: org,
+      vertical_id: vertical.id,
+      nombre: "Vertical Prueba",
+      chatwoot_account_id: chatwootAccountId,
+      chatwoot_inbox_id: chatwootInboxId,
+    },
+  });
+  return { organizacionId: org, verticalId: vertical.id, sucursales, bandejaId: bandeja.id, chatwootAccountId, chatwootInboxId };
+}

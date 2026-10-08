@@ -1,5 +1,4 @@
-# CI mínima (SPEC 0.1). Rojo bloquea el merge.
-# Mismo orden que `npm run validar`: lint, typecheck, check:generico y tests.
+# CI (SPEC 0.1 y 0.5). Rojo bloquea el merge.
 name: CI
 
 "on":
@@ -12,8 +11,22 @@ concurrency:
 
 jobs:
   validar:
-    name: Lint, typecheck, check:generico y tests
+    name: Lint, typecheck, guardas y tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: inscripciones
+          POSTGRES_PASSWORD: inscripciones
+          POSTGRES_DB: inscripciones
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inscripciones"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,17 +35,26 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run check:generico
-      - run: npm test
+      # lint, typecheck, check:generico, check:capas y tests unitarios
+      - run: npm run validar
+      - run: npm run test:int
+        env:
+          DATABASE_URL_PRUEBAS: postgresql://inscripciones:inscripciones@localhost:5432/inscripciones_pruebas
 
-  compose:
-    name: docker compose (backend + Postgres)
+  demo:
+    name: Demo local de punta a punta (G0.6)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose up -d --build --wait postgres backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Falla si cualquier servicio, incluida la preparación de la demo, no queda bien.
+      - run: docker compose up -d --build --wait
       - run: curl -fsS http://localhost:3000/salud
+      # Sale con 1 si la conversación no termina en "open".
+      - run: npm run demo:contacto
       - if: failure()
-        run: docker compose logs backend
+        run: docker compose logs chatwoot-setup demo-preparar backend

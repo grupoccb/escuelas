@@ -10,6 +10,8 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 COPY src ./src
+# Para el servicio demo-preparar: seed y aprovisionamiento de Chatwoot.
+COPY scripts ./scripts
 
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
