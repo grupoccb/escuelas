@@ -38,7 +38,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D5 | HECHO | ver `git log` (`D5:`) | Registro del maestro por API: `registro_clase_muestra` + `registro_tutor`, salud solo con `guardarSensible()`, borrador → completo → cerrado, permisos por rol, conversión sin recaptura |
 | D6 | HECHO | ver `git log` (`D6:`) | Reglamento y autorización de imagen: `documento_legal` versionado e inmutable, `aceptacion_legal` de solo anexar con evidencia, revocación como fila nueva, el registro no cierra sin reglamento |
 | D7 | HECHO | ver `git log` (`D7:`) | Embudo con historial de solo anexar, motivos de pérdida, perdido/recuperado, matriz de transiciones, tiempo por etapa, leads estancados (consulta) y concurrencia por lead |
-| D8 | PENDIENTE | | Lead frío y promoción por vencer |
+| D8 | HECHO | ver `git log` (`D8:`) | Lead frío y promoción por vencer sobre el motor: eventos nuevos, `aviso_promocion` (uno por lead y promoción), plantillas de marketing por el provider con frecuencia, bajas, horario y atención humana |
 | E1 | PENDIENTE | | Landing pública por vertical |
 | E2 | PENDIENTE | | Código de rastreo de WhatsApp |
 | E3 | PENDIENTE | | Códigos QR |
@@ -1332,3 +1332,33 @@ Mutación atrapada: quitar el candado por lead → la prueba de la cadena falla 
 - **[SUPUESTO]** los seis motivos de pérdida, y los días por etapa de `demo.sql`.
 - Decisión de producto: ¿quién puede recuperar un lead? Hoy asesor y administrador (cualquiera con `leads:escribir`), con nota obligatoria.
 - Decisión de producto abierta: reglas por defecto de la matriz (hoy solo las fijas) y si hace falta una pantalla para editarla.
+
+
+## D8. Lead frío y promoción por vencer, con frecuencia y bajas
+
+**Qué se hizo**
+- **Migraciones `20261015030000_lead_frio_promocion` y `20261015031000_tarea_lead_frio_indice`:** eventos `lead_frio` y `promocion_por_vencer` en `evento_disparador`, tipo de tarea `lead_frio`, tabla `aviso_promocion` (único por (automatización, lead, promoción) entre los vivos) y el índice «una tarea `lead_frio` pendiente por lead» (en su propia migración: Postgres no deja usar un valor de enum recién agregado en la misma transacción).
+- **`src/automatizaciones/seguimiento.ts`:** reglas puras (`esFrioReciente`, `siguienteOcurrenciaDeFrio`, `planearAvisoDePromocion`, `finDePromocion`, `promocionesDeSnapshot`, `fechaLarga`) y lo que toca la base (`programarLeadsFrios`, `programarAvisosDePromocion`, `revalidarLeadFrio`, `revalidarAvisoDePromocion`, `asegurarTareaDeLeadFrio`). **El motor** (`motor.ts`) los programa en la MISMA fase «programar» del reenganche (una sola consulta de automatizaciones y cada una aislada, EA-07: así el test EA-07 existente, que espera UN error cuando falla esa consulta, sigue siendo cierto sin tocarlo) y `ejecutarUna` entiende las entidades `lead` y `aviso_promocion`: valida, crea la tarea y manda la plantilla SOLO por `MessagingProvider.despachar` con el mismo cierre que los recordatorios (fuera de horario → recorre o descarta; bloqueado → `omitido` con el motivo del provider). Variables nuevas: `nombre_promocion` y `fecha_vencimiento`.
+- **Seed** (`prisma/seed/seguimiento.sql`): plantillas 707 (reenganche) y 708 (promoción) de marketing y automatizaciones 805 (lead frío, 3 episodios, `max_atraso_dias` 14, lunes a sábado) y 806 (promoción, `-4320` min = 3 días antes), todo `[SUPUESTO]`.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 473 · pass 473 · fail 0
+$ npm run test:int    → exit 0 · tests 679 · pass 679 · fail 0
+```
+Tests nuevos: `seguimiento.test.ts` (7, puros: umbral exacto, episodios, ids del snapshot, el fin de la promoción en varias zonas con cambio de horario, el plan completo con ventanas estrechas y días no permitidos) y `seguimiento.itest.ts` (19, con el motor real, el provider, el transporte falso y reloj inyectado): lead frío (umbral y etapas, **idempotencia con tres motores a la vez**, solo lo reciente, cancelación por movimiento / inscripción / pérdida, horario por sucursal con otra zona, **máximo 1 de marketing por 7 días con el segundo episodio**, episodios solo con movimiento y `max_intentos`, bajas de marketing y total, **atención humana: ni tarea ni mensaje**, tope de 3 al día, sin conversación / sin plantilla, sucursal, una tarea pendiente por lead + índice) y promoción (aún no, ventana, no repite aunque haya otra cotización o tres motores, un aviso por lead y promoción, seis cancelaciones, descarte por llegar tarde, ventana propia, bajas, atención humana, tope diario configurable por organización, solo cotizaciones vigentes con promociones activas y con fin). Más 1 de seed.
+Mutaciones atrapadas: quitar la omisión por atención humana, quitar la exigencia de movimiento entre episodios (2 tests) y quitar la cancelación por inscripción.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La ocurrencia del lead frío es el episodio de frío**, no el intento: la segunda solo existe si el lead se movió DESPUÉS de detectado el anterior (se mide contra `creado_en` de la ejecución anterior con el reloj del motor). Alternativa descartada: una por semana mientras siga frío (insistir cada vez que pasa el tiempo; el provider ya limita marketing a 1 por semana, pero la tarea y el ruido se repetirían).
+2. **Solo lo que se enfrió recientemente** (`condiciones.max_atraso_dias`, 14): al encender la automatización por primera vez no se le manda marketing a los leads viejos de golpe. Alternativa descartada: todos los fríos (un día de producción con cientos de mensajes). Los viejos se ven en `/api/leads/estancados` (D7).
+3. **La tarea es lo principal y la plantilla «si procede»**: si el provider frena el mensaje (baja, tope de marketing, tope diario) la tarea queda; sin conversación o sin plantilla, solo la tarea. **Con una persona atendiendo se omite entero** (ni tarea): ella ya tiene el lead y el invariante 6 no admite excepción. Alternativa descartada: crear la tarea aunque haya alguien atendiendo (sería una automatización actuando sobre un lead que una persona tiene).
+4. **Un aviso de promoción por (automatización, lead, promoción)** en una tabla propia, con índice único: es la entidad de la ejecución (de ahí salen lead, cotización y promoción) y el candado de idempotencia contra varias cotizaciones o varios motores. Alternativa descartada: `entidad_id` = cotización (se repetiría el aviso de la misma promoción con cada cotización nueva) o un uuid derivado del par (no se puede volver a leer).
+5. **El «evento» de la promoción es el final de su último día** (las 00:00 del día siguiente en la zona de la sucursal) y `offset_minutos` es negativo, como en los recordatorios: `-4320` = 3 días antes. Si el horario válido llegaría cuando ya venció, se descarta y queda el aviso (no se reevalúa cada minuto). Alternativa descartada: evento = `vigencia_hasta` a las 00:00 (se avisaría un día antes de lo debido).
+6. **Revalidar al ejecutar** (lo que cambió desde que se programó): inscrito, perdido, cotización ya no vigente, promoción apagada o prorrogada. Una promoción prorrogada fuera de la ventana cancela el aviso en vez de mandar «vence el viernes» cuando ya no es verdad.
+7. **El motor fija `creado_en` de lo que programa con su reloj** (inyectable): es la referencia para «movimiento después de detectado».
+
+**Para Eduardo**
+- **[SUPUESTO]** los textos de las plantillas, 3 días antes, 3 episodios, 14 días de atraso máximo, lunes a sábado. Registrar `reenganche_lead_frio` (2 variables) y `promocion_por_vencer` (3) en Twilio como categoría `marketing`.
+- Decisión de producto: ¿un lead que una persona atiende debe generar igualmente la tarea de frío? Hoy no (invariante 6); se ve en estancados.
+- Decisión de producto: la baja total / de marketing no quita la tarea para el asesor (puede llamarlo si hay otro teléfono); si Eduardo prefiere que tampoco haya tarea, es una línea en `ejecutarUna`.

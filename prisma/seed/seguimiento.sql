@@ -34,3 +34,31 @@ ON CONFLICT DO NOTHING;
 
 -- Los días sin movimiento para alertar un lead estancado (y, en D8, el lead frío) son `etapa_pipeline.dias_alerta_sin_movimiento`, que ya trae
 -- demo.sql por etapa [SUPUESTO]: 2, 3, 3, 3 y 5 días; las etapas de cierre (inscrito, perdido) no llevan umbral y nunca alertan.
+
+-- ── D8: lead frío y promoción por vencer [SUPUESTO] ─────────────────────────────────────────────────────
+-- Dos plantillas de MARKETING (el provider les aplica el máximo de 1 cada 7 días por teléfono, el de 3 automáticos al día, la baja de
+-- marketing y la baja total) y sus automatizaciones. Ficticias y «aprobadas» solo para la demo local: en un ambiente real se sincronizan de
+-- Twilio y solo sale lo que Meta aprobó. Los nombres de promoción, alumno y vertical salen de las tablas.
+--   · lead_frio: un lead sin movimiento los días de su etapa (`etapa_pipeline.dias_alerta_sin_movimiento`) → tarea para el asesor y la plantilla
+--     de reenganche. `offset_minutos` = minutos EXTRA después del umbral (0); `max_intentos` = episodios de frío por lead (3);
+--     `condiciones.max_atraso_dias` = no se persigue lo que se enfrió hace más de 14 días. Lunes a sábado, 09:00–20:00 de la sucursal.
+--   · promocion_por_vencer: un lead con una cotización vigente cuya promoción termina → la plantilla `-offset_minutos` antes (-4320 = 3 días).
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000707', '00000000-0000-4000-8000-000000000001', 'reenganche_lead_frio',
+   'HX00000000000000000000000000000007', NULL, 'marketing', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_vertical"}]',
+   'Hola, ¿sigue interesado {{1}} en las clases de {{2}}? Con gusto te ayudamos a resolver tus dudas y a encontrar el horario ideal. Responde a este mensaje.',
+   'aprobada', true),
+  ('00000000-0000-4000-8000-000000000708', '00000000-0000-4000-8000-000000000001', 'promocion_por_vencer',
+   'HX00000000000000000000000000000008', NULL, 'marketing', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_promocion"},{"pos":3,"nombre":"fecha_vencimiento"}]',
+   'La promoción {{2}} que te cotizamos para {{1}} vence el {{3}}. Responde a este mensaje y te ayudamos a aprovecharla.',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_id, evento_disparador, offset_minutos, plantilla_id, max_intentos, condiciones, dias_permitidos) VALUES
+  ('00000000-0000-4000-8000-000000000805', '00000000-0000-4000-8000-000000000001', 'Lead frío: reenganche', NULL, NULL,
+   'lead_frio', 0, '00000000-0000-4000-8000-000000000707', 3, '{"max_atraso_dias":14}', ARRAY[1,2,3,4,5,6]),
+  ('00000000-0000-4000-8000-000000000806', '00000000-0000-4000-8000-000000000001', 'Promoción por vencer: aviso 3 días antes', NULL, NULL,
+   'promocion_por_vencer', -4320, '00000000-0000-4000-8000-000000000708', 1, '{}', ARRAY[1,2,3,4,5,6])
+ON CONFLICT DO NOTHING;

@@ -1,6 +1,8 @@
-// Motor de automatizaciones. Dos tipos de entidad: la `conversacion` del lead que dejó de contestar a mitad de la captura
-// (`lead_sin_respuesta`, el reenganche) y la `clase_muestra` (D3: `clase_muestra_proxima`, el recordatorio de 24 h y de 2 h antes; las
-// ejecuciones de esas las crea el alta de la clase, ver src/clases-muestra/recordatorios.ts, y aquí solo se ejecutan).
+// Motor de automatizaciones. Cuatro tipos de entidad: la `conversacion` del lead que dejó de contestar a mitad de la captura
+// (`lead_sin_respuesta`, el reenganche), la `clase_muestra` (D3: `clase_muestra_proxima`, el recordatorio de 24 h y de 2 h antes; las
+// ejecuciones de esas las crea el alta de la clase, ver src/clases-muestra/recordatorios.ts, y aquí solo se ejecutan), el `lead` sin
+// movimiento (D8: `lead_frio`, tarea para el asesor y reenganche de marketing) y el `aviso_promocion` (D8: `promocion_por_vencer`). Estos dos
+// últimos los programa este mismo motor (src/automatizaciones/seguimiento.ts) y, como todo, mandan SOLO por MessagingProvider.
 //
 // Dos pasos, los dos idempotentes:
 // 1. programar: por cada conversación que cumple, crea UNA ejecución por (automatización,
@@ -28,6 +30,7 @@ import { log } from "../lib/log.ts";
 import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, asegurarTareaAsesor, type MessagingProvider } from "../mensajeria/index.ts";
 import { dentroDeHorario, recorrerODescartar, siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { zonaHorariaDeContacto } from "../mensajeria/zona-horaria.ts";
+import { asegurarTareaDeLeadFrio, fechaLarga, programarAvisosDePromocion, programarLeadsFrios, revalidarAvisoDePromocion, revalidarLeadFrio, type AvisoCargado } from "./seguimiento.ts";
 
 const MINUTO_MS = 60_000;
 const POR_CORRIDA = 200;
@@ -101,15 +104,19 @@ async function aislado(resumen: ResumenMotor, donde: Record<string, unknown>, tr
 
 async function programarReenganches(db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<number> {
   let programadas = 0;
+  // Una sola consulta para las automatizaciones que PROGRAMA el motor: el reenganche y, desde D8, el lead frío y la promoción por vencer.
+  // (Las de la clase muestra las programa el alta de la clase.)
   const automatizaciones = await db.automatizacion.findMany({
-    where: { activo: true, evento_disparador: "lead_sin_respuesta" },
+    where: { activo: true, evento_disparador: { in: ["lead_sin_respuesta", "lead_frio", "promocion_por_vencer"] } },
     orderBy: { creado_en: "asc" },
   });
 
   // Una automatización defectuosa (zona horaria inválida, etc.) no detiene a las demás (EA-07).
   for (const a of automatizaciones) {
     await aislado(resumen, { automatizacionId: a.id, fase: "programar" }, async () => {
-      programadas += await programarUna(db, a, ahora, resumen);
+      if (a.evento_disparador === "lead_frio") programadas += await programarLeadsFrios(db, a, ahora);
+      else if (a.evento_disparador === "promocion_por_vencer") programadas += await programarAvisosDePromocion(db, a, ahora);
+      else programadas += await programarUna(db, a, ahora, resumen);
     });
   }
   return programadas;
@@ -237,15 +244,52 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     log.info("automatizacion_omitida", { ejecucionId: e.id, motivo });
   };
 
-  if (e.entidad_tipo !== "conversacion" && e.entidad_tipo !== "clase_muestra") return omitir("entidad_no_soportada");
+  const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion"];
+  if (!entidadesSoportadas.includes(e.entidad_tipo)) return omitir("entidad_no_soportada");
+  const evento = e.automatizacion.evento_disparador;
+  // D8: el lead frío (entidad `lead`) y la promoción por vencer (entidad `aviso_promocion`).
+  const esLeadFrio = e.entidad_tipo === "lead";
+  const esPromocion = e.entidad_tipo === "aviso_promocion";
+  if ((esLeadFrio && evento !== "lead_frio") || (esPromocion && evento !== "promocion_por_vencer")) return omitir("evento_no_soportado");
+  let aviso: AvisoCargado | null = null;
+  if (esPromocion) {
+    // Antes de nada: ¿sigue valiendo el aviso? (el lead se inscribió o se perdió, la cotización venció, la promoción se apagó o se prorrogó…)
+    const rev = await revalidarAvisoDePromocion(db, e.entidad_id, e.automatizacion, ahora);
+    if (!rev.ok) return omitir(rev.motivo);
+    if (rev.vencida) {
+      await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "descartado", motivo_omision: "evento_pasado" } });
+      resumen.descartadas++;
+      log.info("automatizacion_descartada", { ejecucionId: e.id, motivo: "evento_pasado" });
+      return;
+    }
+    aviso = rev.aviso;
+  }
 
   // D3: la entidad puede ser una clase muestra; entonces el destinatario es el lead de la clase y se le escribe por SU conversación.
   const clase = e.entidad_tipo === "clase_muestra" ? await cargarClase(db, e.entidad_id) : null;
   if (e.entidad_tipo === "clase_muestra" && !clase) return omitir("clase_inexistente");
   const incluir = { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } } as const;
-  const conv = clase
-    ? await db.conversacion.findFirst({ where: { lead_id: clase.lead_id }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: incluir })
+  const leadDeLaEntidad = esLeadFrio ? e.entidad_id : (aviso?.leadId ?? clase?.lead_id ?? null);
+  const conv = leadDeLaEntidad
+    ? await db.conversacion.findFirst({ where: { lead_id: leadDeLaEntidad }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: incluir })
     : await db.conversacion.findFirst({ where: { id: e.entidad_id }, include: incluir });
+
+  // D8, lead frío: la tarea para el asesor es lo principal; la plantilla de reenganche, si procede. Con una persona atendiendo (invariante 6)
+  // el aviso se omite entero: ella ya tiene el lead (los estancados se ven en GET /api/leads/estancados).
+  if (esLeadFrio) {
+    const rev = await revalidarLeadFrio(db, e.entidad_id, e.automatizacion, ahora);
+    if (!rev.ok) return omitir(rev.motivo);
+    if (conv?.estado === "en_atencion_humana") return omitir("atencion_humana");
+    const dias = Math.floor((ahora.getTime() - (rev.lead.ultimaInteraccionEn ?? rev.lead.creadoEn).getTime()) / (24 * 60 * MINUTO_MS));
+    await asegurarTareaDeLeadFrio(db, {
+      leadId: rev.lead.id,
+      conversacionId: conv?.id ?? null,
+      descripcion: `El lead${rev.lead.nombre_contacto ? ` «${rev.lead.nombre_contacto}»` : ""} lleva ${dias} ${dias === 1 ? "día" : "días"} sin movimiento en la etapa «${rev.lead.etapaNombre}». Retómalo: llámalo o escríbele.`,
+    });
+    if (!conv) return omitir("sin_conversacion");
+    if (!e.automatizacion.plantilla) return omitir("solo_tarea");
+  }
+  if (!conv && esPromocion) return omitir("sin_conversacion");
   if (!conv) {
     await omitir(clase ? "sin_conversacion" : "conversacion_inexistente");
     // Una clase cuyo lead nunca escribió por WhatsApp (p. ej. entró por la landing): no hay por dónde mandar el recordatorio y una persona decide.
@@ -268,7 +312,6 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   };
 
   // D3 y D4: lo que mandan estas automatizaciones solo vale mientras la clase siga como estaba cuando se programó.
-  const evento = e.automatizacion.evento_disparador;
   if (clase && evento === "clase_muestra_proxima") {
     // Recordatorio: la clase sigue agendada y no ha empezado.
     if (clase.estatus !== "agendada") return omitir("clase_no_vigente");
@@ -312,10 +355,13 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const reprogramarODescartar = async (ventana?: VentanaHoraria): Promise<void> => {
     // Un recordatorio tiene la clase como evento: llegar a su hora o después ya no sirve (límite exclusivo). La recuperación de quien no llegó y
     // el reenganche no tienen un evento al cual llegar tarde.
+    // Una promoción por vencer tiene también un evento al cual no se debe llegar tarde: el instante en que ya no vale (límite exclusivo).
     const siguiente = zona
       ? clase && evento === "clase_muestra_proxima"
         ? recorrerODescartar(ahora, zona, clase.fecha_hora, ventana, true)
-        : recorrerODescartar(ahora, zona, clase ? null : (deps.limiteDe?.(e) ?? null), ventana)
+        : aviso
+          ? recorrerODescartar(ahora, zona, aviso.limite, ventana, true)
+          : recorrerODescartar(ahora, zona, clase ? null : (deps.limiteDe?.(e) ?? null), ventana)
       : null;
     if (siguiente) {
       await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { programado_para: siguiente, ejecutado_en: null } });
@@ -331,7 +377,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const propia: VentanaHoraria = { inicioMin: e.automatizacion.hora_inicio_min, finMin: e.automatizacion.hora_fin_min, dias: e.automatizacion.dias_permitidos };
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
-  const variables = await resolverVariables(db, plantilla.variables, conv, clase);
+  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso);
   if (typeof variables === "string") return omitirConTarea(variables);
   const cuerpo = (plantilla.cuerpo_referencia ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_, pos: string) => variables[pos] ?? "");
   if (cuerpo.trim() === "") return omitirConTarea("plantilla_sin_cuerpo");
@@ -452,6 +498,7 @@ async function resolverVariables(
   definidas: unknown,
   conv: { lead: { id: string; nombre_contacto: string | null; sucursal_interes_id: string | null }; bandeja_chatwoot: { canal_whatsapp: { vertical: { nombre: string } } } },
   clase: ClaseDeEjecucion | null = null,
+  aviso: AvisoCargado | null = null,
 ): Promise<Record<string, string> | string> {
   if (!Array.isArray(definidas)) return "variables_invalidas";
   const resultado: Record<string, string> = {};
@@ -468,8 +515,16 @@ async function resolverVariables(
         valor = conv.lead.nombre_contacto;
         break;
       case "nombre_prospecto":
-        // De una clase muestra: el alumno de ESA clase (el lead puede tener varios hijos).
-        valor = clase ? clase.prospecto.nombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } }))?.nombre;
+        // De una clase muestra o de un aviso de promoción: el alumno de ESA clase o cotización (el lead puede tener varios hijos).
+        valor = clase ? clase.prospecto.nombre : aviso ? aviso.prospectoNombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] }))?.nombre;
+        break;
+      case "nombre_promocion":
+        if (!aviso) return "variable_desconocida";
+        valor = aviso.promocionNombre;
+        break;
+      case "fecha_vencimiento":
+        if (!aviso) return "variable_desconocida";
+        valor = fechaLarga(aviso.venceEl);
         break;
       case "nombre_grupo":
         if (!clase) return "variable_desconocida";

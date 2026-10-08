@@ -89,6 +89,7 @@ model organizacion {
   motivos_perdida            motivo_perdida[]
   historial_etapas           lead_etapa_historial[]
   transiciones_etapa         transicion_etapa[]
+  avisos_promocion           aviso_promocion[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -389,6 +390,7 @@ model lead {
   organizacion     organizacion   @relation(fields: [organizacion_id], references: [id])
   motivo_perdida   motivo_perdida? @relation(fields: [motivo_perdida_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   historial_etapas lead_etapa_historial[]
+  avisos_promocion aviso_promocion[]
   vertical_interes vertical       @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   sucursal_interes sucursal?      @relation(fields: [sucursal_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   campana          campana?       @relation(fields: [campana_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
@@ -439,6 +441,7 @@ model prospecto {
   clases_muestra    clase_muestra[]
   registros_clase_muestra registro_clase_muestra[]
   aceptaciones_legales aceptacion_legal[]
+  avisos_promocion aviso_promocion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -716,6 +719,10 @@ enum evento_disparador {
   /// Cuando se marca que el lead NO llegó a su clase muestra (D4): la recuperación (ofrecerle reagendar). `offset_minutos` es POSITIVO
   /// (minutos después de marcarlo); el primer intento sale en `offset_minutos`, los siguientes cada `espaciado_minutos`, hasta `max_intentos`.
   clase_muestra_no_asistio
+  /// Un lead sin movimiento por los días que marca su etapa (D8). La entidad es el `lead`. `offset_minutos` = minutos EXTRA después de cumplirse el umbral (0 por omisión).
+  lead_frio
+  /// Una promoción de la cotización vigente de un lead está por vencer (D8). La entidad es el `aviso_promocion`. `offset_minutos` NEGATIVO: -4320 = 3 días antes de que acabe la promoción.
+  promocion_por_vencer
 }
 
 /// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás
@@ -750,6 +757,7 @@ model automatizacion {
   sucursal     sucursal?                  @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   plantilla    plantilla_mensaje?         @relation(fields: [plantilla_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   ejecuciones  automatizacion_ejecucion[]
+  avisos_promocion aviso_promocion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -823,6 +831,8 @@ enum tipo_tarea_asesor {
   aviso_maestro_no_enviado
   /// Llamar a la familia que no llegó a su clase muestra para ofrecerle reagendar (D4). Una pendiente por clase.
   llamar_no_asistio
+  /// Un lead lleva sin movimiento los días que marca su etapa: el asesor decide cómo retomarlo (D8). Una pendiente por lead.
+  lead_frio
 }
 
 enum estado_tarea_asesor {
@@ -1133,6 +1143,7 @@ model promocion {
   programas    promocion_programa[]
   beneficios   promocion_beneficio[]
   aplicaciones promocion_aplicacion[]
+  avisos_por_vencer aviso_promocion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1577,6 +1588,7 @@ model cotizacion {
   conversacion  conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   creado_por    usuario?      @relation("cotizacion_creada_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupo_elegido grupo?        @relation(fields: [grupo_elegido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  avisos_promocion aviso_promocion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2099,4 +2111,35 @@ model transicion_etapa {
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+}
+
+// ── Lead frío y promoción por vencer (D8) ──────────────────────────────────────────────
+
+/// El aviso de que una promoción de la cotización vigente de un lead está por vencer: uno por (automatización, lead, promoción), así que el
+/// mismo aviso nunca se repite para la misma promoción y el mismo lead (índice único parcial). Es la ENTIDAD de la ejecución del motor
+/// (`entidad_tipo = aviso_promocion`): de aquí sale a qué lead, cotización y promoción se refiere.
+model aviso_promocion {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String    @db.Uuid
+  automatizacion_id String    @db.Uuid
+  lead_id           String    @db.Uuid
+  prospecto_id      String    @db.Uuid
+  cotizacion_id     String    @db.Uuid
+  promocion_id      String    @db.Uuid
+  /// El último día (inclusive, calendario local de la sucursal) en que valía la promoción cuando se creó el aviso.
+  vence_el          DateTime  @db.Date
+  creado_en         DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime? @db.Timestamptz(6)
+
+  organizacion   organizacion   @relation(fields: [organizacion_id], references: [id])
+  automatizacion automatizacion @relation(fields: [automatizacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead           lead           @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospecto      prospecto      @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cotizacion     cotizacion     @relation(fields: [cotizacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  promocion      promocion      @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([lead_id])
 }

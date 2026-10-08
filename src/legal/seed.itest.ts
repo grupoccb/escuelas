@@ -60,3 +60,21 @@ test("D7 seed: los motivos de pérdida de ejemplo y los umbrales de días sin mo
   await aplicar("seguimiento");
   assert.equal(await db().motivo_perdida.count(), 6, "volver a correr el seed no duplica");
 });
+
+test("D8 seed: plantillas de marketing y las dos automatizaciones (lead frío y promoción por vencer) con los tiempos de ejemplo; idempotente", async () => {
+  const plantillas = await db().plantilla_mensaje.findMany({ where: { codigo: { in: ["reenganche_lead_frio", "promocion_por_vencer"] } }, select: { codigo: true, categoria: true, estado_aprobacion: true, variables: true, cuerpo_referencia: true } });
+  assert.equal(plantillas.length, 2);
+  assert.ok(plantillas.every((p) => p.categoria === "marketing" && p.estado_aprobacion === "aprobada"));
+  // Cada variable de la plantilla es una que el motor sabe resolver (si no, se omite con tarea).
+  const conocidas = new Set(["nombre_vertical", "nombre_contacto", "nombre_prospecto", "nombre_sucursal", "nombre_grupo", "fecha_clase", "hora_clase", "nombre_promocion", "fecha_vencimiento"]);
+  for (const p of plantillas) {
+    const vars = p.variables as { pos: number; nombre: string }[];
+    assert.ok(vars.every((v) => conocidas.has(v.nombre)), p.codigo);
+    for (const v of vars) assert.ok(p.cuerpo_referencia!.includes(`{{${v.pos}}}`), `${p.codigo} usa la variable ${v.pos}`);
+  }
+  const autos = await db().automatizacion.findMany({ where: { evento_disparador: { in: ["lead_frio", "promocion_por_vencer"] } }, orderBy: { offset_minutos: "asc" }, select: { evento_disparador: true, offset_minutos: true, max_intentos: true, dias_permitidos: true, activo: true, condiciones: true } });
+  assert.deepEqual(autos.map((a) => [a.evento_disparador, a.offset_minutos, a.max_intentos, a.activo]), [["promocion_por_vencer", -4320, 1, true], ["lead_frio", 0, 3, true]]);
+  assert.ok(autos.every((a) => !a.dias_permitidos.includes(0)), "marketing: no los domingos");
+  await aplicar("seguimiento");
+  assert.equal(await db().automatizacion.count({ where: { evento_disparador: { in: ["lead_frio", "promocion_por_vencer"] } } }), 2);
+});
