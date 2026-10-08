@@ -24,6 +24,7 @@ import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
+import { MENSAJE_SIN_SALUD, mencionaSalud } from "../../sensibles/index.ts";
 import { booleanoDeTexto, enteroDeTexto, enumerado, instanteISO, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const ESTATUS = ["agendada", "asistio", "no_asistio", "reagendada", "cancelada"] as const;
@@ -103,7 +104,6 @@ const instantanea = (c: { lead_id: string; prospecto_id: string; grupo_id: strin
   estatus: c.estatus,
   agendada_por: c.agendada_por,
   reprogramada_de_id: c.reprogramada_de_id,
-  motivo_cancelacion: c.motivo_cancelacion,
   asistencia_marcada_en: c.asistencia_marcada_en ?? null,
 });
 
@@ -129,6 +129,11 @@ export async function alcanceDeClases(ctx: ContextoApi) {
   if (ctx.usuario.rol === "maestro") return { grupo: { instructor: { usuario_id: ctx.usuario.id, eliminado_en: null } } };
   const filtro = filtroDeSucursal(await ctx.alcance());
   return filtro ? { grupo: { programa: { sucursal_id: filtro } } } : {};
+}
+
+/** ED-03: el texto libre no es para datos de salud (decisión 12): un freno a lo evidente, no una garantía. */
+function exigirSinSalud(campo: string, texto: string | null | undefined): void {
+  if (typeof texto === "string" && mencionaSalud(texto)) throw validacion([{ campo, mensaje: MENSAJE_SIN_SALUD }]);
 }
 
 /** Convierte un rechazo de las reglas en el error de la convención de la API. */
@@ -225,6 +230,7 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
   r.post("/clases-muestra", requierePermiso("clases_muestra:escribir"), json, async (req, res) => {
     const ctx = contextoDe(res);
     const entrada = parsear(esquemaAgendar, req.body);
+    exigirSinSalud("notas", entrada.notas);
     if (!(await prospectoVisible(ctx, entrada.prospecto_id))) throw noEncontrado();
     if (!(await grupoVisible(ctx, entrada.grupo_id))) throw noEncontrado();
     const resultado = await ctx.db.$transaction(async (tx) => {
@@ -242,6 +248,7 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const entrada = parsear(esquemaReprogramar, req.body);
+    exigirSinSalud("notas", entrada.notas);
     if (!(await visible(ctx, id))) throw noEncontrado();
     if (entrada.grupo_id && !(await grupoVisible(ctx, entrada.grupo_id))) throw noEncontrado();
     const resultado = await ctx.db.$transaction(async (tx) => {
@@ -262,6 +269,7 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const { motivo } = parsear(esquemaCancelar, req.body ?? {});
+    exigirSinSalud("motivo", motivo);
     if (!(await visible(ctx, id))) throw noEncontrado();
     const resultado = await ctx.db.$transaction(async (tx) => {
       const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });

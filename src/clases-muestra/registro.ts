@@ -277,6 +277,11 @@ export async function guardarRegistro(ctx: ContextoApi, deps: DepsRegistro, clas
     const v = entrada.observacion?.[campo];
     if (typeof v === "string" && mencionaSalud(v)) problemas.push({ campo: `observacion.${campo}`, mensaje: MENSAJE_SIN_SALUD });
   }
+  // ED-03: los demás textos narrativos tampoco son para salud (los nombres, la escuela y la talla no se filtran: un falso positivo bloquearía una inscripción).
+  for (const campo of ["practico_donde", "practico_nivel", "motivo_clase_detalle"] as const) {
+    const v = entrada.antecedentes?.[campo];
+    if (typeof v === "string" && mencionaSalud(v)) problemas.push({ campo: `antecedentes.${campo}`, mensaje: MENSAJE_SIN_SALUD });
+  }
   const antes = previo?.registro;
   const antecedentes = {
     practico_antes: entrada.antecedentes?.practico_antes !== undefined ? entrada.antecedentes.practico_antes : (antes?.practico_antes ?? null),
