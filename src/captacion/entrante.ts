@@ -5,7 +5,7 @@
 // versión. Si dos mensajes de la misma conversación llegan juntos, uno gana y el otro se
 // repite con el estado nuevo.
 
-import { SinInscripciones, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { InscripcionesActivas, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { registrarAltaDeLead } from "../embudo/historial.ts";
 import { aplicarCodigoAlLead, resolverCodigosDeMensaje, type RastreoDelMensaje } from "./rastreo.ts";
 import { agendarClaseMuestra, proximasSesionesConLugar } from "../clases-muestra/agenda.ts";
@@ -100,7 +100,7 @@ export async function procesarEntrante(
   let r: { resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean; bajaDeInstructor?: boolean } | undefined;
   for (let intento = 1; !r; intento++) {
     try {
-      r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion, deps.fuenteOcupacion ?? new SinInscripciones()));
+      r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion, deps.fuenteOcupacion ?? new InscripcionesActivas()));
     } catch (e) {
       const repetible = e instanceof ConflictoVersion || esViolacionUnica(e);
       if (!repetible || intento >= MAX_REINTENTOS) throw e;

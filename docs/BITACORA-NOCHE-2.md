@@ -46,8 +46,8 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F-pre | HECHO | ver `git log` (`F-pre:`) | EC-14 y EC-16: `consumirCupo` comprueba vigencia, alcance y condición y toma el lugar con un UPDATE atómico que compara columnas, sin `catch` dentro de la transacción de la inscripción |
 | F1 | HECHO | ver `git log` (`F1:`) | Tutor (único por teléfono normalizado), alumno sin atajos ni salud, `tutor_alumno` M:N con banderas, API con alcance por rol y sucursal, detección de familia y registro de cambios sin datos identificables |
 | F2 | PENDIENTE | | Conversión en una transacción |
-| F3 | PENDIENTE | | Inscripción |
-| F4 | PENDIENTE | | Cupo real |
+| F3 | HECHO | ver `git log` (`F3:`) | Inscripción: precio congelado, promociones (inmediatas y diferidas) con cupo atómico, reglamento vigente aceptado, cotización aceptada, lead a «inscrito», día de corte con regla de fin de mes |
+| F4 | HECHO | ver `git log` (`F4:`) | Cupo real: `InscripcionesActivas` como fuente única (servidor, API, bot, cotizador, clase muestra, lista de espera); concurrencia con 2 y 10 inscripciones por 1 y 3 lugares |
 | F5 | PENDIENTE | | Cambio de grupo, congelar y baja |
 | F6 | PENDIENTE | | Quién cierra la inscripción |
 | F7 | PENDIENTE | | Hermanos |
@@ -1587,3 +1587,35 @@ Tests (`promociones.itest.ts`): EC-16 (condición con 0, 1 y 2 hermanos; antes, 
 1. **El contexto es obligatorio** (no un parámetro opcional): un consumo sin decir para qué inscripción es justo el hueco que señaló EC-16. Alternativa descartada: dejarlo opcional «por compatibilidad» (un olvido volvería a consumir sin comprobar).
 2. **`UPDATE` condicional por columnas, no `SAVEPOINT`:** Prisma no expone savepoints en la transacción interactiva y un `UPDATE` que no puede fallar es más simple que recuperarse de un fallo.
 3. **La lectura previa ignora el cupo** (`cupoUsado: 0`): decide solo vigencia, alcance y condición; el cupo lo decide únicamente el `UPDATE`, que es el que no se puede adelantar.
+
+## F3. Inscripción
+
+**Qué se hizo**
+- **Migración `20261016010000_inscripcion`:** tabla `inscripcion` (alumno, grupo, programa, origen `lead_id`/`prospecto_id`, `cotizacion_id`, `promocion_id`, `fecha_inscripcion`, `fecha_inicio`, `fecha_baja`, `estatus` `activa|congelada|baja`, **precios de lista congelados**, descuentos inmediatos congelados, meses gratis, meses pagados por adelantado, `dia_corte_pago`). Índices: **una activa por (alumno, grupo)** y `inscripcion(grupo_id) WHERE activa` para el cupo; CHECK de día de corte 1–31, precios, descuentos que no pasan del precio y baja con fecha. `promocion_aplicacion.inscripcion_id` ya es **llave foránea compuesta** (agregada `NOT VALID`: las pruebas de C3 habían dejado filas con ids inventados; las filas nuevas sí se validan) y trae `descuento` y `meses_gratis` congelados.
+- **`src/inscripciones/inscribir.ts`** (`inscribirAlumno(tx, …)`, dentro de la transacción de quien llama), `corte.ts` (puro: fin de mes), `hermanos.ts`, `presentar.ts`, `alcance.ts`. API `GET|POST /api/inscripciones`, `GET /api/inscripciones/:id` (documentada en `docs/API.md`). Permisos `inscripciones:leer` (también el maestro, solo sus grupos) y `inscripciones:escribir`.
+- **Fin de mes:** el día de corte se guarda como lo eligió (1 a 31) y en un mes más corto cae el último día; el 31 vuelve a ser 31 en mayo.
+- **Salud:** el maestro accede a la ficha de un alumno mientras tenga una inscripción activa o congelada en un grupo suyo (`maestroDelSujetoPorDefecto`); el alcance de alumnos/tutores de F1 ya usa las inscripciones.
+- `problemasDeReglamentoVigente` (D6): exige la versión que rige hoy, no cualquier aceptada.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 504 · pass 504 · fail 0
+$ npm run test:int    → exit 0 · tests 791 · pass 791 · fail 0   (árbol de F3 + F4)
+```
+`inscripcion.itest.ts` (12) y `corte.test.ts` (4): congelar precio, cotización a `aceptada`, lead a `inscrito` con historial, alumno `activo`; **el precio sube después y la inscripción existente conserva el suyo** (con dos relojes); sin precio / precio que empieza mañana → error claro; reglamento sin aceptar, rechazado, versión anterior y alumno sin prospecto → 409; edad al corte exacta (el día antes no); ya inscrito, grupo inexistente/inactivo, fechas y día de corte; promociones inmediata (entregada, descuento congelado) y diferida (pendiente); la FK; **6 inscripciones simultáneas con una promoción de cupo 2 → exactamente 2 la reciben** (en 6 grupos distintos para que nada más las serialice, con barrera sobre el UPDATE del cupo); lista de espera cerrada como `inscrito`; alcance por rol y salud del alumno para su maestro.
+
+**Decisiones que tomé**
+1. **`precio_*_aplicado` es el precio de LISTA del día; los descuentos van aparte** (columnas `descuento_*_aplicado` y filas de `promocion_aplicacion` con su monto congelado). H calcula `monto = precio`, `descuento`, `monto_final` sin recalcular promociones que pudieron cambiar. Alternativa descartada: guardar el precio ya descontado (se pierde el precio de lista y los diferidos no tienen dónde ir).
+2. **El precio sale de `precioVigente` HOY, no del snapshot de la cotización.** Una cotización vigente deja de serlo si vence el precio o una promoción cotizada (C8), así que mientras vale, el precio de hoy es el cotizado. La cotización vigente se enlaza y pasa a `aceptada`.
+3. **El reglamento se exige por el prospecto de origen** (D6 cuelga la evidencia del prospecto). Un alumno dado de alta directo (mostrador, sin lead) no puede inscribirse hasta que haya una vía para registrar esa aceptación (decisión de producto abierta, ver «Para Eduardo»). Alternativa descartada: no exigirlo sin prospecto (se saltaría la evidencia legal).
+4. **Edad:** se valida contra el rango del programa a su fecha de corte (la misma regla del cotizador); solo el administrador puede inscribir fuera de rango.
+5. **`fecha_inicio` ≥ hoy y ≤ un año.** Alternativa descartada: permitir fechas pasadas (alta retroactiva): lo pide la migración de alumnos que ya existían, que no es de este bloque.
+6. **Promoción agotada en la carrera:** se devuelven los lugares ya tomados y se resuelve de nuevo sin ella (la inscripción no falla, paga sin esa promoción). Alternativa descartada: fallar con 409 (la familia perdería su lugar en el grupo por una promoción).
+7. **La lista de espera se cierra DESPUÉS de confirmar** (usa su propia transacción con candado por grupo y dentro de la nuestra podría esperar un candado que otro tiene mientras espera el nuestro).
+8. **Hermanos:** se cuentan alumnos distintos de los tutores del alumno con una inscripción activa (una congelada no cuenta); F7 lo prueba a fondo.
+
+**Para Eduardo**
+- Decisión de producto: cómo registra la aceptación del reglamento una familia que llega a mostrador sin pasar por un lead (hoy no se puede inscribir a un alumno sin prospecto).
+- Decisión de producto: ¿una inscripción con fecha de inicio pasada (alumnos que ya venían)? Hoy se rechaza.
+- `promocion_aplicacion` con la FK `NOT VALID`: si algún día se quiere validar, primero hay que borrar lógicamente las filas de prueba huérfanas.
+

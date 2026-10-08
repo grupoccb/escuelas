@@ -27,6 +27,8 @@ export const PERMISOS_ACORDADOS = {
   "tutores:escribir": ["administrador", "asesor", "recepcion"],
   "alumnos:leer": ["administrador", "asesor", "recepcion", "maestro"],
   "alumnos:escribir": ["administrador", "asesor", "recepcion"],
+  "inscripciones:leer": ["administrador", "asesor", "recepcion", "maestro"],
+  "inscripciones:escribir": ["administrador", "asesor", "recepcion"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:escribir": ["administrador"],

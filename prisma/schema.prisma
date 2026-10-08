@@ -94,6 +94,7 @@ model organizacion {
   tutores                    tutor[]
   alumnos                    alumno[]
   tutores_alumnos            tutor_alumno[]
+  inscripciones              inscripcion[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -417,6 +418,7 @@ model lead {
   clases_muestra   clase_muestra[]
   registros_clase_muestra registro_clase_muestra[]
   aceptaciones_legales aceptacion_legal[]
+  inscripciones inscripcion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -460,6 +462,7 @@ model prospecto {
   registros_clase_muestra registro_clase_muestra[]
   aceptaciones_legales aceptacion_legal[]
   avisos_promocion aviso_promocion[]
+  inscripciones inscripcion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1011,6 +1014,7 @@ model programa {
   promociones          promocion_programa[]
   prospectos_sugeridos prospecto[]
   cotizaciones         cotizacion[]
+  inscripciones        inscripcion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1070,6 +1074,7 @@ model grupo {
   lista_espera          lista_espera[]
   clases_muestra        clase_muestra[]
   registros_recomendado registro_clase_muestra[]
+  inscripciones         inscripcion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1161,6 +1166,7 @@ model promocion {
   programas    promocion_programa[]
   beneficios   promocion_beneficio[]
   aplicaciones promocion_aplicacion[]
+  inscripciones inscripcion[]
   avisos_por_vencer aviso_promocion[]
 
   @@unique([id, organizacion_id])
@@ -1253,7 +1259,7 @@ model promocion_beneficio {
 }
 
 /// Auditoría: qué beneficio de qué promoción se aplicó a qué inscripción, quién lo autorizó y si el diferido ya
-/// se entregó. `inscripcion_id` es un uuid SIN llave foránea hasta que exista `inscripcion` (F3). Única entre las
+/// se entregó. `inscripcion_id` es la inscripción (F3; la llave se agregó sin validar las filas de antes de existir la tabla). Única entre las
 /// vivas por (inscripción, beneficio): un reintento no duplica (invariante 8).
 model promocion_aplicacion {
   id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1264,6 +1270,10 @@ model promocion_aplicacion {
   estatus           estatus_aplicacion @default(pendiente)
   fecha_entrega     DateTime?          @db.Timestamptz(6)
   autorizado_por_id String?            @db.Uuid
+  /// Lo que valió este beneficio al inscribir, CONGELADO (F3): el descuento en dinero (0 si no es un descuento) y los meses gratis (0 si no
+  /// aplica). La promoción puede cambiar después; lo ya inscrito conserva lo que se le prometió.
+  descuento         Decimal            @default(0) @db.Decimal(12, 2)
+  meses_gratis      Int                @default(0)
   creado_en         DateTime           @default(now()) @db.Timestamptz(6)
   actualizado_en    DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en      DateTime?          @db.Timestamptz(6)
@@ -1272,6 +1282,7 @@ model promocion_aplicacion {
   promocion      promocion           @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   beneficio      promocion_beneficio @relation(fields: [beneficio_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   autorizado_por usuario?            @relation("aplicacion_autorizada_por", fields: [autorizado_por_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  inscripcion    inscripcion         @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1321,6 +1332,7 @@ model usuario {
   documentos_legales_creados documento_legal[]     @relation("documento_creado_por")
   aceptaciones_capturadas  aceptacion_legal[]      @relation("aceptacion_capturada_por")
   cambios_de_etapa         lead_etapa_historial[]  @relation("historial_usuario")
+  inscripciones_creadas    inscripcion[]           @relation("inscripcion_creada_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1607,6 +1619,7 @@ model cotizacion {
   creado_por    usuario?      @relation("cotizacion_creada_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupo_elegido grupo?        @relation(fields: [grupo_elegido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   avisos_promocion aviso_promocion[]
+  inscripciones inscripcion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2271,6 +2284,7 @@ model alumno {
   sucursal     sucursal?      @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   tutores      tutor_alumno[]
   prospectos   prospecto[]
+  inscripciones inscripcion[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2304,4 +2318,65 @@ model tutor_alumno {
   @@index([organizacion_id])
   @@index([tutor_id])
   @@index([alumno_id])
+}
+
+// ── Inscripción (F3) ───────────────────────────────────────────────────────────────────────────
+
+enum estatus_inscripcion {
+  activa
+  congelada
+  baja
+}
+
+/// El puente entre el alumno y la oferta. Guarda el origen (`lead_id`, `prospecto_id`) para el costo por alumno inscrito por campaña, y
+/// CONGELA lo que se le prometió: el precio de lista que regía el día de la inscripción y lo que valieron sus promociones inmediatas.
+/// Si después sube el precio, esta inscripción conserva el suyo. Una inscripción ACTIVA por (alumno, grupo) y el cupo del grupo se cuenta
+/// con las activas (índices parciales en la migración). Dinero `Decimal(12,2)`; en código, siempre `src/lib/dinero.ts`.
+model inscripcion {
+  id                             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id                String              @db.Uuid
+  alumno_id                      String              @db.Uuid
+  grupo_id                       String              @db.Uuid
+  programa_id                    String              @db.Uuid
+  lead_id                        String?             @db.Uuid
+  prospecto_id                   String?             @db.Uuid
+  cotizacion_id                  String?             @db.Uuid
+  /// La promoción principal aplicada (la de mayor prioridad); todas están en `promocion_aplicacion`.
+  promocion_id                   String?             @db.Uuid
+  /// El día (calendario local de la sucursal) en que se inscribió: el de los precios.
+  fecha_inscripcion              DateTime            @db.Date
+  fecha_inicio                   DateTime            @db.Date
+  fecha_baja                     DateTime?           @db.Date
+  estatus                        estatus_inscripcion @default(activa)
+  /// Precio de lista que regía el día de la inscripción (`precioVigente`), antes de promociones.
+  precio_inscripcion_aplicado    Decimal             @db.Decimal(12, 2)
+  precio_mensualidad_aplicado    Decimal             @db.Decimal(12, 2)
+  /// Lo que descuentan las promociones INMEDIATAS (las diferidas viven en `promocion_aplicacion`, pendientes).
+  descuento_inscripcion_aplicado Decimal             @default(0) @db.Decimal(12, 2)
+  descuento_mensualidad_aplicado Decimal             @default(0) @db.Decimal(12, 2)
+  meses_gratis_aplicados         Int                 @default(0)
+  meses_pagados_por_adelantado   Int                 @default(0)
+  /// Día del mes en que corta el pago (1 a 31). En un mes más corto vale su último día (`src/inscripciones/corte.ts`).
+  dia_corte_pago                 Int
+  creado_por_usuario_id          String?             @db.Uuid
+  creado_en                      DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en                 DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en                   DateTime?           @db.Timestamptz(6)
+
+  organizacion  organizacion          @relation(fields: [organizacion_id], references: [id])
+  alumno        alumno                @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupo         grupo                 @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  programa      programa              @relation(fields: [programa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead          lead?                 @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospecto     prospecto?            @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cotizacion    cotizacion?           @relation(fields: [cotizacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  promocion     promocion?            @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  creado_por    usuario?              @relation("inscripcion_creada_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  aplicaciones  promocion_aplicacion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([alumno_id])
+  @@index([grupo_id])
+  @@index([lead_id])
 }

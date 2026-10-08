@@ -14,11 +14,10 @@ type Donde = Record<string, unknown>;
 /** Condición de Prisma sobre `alumno` para lo que el usuario puede ver. */
 export async function dondeAlumnoVisible(ctx: Pick<ContextoApi, "usuario" | "alcance">): Promise<Donde> {
   if (ctx.usuario.rol === "administrador") return {};
-  // La inscripción (F3) liga al maestro con sus alumnos: hasta entonces no tiene ninguno (falla cerrado).
-  if (ctx.usuario.rol === "maestro") return { id: { in: [] } };
+  if (ctx.usuario.rol === "maestro") return { inscripciones: { some: { estatus: { in: ["activa", "congelada"] }, grupo: { instructor: { usuario_id: ctx.usuario.id, eliminado_en: null } } } } };
   const filtro = filtroDeSucursal(await ctx.alcance());
   if (!filtro) return {};
-  return { OR: [{ sucursal_id: filtro }] };
+  return { OR: [{ sucursal_id: filtro }, { inscripciones: { some: { grupo: { programa: { sucursal_id: filtro } } } } }] };
 }
 
 /** Condición de Prisma sobre `tutor`: visible por su sucursal de alta o porque alguno de sus alumnos lo es. El maestro no ve tutores. */
@@ -27,5 +26,5 @@ export async function dondeTutorVisible(ctx: Pick<ContextoApi, "usuario" | "alca
   if (ctx.usuario.rol === "maestro") return { id: { in: [] } };
   const filtro = filtroDeSucursal(await ctx.alcance());
   if (!filtro) return {};
-  return { OR: [{ sucursal_id: filtro }, { alumnos: { some: { eliminado_en: null, alumno: { OR: [{ sucursal_id: filtro }] } } } }] };
+  return { OR: [{ sucursal_id: filtro }, { alumnos: { some: { eliminado_en: null, alumno: { OR: [{ sucursal_id: filtro }, { inscripciones: { some: { grupo: { programa: { sucursal_id: filtro } } } } }] } } } }] };
 }

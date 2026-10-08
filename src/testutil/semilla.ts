@@ -258,3 +258,47 @@ export async function sembrarDocumentosLegales(prisma: PrismaPruebas, org: Organ
   }
   return ids as unknown as DocumentosLegalesSembrados;
 }
+
+// ── Familia e inscripción (F1 en adelante) ───────────────────────────────────────────────────────────────
+
+export interface AlumnoSembrado {
+  alumnoId: string;
+  tutorId: string;
+  leadId: string;
+  prospectoId: string;
+  telefono: string;
+}
+
+let contadorDeAlumnos = 0;
+
+/**
+ * Un alumno que PUEDE inscribirse: nace de un lead y un prospecto (vinculados), tiene su tutor (responsable de pago, por teléfono) y,
+ * por omisión, la familia ya aceptó el reglamento v1 (hay que pasar los documentos de `sembrarDocumentosLegales`). El teléfono del tutor se
+ * puede repetir para armar hermanos: el tutor es el mismo.
+ */
+export async function sembrarAlumno(
+  prisma: PrismaPruebas,
+  org: OrganizacionDePrueba,
+  o: { docs?: DocumentosLegalesSembrados; sucursalId?: string | null; nacimiento?: string; nombre?: string; telefono?: string; etapaId?: string; aceptarReglamento?: boolean } = {},
+): Promise<AlumnoSembrado> {
+  const n = ++contadorDeAlumnos;
+  const telefono = o.telefono ?? `+5255${String(40_000_000 + ((n * 104729 + Date.now()) % 50_000_000))}`;
+  const sucursalId = o.sucursalId === undefined ? org.sucursales[0]!.id : o.sucursalId;
+  const fam = await sembrarFamilia(prisma, org, { sucursalId, telefono: o.telefono ?? telefono, ...(o.etapaId ? { etapaId: o.etapaId } : {}), ...(o.nombre ? { nombre: o.nombre } : {}) });
+  const alumno = await prisma.alumno.create({
+    data: { organizacion_id: org.organizacionId, nombre: o.nombre ?? `Alumno ${n}`, apellidos: "Prueba", fecha_nacimiento: new Date(`${o.nacimiento ?? "2018-05-04"}T00:00:00.000Z`), sucursal_id: sucursalId },
+  });
+  await prisma.prospecto.update({ where: { id: fam.prospectoId }, data: { alumno_id: alumno.id } });
+  const tutor =
+    (await prisma.tutor.findFirst({ where: { organizacion_id: org.organizacionId, telefono, eliminado_en: null } })) ??
+    (await prisma.tutor.create({ data: { organizacion_id: org.organizacionId, nombre: "Rosa", apellidos: "Mena", telefono, sucursal_id: sucursalId } }));
+  await prisma.tutor_alumno.create({ data: { organizacion_id: org.organizacionId, tutor_id: tutor.id, alumno_id: alumno.id, parentesco: "madre", es_responsable_pago: true } });
+  await prisma.lead.update({ where: { id: fam.leadId }, data: { tutor_id: tutor.id } });
+  if (o.docs && o.aceptarReglamento !== false) {
+    const texto = "Texto de prueba de reglamento, versión 1.";
+    await prisma.aceptacion_legal.create({
+      data: { organizacion_id: org.organizacionId, documento_id: o.docs.reglamento, tipo: "reglamento", version_aceptada: 1, resultado: "aceptada", lead_id: fam.leadId, prospecto_id: fam.prospectoId, aceptante_nombre: "Rosa Mena", canal: "presencial", aceptado_en: new Date(), texto_hash: createHash("sha256").update(texto, "utf8").digest("hex") },
+    });
+  }
+  return { alumnoId: alumno.id, tutorId: tutor.id, leadId: fam.leadId, prospectoId: fam.prospectoId, telefono };
+}

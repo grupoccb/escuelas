@@ -29,7 +29,7 @@ test("permisosDe(rol) coincide con tienePermiso para cada permiso", () => {
   for (const rol of ROLES) {
     assert.deepEqual(permisosDe(rol), PERMISOS.filter((p) => tienePermiso(rol, p)));
   }
-  assert.deepEqual(permisosDe("maestro"), ["clases_muestra:leer", "clases_muestra:asistencia", "registro_muestra:leer", "registro_muestra:escribir", "avisos_maestro:leer", "avisos_maestro:escribir", "alumnos:leer", "grupos:leer", "catalogo:leer", "salud:leer", "salud:escribir"]);
+  assert.deepEqual(permisosDe("maestro"), ["clases_muestra:leer", "clases_muestra:asistencia", "registro_muestra:leer", "registro_muestra:escribir", "avisos_maestro:leer", "avisos_maestro:escribir", "alumnos:leer", "inscripciones:leer", "grupos:leer", "catalogo:leer", "salud:leer", "salud:escribir"]);
 });
 
 test("D5: el registro de la clase muestra lo ven el administrador, el asesor y el maestro; recepción nunca; reabrirlo es solo del administrador", () => {

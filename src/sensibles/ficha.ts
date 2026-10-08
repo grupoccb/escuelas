@@ -43,12 +43,15 @@ export class ErrorAccesoSensible extends Error {
 /**
  * ¿Es el sujeto de un grupo de este maestro? Un PROSPECTO es de su maestro mientras tenga una clase muestra vigente o
  * ya dada (agendada, asistió, no asistió) en un grupo cuyo instructor está ligado a ese usuario (D5): una clase cancelada o
- * reagendada ya no le da acceso. Un ALUMNO llega con la inscripción (F1/F3): hasta entonces nadie es de un maestro (falla
- * cerrado). La regla se implementa AQUÍ y solo aquí.
+ * reagendada ya no le da acceso. Un ALUMNO es de su maestro mientras tenga una inscripción activa o congelada en un grupo suyo (F3);
+ * dado de baja ya no. La regla se implementa AQUÍ y solo aquí.
  */
 export type MaestroDelSujeto = (db: Consultas | BaseDatos, usuarioId: string, sujetoTipo: SujetoSalud, sujetoId: string) => Promise<boolean>;
 export const maestroDelSujetoPorDefecto: MaestroDelSujeto = async (db, usuarioId, sujetoTipo, sujetoId) => {
-  if (sujetoTipo !== "prospecto") return false;
+  if (sujetoTipo === "alumno") {
+    // F3: el alumno es de su maestro mientras tenga una inscripción activa o congelada en un grupo suyo.
+    return (await db.inscripcion.count({ where: { alumno_id: sujetoId, estatus: { in: ["activa", "congelada"] }, grupo: { instructor: { usuario_id: usuarioId, eliminado_en: null } } } })) > 0;
+  }
   const n = await db.clase_muestra.count({
     where: { prospecto_id: sujetoId, estatus: { in: ["agendada", "asistio", "no_asistio"] }, grupo: { instructor: { usuario_id: usuarioId, eliminado_en: null } } },
   });

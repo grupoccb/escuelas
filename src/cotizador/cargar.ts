@@ -2,12 +2,12 @@
 // organización, y deja el cálculo al código puro de `cotizar.ts`.
 //
 // OCUPACIÓN (punto de enchufe para F4): los lugares ocupados vienen de una `FuenteOcupacion`
-// (`src/catalogo/cupo.ts`). Mientras no exista la tabla `inscripcion` es `SinInscripciones` (ninguno ocupado).
+// (`src/catalogo/cupo.ts`). Por omisión es `InscripcionesActivas` (F4: las inscripciones activas del grupo).
 // F4 escribe una fuente que cuente las inscripciones activas del grupo y se la pasa a `cargarCatalogoCotizable`
 // (la API la recibe en `DepsApi.fuenteOcupacion` y el bot en `DepsCaptacion.fuenteOcupacion`); nada más cambia.
 
 import type { BaseDatos, Consultas } from "../datos/alcance.ts";
-import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { aFecha, deFecha, elegirVigente, precioDeFila, type FechaISO } from "../catalogo/precios.ts";
 import { cargarPromociones } from "../promociones/cargar.ts";
 import { cotizar } from "./cotizar.ts";
@@ -28,7 +28,7 @@ export interface OpcionesDeCarga {
  * grupos activos, horarios, cupo real y el precio vigente en la fecha, más todas las promociones vivas.
  */
 export async function cargarCatalogoCotizable(db: Consultas | BaseDatos, o: OpcionesDeCarga): Promise<CatalogoCotizable> {
-  const fuente = o.fuente ?? new SinInscripciones();
+  const fuente = o.fuente ?? new InscripcionesActivas();
   const ofrecidas = await db.sucursal_vertical.findMany({
     where: { vertical_id: o.verticalId, activo: true, sucursal: { activo: true, eliminado_en: null } },
     select: { sucursal_id: true },

@@ -25,8 +25,8 @@ export interface DepsApi {
   /** Agentes de Chatwoot. Nulo = no configurado. */
   directorio: DirectorioAgentes | null;
   /**
-   * De dónde salen los lugares ocupados de un grupo (cotizador, lista de espera). Hoy no hay inscripciones
-   * (`SinInscripciones`); F4 inyecta la que cuenta las activas.
+   * De dónde salen los lugares ocupados de un grupo (cotizador, lista de espera). Por omisión cuenta las
+   * inscripciones activas (`InscripcionesActivas`, F4).
    */
   fuenteOcupacion: FuenteOcupacion;
 }

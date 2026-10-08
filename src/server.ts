@@ -3,7 +3,7 @@ import { crearCierre } from "./cierre.ts";
 import { correrCiclo } from "./ciclo.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { registrarDesasignacionDeConversacion, registrarTomaDeConversacion } from "./captacion/toma.ts";
-import { SinInscripciones } from "./catalogo/cupo.ts";
+import { InscripcionesActivas } from "./catalogo/cupo.ts";
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { origenesPermitidosDesdeEntorno } from "./api/csrf.ts";
@@ -21,9 +21,9 @@ const atribucion = new AtribucionDesdeChatwoot();
 // Borde de Twilio (A7): firma, reintentos por MessageSid y reenvío sin modificar a Chatwoot.
 // Apagado (rechaza todo) mientras no haya TWILIO_AUTH_TOKEN y PUBLIC_BASE_URL.
 const twilio = bordeTwilioDesdeEntorno(prisma);
-// De dónde salen los lugares ocupados de un grupo (cotizador de la API y del bot de WhatsApp). Todavía no existe la
-// inscripción, así que ninguno está ocupado. F4 pone aquí la fuente que cuenta las inscripciones activas; nada más cambia.
-const fuenteOcupacion = new SinInscripciones();
+// De dónde salen los lugares ocupados de un grupo: UNA sola fuente para el cotizador, la clase muestra, la lista de espera, la
+// inscripción y el bot de WhatsApp (F4): las inscripciones activas.
+const fuenteOcupacion = new InscripcionesActivas();
 
 const limites = limitesDesdeEntorno();
 const avisoProxy = avisoDeTrustProxy();

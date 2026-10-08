@@ -74,6 +74,16 @@ const crearOk = async (extra: object = {}): Promise<Promo> => {
   return r.cuerpo;
 };
 const db = () => conAlcance(prisma, org.organizacionId);
+/** Una inscripción de verdad (desde F3 `promocion_aplicacion.inscripcion_id` es llave foránea). */
+async function inscripcionReal(): Promise<string> {
+  const o = org.organizacionId;
+  const alumno = await prisma.alumno.create({ data: { organizacion_id: o, nombre: "Alumno", apellidos: "Prueba", fecha_nacimiento: new Date("2018-01-01") } });
+  const grupo = await prisma.grupo.create({ data: { organizacion_id: o, programa_id: pNorte, nombre: `Grupo ${++n}`, cupo_maximo: 5 } });
+  const i = await prisma.inscripcion.create({
+    data: { organizacion_id: o, alumno_id: alumno.id, grupo_id: grupo.id, programa_id: pNorte, fecha_inscripcion: new Date("2026-10-20"), fecha_inicio: new Date("2026-10-20"), precio_inscripcion_aplicado: "100.00", precio_mensualidad_aplicado: "200.00", dia_corte_pago: 20 },
+  });
+  return i.id;
+}
 /** El contexto de una inscripción en el programa del norte, hoy (2026-10-20). */
 const ctx = (extra: Partial<ContextoPromocion> = {}): ContextoPromocion => ({ fecha: "2026-10-20", verticalId: org.verticalId, sucursalId: norte, programaId: pNorte, hermanosInscritos: 0, mesesPagadosPorAdelantado: 0, costoInscripcion: 50000n, costoMensualidad: 80000n, ...extra });
 const registros = (id: string) => prisma.registro_cambio.findMany({ where: { entidad_id: id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] });
@@ -196,7 +206,7 @@ test("baja lógica de una promoción: sale de las listas, libera el código y ar
   assert.equal((await admin.delete(`/api/promociones/${randomUUID()}`)).estado, 404);
 
   const q = await crearOk({ beneficios: [{ tipo: "producto_gratis", modo: "total", descripcion: "Uniforme", momento_disparo: "al_cumplir_condicion" }] });
-  const aplicacion = await prisma.promocion_aplicacion.create({ data: { organizacion_id: org.organizacionId, inscripcion_id: randomUUID(), promocion_id: q.id, beneficio_id: q.beneficios[0]!.id } });
+  const aplicacion = await prisma.promocion_aplicacion.create({ data: { organizacion_id: org.organizacionId, inscripcion_id: await inscripcionReal(), promocion_id: q.id, beneficio_id: q.beneficios[0]!.id } });
   assert.equal((await admin.delete(`/api/promociones/${q.id}`)).estado, 409, "un uniforme por entregar");
   assert.equal((await admin.delete(`/api/promociones/${q.id}/beneficios/${q.beneficios[0]!.id}`)).estado, 409);
   await prisma.promocion_aplicacion.update({ where: { id: aplicacion.id }, data: { estatus: "entregado", fecha_entrega: new Date() } });
@@ -436,7 +446,7 @@ test("la BASE valida las combinaciones de beneficio, el valor de la condición, 
   await assert.rejects(prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "x", codigo: "CHECK-VIG", vigencia_desde: new Date("2026-02-01T00:00:00Z"), vigencia_hasta: new Date("2026-01-01T00:00:00Z") } }), /promocion_vigencia_check/);
   await assert.rejects(prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "x", codigo: p.codigo, vigencia_desde: new Date("2026-01-01T00:00:00Z") } }), /Unique|unique/);
   // Aplicación: una viva por (inscripción, beneficio) y «entregado» ⇔ fecha de entrega.
-  const inscripcion = randomUUID();
+  const inscripcion = await inscripcionReal();
   const aplicar = () => prisma.promocion_aplicacion.create({ data: { organizacion_id: org.organizacionId, inscripcion_id: inscripcion, promocion_id: p.id, beneficio_id: bueno.id } });
   const a = await aplicar();
   await assert.rejects(aplicar(), /Unique|unique/, "un reintento no duplica (invariante 8)");

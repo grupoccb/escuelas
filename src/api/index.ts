@@ -27,7 +27,7 @@ import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeGrupos } from "./rutas/grupos.ts";
 import { rutasDeInstructores } from "./rutas/instructores.ts";
 import { rutasDeSalones } from "./rutas/salones.ts";
-import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeCampanas } from "./rutas/campanas.ts";
@@ -36,6 +36,7 @@ import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
 import { rutasDeEmbudo } from "./rutas/embudo.ts";
 import { rutasDeFamilias } from "./rutas/familias.ts";
+import { rutasDeInscripciones } from "./rutas/inscripciones.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDeLegal } from "./rutas/legal.ts";
@@ -69,7 +70,7 @@ export interface ApiDepsEntrada {
   /** Límites por IP (B6). Sin ellos la API no limita. */
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
-  /** Lugares ocupados por grupo. Por omisión, ninguno (`SinInscripciones`) hasta que exista la inscripción (F4). */
+  /** Lugares ocupados por grupo. Por omisión, las inscripciones activas (`InscripcionesActivas`, F4). */
   fuenteOcupacion?: FuenteOcupacion;
 }
 
@@ -84,7 +85,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(e.entorno),
     sensibles: e.sensibles ?? {},
     directorio: e.directorio ?? null,
-    fuenteOcupacion: e.fuenteOcupacion ?? new SinInscripciones(),
+    fuenteOcupacion: e.fuenteOcupacion ?? new InscripcionesActivas(),
   };
 }
 
@@ -123,6 +124,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeLegal(deps));
   api.use(rutasDelMaestro(deps));
   api.use(rutasDeFamilias(deps));
+  api.use(rutasDeInscripciones(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));
   api.use(rutasDeSalud(deps));

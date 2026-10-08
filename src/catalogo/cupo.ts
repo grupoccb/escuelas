@@ -2,10 +2,10 @@
 //
 //   disponibles = max(0, cupo_maximo − ocupados)
 //
-// De dónde sale `ocupados` es una interfaz: el insumo lo define como las inscripciones activas del
-// grupo, pero la tabla `inscripcion` no existe hasta su fase (CLAUDE.md: no se construyen tablas
-// de fases futuras por adelantado). Mientras tanto la fuente por defecto no tiene inscripciones y
-// el cupo es el máximo; cuando exista la tabla, solo se agrega una fuente que cuente las activas.
+// De dónde sale `ocupados` es una interfaz (`FuenteOcupacion`). La fuente REAL es `InscripcionesActivas` (F4): cuenta las inscripciones
+// con estatus `activa` del grupo (índice parcial `inscripcion_cupo_idx`). Las congeladas y las bajas NO ocupan lugar (decisión de F4) y
+// la lista de espera tampoco. Es el valor por omisión de TODO lo que reparte o muestra lugares (cotizador, clase muestra, bot, API, lista
+// de espera, inscripción). `SinInscripciones` queda solo para pruebas que quieren un grupo vacío sin sembrar inscripciones.
 
 import type { Consultas } from "../datos/alcance.ts";
 
@@ -25,10 +25,20 @@ export interface FuenteOcupacion {
   ocupados(db: Consultas, grupoId: string): Promise<number>;
 }
 
-/** Hasta que exista la tabla de inscripciones: ningún lugar está ocupado. */
+/** Ningún lugar está ocupado (solo pruebas). */
 export class SinInscripciones implements FuenteOcupacion {
   async ocupados(): Promise<number> {
     return 0;
+  }
+}
+
+/**
+ * La fuente real (F4): las inscripciones ACTIVAS del grupo. Una inscripción congelada o dada de baja libera su lugar; quien espera en la lista
+ * de espera no lo ocupa. Para repartir un lugar hay que tomar antes `bloquearCupoDeGrupo` y contar DESPUÉS, en la misma transacción.
+ */
+export class InscripcionesActivas implements FuenteOcupacion {
+  async ocupados(db: Consultas, grupoId: string): Promise<number> {
+    return db.inscripcion.count({ where: { grupo_id: grupoId, estatus: "activa" } });
   }
 }
 
@@ -49,7 +59,7 @@ export function calcularCupo(cupoMaximo: number, ocupados: number, permiteListaE
 }
 
 /** Cupo de un grupo vivo y activo. Devuelve null si el grupo no existe, está borrado o inactivo. */
-export async function cupoPorGrupo(db: Consultas, grupoId: string, fuente: FuenteOcupacion = new SinInscripciones()): Promise<Cupo | null> {
+export async function cupoPorGrupo(db: Consultas, grupoId: string, fuente: FuenteOcupacion = new InscripcionesActivas()): Promise<Cupo | null> {
   const grupo = await db.grupo.findFirst({
     where: { id: grupoId, activo: true },
     select: { cupo_maximo: true, permite_lista_espera: true },
