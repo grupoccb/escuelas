@@ -53,6 +53,44 @@ test("en una zona de dinero cualquier llamada a flotantes falla, sin mirar los n
   assert.deepEqual(hallazgos({ "src/otra/a.ts": `const x = Number(fila.v);` }), []);
 });
 
+test("EC-06: lo que esquivaba la guarda ahora falla (llamada partida, corchetes, alias, unario, literal decimal, ×1, ~~, globalThis, Math.fround)", () => {
+  // Una línea puede incumplir varias reglas a la vez (Math["round"]): aquí importa en qué líneas falla.
+  const z = (codigo: string, ruta = "src/promociones/a.ts") => [...new Set(hallazgos({ [ruta]: codigo }))];
+  assert.deepEqual(z(`const n = x.toNumber\n  ();`), ["src/promociones/a.ts:1"], ".toNumber con el paréntesis en otra línea");
+  assert.deepEqual(z(`const n = x\n  .\n  toNumber\n  ();`), ["src/promociones/a.ts:2"]);
+  assert.deepEqual(z(`const n = parseFloat\n  (t);`, "src/x/a.ts"), ["src/x/a.ts:1"], "parseFloat con el paréntesis en otra línea, en cualquier archivo");
+  assert.deepEqual(z(`const n = x["toNumber"]();`, "src/x/a.ts"), ["src/x/a.ts:1"], "x[\"toNumber\"] en cualquier archivo");
+  assert.deepEqual(z("const n = x[`toFixed`](2);", "src/x/a.ts"), ["src/x/a.ts:1"]);
+  assert.deepEqual(z(`const r = Math["round"](x);`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const r = Math.fround(x);`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const f = parseFloat;\nconst g = [1].map(Number);`), ["src/promociones/a.ts:1", "src/promociones/a.ts:2"], "alias sin llamar");
+  assert.deepEqual(z(`const f = parseFloat;`, "src/x/a.ts"), [], "fuera de dinero, un alias sin palabra de dinero no se persigue");
+  assert.deepEqual(z(`const f = Number; // precio`, "src/x/a.ts"), [], "los comentarios no cuentan");
+  assert.deepEqual(z(`const precios = lista.map(Number);`, "src/x/a.ts"), ["src/x/a.ts:1"], "en una línea de dinero sí");
+  assert.deepEqual(z(`const d = +precio * 3;`), ["src/promociones/a.ts:1"], "+x unario");
+  assert.deepEqual(z(`return +x;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const d = importe * 0.15;`), ["src/promociones/a.ts:1"], "multiplicar por un decimal");
+  assert.deepEqual(z(`const d = importe / 1.16;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const d = 0.5 * importe;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const d = texto * 1;`), ["src/promociones/a.ts:1"], "× 1 para convertir");
+  assert.deepEqual(z(`const d = ~~x;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const n = globalThis["Number"](x);`), ["src/promociones/a.ts:1"], "globalThis");
+  assert.deepEqual(z(`const g = globalThis;`), ["src/promociones/a.ts:1"], "globalThis solo (sin corchetes ni llamada)");
+  assert.deepEqual(z(`const r = Math[nombre](x);`), ["src/promociones/a.ts:1"], "Math[nombre]: el acceso por corchetes con una variable");
+  assert.deepEqual(z(`const d = importe * 1e3;`), ["src/promociones/a.ts:1"], "un literal con exponente es un flotante");
+});
+
+test("EC-06: lo que NO es flotante sigue pasando en una zona de dinero (suma, ++, bigint, separadores, expresiones regulares)", () => {
+  const z = (codigo: string) => hallazgos({ "src/promociones/a.ts": codigo });
+  assert.deepEqual(z(`const t = a + b + c;\nlet i = 0; i++; const j = i + 1;\nconst k = (a + b) * 2n;`), []);
+  assert.deepEqual(z(`const c = importe * 100n + 5n;\nconst d = total / 10_000n;\nconst e = x * 1n;\nconst f = y / 100;`), []);
+  assert.deepEqual(z(`const re = /^\\d+\\.\\d+$/;\nconst ok = re.test(texto);`), []);
+  assert.deepEqual(z(`const s = a +\n  b;\nconst t = \`\${a}+\${b}\`;\nconst u = "x" +\n  "y";`), []);
+  assert.deepEqual(z(`if (Number.isInteger(n) && n > 0) { const ok = Math.max(0, n - 1) + Math.min(3, n); }`), [], "Number.isInteger, Math.max y Math.min no bajan un importe");
+  // Fuera de una zona de dinero la aritmética de flotantes sin llamadas es un límite conocido (la cabecera lo dice).
+  assert.deepEqual(hallazgos({ "src/otro/a.ts": `const d = +x * 0.15;` }), []);
+});
+
 test("src/lib/dinero.ts puede usar toFixed (lee un Decimal por su texto) pero no parseFloat", () => {
   assert.deepEqual(hallazgos({ "src/lib/dinero.ts": `return deTexto(d.toFixed(2));` }), []);
   assert.deepEqual(hallazgos({ "src/lib/dinero.ts": `return parseFloat(x);` }), ["src/lib/dinero.ts:1"]);
