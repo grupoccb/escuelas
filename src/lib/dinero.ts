@@ -126,5 +126,15 @@ export function repartir(total: Centavos, partes: number): Centavos[] {
   });
 }
 
+/**
+ * Una CANTIDAD entera (meses, piezas) guardada en una columna `Decimal` («2.00» → 2). Lanza si no es un
+ * entero. Existe para no usar `Number()` sobre columnas decimales en las zonas de dinero.
+ */
+export function cantidadEntera(texto: string): number {
+  const c = deTexto(texto);
+  if (c % 100n !== CERO) throw new ErrorDeDinero(`Se esperaba una cantidad entera y llegó «${texto}»`);
+  return Number(c / 100n);
+}
+
 /** ¿Cabe en `Decimal(12,2)` y no es negativo? Para validar entradas de precios. */
 export const cabeEnDecimal = (c: Centavos): boolean => c >= CERO && c <= MAXIMO_DECIMAL_12_2;

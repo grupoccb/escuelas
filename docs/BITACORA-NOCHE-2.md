@@ -23,7 +23,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B-fix | HECHO (6 pendientes, 1 decisión) | 25616f5…6a19fad | Correcciones de la auditoría de la etapa B (`docs/auditorias/etapa-B.md`): ver la sección «Correcciones de la auditoría de la etapa B» |
 | C1 | HECHO | ver sección | Instructores y salones: tabla `salon`, `grupo.salon_id`, choques de salón e instructor (función pura + API 409 + disparadores en la base) |
 | C2 | HECHO | ver sección | Precios versionados por fecha (exclusión btree_gist), `precioVigente`, `src/lib/dinero.ts` en centavos `bigint` y `check:dinero` |
-| C3 | PENDIENTE | | Promociones |
+| C3 | HECHO | ver sección | Promociones: tablas del modelo, resolutor puro (prioridad, acumulación, cupo, montos exactos), consumo de cupo atómico y API CRUD |
 | C4 | PENDIENTE | | Catálogo de las tres verticales |
 | C5 | PENDIENTE | | Cotizador determinista |
 | C6 | PENDIENTE | | Varios programas para una edad |
@@ -733,3 +733,29 @@ Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe 
 **Para Eduardo**
 - Los precios de ejemplo `[SUPUESTO]` llegan con C4 (seed). Mientras no haya precio vigente de un programa, el cotizador (C5) tendrá que decir «sin precio» en vez de inventar uno.
 - Aparece una extensión nueva de Postgres, `btree_gist` (incluida en las imágenes oficiales y permitida en RDS); el usuario que migra necesita poder crearla.
+
+## C3. Promociones
+
+**Qué se hizo**
+- **Tablas** (migración `20261011020000_promociones`): `promocion` (nombre, código único entre las vivas, vigencia, `condicion_tipo` enum, `condicion_valor` JSON, `cupo_maximo`/`cupo_usado`, `acumulable`, `prioridad`, `activo`), el alcance en tablas puente (`promocion_vertical`, `promocion_sucursal`, `promocion_programa`; **sin filas = todos**), `promocion_beneficio` (tipo, modo, valor `Decimal`, `producto_id`, `descripcion`, `momento_disparo`) y `promocion_aplicacion` (inscripción, promoción, beneficio, `estatus` pendiente/entregado, `fecha_entrega`, quién autorizó). Todo con `organizacion_id`, `eliminado_en` y FK compuestas. CHECK en la base: vigencia, cupo (`cupo_usado ≤ cupo_maximo`, nunca negativo), condición coherente con su valor, **combinaciones válidas de beneficio**, y «entregado ⇔ tiene fecha»; índices parciales: código único vivo, una fila viva por alcance y **una aplicación viva por (inscripción, beneficio)** (invariante 8).
+- **Resolutor PURO** (`src/promociones/resolver.ts`, reglas en su encabezado y en `docs/API.md`): candidata = activa + vigente (bordes inclusivos) + en alcance + con cupo + condición cumplida; orden por prioridad (mayor primero) y menor id; las **no acumulables compiten** (gana una) y las **acumulables se suman**; los descuentos se calculan sobre el importe original y se recortan para no pasar de cero; devuelve aplicadas, **descartadas con su motivo** y el desglose por beneficio con totales ahora/diferido (centavos `bigint`). `meses_gratis` y `descuento_mensualidad` son por mensualidad. Validaciones puras de condición y beneficio en `condicion.ts`; carga desde la base en `cargar.ts`.
+- **Cupo seguro bajo concurrencia** (`cupo.ts`): `consumirCupo` = un `UPDATE … WHERE cupo_usado < cupo_maximo` atómico (más el CHECK de la base como red); `liberarCupo` nunca baja de cero.
+- **API** `/api/promociones` y `/api/promociones/:id/beneficios` (alta completa en una transacción, cambios que reemplazan el alcance, bajas lógicas con 409 si hay entregas pendientes, `registrarCambio` en promociones y beneficios, lectura por sucursal según el rol).
+
+**Verificación**
+- `npm run validar` → exit 0 y `npm run test:int` → exit 0 (conteos finales en el cierre de la etapa C). La base de pruebas se recreó VACÍA durante este bloque (se corrigió una migración aún sin commitear) y la suite de este bloque pasó sobre ella.
+- Tests nuevos: `resolver.test.ts` (16: 15 % de $1,234.50 = $185.18, monto fijo/total/recorte a cero, 10 % + 10 % = 20 %, meses gratis, diferidos, cada condición con sus bordes, vigencias, alcance, cupo, orden de los motivos, prioridad y desempate por id, acumulación, **30 barajas del mismo conjunto dan exactamente el mismo resultado**), `condicion.test.ts` (matriz completa de tipo × modo × valor), `promociones.itest.ts` (13: alta, entradas inválidas, cambios, bajas, beneficios, filtros, permisos y alcance, no-fuga y FKs, carga + resolutor reales, **cupo 1 con dos consumos que se solapan de verdad (barrera de `carrera.ts`) y cupo 3 con 12 simultáneos**, y los CHECK de la base).
+- Mutaciones atrapadas: bordes de vigencia, `hermanosInscritos + 1`, `>=` del cupo, orden de prioridad, recorte a cero, acumulación, diferido según la condición. Equivalente: quitar el `WHERE cupo_usado < …` de `consumirCupo` (el CHECK de la base lo rechaza y el código lo toma como «no hay lugar»): dos capas.
+
+**Decisiones que tomé**
+- *Mayor `prioridad` gana*; empate por menor id. Las **no acumulables compiten entre sí y la ganadora convive con todas las acumulables** (así lo pide el encargo); si el negocio quiere que una no acumulable excluya también a las acumulables, se marcan no acumulables.
+- *`min_hermanos {hermanos: n}` cuenta al que se inscribe* (`hermanosInscritos + 1 ≥ n`): «2 hermanos» = este y al menos uno ya inscrito. `pago_anticipado {meses: n}` = meses pagados al inscribirse.
+- *Descuentos sobre el ORIGINAL, no en cascada* (dos de 10 % son 20 %): predecible y sin depender del orden. Alternativa descartada: cascada (19 %).
+- *`producto_id` y `inscripcion_id` sin llave foránea* (documentados en el schema) hasta que existan `producto` (H5) e `inscripcion` (F3); se agregó `descripcion` al beneficio para que recepción sepa qué entregar mientras no haya productos. Alternativa descartada: diferir la columna.
+- *`meses_gratis` y `producto_gratis` van con modo `total`* (el modo no aplica); el valor de `meses_gratis` es el número de meses.
+- *`condicion_valor` nulo = NULL de SQL* (`JSON_NULO_SQL`, nuevo en `src/datos/tipos.ts`), porque el CHECK compara contra `IS NULL`; dos CHECK tenían un hueco (un `NULL` pasa un CHECK) y lo encontró el test antes de commitear.
+- *No se construyó el registro de aplicaciones* (insertar `promocion_aplicacion`, marcar entregado): es de F3/H4. Solo la tabla y sus garantías.
+
+**Para Eduardo**
+- Las promociones de ejemplo `[SUPUESTO]` (inscripción gratis, uniforme al pagar la primera mensualidad, descuento por hermanos) llegan con el seed de C4.
+- Decisión abierta de negocio: ¿una promoción NO acumulable debe excluir también a las acumulables? Hoy no (arriba).

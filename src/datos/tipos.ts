@@ -17,6 +17,9 @@ export type ValorJson = Prisma.InputJsonValue;
 /** Para poner en NULL una columna JSON (Prisma distingue el NULL de SQL del valor JSON `null`). */
 export const JSON_NULO = Prisma.JsonNull;
 
+/** El NULL de SQL en una columna JSON (`Prisma.DbNull`): para columnas con un CHECK `IS NULL`, a diferencia de `JSON_NULO`. */
+export const JSON_NULO_SQL = Prisma.DbNull;
+
 import { estado_tarea_asesor, tipo_tarea_asesor } from "../generated/prisma/enums.ts";
 
 /** Valores de los enums de tareas, para validar entradas sin importar el cliente generado. */

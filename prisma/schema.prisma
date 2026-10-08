@@ -71,6 +71,12 @@ model organizacion {
   salones                    salon[]
   instructores_sucursales    instructor_sucursal[]
   precios                    precio[]
+  promociones                promocion[]
+  promociones_verticales     promocion_vertical[]
+  promociones_sucursales     promocion_sucursal[]
+  promociones_programas      promocion_programa[]
+  promociones_beneficios     promocion_beneficio[]
+  promociones_aplicaciones   promocion_aplicacion[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -107,7 +113,7 @@ model vertical {
   actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en    DateTime? @db.Timestamptz(6)
 
-  organizacion        organizacion        @relation(fields: [organizacion_id], references: [id])
+  organizacion        organizacion         @relation(fields: [organizacion_id], references: [id])
   sucursal_verticales sucursal_vertical[]
   canales_whatsapp    canal_whatsapp[]
   campanas            campana[]
@@ -116,6 +122,7 @@ model vertical {
   plantillas_mensaje  plantilla_mensaje[]
   automatizaciones    automatizacion[]
   programas           programa[]
+  promociones         promocion_vertical[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -133,7 +140,7 @@ model sucursal {
   actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en    DateTime? @db.Timestamptz(6)
 
-  organizacion        organizacion        @relation(fields: [organizacion_id], references: [id])
+  organizacion        organizacion          @relation(fields: [organizacion_id], references: [id])
   sucursal_verticales sucursal_vertical[]
   canales_whatsapp    canal_whatsapp[]
   campanas            campana[]
@@ -143,6 +150,7 @@ model sucursal {
   usuarioSucursals    usuario_sucursal[]
   salones             salon[]
   instructores        instructor_sucursal[]
+  promociones         promocion_sucursal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -836,11 +844,12 @@ model programa {
   actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en        DateTime? @db.Timestamptz(6)
 
-  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
-  vertical     vertical     @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  organizacion organizacion         @relation(fields: [organizacion_id], references: [id])
+  vertical     vertical             @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal             @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupos       grupo[]
   precios      precio[]
+  promociones  promocion_programa[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -924,6 +933,185 @@ model grupo_horario {
   @@index([grupo_id])
 }
 
+// ── Promociones (C3) ───────────────────────────────────────────────────────────────────
+
+enum condicion_promocion {
+  sin_condicion
+  al_pagar_primera_mensualidad
+  min_hermanos
+  pago_anticipado
+}
+
+enum tipo_beneficio {
+  descuento_inscripcion
+  descuento_mensualidad
+  producto_gratis
+  meses_gratis
+}
+
+enum modo_beneficio {
+  porcentaje
+  monto_fijo
+  total
+}
+
+enum momento_disparo {
+  inmediato
+  al_cumplir_condicion
+}
+
+enum estatus_aplicacion {
+  pendiente
+  entregado
+}
+
+/// Una promoción NO es un campo de descuento: es una regla con vigencia, alcance, condición y uno o más
+/// beneficios (`promocion_beneficio`). Alcance por tablas puente (vacío = todos). `condicion_valor` es JSON
+/// validado según `condicion_tipo` (src/promociones/condicion.ts). El cupo se consume de forma atómica
+/// (`consumirCupo`) y la base impide pasarse de `cupo_maximo`. El código es único entre las vivas.
+/// La lógica que decide qué promociones aplican y cuánto descuentan es PURA (src/promociones/resolver.ts).
+model promocion {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String              @db.Uuid
+  nombre          String
+  codigo          String
+  vigencia_desde  DateTime            @db.Date
+  vigencia_hasta  DateTime?           @db.Date
+  condicion_tipo  condicion_promocion @default(sin_condicion)
+  /// `min_hermanos`: { "hermanos": n }; `pago_anticipado`: { "meses": n }; las demás: nulo.
+  condicion_valor Json?
+  cupo_maximo     Int?
+  cupo_usado      Int                 @default(0)
+  /// Las acumulables se suman; las que no, compiten por `prioridad` (mayor gana; empate: menor id).
+  acumulable      Boolean             @default(false)
+  prioridad       Int                 @default(0)
+  activo          Boolean             @default(true)
+  creado_en       DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?           @db.Timestamptz(6)
+
+  organizacion organizacion           @relation(fields: [organizacion_id], references: [id])
+  verticales   promocion_vertical[]
+  sucursales   promocion_sucursal[]
+  programas    promocion_programa[]
+  beneficios   promocion_beneficio[]
+  aplicaciones promocion_aplicacion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Alcance de una promoción por vertical. Sin filas en las tres tablas puente = vale en todas partes.
+model promocion_vertical {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  promocion_id    String    @db.Uuid
+  vertical_id     String    @db.Uuid
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  promocion    promocion    @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  vertical     vertical     @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([promocion_id])
+}
+
+model promocion_sucursal {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  promocion_id    String    @db.Uuid
+  sucursal_id     String    @db.Uuid
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  promocion    promocion    @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([promocion_id])
+}
+
+model promocion_programa {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  promocion_id    String    @db.Uuid
+  programa_id     String    @db.Uuid
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  promocion    promocion    @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  programa     programa     @relation(fields: [programa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([promocion_id])
+}
+
+/// Lo que una promoción otorga. «Inscripción gratis + uniforme gratis al pagar la primera mensualidad» son DOS filas.
+/// Combinaciones válidas (CHECK en la migración): descuento_inscripcion y descuento_mensualidad con modo
+/// `porcentaje` (valor 0–100, dos decimales), `monto_fijo` (valor > 0) o `total` (sin valor; gratis);
+/// `producto_gratis` con modo `total` y sin valor; `meses_gratis` con modo `total` y valor = número de meses
+/// (entero 1–24). `descuento_mensualidad` rige en CADA mensualidad; `meses_gratis` deja gratis las primeras n.
+model promocion_beneficio {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String          @db.Uuid
+  promocion_id    String          @db.Uuid
+  tipo            tipo_beneficio
+  modo            modo_beneficio
+  valor           Decimal?        @db.Decimal(12, 2)
+  /// El producto llega en H5: por ahora es un uuid SIN llave foránea (nadie lo valida todavía); `descripcion`
+  /// dice qué es («Uniforme») para que recepción sepa qué entregar.
+  producto_id     String?         @db.Uuid
+  descripcion     String?
+  momento_disparo momento_disparo @default(inmediato)
+  creado_en       DateTime        @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?       @db.Timestamptz(6)
+
+  organizacion organizacion           @relation(fields: [organizacion_id], references: [id])
+  promocion    promocion              @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  aplicaciones promocion_aplicacion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([promocion_id])
+}
+
+/// Auditoría: qué beneficio de qué promoción se aplicó a qué inscripción, quién lo autorizó y si el diferido ya
+/// se entregó. `inscripcion_id` es un uuid SIN llave foránea hasta que exista `inscripcion` (F3). Única entre las
+/// vivas por (inscripción, beneficio): un reintento no duplica (invariante 8).
+model promocion_aplicacion {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String             @db.Uuid
+  inscripcion_id    String             @db.Uuid
+  promocion_id      String             @db.Uuid
+  beneficio_id      String             @db.Uuid
+  estatus           estatus_aplicacion @default(pendiente)
+  fecha_entrega     DateTime?          @db.Timestamptz(6)
+  autorizado_por_id String?            @db.Uuid
+  creado_en         DateTime           @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime?          @db.Timestamptz(6)
+
+  organizacion   organizacion        @relation(fields: [organizacion_id], references: [id])
+  promocion      promocion           @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  beneficio      promocion_beneficio @relation(fields: [beneficio_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  autorizado_por usuario?            @relation("aplicacion_autorizada_por", fields: [autorizado_por_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([inscripcion_id])
+}
+
 // ── Usuarios, roles y sesiones (B1) ────────────────────────────────────────────────────
 
 enum rol_usuario {
@@ -958,6 +1146,7 @@ model usuario {
   cambios                  registro_cambio[]
   accesos_dato_sensible    acceso_dato_sensible[]
   conversaciones_asignadas conversacion[]         @relation("conversacion_asignada")
+  aplicaciones_autorizadas promocion_aplicacion[] @relation("aplicacion_autorizada_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1046,8 +1235,8 @@ model instructor {
   actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en    DateTime? @db.Timestamptz(6)
 
-  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
-  usuario      usuario?     @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  organizacion organizacion          @relation(fields: [organizacion_id], references: [id])
+  usuario      usuario?              @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupos       grupo[]
   sucursales   instructor_sucursal[]
 
