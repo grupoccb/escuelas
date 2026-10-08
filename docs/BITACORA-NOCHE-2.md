@@ -14,12 +14,12 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A7 | HECHO | ddf95c0 | Firma en el borde: rutas de Twilio con `X-Twilio-Signature`, reintentos por `MessageSid`, reenvío sin modificar a Chatwoot |
 | A8 | HECHO | (ver git log) | SPEC.md al día: Fase 1 como quedó, Fases 2 y 3 detalladas |
 | A-fix | HECHO (2 pendientes, 1 decisión) | 46645c0…4ac0bb0 | Correcciones de la auditoría de la etapa A (`docs/auditorias/etapa-A.md`): ver la sección «Correcciones de la auditoría de la etapa A» |
-| B1 | HECHO | (ver git log) | Usuarios, roles, sesiones y contraseñas con scrypt; login con bloqueo; CSRF |
-| B2 | HECHO | (ver git log) | Matriz permiso×rol, alcance por sucursal y por grupo del maestro, usuarios/grupos/tareas/leads |
-| B3 | HECHO | (ver git log) | API base: errores, validador, paginación, registro de cambios solo de anexar, cabeceras; docs/API.md |
-| B4 | HECHO | (ver git log) | Datos sensibles: ficha de salud cifrada, registro de accesos, redacción en logs, `check:sensibles` y test de fuga |
-| B5 | HECHO | (ver git log) | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
-| B6 | HECHO | (ver git log) | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
+| B1 | HECHO | 25c3392 | Usuarios, roles, sesiones y contraseñas con scrypt; login con bloqueo; CSRF |
+| B2 | HECHO | 48e963e | Matriz permiso×rol, alcance por sucursal y por grupo del maestro, usuarios/grupos/tareas/leads |
+| B3 | HECHO | c0cb71f | API base: errores, validador, paginación, registro de cambios solo de anexar, cabeceras; docs/API.md |
+| B4 | HECHO | e6511d6 | Datos sensibles: ficha de salud cifrada, registro de accesos, redacción en logs, `check:sensibles` y test de fuga |
+| B5 | HECHO | 08fc9eb | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
+| B6 | HECHO | c73d7b9 | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
 | C1 | PENDIENTE | | Instructores y salones |
 | C2 | PENDIENTE | | Precios versionados |
 | C3 | PENDIENTE | | Promociones |
