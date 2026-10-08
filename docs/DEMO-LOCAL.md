@@ -63,6 +63,8 @@ verlo sin esperar, ajusta `ultimo_mensaje_entrante_en` de la conversación en la
 | Una persona toma la conversación (asignación o primer mensaje) | `src/captacion/toma.ts`, `src/mensajeria/chatwoot/webhook.ts` |
 | Qué eventos manda Chatwoot al bot (experimento) | `scripts/experimento-eventos-chatwoot.ts`, `src/mensajeria/chatwoot/payload-*.json` |
 | Reglas de envío y pase al asesor | `src/mensajeria/provider.ts`, `src/mensajeria/reglas.ts` |
+| Topes de frecuencia (configurables por organización) | `src/configuracion/index.ts`, tabla `configuracion_organizacion` |
+| Borde de Twilio (firma, reintentos, reenvío a Chatwoot) | `src/mensajeria/twilio/`, rutas en `src/http/app.ts` |
 | Simulador del contacto | `scripts/simular-contacto.ts` |
 | Catálogo de la vertical (programas, grupos, horarios) | `prisma/seed/catalogo.sql` |
 | Reporte de leads por campaña, sucursal y etapa | `npm run reporte:leads` |
@@ -73,10 +75,18 @@ demo igual. Las credenciales son de desarrollo y están en `config/demo-local.en
 
 ## Límites
 
-- Sin Twilio: la bandeja es tipo API y el "contacto" es el simulador.
+- Sin Twilio: la bandeja es tipo API y el "contacto" es el simulador. El borde de Twilio
+  (`POST /webhooks/twilio/entrantes` y `/webhooks/twilio/estados`) existe pero **está apagado** en la
+  demo: sin `TWILIO_AUTH_TOKEN` y `PUBLIC_BASE_URL` rechaza todo con 403. Se prueba con los tests
+  (token falso), no con la demo.
 - Reglas en `MessagingProvider` (invariante 4): atención humana, baja (por teléfono, en toda la
   organización), conversación cerrada, plantilla aprobada, ventana de servicio de 24 h, horario
-  09:00–20:00 de la sucursal para lo que inicia el sistema, y tope de frecuencia.
+  09:00–20:00 de la sucursal para lo que inicia el sistema, y topes de frecuencia por teléfono
+  (3 mensajes automáticos en 24 h y 1 de marketing cada 7 días; cambian por organización en
+  `configuracion_organizacion`, que el seed de la demo deja con esos valores).
+- Quien se dio de baja y vuelve a escribir no recibe respuesta: el asesor ve una tarea
+  `baja_volvio_a_escribir`. Un mensaje que Twilio reporta como no entregado deja una tarea
+  `entrega_fallida` con el código de error (una por mensaje).
 - Fuera de la ventana de servicio y sin plantilla apta no se manda nada y se crea una tarea para
   el asesor (`tarea_asesor`).
 - Reenganche: a las 25 h sin contestar a mitad de la captura el motor manda la plantilla del seed

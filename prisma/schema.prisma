@@ -53,6 +53,7 @@ model organizacion {
   tareas_asesor              tarea_asesor[]
   eventos_entrega_pendientes evento_entrega_pendiente[]
   configuraciones            configuracion_organizacion[]
+  eventos_twilio             evento_twilio[]
   programas                  programa[]
   grupos                     grupo[]
   grupo_horarios             grupo_horario[]
@@ -693,6 +694,47 @@ model tarea_asesor {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([estado, vence_en])
+}
+
+enum tipo_evento_twilio {
+  entrante
+  estado
+}
+
+enum estado_proceso_evento {
+  procesando
+  reenviado
+  fallido
+}
+
+/// Webhook de Twilio recibido por el borde (A7) y reenviado a Chatwoot. Es la idempotencia del
+/// borde (invariante 8): único por (proveedor, tipo, id_mensaje, estado_mensaje), así que un
+/// reintento de Twilio llega a Chatwoot UNA sola vez. `procesando` = reclamado por un proceso;
+/// `reenviado` = Chatwoot lo aceptó; `fallido` = el reenvío falló y un reintento puede reclamarlo.
+model evento_twilio {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String                @db.Uuid
+  proveedor       String                @default("twilio")
+  tipo            tipo_evento_twilio
+  /// MessageSid del evento.
+  id_mensaje      String
+  /// MessageStatus de un estado de entrega; vacío en los entrantes.
+  estado_mensaje  String                @default("")
+  /// Número de WhatsApp de la escuela con el que se resolvió la organización.
+  numero_receptor String?
+  estado_proceso  estado_proceso_evento @default(procesando)
+  intentos        Int                   @default(1)
+  reclamado_en    DateTime              @default(now()) @db.Timestamptz(6)
+  reenviado_en    DateTime?             @db.Timestamptz(6)
+  error           String?
+  creado_en       DateTime              @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?             @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
 }
 
 enum estado_evento_entrega {

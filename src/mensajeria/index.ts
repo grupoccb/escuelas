@@ -11,6 +11,20 @@ export { asegurarTareaAsesor, asegurarTareaDeMensaje, asegurarTareaEnTransaccion
 export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
 export { EnvioIncierto, ErrorTransporte, type TransporteConversaciones } from "./transporte.ts";
 export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
+export {
+  bordeTwilioDesdeEntorno,
+  crearBordeTwilio,
+  normalizarFromEnCuerpo,
+  ReenviadorTwilioFalso,
+  ReenviadorTwilioHttp,
+  urlPublicaDe,
+  verificarWebhookTwilio,
+  type BordeTwilio,
+  type EntradaBorde,
+  type ReenviadorTwilio,
+  type ResultadoBorde,
+  type TwilioConfigurado,
+} from "./twilio/index.ts";
 export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";
 export { AtribucionDesdeChatwoot } from "./chatwoot/atribucion.ts";
 export { EstadosEntregaChatwoot } from "./chatwoot/estados.ts";

@@ -11,7 +11,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A4 | HECHO | ver sección | Baja que vuelve a escribir: tarea `baja_volvio_a_escribir` (una pendiente por conversación), el sistema calla |
 | A5 | HECHO | ver sección | Entrega fallida: tarea con el código de error, una por mensaje; cierra F1-03 (evento adelantado y tiempo agotado) |
 | A6 | HECHO | ver sección | Frecuencia: 3 automáticos al día y 1 de marketing cada 7 días, configurable por organización (`configuracion_organizacion`) |
-| A7 | PENDIENTE | | Firma en el borde |
+| A7 | HECHO | ver sección | Firma en el borde: rutas de Twilio con `X-Twilio-Signature`, reintentos por `MessageSid`, reenvío sin modificar a Chatwoot |
 | A8 | PENDIENTE | | SPEC.md al día |
 | B1 | PENDIENTE | | Usuarios y roles |
 | B2 | PENDIENTE | | Autorización por rol y sucursal |
@@ -147,7 +147,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F1-07 | corregido | |
 | F1-08 | corregido | residual: `karateka` y `IDKARATE` (letras pegadas) siguen pasando; verticales no listadas en `config/terminos-prohibidos.txt` tampoco se ven |
 | F1-09 | corregido | residual: es revisión de texto; un cliente crudo pasado con otro nombre de variable no se ve (lo cubre el tipo `BaseDatos`); `scripts/` no se revisa |
-| F1-10 | pendiente (A7) | firma de Twilio |
+| F1-10 | corregido en A7 | firma de Twilio en el borde; falta probarla con Twilio real |
 | F1-11 | corregido | |
 | F1-12 | corregido | |
 | F1-13 | corregido | |
@@ -291,7 +291,7 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 - `reglas.ts`: `EntradaReglas` gana `marketingRecientes` y `limiteMarketing` (opcionales: sin dato no se limita, así las pruebas simples no cambian).
 
 **Verificación**
-- `src/mensajeria/frecuencia.itest.ts` (14 tests): 3.º pasa y 4.º `tope_frecuencia`; ventana móvil (a las 23 h 59 min bloqueado, a las 24 h 1 min pasa); otro teléfono no cuenta; el tope se comparte entre verticales de la organización; otra organización con su propia configuración no se afecta ni consume mi tope; el cambio de configuración surte efecto (1 → 2 → 0); marketing 1 por 7 días (6 d 23 h bloqueado, 7 d pasa, y el de los 7 días abre ventana nueva); servicio y marketing no se frenan entre sí pero marketing sí cuenta en el diario; ventana y tope de marketing configurables; marketing con la ventana de servicio abierta limitado; respuestas, notas y confirmación de baja nunca limitadas; fallo definitivo no cuenta; incierto sí; el horario sigue ganando a la frecuencia.
+- `src/mensajeria/frecuencia.itest.ts` (15 tests): 3.º pasa y 4.º `tope_frecuencia`; ventana móvil (a las 23 h 59 min bloqueado, a las 24 h 1 min pasa); otro teléfono no cuenta; el tope se comparte entre verticales de la organización; otra organización con su propia configuración no se afecta ni consume mi tope; el cambio de configuración surte efecto (1 → 2 → 0); marketing 1 por 7 días (6 d 23 h bloqueado, 7 d pasa, y el de los 7 días abre ventana nueva); servicio y marketing no se frenan entre sí pero marketing sí cuenta en el diario; ventana y tope de marketing configurables; marketing con la ventana de servicio abierta limitado; respuestas, notas y confirmación de baja nunca limitadas; fallo definitivo no cuenta; incierto sí; el horario sigue ganando a la frecuencia.
 - `src/configuracion/configuracion.itest.ts` (7): defaults sin fila, defaults = columnas, lectura y cambio, aislamiento, una fila viva por organización (borrada no cuenta), CHECK, seed de la demo con su fila (doble ejecución).
 - `reglas.test.ts` (+1): tope de marketing puro. Tests existentes que asumían 1 por día (`provider.itest.ts`, `motor.itest.ts`) ahora fijan `max_automaticos_por_dia: 1` en la configuración de su organización y siguen afirmando lo mismo.
 - `npm run validar` → exit 0 · `ℹ tests 148 · pass 148 · fail 0`. `npm run test:int` → exit 0 · `ℹ tests 181 · pass 181 · fail 0` (antes 159).
@@ -306,3 +306,34 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 **Para Eduardo**
 - **Límite conocido (no corregido):** el conteo y el envío no son atómicos. Dos mensajes automáticos al mismo teléfono despachados en el mismo instante desde conversaciones distintas pueden pasar los dos justo en el tope (3 → 4). Cerrarlo exige un candado por (organización, teléfono) con SQL crudo en `src/datos/`; no se hizo porque el motor y la espera corren en serie dentro de un solo proceso. Decídelo antes de tener más de una réplica del backend.
 - Los valores 3 / 1 / 7 vienen del contexto (sección 11) y de la decisión 4; no hay interfaz para cambiarlos todavía (J8). Hoy se editan con SQL en `configuracion_organizacion`.
+
+## A7. Firma en el borde (resuelve F1-10)
+
+**Qué se hizo**
+- **Rutas** `POST /webhooks/twilio/entrantes` y `POST /webhooks/twilio/estados` (`src/http/app.ts`; cuerpo de formulario, tope de 100 KB). Se valida `X-Twilio-Signature` sobre el cuerpo crudo antes de hacer nada (invariante 9); rechazo = **403** sin cuerpo (Chatwoot usa 401; Twilio documenta 403). Sin `TWILIO_AUTH_TOKEN` o sin `PUBLIC_BASE_URL`, todo se rechaza (como el webhook de Chatwoot sin secreto).
+- **Firma sin el SDK** (`src/mensajeria/twilio/firma.ts`): HMAC-SHA1 base64 de `URL pública + nombre+valor de los parámetros ordenados`, comparación en tiempo constante, variantes con/sin `:443`/`:80` como Twilio. Sin dependencias nuevas.
+- **Borde** (`src/mensajeria/twilio/borde.ts`): resuelve la organización por el número de la escuela (reusa `resolverBandejaPorNumero` de `src/datos/sistema.ts`, la excepción al scope ya documentada: entrantes por `To`; estados por `From` y luego `To`); reclama el evento en la tabla nueva `evento_twilio` (migración `20261009040000_evento_twilio`, índice único parcial `(proveedor, tipo, id_mensaje, estado_mensaje)`); reenvía el cuerpo **byte a byte** por la interfaz `ReenviadorTwilio` (fake y HTTP real hacia `$CHATWOOT_URL/twilio/callback` y `/twilio/delivery_status`, o `TWILIO_REENVIO_*_URL`). `From` no se toca; la opción `TWILIO_NORMALIZAR_FROM_AL_REENVIAR` (apagada) usa `normalizarNumeroWhatsapp()` y solo reescribe el valor de `From` en entrantes, con los demás bytes idénticos.
+- **Reintentos**: reintento tras un reenvío exitoso → 200 sin reenviar; reenvío fallido → evento `fallido`, **502**, y el reintento lo reclama; reclamo en curso → 503; reclamo de más de 60 s → se da por muerto. Organización no resuelta → 200 sin reenviar y un warning; sin `MessageSid` → 400. Respuesta a Twilio: TwiML `<Response/>` en entrantes, 200 vacío en estados; nunca texto interno.
+- `app.ts` gana un manejador de errores sin detalles (413/500 vacíos), que también cubre al webhook de Chatwoot.
+- `src/server.ts` lo conecta con `bordeTwilioDesdeEntorno`; el log de arranque dice si está activo. Con el token puesto y `NODE_ENV=production`, sin destino de reenvío no arranca. `.env.example`, `docs/DEMO-LOCAL.md` y la sección nueva "A7" de `docs/DECISION-ATRIBUCION.md` (cableado y qué falta probar con Twilio real).
+
+**Verificación**
+- `firma.test.ts` (9): vector del ejemplo de la documentación de Twilio (`12345` → `GvWf1cFY/Q7PnoempGyD5oXAezc=`, de memoria; coincide con el cálculo), dos vectores fijos con token falso, comparación contra una implementación independiente, nombres repetidos, válida/inválida/longitud distinta/sin token, puerto por defecto, parseo del formulario (incl. `__proto__`), URL pública, y `verificarWebhookTwilio`. `borde.test.ts` (4): reescritura de `From` sin tocar los demás bytes. `src/http/twilio.test.ts` (8): firma válida, query firmada, 6 formas de firma inválida, sin token/URL, códigos de respuesta del borde, 413, solo POST.
+- `borde.itest.ts` (12, app HTTP real + Postgres + reenviador falso): firma válida pasa y los bytes y `Referral*` llegan idénticos; inválida/ausente → 403 sin reenviar ni guardar; un reintento llega una sola vez (y 6 simultáneos × 4 vueltas, uno solo reenvía); cada `MessageStatus` una vez; organización por número (con `+521`), aislamiento, número desconocido, sin `MessageSid`, reenvío fallido y su reintento, reclamo muerto, `From` con la opción apagada y encendida.
+- `npm run validar` → exit 0 · `ℹ tests 169 · pass 169 · fail 0` · `check:generico: 128 archivos` · `check:capas: 38 archivos`.
+- `npm run test:int` → exit 0 · `ℹ tests 193 · pass 193 · fail 0`, también una segunda vez seguida sobre la misma base. Migraciones sobre base vacía: `migrate deploy` y `migrate diff` → "No difference detected".
+- Nada contra Twilio real.
+
+**Decisiones que tomé**
+- *403* para firma inválida (no 401 como Chatwoot): es lo que documenta Twilio.
+- *Al menos una vez* al reenviar: ante un fallo o un resultado desconocido del reenvío se responde 5xx y se deja reintentar, aunque Chatwoot pudiera repetir un mensaje (H2). Alternativa descartada: a lo sumo una vez; perder el primer mensaje de un anuncio es peor que verlo repetido.
+- *Un evento reclamado antes de reenviar* (no "reenviar y luego registrar"): evita que dos reintentos simultáneos lleguen los dos a Chatwoot.
+- *Estados resueltos por `From` y luego `To`*: en un estado de entrega `From` es la escuela. Supuesto a confirmar con Twilio real.
+- *Índice único global, no por organización*, como pidió el plan: un `MessageSid` pertenece a una sola cuenta.
+- *El borde no valida contra la base que el contacto exista ni crea nada*: solo transporta. El lead lo sigue creando el webhook de Chatwoot.
+- Un `From` ilegible con la opción encendida pasa sin tocar (no se adivina).
+
+**Para Eduardo**
+- La lista de lo que falta probar con Twilio real está en `docs/DECISION-ATRIBUCION.md` (sección A7). Lo crítico: la URL pública exacta contra la que Twilio firma y qué hace Twilio ante un 502/503 (por defecto no reintenta ante un 5xx; si no reintenta, un reenvío fallido se perdería y habría que activar el reintento o poner una cola propia).
+- Para usarlo: `TWILIO_AUTH_TOKEN` y `PUBLIC_BASE_URL` en el entorno del backend; el webhook del número de Twilio apunta a `PUBLIC_BASE_URL/webhooks/twilio/entrantes` y el de estados a `/webhooks/twilio/estados`. En la demo local queda apagado.
+- Sigue sin resolverse la elección entre la vía A y la C; este borde sirve a las dos.

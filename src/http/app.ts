@@ -1,17 +1,32 @@
 // App HTTP (Express 5). La crea una fábrica con dependencias inyectadas para que los tests
 // no necesiten base ni red.
 
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { log } from "../lib/log.ts";
 import {
   interpretarEventoChatwoot,
   interpretarTomaDeConversacion,
+  urlPublicaDe,
   verificarWebhookChatwoot,
+  verificarWebhookTwilio,
+  type BordeTwilio,
   type CambioDeEstado,
   type EventoEntrante,
   type EventoTomaDeConversacion,
   type FuenteEstadosEntrega,
 } from "../mensajeria/index.ts";
+
+/** Lo que el borde de Twilio necesita (A7). Sin token o sin URL pública, sus rutas rechazan todo. */
+export interface AppTwilio {
+  /** Auth token de la cuenta de Twilio: la clave con la que Twilio firma sus peticiones. */
+  authToken: string | null;
+  /** URL pública del backend tal como la ve Twilio (https://host, sin ruta). */
+  publicBaseUrl: string | null;
+  borde: BordeTwilio;
+}
+
+/** Tope del cuerpo de un webhook de Twilio. Los reales (con Referral*) pesan unos cuantos KB. */
+export const LIMITE_CUERPO_TWILIO = "100kb";
 
 export interface AppDeps {
   /** Verifica que la base responde. Lanza si no. */
@@ -24,6 +39,8 @@ export interface AppDeps {
   /** De dónde salen los estados de entrega (enviado, entregado, leído, fallido). */
   estadosEntrega: FuenteEstadosEntrega;
   registrarEstadoEntrega(cambio: CambioDeEstado): Promise<string>;
+  /** Borde de Twilio. Sin él, las rutas /webhooks/twilio/* rechazan todo. */
+  twilio?: AppTwilio;
   reloj?: () => Date;
 }
 
@@ -93,6 +110,59 @@ export function crearApp(deps: AppDeps): Express {
       log.error("webhook_chatwoot_error", { error: (e as Error).message });
       res.status(500).json({ ok: false });
     }
+  });
+
+  // Borde de Twilio (A7): Twilio llama aquí en lugar de a Chatwoot. Se valida la firma de Twilio
+  // sobre el cuerpo CRUDO (invariante 9), se descartan los reintentos por MessageSid y se reenvía
+  // el cuerpo sin modificar. Rechazos: 403 sin firma válida, 5xx si el reenvío falla (Twilio
+  // reintenta). Nunca se devuelve nada interno.
+  const TWIML_VACIO = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response/>";
+  for (const [ruta, tipo] of [
+    ["/webhooks/twilio/entrantes", "entrante"],
+    ["/webhooks/twilio/estados", "estado"],
+  ] as const) {
+    app.post(ruta, express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
+      const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const t = deps.twilio;
+      const verificado = verificarWebhookTwilio(req, cuerpo, t?.authToken, t?.publicBaseUrl ? urlPublicaDe(t.publicBaseUrl, req.originalUrl) : null);
+      if (!t || !verificado) {
+        log.warn("webhook_twilio_rechazado", { ruta });
+        res.status(403).end();
+        return;
+      }
+      try {
+        const resultado = await t.borde.procesar({ tipo, cuerpo, params: verificado.params, cabeceras: verificado.cabeceras });
+        switch (resultado) {
+          case "sin_identificador":
+            res.status(400).end();
+            return;
+          case "en_curso":
+            res.status(503).set("Retry-After", "5").end();
+            return;
+          case "fallo_reenvio":
+            res.status(502).end();
+            return;
+          default:
+            // reenviado, duplicado u organización desconocida: Twilio no debe reintentar.
+            if (tipo === "entrante") res.status(200).type("text/xml").send(TWIML_VACIO);
+            else res.status(200).end();
+        }
+      } catch (e) {
+        log.error("webhook_twilio_error", { ruta, error: (e as Error).message });
+        res.status(500).end();
+      }
+    });
+  }
+
+  // Errores de Express (cuerpo demasiado grande, etc.): sin detalles hacia afuera.
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+    const estado = typeof err === "object" && err !== null && "status" in err && typeof err.status === "number" ? err.status : 500;
+    if (estado >= 500) log.error("http_error", { error: err instanceof Error ? err.message : String(err) });
+    res.status(estado >= 400 && estado < 600 ? estado : 500).end();
   });
 
   return app;

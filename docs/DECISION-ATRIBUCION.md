@@ -108,3 +108,44 @@ Twilio ──POST /twilio/delivery_status──► [proxy] ─► Chatwoot ─�
 1. Elegir vía (propongo A con M1 y M2).
 2. Decidir si M1 (proxy validador) se construye en Fase 1 o queda como requisito de lanzamiento. Hoy nada de esto está expuesto a internet.
 3. G0.3b sigue abierto: necesita Twilio real y un anuncio Click-to-WhatsApp. Los pendientes de P2 también.
+
+## A7. El borde de Twilio (firma, reintentos y reenvío) — noche 2
+
+Estado: **construido y probado con un token falso; sin Twilio real.** Resuelve F1-10 (invariante 9 para Twilio) y las mitigaciones M1 y M2 de arriba. La elección entre la vía A y la vía C **sigue abierta**: el borde sirve a las dos porque hace lo mismo que haría la C (recibir la llamada de Twilio) pero entrega a Chatwoot el cuerpo sin tocarlo, que es lo que necesita la A.
+
+### Cómo queda cableado
+
+```
+Twilio ──POST /webhooks/twilio/entrantes (X-Twilio-Signature)──► backend
+Twilio ──POST /webhooks/twilio/estados   (X-Twilio-Signature)──► backend
+                                                                   │ 1. valida la firma sobre el cuerpo crudo (403 si no cuadra)
+                                                                   │ 2. resuelve la organización por el número de la escuela
+                                                                   │ 3. reclama el evento en `evento_twilio` (único por MessageSid, tipo y estado)
+                                                                   │ 4. reenvía el cuerpo BYTE A BYTE a Chatwoot
+                                                                   ▼
+                              Chatwoot  /twilio/callback  y  /twilio/delivery_status
+                                                                   │ guarda content_attributes.referral, etc.
+                                                                   ▼
+                              Agent Bot ──► /webhooks/chatwoot (firmado) ──► backend (igual que antes)
+```
+
+- **Rutas** (`src/http/app.ts`): `POST /webhooks/twilio/entrantes` y `POST /webhooks/twilio/estados`, cuerpo `application/x-www-form-urlencoded`, tope de 100 KB (413 vacío si lo pasa).
+- **Firma** (`src/mensajeria/twilio/firma.ts`, sin el SDK de Twilio): HMAC-SHA1 en base64 de la URL pública completa + los parámetros ordenados por nombre concatenados `nombre+valor`, con el auth token como clave; comparación en tiempo constante; se acepta la URL con o sin `:443`/`:80`, como hace Twilio. La URL es `PUBLIC_BASE_URL` + ruta + query de la petición. **Sin `TWILIO_AUTH_TOKEN` o sin `PUBLIC_BASE_URL` se rechaza todo.** Rechazo = **403** sin cuerpo (el webhook de Chatwoot responde 401; Twilio documenta 403).
+- **Reintentos** (invariante 8): tabla `evento_twilio`, índice único parcial `(proveedor, tipo, id_mensaje, estado_mensaje)`; `id_mensaje` es el `MessageSid` y `estado_mensaje` el `MessageStatus` (vacío en entrantes). Un reintento después de un reenvío exitoso se descarta (200). Si el reenvío falla, el evento queda `fallido`, se responde **502** y el reintento de Twilio lo reclama de nuevo. Un reclamo en curso responde 503; uno de más de 60 s se da por muerto. Garantía: **al menos una vez** (un mensaje perdido es peor que uno repetido; Chatwoot no es idempotente, H2). Un reenvío que llega a Chatwoot pero cuya respuesta se pierde puede repetirse en el reintento.
+- **Reenvío** (`ReenviadorTwilio`, interfaz con fake y HTTP): el cuerpo viaja idéntico, con todos los `Referral*` (`ReferralSourceId`, `ReferralCtwaClid`, …). Cabeceras reenviadas: `Content-Type`, `X-Twilio-Signature` e `I-Twilio-Idempotency-Token`, más `X-Reenviado-Por`. **`From` no se normaliza**: la opción `TWILIO_NORMALIZAR_FROM_AL_REENVIAR=true` (apagada) lo lleva a la forma canónica con `normalizarNumeroWhatsapp()` solo en los entrantes; cambia el cuerpo, así que la firma original deja de valer río abajo.
+- **Organización**: el número de la escuela, con `resolverBandejaPorNumero()` (`src/datos/sistema.ts`, ya existente: excepción documentada al scope, se usa para descubrir la organización). En un **entrante** es `To`; en un **estado de entrega** de lo que mandó la escuela `From` es la escuela y `To` el contacto, así que se prueba `From` y luego `To`. Si no se resuelve: 200 sin reenviar y un warning (con el número enmascarado). Sin `MessageSid` (ni `SmsMessageSid`/`SmsSid`): 400.
+- **Respuesta a Twilio**: entrantes, 200 con `<Response/>` (TwiML vacío); estados, 200 vacío. Nunca se devuelve texto interno.
+- **Variables de entorno** (`.env.example`): `TWILIO_AUTH_TOKEN`, `PUBLIC_BASE_URL`, `TWILIO_REENVIO_ENTRANTES_URL` y `TWILIO_REENVIO_ESTADOS_URL` (por defecto `$CHATWOOT_URL/twilio/callback` y `/twilio/delivery_status`), `TWILIO_NORMALIZAR_FROM_AL_REENVIAR`. Con el token puesto y `NODE_ENV=production`, sin destino de reenvío el backend no arranca.
+
+### Qué se probó (token falso)
+
+`src/mensajeria/twilio/firma.test.ts`, `borde.test.ts`, `src/http/twilio.test.ts` y `src/mensajeria/twilio/borde.itest.ts` (app HTTP real + Postgres + reenviador falso): firma válida pasa; inválida, ausente, de otro token, de otra URL, con el cuerpo o la query alterados, o sin token/URL configurados → 403 y nada se reenvía; un reintento (y seis simultáneos) llega una sola vez; cada `MessageStatus` de un `MessageSid` llega una vez; el cuerpo y los `Referral*` llegan idénticos byte a byte; `From` intacto con la opción apagada; número desconocido → 200 sin reenviar; reenvío fallido → 502 y el reintento sí llega; cuerpo de más de 100 KB → 413. Vector de la documentación de Twilio (token `12345`, URL `https://mycompany.com/myapp.php?foo=1&bar=2`) = `GvWf1cFY/Q7PnoempGyD5oXAezc=`, que lo recuerdo de su documentación y de las pruebas de su SDK; no pude contrastarlo en línea, pero coincide con el cálculo.
+
+### Qué falta probar con Twilio real
+
+1. Que la firma de un webhook REAL de WhatsApp cuadre con nuestra URL pública (esquema, puerto, barra final, query): la causa más común de 403 con Twilio real es una URL distinta a la configurada en la consola. Probar con `PUBLIC_BASE_URL` exacta.
+2. Que Twilio mande `MessageSid` y `MessageStatus` en los nombres y mayúsculas esperados en WhatsApp, y que en los estados `From` sea el número de la escuela (supuesto del orden de resolución).
+3. Qué hace Twilio ante un 502/503 (cuántas veces y cuándo reintenta; por defecto solo reintenta ante fallas de conexión, no ante un 5xx) y si hay que activar el reintento por 5xx en la consola. Si no reintenta, un reenvío fallido se perdería: valorar una cola propia.
+4. Que Chatwoot acepte el cuerpo reenviado tal cual por `/twilio/callback` y `/twilio/delivery_status` (se probó a mano en N2 con `curl`, no con el reenvío del backend) y que `Referral*` llegue a `content_attributes.referral`.
+5. Con la vía A, que el canal de Twilio en Chatwoot tenga como webhook de Twilio la URL del backend (no la de Chatwoot) y que Chatwoot deje de ser alcanzable desde internet en esas rutas (puerto 3001 hoy publicado en `0.0.0.0` solo en la demo local).
+6. Latencia añadida y comportamiento con el tope de 15 s de Twilio (el reenvío HTTP corta a 10 s).
