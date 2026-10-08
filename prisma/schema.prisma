@@ -145,6 +145,8 @@ model configuracion_organizacion {
   clase_muestra_correccion_horas Int                       @default(48)
   /// Quién cierra la inscripción (F6): ver `modo_cierre_inscripcion`.
   modo_cierre               modo_cierre_inscripcion        @default(asesor_whatsapp)
+  /// Cuántas faltas consecutivas (sesiones con pase tomado) disparan la tarea para el asesor (G2). Entre 1 y 30 (CHECK).
+  umbral_faltas_consecutivas Int                           @default(3)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -886,6 +888,8 @@ enum tipo_tarea_asesor {
   lead_frio
   /// El maestro (o el asesor) marcó que la familia quedó lista para cerrar la inscripción (F6). Una pendiente por lead; se resuelve sola al convertirse.
   listo_para_cerrar
+  /// Una inscripción llegó al umbral de faltas consecutivas (G2). Una pendiente por inscripción y una por racha; se resuelve sola al volver a asistir.
+  faltas_consecutivas
   /// Llegó por un webhook o la landing algo con datos inesperados que el sistema no pudo procesar (WH). Una pendiente por conversación.
   evento_inesperado
 }
@@ -908,6 +912,10 @@ model tarea_asesor {
   mensaje_id      String?             @db.Uuid
   /// La clase muestra a la que se refiere la tarea (aviso al maestro que no salió, quien no llegó).
   clase_muestra_id String?            @db.Uuid
+  /// La inscripción a la que se refiere la tarea (faltas consecutivas, G2).
+  inscripcion_id  String?             @db.Uuid
+  /// Desde cuándo corre lo que la tarea avisa (faltas consecutivas: la fecha de la PRIMERA falta de la racha). Con `inscripcion_id` y `tipo` hace única la tarea de una racha.
+  referencia_fecha DateTime?          @db.Date
   tipo            tipo_tarea_asesor
   estado          estado_tarea_asesor @default(pendiente)
   descripcion     String
@@ -924,6 +932,7 @@ model tarea_asesor {
   conversacion conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   mensaje      mensaje?      @relation(fields: [mensaje_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   clase_muestra clase_muestra? @relation(fields: [clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  inscripcion  inscripcion?  @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   eventos_inesperados evento_inesperado[]
 
   @@unique([id, organizacion_id])
@@ -2426,6 +2435,7 @@ model inscripcion {
   aplicaciones  promocion_aplicacion[]
   movimientos   inscripcion_movimiento[]
 
+  tareas_asesor tarea_asesor[]
   asistencias   asistencia[]
   @@unique([id, organizacion_id])
   @@index([organizacion_id])

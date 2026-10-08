@@ -3,7 +3,7 @@
 //   GET   /api/tareas?estado=&tipo=&limite=&pagina=
 //   PATCH /api/tareas/:id   { estado: "hecha" | "descartada" }
 //
-// Alcance: por la sucursal de interés del lead de la tarea (el administrador ve todas). Una tarea
+// Alcance: por la sucursal de interés del lead de la tarea o, si es una tarea de una inscripción (G2), por la sucursal de su grupo (el administrador ve todas). Una tarea
 // que no existe, es de otra organización o cae fuera de tu alcance da 404, nunca 403. Resolver es
 // atómico: dos personas que resuelven a la vez → una gana y la otra recibe 409.
 
@@ -27,6 +27,7 @@ const SELECCION = {
   codigo_error: true,
   lead_id: true,
   conversacion_id: true,
+  inscripcion_id: true,
   vence_en: true,
   resuelta_en: true,
   creado_en: true,
@@ -45,7 +46,7 @@ export function rutasDeTareas(_deps: DepsApi): Router {
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
     const filtro = filtroDeSucursal(await ctx.alcance());
-    const where = { ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(filtro ? { lead: { sucursal_interes_id: filtro } } : {}) };
+    const where = { ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }] } : {}) };
     res.json(
       await paginar(
         pag,
@@ -60,7 +61,7 @@ export function rutasDeTareas(_deps: DepsApi): Router {
     const { id } = parsear(esquemaId, req.params);
     const { estado } = parsear(esquemaResolver, req.body);
     const filtro = filtroDeSucursal(await ctx.alcance());
-    const where = { id, ...(filtro ? { lead: { sucursal_interes_id: filtro } } : {}) };
+    const where = { id, ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }] } : {}) };
     const resultado = await ctx.db.$transaction(async (tx) => {
       const tarea = await tx.tarea_asesor.findFirst({ where, select: { id: true, estado: true, resuelta_en: true } });
       if (!tarea) throw noEncontrado();

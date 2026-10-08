@@ -23,7 +23,7 @@ after(async () => {
 test("sin fila: los valores por defecto (3 automáticos por día, 1 de marketing cada 7 días)", async () => {
   const o = await sembrarOrganizacion(prisma, "ConfigVacia");
   const c = await leerConfiguracion(conAlcance(prisma, o.organizacionId));
-  assert.deepEqual(c, { maxAutomaticosPorDia: 3, maxMarketingPorVentana: 1, ventanaMarketingDias: 7, sucursalSinPrograma: "ofrecer_otra", cotizacionVigenciaDias: 7, listaEsperaOfertaHoras: 48, claseMuestraAnticipacionMin: 120, claseMuestraHorizonteDias: 60, claseMuestraCorreccionHoras: 48, modoCierre: "asesor_whatsapp" });
+  assert.deepEqual(c, { maxAutomaticosPorDia: 3, maxMarketingPorVentana: 1, ventanaMarketingDias: 7, sucursalSinPrograma: "ofrecer_otra", cotizacionVigenciaDias: 7, listaEsperaOfertaHoras: 48, claseMuestraAnticipacionMin: 120, claseMuestraHorizonteDias: 60, claseMuestraCorreccionHoras: 48, modoCierre: "asesor_whatsapp", umbralFaltasConsecutivas: 3 });
   assert.deepEqual(c, CONFIGURACION_POR_DEFECTO);
   // El objeto devuelto es una copia: modificarlo no cambia los defaults.
   c.maxAutomaticosPorDia = 99;
@@ -41,7 +41,7 @@ test("lee lo que la organización fijó, y un cambio surte efecto en la siguient
   const o = await sembrarOrganizacion(prisma, "ConfigFijada");
   const db = conAlcance(prisma, o.organizacionId);
   await fijarConfiguracion(prisma, o.organizacionId, { max_automaticos_por_dia: 5, max_marketing_por_ventana: 2, ventana_marketing_dias: 14 });
-  assert.deepEqual(await leerConfiguracion(db), { maxAutomaticosPorDia: 5, maxMarketingPorVentana: 2, ventanaMarketingDias: 14, sucursalSinPrograma: "ofrecer_otra", cotizacionVigenciaDias: 7, listaEsperaOfertaHoras: 48, claseMuestraAnticipacionMin: 120, claseMuestraHorizonteDias: 60, claseMuestraCorreccionHoras: 48, modoCierre: "asesor_whatsapp" });
+  assert.deepEqual(await leerConfiguracion(db), { maxAutomaticosPorDia: 5, maxMarketingPorVentana: 2, ventanaMarketingDias: 14, sucursalSinPrograma: "ofrecer_otra", cotizacionVigenciaDias: 7, listaEsperaOfertaHoras: 48, claseMuestraAnticipacionMin: 120, claseMuestraHorizonteDias: 60, claseMuestraCorreccionHoras: 48, modoCierre: "asesor_whatsapp", umbralFaltasConsecutivas: 3 });
   await fijarConfiguracion(prisma, o.organizacionId, { sucursal_sin_programa: "avisar_asesor" });
   assert.equal((await leerConfiguracion(db)).sucursalSinPrograma, "avisar_asesor");
   await fijarConfiguracion(prisma, o.organizacionId, { max_automaticos_por_dia: 1 });
@@ -101,4 +101,15 @@ test("D1: la anticipación y el horizonte de la clase muestra se leen de la conf
   await assert.rejects(() => fijarConfiguracion(prisma, org.organizacionId, { clase_muestra_correccion_horas: 0 }), /configuracion_muestra_correccion_check|check/i);
   await assert.rejects(() => fijarConfiguracion(prisma, org.organizacionId, { clase_muestra_anticipacion_min: -1 }), /configuracion_muestra_anticipacion_check|check/i);
   await assert.rejects(() => fijarConfiguracion(prisma, org.organizacionId, { clase_muestra_horizonte_dias: 0 }), /configuracion_muestra_horizonte_check|check/i);
+});
+
+test("G2: el umbral de faltas consecutivas se lee de la configuración (3 por omisión) y la base lo acota entre 1 y 30", async () => {
+  const org = await sembrarOrganizacion(prisma, "Config umbral de faltas");
+  const db = conAlcance(prisma, org.organizacionId);
+  assert.equal((await leerConfiguracion(db)).umbralFaltasConsecutivas, 3, "sin fila, el valor por omisión");
+  await fijarConfiguracion(prisma, org.organizacionId, { umbral_faltas_consecutivas: 5 });
+  assert.equal((await leerConfiguracion(db)).umbralFaltasConsecutivas, 5);
+  for (const malo of [0, -1, 31]) await assert.rejects(() => fijarConfiguracion(prisma, org.organizacionId, { umbral_faltas_consecutivas: malo }), /configuracion_umbral_faltas_chk|check/i, String(malo));
+  await fijarConfiguracion(prisma, org.organizacionId, { umbral_faltas_consecutivas: 1 });
+  await fijarConfiguracion(prisma, org.organizacionId, { umbral_faltas_consecutivas: 30 });
 });

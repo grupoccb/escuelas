@@ -55,7 +55,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | INV-6 | HECHO | ver `git log` (`INV-6:`) | Invariante 6 reformulado: `plantilla_mensaje.clase_mensaje` (servicio / marketing, declarada), el provider deja pasar solo los avisos de servicio con una persona atendiendo; el bot pasa al asesor tras agendar; el motor ya no mira la atención humana |
 | WH | HECHO | ver `git log` (`WH:`) | Un webhook nunca responde 500 por un dato inesperado: clasificación única (transitoria → 503, dato inesperado → 200 con constancia `evento_inesperado` + tarea idempotentes) en Chatwoot, Twilio (entrantes, estados y barrido del borde) y landing |
 | G1 | HECHO | ver `git log` (`G1:`) | Pase de lista por grupo y fecha: `asistencia` única por (inscripción, fecha), solo sesiones que ya empezaron, lista de inscritos activos, guardado masivo idempotente y serializado, corrección con registro de cambios |
-| G2 | PENDIENTE | | Derivados de asistencia |
+| G2 | HECHO | ver `git log` (`G2:`) | Derivados al registrar el pase: % de 30 días, racha de faltas por sesiones con pase tomado y tarea para el asesor al llegar al umbral (configurable, una por inscripción y por racha, se resuelve sola), consultables por API |
 | G3 | PENDIENTE | | Progresión genérica |
 | G4 | PENDIENTE | | Eventos y elegibilidad |
 | G5 | PENDIENTE | | Expediente del alumno |
@@ -1972,3 +1972,33 @@ Mutaciones atrapadas: sin el candado (la concurrencia), sin validar antes de esc
 - **[SUPUESTO]** quién registra el pase (maestro, recepción, administrador) y que no se pueda pasar lista antes de que empiece la clase.
 - Decisión de producto: ¿una ventana máxima para corregir un pase pasado? Hoy se puede corregir siempre (queda el registro de cambios).
 - El método `qr` solo se guarda: la lectura del código es de la interfaz.
+
+
+## G2. Derivados de la asistencia
+
+**Qué se hizo**
+- **Migración `20261019010000_asistencia_derivados`:** `configuracion_organizacion.umbral_faltas_consecutivas` (3 por omisión, CHECK entre 1 y 30), valor `faltas_consecutivas` en `tipo_tarea_asesor`, `tarea_asesor.inscripcion_id` y `referencia_fecha` (FK compuesta a la inscripción) y dos índices únicos parciales: **una tarea de faltas pendiente por inscripción** y **una por racha** (`inscripcion_id, tipo, referencia_fecha`, sin importar el estado).
+- **`src/asistencia/derivados.ts`:** `calcularDerivados` (puro: % de 30 días, racha, inicio de la racha), `accionSobreLaTarea` (puro: crear / resolver / nada), `recalcularDerivados` (lo que toca la base: por inscripción, bajo el candado `racha:<id>`, después de confirmar el pase) y `presentarDerivados`. El `PUT` del pase devuelve `alertas`.
+- **API:** `GET /api/inscripciones/:id/asistencia` (historial paginado + derivados) y `GET /api/grupos/:id/asistencia/derivados` (todo el grupo). `GET|PATCH /api/tareas` ahora considera también la sucursal del grupo de la inscripción: una tarea sin lead no se pierde para el asesor.
+- **Configuración:** `umbralFaltasConsecutivas` en `leerConfiguracion` (con su prueba de que el default del código coincide con el de la columna).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 532 · pass 532 · fail 0   (antes 525)
+$ npm run test:int    → exit 0 · tests 890 · pass 890 · fail 0   (antes 879)
+```
+Una corrida intermedia de `test:int` falló una vez en `landing.itest.ts` («EE-02 concurrencia FORZADA…», `barrera.completa`, barrera de 3 s con ocho peticiones HTTP) y pasa 3 de 3 aislada y en la corrida completa siguiente: es sensible al tiempo, no a G2 (ya estaba anotada una intermitencia parecida en D/E).
+Tests nuevos: `derivados.test.ts` (7, puros: porcentaje, `null` sin datos, bordes de la ventana de 30 días incluidos fin de año y febrero, racha con justificadas y orden arbitrario, huecos sin pase, la decisión sobre la tarea) y `derivados.itest.ts` (10, la app real + Postgres): la tarea al umbral con su lead, su fecha de inicio y su descripción; repetir el pase y seguir faltando no la repite; se resuelve sola; una racha nueva es otra tarea y una resuelta a mano no se recrea; corregir un pase la resuelve y devolverlo es la misma racha; sesiones y no días; justificada neutral; umbral 5 y umbral 1 por organización; **cuatro pases simultáneos** de fechas distintas → una tarea; **concurrencia FORZADA con barrera** (dos recálculos leen «no hay tarea» a la vez); SQL directo contra los dos índices; visibilidad de la tarea sin lead por sucursal; historial y derivados por API con alcance. Más 1 en `configuracion.itest.ts`.
+Mutaciones atrapadas: sin resolverse sola (3 pruebas), sin «una por racha» (2), justificada que corta la racha (3), umbral fijo en 3 (2) y **sin el candado por inscripción (solo la prueba con barrera lo atrapa; los cuatro pases simultáneos y un `Promise.all` de ocho recálculos pasaban sin él)**.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La `justificada` ni suma ni corta la racha, y no entra al porcentaje.** Alternativa descartada: que corte (una justificada «reiniciaría» la señal de abandono) o que cuente como falta (castigaría a la familia que avisó). Decisión de producto abierta.
+2. **La racha se mide en filas con pase tomado**, sin cruzarla con el calendario del grupo: una clase que no se dio no genera filas. Costo: una sesión en la que el maestro olvidó pasar lista tampoco suma (nunca es una falta inventada).
+3. **Una tarea por racha identificada por la fecha de su primera falta.** Alternativa descartada: «una pendiente por inscripción» a secas (resolverla a mano y volver a guardar el pase la recrearía; pierde la idempotencia). Costo: corregir una falta del MEDIO de la racha no cambia el inicio y no crea tarea nueva.
+4. **Se resuelve sola como `hecha`** (no `descartada`): ya no hay nada que hacer. Alternativa: `descartada` (nadie actuó).
+5. **El porcentaje es de la ventana de 30 días; la racha mira toda la historia** (una racha puede empezar hace más de un mes si el alumno dejó de ir).
+6. **La tarea cuelga de la inscripción**, y el alcance del asesor se amplió a la sucursal del grupo: una inscripción de mostrador (sin lead) también avisa.
+
+**Para Eduardo**
+- **[SUPUESTO]** el umbral de 3, que la justificada no cuenta, el texto de la tarea, y que la ve el asesor de la sucursal además del administrador.
+- Decisión abierta: ¿avisar también por WhatsApp a la familia? Hoy solo hay tarea para el asesor (un mensaje sería de servicio o de marketing según su texto: INV-6).

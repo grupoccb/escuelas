@@ -504,3 +504,19 @@ entre las vivas (índice único parcial): el pase es idempotente.
 - **Idempotente y concurrente:** guardar lo mismo otra vez no cambia nada ni deja otro registro de cambios. El guardado toma un candado por (grupo, fecha): dos pases simultáneos se forman en fila, gana el último pase completo, sin duplicar filas (y sin 500) y el índice único de la base lo respalda.
 - **Registro de cambios:** cada alta y cada corrección (`registro_cambio`, entidad `asistencia`: estatus, método, inscripción, grupo y fecha; nada identificable).
 - `metodo: "qr"` solo queda registrado: la lectura del código del alumno en mostrador es de la interfaz (J2).
+
+## Asistencia: derivados y tarea por faltas (G2)
+
+Código: `src/asistencia/derivados.ts`. Los derivados se **calculan al registrar el pase** (solo de las inscripciones cuyo estatus cambió) y se pueden consultar:
+
+| Método y ruta | Permiso | Qué |
+|---|---|---|
+| `GET /api/inscripciones/:id/asistencia?desde=&hasta=&limite=&pagina=` | `asistencia:leer` | `{ inscripcion_id, alumno_id, derivados, datos: [{ id, fecha, estatus, metodo, grupo_id }], paginacion }`, lo más reciente primero. Alcance de las inscripciones (el maestro, las de SUS grupos; lo ajeno 404) |
+| `GET /api/grupos/:id/asistencia/derivados` | `asistencia:leer` | Los derivados de las inscripciones ACTIVAS del grupo: `{ grupo, hoy, umbral_de_faltas, datos: [{ inscripcion_id, alumno_id, alumno, …derivados }] }` |
+| respuesta de `PUT /api/grupos/:id/pase` | | además `alertas: [{ inscripcion_id, racha_de_faltas, umbral, accion: "tarea_creada" | "tarea_resuelta" | null, tarea_id }]` (las que llegaron al umbral o tuvieron acción) |
+
+`derivados`: `{ ventana: { desde, hasta }, porcentaje_30_dias, presentes, faltas, justificadas, racha_de_faltas, inicio_de_racha, umbral_de_faltas, en_riesgo }`.
+
+- **% de asistencia (30 días):** `presentes / (presentes + faltas)` sobre las filas de `hoy − 29` a `hoy` (días locales de la sucursal), con un decimal. Las **justificadas no cuentan ni a favor ni en contra**. Sin presentes ni faltas en la ventana: `null` (no hay dato; no es 0 %).
+- **Racha de faltas:** de la sesión más reciente hacia atrás, por **sesiones con pase tomado** (solo hay fila de las sesiones en que se pasó lista), no por días del calendario: una clase sin pase no suma ni rompe. `falta` suma, `presente` corta, `justificada` no suma ni corta. `inicio_de_racha` es la fecha de la primera falta de la racha.
+- **Tarea para el asesor** (`tipo = faltas_consecutivas`, ligada a la inscripción y a su lead si lo hay): se crea al llegar la racha al umbral (`configuracion_organizacion.umbral_faltas_consecutivas`, **3 por omisión**, entre 1 y 30). **Una pendiente por inscripción** y **una por racha** (`referencia_fecha` = el inicio de la racha; índices únicos parciales): repetir el pase, o resolverla a mano mientras la racha sigue, no la vuelve a crear; una racha nueva (otro inicio) sí. Se **resuelve sola** (`hecha`) cuando la racha baja del umbral: el alumno vuelve a asistir o se corrige el pase. La ve el administrador, el asesor de la sucursal del grupo (`GET /api/tareas`) aunque la inscripción no tenga lead, y no el de otra sucursal. Cada inscripción se recalcula bajo un candado propio (`racha:<id>`): pases simultáneos de fechas distintas no crean dos.
