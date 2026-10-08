@@ -3,7 +3,8 @@ FROM node:22-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# Sin scripts: el postinstall (prisma generate) necesita el schema, que se copia después.
+RUN npm ci --ignore-scripts
 
 COPY prisma.config.ts ./
 COPY prisma ./prisma

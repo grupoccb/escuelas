@@ -8,7 +8,11 @@
 // 4. ventana de servicio (invariante 5): fuera de ella solo cabe una plantilla aprobada;
 // 5. horario (invariante 14): lo iniciado por el sistema solo sale de 09:00 a 20:00, hora local
 //    de la sucursal. Contestar a quien acaba de escribir no tiene restricción de horario;
-// 6. frecuencia: tope de mensajes automáticos por teléfono.
+// 6. frecuencia: tope de mensajes iniciados por el sistema por teléfono.
+//
+// "Iniciado por el sistema" NO depende de la etiqueta que ponga quien llama (F1-04): es todo
+// saliente con origen distinto de `respuesta` y `confirmacion_baja`, y también el que lleva
+// plantilla sin que haya un mensaje entrante vigente (ventana de servicio abierta) que contestar.
 
 import type { EstadoConversacion, OrigenMensaje } from "../datos/tipos.ts";
 
@@ -56,6 +60,20 @@ export interface EntradaReglas {
   limiteFrecuencia: number;
 }
 
+/** true si la ventana de servicio sigue abierta: hay un mensaje entrante vigente que contestar. */
+export function ventanaServicioAbierta(ventanaServicioHasta: Date | null, ahora: Date): boolean {
+  return ventanaServicioHasta !== null && ventanaServicioHasta.getTime() > ahora.getTime();
+}
+
+/**
+ * true si el saliente lo inicia el sistema y no responde a nadie: le aplican el horario de envío
+ * (invariante 14) y el tope de frecuencia. Pura; no confía en la etiqueta `origen`.
+ */
+export function esIniciadoPorSistema(e: { origen: OrigenMensaje; conLaPlantilla: boolean; ventanaAbierta: boolean }): boolean {
+  if (e.origen !== "respuesta" && e.origen !== "confirmacion_baja") return true;
+  return e.conLaPlantilla && !e.ventanaAbierta;
+}
+
 /** Devuelve el motivo por el que NO se puede mandar, o null si se puede. */
 export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
   const { conv, tipo, origen, ahora, plantilla } = e;
@@ -74,10 +92,10 @@ export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
 
   if (plantilla && !plantilla.enviable) return "plantilla_no_apta";
 
-  const ventanaAbierta = conv.ventana_servicio_hasta !== null && conv.ventana_servicio_hasta.getTime() > ahora.getTime();
+  const ventanaAbierta = ventanaServicioAbierta(conv.ventana_servicio_hasta, ahora);
   if (!ventanaAbierta && !plantilla) return "fuera_de_ventana";
 
-  if (origen === "automatizacion") {
+  if (esIniciadoPorSistema({ origen, conLaPlantilla: plantilla !== null, ventanaAbierta })) {
     if (!e.zonaHoraria) return "sin_zona_horaria";
     if (!dentroDeHorario(ahora, e.zonaHoraria)) return "fuera_de_horario";
     if (e.automaticosRecientes >= e.limiteFrecuencia) return "tope_frecuencia";

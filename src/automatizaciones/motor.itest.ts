@@ -8,10 +8,11 @@ import { randomInt } from "node:crypto";
 import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { procesarEntrante } from "../captacion/entrante.ts";
-import { MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
+import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
+import type { TransporteConversaciones } from "../mensajeria/transporte.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
-import { correrAutomatizaciones, type DepsMotor } from "./motor.ts";
+import { correrAutomatizaciones, RECLAMO_VENCE_MS, type DepsMotor } from "./motor.ts";
 
 let prisma: PrismaClient;
 let siguiente = randomInt(1_000_000, 2_000_000_000);
@@ -341,4 +342,271 @@ test("MessagingProvider por sí solo bloquea lo automático fuera de horario aun
   const r = await provider.despachar(s.db, s.conversacionId);
   assert.deepEqual(r.resultados.find((x) => x.mensajeId === id), { mensajeId: id, resultado: "bloqueado", motivo: "fuera_de_horario" });
   assert.equal(s.transporte.envios.filter((e) => e.tipo === "mensaje").length, 0);
+});
+
+// ---------------------------------------------------------------------------------------------
+// F1-01: reclamos huérfanos y mensaje pendiente que sale fuera de contexto
+
+const MINUTO = 60_000;
+const esperar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Un transporte que nunca contesta: el proceso "muere" a la mitad del envío. */
+const transporteColgado: TransporteConversaciones = {
+  enviarMensaje: () => new Promise(() => {}),
+  enviarPlantilla: () => new Promise(() => {}),
+  enviarNotaInterna: () => new Promise(() => {}),
+  abrirConversacion: async () => {},
+};
+
+test("F6a: si despachar lanza DESPUÉS de encolar, el mensaje se cancela y no sale después, mezclado con otra cosa", async () => {
+  const s = await escenario();
+  const ahora = en(T0, 26);
+  const buena = new MessagingProvider({ transporte: s.transporte, reloj: () => ahora });
+  const rota = Object.create(buena) as MessagingProvider;
+  rota.despachar = async () => {
+    throw new Error("caída de base simulada tras encolar");
+  };
+
+  const r = await s.motor(ahora, { mensajeria: rota });
+  assert.equal(r.fallidas, 1);
+  const [e] = await s.ejecuciones();
+  assert.deepEqual([e!.estatus, e!.motivo_omision], ["fallido", "error_interno"]);
+  const m = await s.db.mensaje.findUniqueOrThrow({ where: { id: e!.mensaje_id! } });
+  assert.deepEqual([m.estatus, m.motivo_bloqueo], ["bloqueado", "ejecucion_fallida"], "el mensaje encolado se cancela, no queda pendiente");
+
+  // El contacto contesta: sale la respuesta del bot, NO el recordatorio cancelado.
+  const respuesta = en(ahora, 1);
+  const bot = { prisma, mensajeria: new MessagingProvider({ transporte: s.transporte, reloj: () => respuesta }), reloj: () => respuesta };
+  await procesarEntrante(bot, s.evento("Ana"));
+  assert.equal(s.plantillasEnviadas().length, 0);
+  assert.ok(s.transporte.envios.some((x) => x.tipo === "mensaje" && /edad/i.test(x.texto ?? "")), "el bot sí contestó");
+});
+
+test("F6b: el proceso muere con el envío a medias; el barrido de recuperación lo resuelve sin reenviar y avisa al asesor", async () => {
+  const s = await escenario();
+  const t1 = en(T0, 26);
+  // El "proceso" se cuelga en el transporte; el test no espera su fin.
+  void s.motor(t1, { mensajeria: new MessagingProvider({ transporte: transporteColgado, reloj: () => t1 }) });
+  await esperar(1500);
+
+  const [e0] = await s.ejecuciones();
+  assert.deepEqual([e0!.estatus, e0!.ejecutado_en?.toISOString(), e0!.mensaje_id !== null], ["programado", t1.toISOString(), true]);
+  const m0 = await s.db.mensaje.findUniqueOrThrow({ where: { id: e0!.mensaje_id! } });
+  assert.deepEqual([m0.estatus, m0.id_externo], ["enviando", null]);
+
+  // Todavía no vence: ni el envío (5 min) ni el reclamo (10 min). No se toca nada.
+  const poco = await s.motor(en(t1, 4 * MINUTO / 3600_000));
+  assert.equal(poco.recuperadas, 0);
+  assert.equal((await s.ejecuciones())[0]!.estatus, "programado");
+
+  // Vencido: se resuelve. Nada sale.
+  const despues = new Date(t1.getTime() + RECLAMO_VENCE_MS + MINUTO);
+  const r = await s.motor(despues);
+  assert.equal(r.recuperadas, 2, "el mensaje incierto y la ejecución");
+  assert.equal(s.transporte.envios.length, 0, "a lo sumo una vez: nunca se reenvía algo que pudo haber salido");
+
+  const [e] = await s.ejecuciones();
+  assert.deepEqual([e!.estatus, e!.motivo_omision], ["fallido", ENVIO_INCIERTO]);
+  const m = await s.db.mensaje.findUniqueOrThrow({ where: { id: e!.mensaje_id! } });
+  assert.deepEqual([m.estatus, m.error], ["fallido", ENVIO_INCIERTO]);
+  const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conversacionId } });
+  assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["revision_manual", "pendiente"]]);
+
+  // Y no vuelve a pasar nada, por más que corra el motor.
+  for (const horas of [27, 50, 200]) {
+    const otra = await s.motor(en(T0, horas));
+    assert.equal(otra.enviadas + otra.programadas + otra.recuperadas, 0, `a las ${horas} h`);
+  }
+  assert.equal(s.transporte.envios.length, 0);
+});
+
+/** Crea una ejecución reclamada `hace` ms (con el mensaje que se indique) y devuelve lo necesario para correr el motor. */
+async function reclamadaCon(
+  hace: number,
+  mensaje: { estatus: "pendiente" | "enviando" | "enviado" | "bloqueado" | "fallido"; idExterno?: string; motivo?: string; error?: string } | null,
+) {
+  const s = await escenario();
+  const ahora = en(T0, 26);
+  let mensajeId: string | null = null;
+  if (mensaje) {
+    const m = await s.db.mensaje.create({
+      data: {
+        organizacion_id: s.o.organizacionId,
+        conversacion_id: s.conversacionId,
+        direccion: "saliente",
+        estatus: mensaje.estatus,
+        origen: "automatizacion",
+        cuerpo: "recordatorio",
+        proveedor: "chatwoot",
+        id_externo: mensaje.idExterno ?? null,
+        motivo_bloqueo: mensaje.motivo ?? null,
+        error: mensaje.error ?? null,
+      },
+    });
+    // El reclamo del mensaje se hizo cuando se reclamó la ejecución.
+    await s.db.mensaje.updateMany({ where: { id: m.id }, data: { actualizado_en: new Date(ahora.getTime() - hace) } });
+    mensajeId = m.id;
+  }
+  await s.db.automatizacion_ejecucion.create({
+    data: {
+      organizacion_id: s.o.organizacionId,
+      automatizacion_id: s.automatizacion.id,
+      entidad_tipo: "conversacion",
+      entidad_id: s.conversacionId,
+      ocurrencia: 1,
+      programado_para: en(ahora, -1),
+      ejecutado_en: new Date(ahora.getTime() - hace),
+      mensaje_id: mensajeId,
+    },
+  });
+  const resultado = await s.motor(ahora);
+  const [e] = await s.ejecuciones();
+  const m = mensajeId ? await s.db.mensaje.findUniqueOrThrow({ where: { id: mensajeId } }) : null;
+  return { s, resultado, e: e!, m };
+}
+
+test("recuperación: la ejecución reclamada vencida cuyo mensaje ya tiene id del proveedor queda enviada", async () => {
+  const { e, resultado, s } = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "enviado", idExterno: "cw-77" });
+  assert.deepEqual([e.estatus, e.motivo_omision], ["enviado", null]);
+  assert.equal(resultado.recuperadas, 1);
+  assert.equal(s.transporte.envios.length, 0);
+});
+
+test("recuperación: aunque el mensaje siga marcado `enviando`, si ya tiene id del proveedor la ejecución queda enviada", async () => {
+  const { e } = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "enviando", idExterno: "cw-78" });
+  assert.equal(e.estatus, "enviado");
+});
+
+test("recuperación: el mensaje que seguía pendiente se cancela y la ejecución queda fallida", async () => {
+  const { e, m, s } = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "pendiente" });
+  assert.deepEqual([e.estatus, e.motivo_omision], ["fallido", "ejecucion_abandonada"]);
+  assert.deepEqual([m!.estatus, m!.motivo_bloqueo], ["bloqueado", "ejecucion_abandonada"]);
+  assert.equal(s.transporte.envios.length, 0);
+});
+
+test("recuperación: el mensaje `enviando` sin id (envío incierto) falla con envio_incierto y crea tarea al asesor", async () => {
+  const { e, m, s } = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "enviando" });
+  assert.deepEqual([e.estatus, e.motivo_omision], ["fallido", ENVIO_INCIERTO]);
+  assert.deepEqual([m!.estatus, m!.error], ["fallido", ENVIO_INCIERTO]);
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "revision_manual", estado: "pendiente" } }), 1);
+  assert.equal(s.transporte.envios.length, 0);
+});
+
+test("recuperación: bloqueado y fallido se reflejan en la ejecución; sin mensaje queda fallida sin reintentar", async () => {
+  const bloqueado = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "bloqueado", motivo: "tope_frecuencia" });
+  assert.deepEqual([bloqueado.e.estatus, bloqueado.e.motivo_omision], ["omitido", "tope_frecuencia"]);
+  const fallido = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, { estatus: "fallido", error: "Chatwoot respondió 500" });
+  assert.deepEqual([fallido.e.estatus, fallido.e.motivo_omision], ["fallido", "envio_fallido"]);
+  const sinMensaje = await reclamadaCon(RECLAMO_VENCE_MS + MINUTO, null);
+  assert.deepEqual([sinMensaje.e.estatus, sinMensaje.e.motivo_omision], ["fallido", "ejecucion_abandonada"]);
+  assert.equal(sinMensaje.s.transporte.envios.length, 0, "no se reintenta: no se puede probar que nada salió");
+});
+
+test("recuperación: una ejecución reclamada hace poco (en curso) no se toca", async () => {
+  const { e, m, resultado } = await reclamadaCon(RECLAMO_VENCE_MS - MINUTO, { estatus: "pendiente" });
+  assert.equal(e.estatus, "programado");
+  assert.equal(m!.estatus, "pendiente");
+  assert.equal(resultado.recuperadas, 0);
+});
+
+test("recuperación: dos motores a la vez la resuelven una sola vez", async () => {
+  const s = await escenario();
+  const ahora = en(T0, 26);
+  await s.db.automatizacion_ejecucion.create({
+    data: {
+      organizacion_id: s.o.organizacionId,
+      automatizacion_id: s.automatizacion.id,
+      entidad_tipo: "conversacion",
+      entidad_id: s.conversacionId,
+      ocurrencia: 1,
+      programado_para: en(ahora, -1),
+      ejecutado_en: new Date(ahora.getTime() - RECLAMO_VENCE_MS - MINUTO),
+    },
+  });
+  const rs = await Promise.all([s.motor(ahora), s.motor(ahora), s.motor(ahora)]);
+  assert.equal(rs.reduce((n, r) => n + r.recuperadas, 0), 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// F1-06: el reenganche revalida antes de encolar
+
+test("F1-06: si el contacto escribió después de programarse, el reenganche no sale (contacto_respondio)", async () => {
+  // Última palabra a las 21:00 locales; +25 h = 22:00 locales del día siguiente → se recorre a las 09:00.
+  const s = await escenario({ ultimoEntrante: new Date("2026-10-08T03:00:00Z") });
+  const r = await s.motor(new Date("2026-10-09T05:00:00Z")); // 23:00 locales
+  assert.equal(r.programadas, 1);
+  assert.equal((await s.ejecuciones())[0]!.programado_para.toISOString(), "2026-10-09T15:00:00.000Z");
+
+  // A las 08:00 locales el contacto contesta; a las 09:05 corre el motor.
+  const respuesta = new Date("2026-10-09T14:00:00Z");
+  const bot = { prisma, mensajeria: new MessagingProvider({ transporte: s.transporte, reloj: () => respuesta }), reloj: () => respuesta };
+  await procesarEntrante(bot, s.evento("Ana"));
+  const enviosAntes = s.transporte.envios.length;
+
+  const despues = await s.motor(new Date("2026-10-09T15:05:00Z"));
+  assert.equal(despues.enviadas, 0);
+  assert.equal(despues.omitidas, 1);
+  assert.equal(s.plantillasEnviadas().length, 0);
+  assert.equal(s.transporte.envios.length, enviosAntes);
+  const [e] = await s.ejecuciones();
+  assert.deepEqual([e!.estatus, e!.motivo_omision], ["omitido", "contacto_respondio"]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// F1-07: omisiones por falta de plantilla o variables inválidas crean tarea al asesor
+
+test("F1-07: sin plantilla, variables inválidas o plantilla sin cuerpo: se omite y queda UNA tarea de revisión manual", async () => {
+  const casos: [string, Opciones][] = [
+    ["sin_plantilla", { sinPlantilla: true }],
+    ["variables_invalidas", { plantilla: { variables: "no es una lista" } }],
+    ["variable_desconocida", { plantilla: { variables: [{ pos: 1, nombre: "inventada" }] } }],
+    ["variable_vacia", { plantilla: { variables: [{ pos: 1, nombre: "nombre_prospecto" }] } }],
+    ["plantilla_sin_cuerpo", { plantilla: { cuerpo: "  " } }],
+  ];
+  for (const [motivo, opc] of casos) {
+    const s = await escenario(opc);
+    await s.motor(en(T0, 26));
+    assert.equal(s.transporte.envios.length, 0, motivo);
+    assert.equal((await s.ejecuciones())[0]!.motivo_omision, motivo);
+    const tareas = await s.db.tarea_asesor.findMany({ where: { conversacion_id: s.conversacionId } });
+    assert.deepEqual(tareas.map((t) => [t.tipo, t.estado]), [["revision_manual", "pendiente"]], motivo);
+    assert.match(tareas[0]!.descripcion, new RegExp(motivo));
+  }
+});
+
+test("F1-07: dos automatizaciones mal configuradas sobre la misma conversación dejan una sola tarea pendiente", async () => {
+  const s = await escenario({ sinPlantilla: true });
+  await prisma.automatizacion.create({
+    data: { organizacion_id: s.o.organizacionId, nombre: "Otro", evento_disparador: "lead_sin_respuesta", offset_minutos: 1500 },
+  });
+  await s.motor(en(T0, 26));
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "revision_manual", estado: "pendiente" } }), 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// F1-05: un lead con eliminado_en
+
+test("F1-05: un lead borrado no se programa ni recibe el reenganche", async () => {
+  const s = await escenario();
+  const c = await s.conv();
+  await s.db.lead.update({ where: { id: c.lead_id }, data: { eliminado_en: new Date() } });
+  const r = await s.motor(en(T0, 26));
+  assert.equal(r.programadas + r.enviadas, 0);
+  assert.equal(s.transporte.envios.length, 0);
+});
+
+test("F1-05: si el lead se borra después de programarse, la ejecución se omite sin mandar", async () => {
+  const s = await escenario();
+  assert.equal((await s.motor(en(T0, 24.9))).programadas, 0);
+  await s.db.automatizacion_ejecucion.create({
+    data: { automatizacion_id: s.automatizacion.id, entidad_tipo: "conversacion", entidad_id: s.conversacionId, ocurrencia: 1, programado_para: en(T0, 25), organizacion_id: s.o.organizacionId },
+  });
+  const c = await s.conv();
+  await s.db.lead.update({ where: { id: c.lead_id }, data: { eliminado_en: new Date() } });
+
+  const r = await s.motor(en(T0, 26));
+  assert.equal(r.enviadas, 0);
+  assert.equal(s.transporte.envios.length, 0);
+  const [e] = await s.ejecuciones();
+  assert.deepEqual([e!.estatus, e!.motivo_omision], ["omitido", "lead_eliminado"]);
 });

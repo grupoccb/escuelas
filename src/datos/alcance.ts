@@ -8,6 +8,11 @@
 //
 // Nadie filtra organizacion_id a mano: si una consulta no pasa por aquí, `check:capas` falla.
 //
+// El cliente con alcance NO ofrece SQL crudo ($queryRaw*, $executeRaw*): vería todas las
+// organizaciones (F1-14). Falta en el tipo y, si alguien lo fuerza con un cast, lanza en tiempo
+// de ejecución. El SQL crudo que haga falta vive en src/datos/, con el cliente sin alcance y
+// filtrando a mano, justificado en la bitácora.
+//
 // Límite conocido: los `include` y las escrituras anidadas no pasan por la extensión. Las
 // relaciones siempre apuntan dentro de la misma organización, así que un include no cruza
 // organizaciones, pero sí puede traer filas hijas borradas. Una escritura anidada sin
@@ -35,7 +40,14 @@ const DE_ALTA = new Set(["create", "createMany", "createManyAndReturn"]);
 
 type Datos = Record<string, unknown>;
 
-export function conAlcance(prisma: PrismaClient, organizacionId: string) {
+/** SQL crudo: no pasa por el alcance y por eso no existe en el cliente con alcance. */
+type SqlCrudo = "$queryRaw" | "$queryRawUnsafe" | "$executeRaw" | "$executeRawUnsafe";
+
+const sqlCrudoProhibido = (nombre: string) => () => {
+  throw new ErrorAlcance(`${nombre} no existe en el cliente con alcance: vería todas las organizaciones (invariante 1)`);
+};
+
+function crearCliente(prisma: PrismaClient, organizacionId: string) {
   if (!organizacionId) throw new ErrorAlcance("conAlcance requiere organizacionId");
 
   const conOrganizacion = (modelo: string, datos: Datos): Datos => {
@@ -48,6 +60,12 @@ export function conAlcance(prisma: PrismaClient, organizacionId: string) {
 
   return prisma.$extends({
     name: "alcance-organizacion",
+    client: {
+      $queryRaw: sqlCrudoProhibido("$queryRaw"),
+      $queryRawUnsafe: sqlCrudoProhibido("$queryRawUnsafe"),
+      $executeRaw: sqlCrudoProhibido("$executeRaw"),
+      $executeRawUnsafe: sqlCrudoProhibido("$executeRawUnsafe"),
+    },
     query: {
       $allModels: {
         $allOperations({ model, operation, args, query }) {
@@ -85,11 +103,24 @@ export function conAlcance(prisma: PrismaClient, organizacionId: string) {
   });
 }
 
-/** Cliente con scope de una organización. */
-export type BaseDatos = ReturnType<typeof conAlcance>;
+type Cliente = ReturnType<typeof crearCliente>;
 
 /** Lo que se puede usar dentro y fuera de una transacción. */
-export type Consultas = Omit<BaseDatos, "$transaction" | "$connect" | "$disconnect" | "$extends" | "$on">;
+export type Consultas = Omit<Cliente, "$transaction" | "$connect" | "$disconnect" | "$extends" | "$on" | SqlCrudo>;
+
+interface OpcionesTransaccion {
+  maxWait?: number;
+  timeout?: number;
+}
+
+/** Cliente con scope de una organización, sin SQL crudo (tampoco dentro de la transacción). */
+export type BaseDatos = Omit<Cliente, "$transaction" | SqlCrudo> & {
+  $transaction<R>(fn: (tx: Consultas) => Promise<R>, opciones?: OpcionesTransaccion): Promise<R>;
+};
+
+export function conAlcance(prisma: PrismaClient, organizacionId: string): BaseDatos {
+  return crearCliente(prisma, organizacionId) as unknown as BaseDatos;
+}
 
 /**
  * Marca un alta cuyo organizacion_id lo pone el scope. Solo cambia el tipo: el scope agrega el

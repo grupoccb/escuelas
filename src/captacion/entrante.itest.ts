@@ -284,3 +284,39 @@ test("vertical por número receptor: si la bandeja no se reconoce, el número de
   assert.equal(conv.lead.vertical_interes_id, org.verticalId);
   assert.equal(conv.bandeja_chatwoot_id, org.bandejaId);
 });
+
+test("F1-13: un entrante tardío (reintento de un mensaje anterior) no acorta la ventana de servicio", async () => {
+  const { deps, conversacion, evento } = nuevoEntorno();
+  const t = new Date("2026-10-08T12:00:00Z");
+  const hora = (h: number) => new Date(t.getTime() + h * 3_600_000);
+  const reloj = () => hora(5);
+  await procesarEntrante({ ...deps, reloj }, evento("Hola", { creadoEn: hora(4) }));
+  const despuesDelPrimero = await conversacionDe(conversacion);
+  assert.equal(despuesDelPrimero.ventana_servicio_hasta?.toISOString(), hora(28).toISOString());
+
+  // Llega, tarde, un mensaje que el contacto escribió ANTES (t+1 h).
+  await procesarEntrante({ ...deps, reloj }, evento("mensaje viejo", { creadoEn: hora(1) }));
+  const conv = await conversacionDe(conversacion);
+  assert.equal(conv.ventana_servicio_hasta?.toISOString(), hora(28).toISOString(), "la ventana se queda con el máximo");
+  assert.equal(conv.ultimo_mensaje_entrante_en?.toISOString(), hora(4).toISOString());
+
+  // Uno posterior sí la extiende.
+  await procesarEntrante({ ...deps, reloj }, evento("mensaje nuevo", { creadoEn: hora(4.5) }));
+  assert.equal((await conversacionDe(conversacion)).ventana_servicio_hasta?.toISOString(), hora(28.5).toISOString());
+});
+
+test("F1-05: un mensaje de un lead borrado se ignora (sin error, sin registrar ni contestar)", async () => {
+  const { transporte, deps, conversacion, evento } = nuevoEntorno();
+  await procesarEntrante(deps, evento("Hola"));
+  const antes = await conversacionDe(conversacion);
+  await conAlcance(prisma, org.organizacionId).lead.update({ where: { id: antes.lead_id }, data: { eliminado_en: new Date() } });
+  const envios = transporte.envios.length;
+
+  const r = await procesarEntrante(deps, evento("¿Siguen ahí?"));
+  assert.equal(r.resultado, "ignorado");
+  assert.equal(r.conversacionId, antes.id);
+  assert.equal(transporte.envios.length, envios);
+  const despues = await conversacionDe(conversacion);
+  assert.equal(despues.mensajes.length, antes.mensajes.length, "no se registra nada");
+  assert.equal(despues.version, antes.version);
+});

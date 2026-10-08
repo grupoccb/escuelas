@@ -11,19 +11,26 @@
 //    con todas las reglas (ventana, plantilla, horario, baja, frecuencia, atención humana).
 //    El motor no repite ninguna regla: traduce el resultado del provider al estado de la ejecución.
 //
-// Una ejecución reclamada que se queda a medias (el proceso murió) no se reintenta sola: es
-// preferible no mandar a mandar dos veces.
+// Política "a lo sumo una vez": una ejecución reclamada que se queda a medias (el proceso
+// murió) NUNCA se reintenta, porque el mensaje pudo haber salido. Pero tampoco queda huérfana:
+// el barrido de recuperación (3) la resuelve pasados RECLAMO_VENCE_MS.
+// 3. recuperar: ejecuciones reclamadas hace más de RECLAMO_VENCE_MS sin resultado. Si su mensaje
+//    ya tiene id del proveedor, queda enviada; si seguía pendiente, se cancela y la ejecución
+//    falla; si estaba en `enviando` sin id (envío incierto), falla y se avisa al asesor.
 
 import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts";
 import type { PrismaClient } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
-import type { MessagingProvider } from "../mensajeria/index.ts";
+import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, asegurarTareaAsesor, type MessagingProvider } from "../mensajeria/index.ts";
 import { dentroDeHorario, recorrerODescartar, siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { zonaHorariaDeContacto } from "../mensajeria/zona-horaria.ts";
 
 const MINUTO_MS = 60_000;
 const POR_CORRIDA = 200;
+
+/** Cuánto puede llevar una ejecución reclamada sin resultado antes de darla por abandonada. */
+export const RECLAMO_VENCE_MS = 10 * MINUTO_MS;
 
 export interface DepsMotor {
   prisma: PrismaClient;
@@ -37,6 +44,8 @@ export interface DepsMotor {
    * reenganche no tiene evento: nunca se descarta por esto.
    */
   limiteDe?: (ejecucion: { entidad_tipo: string; entidad_id: string }) => Date | null;
+  /** Antigüedad a partir de la cual una ejecución reclamada sin resultado se considera abandonada. */
+  reclamoVenceMs?: number;
 }
 
 export interface ResumenMotor {
@@ -46,16 +55,19 @@ export interface ResumenMotor {
   omitidas: number;
   descartadas: number;
   fallidas: number;
+  /** Ejecuciones abandonadas y envíos inciertos que el barrido de recuperación resolvió. */
+  recuperadas: number;
 }
 
 export async function correrAutomatizaciones(deps: DepsMotor): Promise<ResumenMotor> {
-  const resumen: ResumenMotor = { programadas: 0, enviadas: 0, reprogramadas: 0, omitidas: 0, descartadas: 0, fallidas: 0 };
+  const resumen: ResumenMotor = { programadas: 0, enviadas: 0, reprogramadas: 0, omitidas: 0, descartadas: 0, fallidas: 0, recuperadas: 0 };
   const ahora = deps.reloj?.() ?? new Date();
   const organizaciones = (await listarOrganizaciones(deps.prisma)).filter(
     (o) => deps.organizacionId === undefined || o.id === deps.organizacionId,
   );
   for (const org of organizaciones) {
     const db = conAlcance(deps.prisma, org.id);
+    await recuperarAbandonadas(deps, db, ahora, resumen);
     resumen.programadas += await programarReenganches(db, ahora);
     await ejecutarVencidas(deps, db, ahora, resumen);
   }
@@ -78,6 +90,7 @@ async function programarReenganches(db: BaseDatos, ahora: Date): Promise<number>
         paso_captacion: { in: ["nombre", "edad", "sucursal"] },
         ultimo_mensaje_entrante_en: { lte: corte },
         lead: {
+          eliminado_en: null, // un lead borrado no recibe nada (F1-05)
           ...(a.vertical_id ? { vertical_interes_id: a.vertical_id } : {}),
           ...(a.sucursal_id ? { sucursal_interes_id: a.sucursal_id } : {}),
         },
@@ -137,6 +150,12 @@ async function leerVencidas(db: BaseDatos, ahora: Date) {
   });
 }
 
+/** Lo que ejecutarUna deja a la vista de quien la llamó, para poder limpiar si lanza. */
+interface Progreso {
+  /** El mensaje ya encolado de esta ejecución, si llegó a encolarse. */
+  mensajeId?: string;
+}
+
 async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<void> {
   for (const e of await leerVencidas(db, ahora)) {
     // Reclamar antes de actuar: solo quien gana el reclamo manda (invariante 8).
@@ -145,25 +164,37 @@ async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, res
       data: { ejecutado_en: ahora },
     });
     if (reclamo.count !== 1) continue;
+    const progreso: Progreso = {};
     try {
-      await ejecutarUna(deps, db, e, ahora, resumen);
+      await ejecutarUna(deps, db, e, ahora, resumen, progreso);
     } catch (err) {
-      await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "fallido", motivo_omision: "error_interno" } });
-      resumen.fallidas++;
       log.error("automatizacion_error", { ejecucionId: e.id, error: (err as Error).message });
+      try {
+        // Si el mensaje ya se encoló y no salió, se cancela ANTES de dar la ejecución por fallida:
+        // si no, saldría después, mezclado con otra cosa (F1-01).
+        if (progreso.mensajeId) {
+          await db.mensaje.updateMany({
+            where: { id: progreso.mensajeId, estatus: "pendiente" },
+            data: { estatus: "bloqueado", motivo_bloqueo: "ejecucion_fallida" },
+          });
+        }
+        await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "fallido", motivo_omision: "error_interno" } });
+        resumen.fallidas++;
+      } catch (limpieza) {
+        // Si ni esto se pudo (la base cayó), la ejecución queda reclamada y la recupera el barrido.
+        log.error("automatizacion_limpieza_fallida", { ejecucionId: e.id, error: (limpieza as Error).message });
+      }
     }
   }
 }
 
-async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Date, resumen: ResumenMotor): Promise<void> {
+async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Date, resumen: ResumenMotor, progreso: Progreso): Promise<void> {
   const omitir = async (motivo: string): Promise<void> => {
     await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "omitido", motivo_omision: motivo } });
     resumen.omitidas++;
     log.info("automatizacion_omitida", { ejecucionId: e.id, motivo });
   };
 
-  const plantilla = e.automatizacion.plantilla;
-  if (!plantilla) return omitir("sin_plantilla");
   if (e.entidad_tipo !== "conversacion") return omitir("entidad_no_soportada");
 
   const conv = await db.conversacion.findFirst({
@@ -171,6 +202,31 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     include: { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } },
   });
   if (!conv) return omitir("conversacion_inexistente");
+  // El include no filtra lo borrado: un lead con eliminado_en no recibe nada (F1-05).
+  if (conv.lead.eliminado_en) return omitir("lead_eliminado");
+
+  // Omisión por un problema de configuración o de datos: no se manda y una persona decide
+  // (invariante 5). Una sola tarea pendiente por conversación.
+  const omitirConTarea = async (motivo: string): Promise<void> => {
+    await omitir(motivo);
+    await asegurarTareaAsesor(db, {
+      leadId: conv.lead_id,
+      conversacionId: conv.id,
+      tipo: "revision_manual",
+      descripcion: `La automatización «${e.automatizacion.nombre}» no se le mandó a este contacto (${motivo}). Revisa su configuración o escríbele tú.`,
+    });
+  };
+
+  const plantilla = e.automatizacion.plantilla;
+  if (!plantilla) return omitirConTarea("sin_plantilla");
+
+  // Revalidar: el contacto pudo escribir después de que se programó (o se recorrió al horario).
+  // La condición es la misma con la que se programó: silencio de `ocurrencia × offset` desde su último mensaje.
+  if (e.automatizacion.evento_disparador === "lead_sin_respuesta") {
+    const desde = conv.ultimo_mensaje_entrante_en;
+    const silencioCumplidoEn = desde ? desde.getTime() + e.ocurrencia * e.automatizacion.offset_minutos * MINUTO_MS : null;
+    if (silencioCumplidoEn === null || silencioCumplidoEn > ahora.getTime()) return omitir("contacto_respondio");
+  }
 
   const zona = await zonaHorariaDeContacto(db, conv.lead.sucursal_interes_id, conv.bandeja_chatwoot.canal_whatsapp.sucursal_id, conv.lead.vertical_interes_id);
   // Lo programado fuera de rango se recorre; si con eso llegaría después del evento, se descarta.
@@ -191,13 +247,18 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
   const variables = await resolverVariables(db, plantilla.variables, conv);
-  if (typeof variables === "string") return omitir(variables);
+  if (typeof variables === "string") return omitirConTarea(variables);
   const cuerpo = (plantilla.cuerpo_referencia ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_, pos: string) => variables[pos] ?? "");
-  if (cuerpo.trim() === "") return omitir("plantilla_sin_cuerpo");
+  if (cuerpo.trim() === "") return omitirConTarea("plantilla_sin_cuerpo");
 
-  const [mensajeId] = await db.$transaction((tx) =>
-    deps.mensajeria.encolar(tx, conv.id, [{ tipo: "mensaje", cuerpo, origen: "automatizacion", plantilla: { id: plantilla.id, variables } }]),
-  );
+  // El mensaje queda ligado a la ejecución en la MISMA transacción que lo encola: si el proceso
+  // muere después, la recuperación sabe qué mensaje era y en qué estado quedó.
+  const [mensajeId] = await db.$transaction(async (tx) => {
+    const ids = await deps.mensajeria.encolar(tx, conv.id, [{ tipo: "mensaje", cuerpo, origen: "automatizacion", plantilla: { id: plantilla.id, variables } }]);
+    await tx.automatizacion_ejecucion.update({ where: { id: e.id }, data: { mensaje_id: ids[0] ?? null } });
+    return ids;
+  });
+  if (mensajeId) progreso.mensajeId = mensajeId;
   const despacho = await deps.mensajeria.despachar(db, conv.id);
   const r = despacho.resultados.find((x) => x.mensajeId === mensajeId);
 
@@ -214,6 +275,73 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   }
   await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "fallido", motivo_omision: r ? "envio_fallido" : "sin_resultado", mensaje_id: mensajeId ?? null } });
   resumen.fallidas++;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 3. Recuperar
+
+/**
+ * Resuelve lo que un proceso muerto dejó a medias. Nunca reenvía: a lo sumo una vez.
+ *
+ * 1. Mensajes en `enviando` sin id del proveedor (envío incierto) → fallidos + tarea al asesor.
+ * 2. Ejecuciones reclamadas hace más de `reclamoVenceMs` que siguen sin resultado.
+ */
+async function recuperarAbandonadas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<void> {
+  resumen.recuperadas += await deps.mensajeria.recuperarEnviosInciertos(db, { desde: new Date(ahora.getTime() - ENVIO_INCIERTO_MS) });
+
+  const vence = new Date(ahora.getTime() - (deps.reclamoVenceMs ?? RECLAMO_VENCE_MS));
+  const abandonadas = await db.automatizacion_ejecucion.findMany({
+    where: { estatus: "programado", ejecutado_en: { lt: vence } },
+    orderBy: { ejecutado_en: "asc" },
+    take: POR_CORRIDA,
+  });
+  for (const e of abandonadas) {
+    // Quien gana este reclamo (mismo ejecutado_en que se leyó) resuelve; los demás motores la saltan.
+    const reclamo = await db.automatizacion_ejecucion.updateMany({
+      where: { id: e.id, estatus: "programado", ejecutado_en: e.ejecutado_en },
+      data: { ejecutado_en: ahora },
+    });
+    if (reclamo.count !== 1) continue;
+
+    const cierre = async (estatus: "enviado" | "fallido" | "omitido", motivo: string | null): Promise<void> => {
+      await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus, motivo_omision: motivo } });
+      resumen.recuperadas++;
+      log.warn("automatizacion_recuperada", { ejecucionId: e.id, estatus, motivo });
+    };
+
+    const mensaje = e.mensaje_id ? await db.mensaje.findFirst({ where: { id: e.mensaje_id } }) : null;
+    // Sin mensaje no se puede probar que nada salió (ejecuciones anteriores a que el mensaje se
+    // ligara a la ejecución): no se reintenta.
+    if (!mensaje) {
+      await cierre("fallido", "ejecucion_abandonada");
+      continue;
+    }
+    if (mensaje.id_externo !== null || mensaje.estatus === "enviado" || mensaje.estatus === "entregado" || mensaje.estatus === "leido") {
+      await cierre("enviado", null);
+      continue;
+    }
+    switch (mensaje.estatus) {
+      case "pendiente": {
+        // Nunca salió ni saldrá: se cancela para que no aparezca después, fuera de contexto.
+        await db.mensaje.updateMany({
+          where: { id: mensaje.id, estatus: "pendiente" },
+          data: { estatus: "bloqueado", motivo_bloqueo: "ejecucion_abandonada" },
+        });
+        await cierre("fallido", "ejecucion_abandonada");
+        break;
+      }
+      case "enviando": {
+        await deps.mensajeria.recuperarEnviosInciertos(db, { desde: ahora, mensajeId: mensaje.id });
+        await cierre("fallido", ENVIO_INCIERTO);
+        break;
+      }
+      case "bloqueado":
+        await cierre("omitido", mensaje.motivo_bloqueo ?? "bloqueado");
+        break;
+      default:
+        await cierre("fallido", mensaje.error === ENVIO_INCIERTO ? ENVIO_INCIERTO : "envio_fallido");
+    }
+  }
 }
 
 /**

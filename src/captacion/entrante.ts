@@ -30,6 +30,7 @@ const MAX_REINTENTOS = 3;
 export type ResultadoEntrante =
   | "bandeja_desconocida"
   | "duplicado"
+  | "ignorado"
   | "sin_automatizacion"
   | "asesor_tomo_conversacion"
   | "baja"
@@ -76,7 +77,8 @@ export async function procesarEntrante(
   }
 
   // También en duplicados: si un intento anterior se cortó, termina de despachar lo que quedó.
-  await deps.mensajeria.despachar(db, r.conversacionId);
+  // Un lead borrado no recibe nada.
+  if (r.resultado !== "ignorado") await deps.mensajeria.despachar(db, r.conversacionId);
   log.info("entrante_procesado", { resultado: r.resultado, conversacionId: r.conversacionId });
   return r;
 }
@@ -96,6 +98,12 @@ async function registrarYAvanzar(
   if (previo) return { resultado: "duplicado", conversacionId: previo.conversacion_id };
 
   const conv = await obtenerConversacion(tx, bandeja, evento, recibidoEn, atribucion);
+  // Un lead borrado (eliminado_en) ya no existe para el sistema: no se registra ni se contesta.
+  // Se responde 200 para que Chatwoot no reintente sin fin (F1-05).
+  if (conv.lead.eliminado_en) {
+    log.info("entrante_lead_eliminado", { conversacionId: conv.id });
+    return { resultado: "ignorado", conversacionId: conv.id };
+  }
   await tx.mensaje.create({
     data: altaConAlcance({
       conversacion_id: conv.id,
@@ -114,7 +122,9 @@ async function registrarYAvanzar(
     });
     if (r.count !== 1) throw new ConflictoVersion();
   };
-  const ventana = { ventana_servicio_hasta: ventanaServicioDesde(recibidoEn), ultimo_mensaje_entrante_en: recibidoEn };
+  // Un entrante tardío (reintento de un mensaje anterior) nunca acorta la ventana: se queda el máximo (F1-13).
+  const ultimoEntrante = conv.ultimo_mensaje_entrante_en && conv.ultimo_mensaje_entrante_en > recibidoEn ? conv.ultimo_mensaje_entrante_en : recibidoEn;
+  const ventana = { ventana_servicio_hasta: ventanaServicioDesde(ultimoEntrante), ultimo_mensaje_entrante_en: ultimoEntrante };
 
   // Una baja se atiende antes que todo lo demás y en cualquier estado.
   if (esPalabraDeBaja(evento.contenido)) {

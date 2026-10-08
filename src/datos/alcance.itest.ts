@@ -99,3 +99,19 @@ test("la base rechaza un teléfono que no está normalizado", async () => {
     await assert.rejects(dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: malo }) }), malo);
   }
 });
+
+test("el cliente con alcance no ofrece SQL crudo, ni fuera ni dentro de una transacción (F1-14)", async () => {
+  const dbA = conAlcance(prisma, A.organizacionId);
+  // En el tipo: no existe.
+  // @ts-expect-error BaseDatos no ofrece $queryRaw
+  void dbA.$queryRaw;
+  // En ejecución: si alguien lo fuerza con un cast, lanza en vez de ver todas las organizaciones.
+  const crudo = dbA as unknown as Record<string, (...args: unknown[]) => unknown>;
+  for (const metodo of ["$queryRaw", "$queryRawUnsafe", "$executeRaw", "$executeRawUnsafe"]) {
+    assert.throws(() => crudo[metodo]!("SELECT 1"), ErrorAlcance, metodo);
+  }
+  await dbA.$transaction(async (tx) => {
+    const dentro = tx as unknown as Record<string, (...args: unknown[]) => unknown>;
+    assert.throws(() => dentro["$queryRaw"]!("SELECT count(*) FROM lead"), ErrorAlcance);
+  });
+});

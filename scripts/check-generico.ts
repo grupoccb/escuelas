@@ -10,34 +10,51 @@
 // - Ignora acentos y acepta plural.
 // - No excluye *.test.ts: el invariante también prohíbe los términos en tests de lógica.
 //
-// Exclusiones: carpetas de documentación y de seeds (ahí los términos son datos), el código
-// generado, dependencias y el propio archivo de términos.
+// Qué se escanea: TODO archivo de texto (no binario) del repo, sea cual sea su extensión o su
+// nombre (`.mts`, `.css`, `.sh`, `.md`, `Dockerfile*`, `.env` en la raíz…). Se excluye solo:
+// - lo que está en RUTAS_EXCLUIDAS y CARPETAS_EXCLUIDAS, siempre por RUTA EXACTA desde la raíz
+//   (un `src/dist/` o un `src/coverage/` sí se escanean);
+// - los seeds SQL (`prisma/seed/**/*.sql`: ahí los términos son datos). Un `.ts` dentro de
+//   `prisma/seed/` sí se escanea.
+// El término cuenta aunque lo rodeen dígitos (`termino2`): solo lo ocultan las letras vecinas.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, extname, relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ_REPO = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 export const ARCHIVO_TERMINOS = join("config", "terminos-prohibidos.txt");
 
-/** Rutas (relativas a la raíz, con "/") que no se escanean. */
+/** Rutas (relativas a la raíz, con "/"), archivo o carpeta, que no se escanean. Ruta exacta. */
 const RUTAS_EXCLUIDAS = new Set([
   "docs",
-  "prisma/seed",
   "src/generated",
   ARCHIVO_TERMINOS.split(sep).join("/"),
+  // Describen las reglas: citan los términos a propósito.
+  "CLAUDE.md",
+  "SPEC.md",
+  // Hashes de integridad, no texto del proyecto.
+  "package-lock.json",
+  "web/package-lock.json",
 ]);
 
-// .tmp: borradores locales fuera de git (.gitignore); nunca son código del repo.
-const CARPETAS_EXCLUIDAS = new Set(["node_modules", ".git", "coverage", "dist", ".tmp"]);
-
-const EXTENSIONES = new Set([
-  ".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".sql", ".prisma",
-  ".yml", ".yaml", ".html", ".hbs", ".txt", ".rb", ".env",
+/** Carpetas de herramientas o dependencias que no son código del repo. Ruta exacta desde la raíz. */
+const CARPETAS_EXCLUIDAS = new Set([
+  ".git",
+  ".tmp", // borradores locales fuera de git (.gitignore)
+  "node_modules",
+  "web/node_modules",
+  "coverage",
+  "dist",
+  "web/dist",
 ]);
 
-const ARCHIVOS_EXCLUIDOS = new Set(["package-lock.json"]);
+/** Seeds SQL: los términos son datos. Solo `.sql`; un `.ts` en prisma/seed sí se escanea. */
+const esSeedSql = (rel: string): boolean => rel.startsWith("prisma/seed/") && rel.endsWith(".sql");
+
+/** Un archivo con bytes nulos al inicio es binario (imagen, .DS_Store…): no es texto del proyecto. */
+const esBinario = (contenido: Buffer): boolean => contenido.subarray(0, 8000).includes(0);
 
 export interface Hallazgo {
   archivo: string;
@@ -62,8 +79,9 @@ export function leerTerminos(raiz = RAIZ_REPO): string[] {
 
 function patron(termino: string): RegExp {
   const t = sinAcentos(termino).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // Bordes: cualquier cosa que no sea letra o dígito. "_" cuenta como borde (snake_case).
-  return new RegExp(`(?<![\\p{L}\\p{N}])${t}(?:es|s)?(?![\\p{L}\\p{N}])`, "u");
+  // Bordes: solo las LETRAS ocultan el término ("pre…x" no cuenta). Un dígito no: `termino2` y
+  // `2termino` cuentan. "_" también es borde (snake_case).
+  return new RegExp(`(?<!\\p{L})${t}(?:es|s)?(?!\\p{L})`, "u");
 }
 
 function listarArchivos(raiz: string): string[] {
@@ -74,8 +92,8 @@ function listarArchivos(raiz: string): string[] {
       const rel = relative(raiz, completo).split(sep).join("/");
       if (RUTAS_EXCLUIDAS.has(rel)) continue;
       if (statSync(completo).isDirectory()) {
-        if (!CARPETAS_EXCLUIDAS.has(entrada)) recorrer(completo);
-      } else if (EXTENSIONES.has(extname(entrada)) && !ARCHIVOS_EXCLUIDOS.has(entrada)) {
+        if (!CARPETAS_EXCLUIDAS.has(rel)) recorrer(completo);
+      } else if (!esSeedSql(rel)) {
         out.push(completo);
       }
     }
@@ -86,10 +104,13 @@ function listarArchivos(raiz: string): string[] {
 
 export function escanear(raiz: string, terminos: string[]): { archivos: number; hallazgos: Hallazgo[] } {
   const patrones = terminos.map((termino) => ({ termino, re: patron(termino) }));
-  const archivos = listarArchivos(raiz);
   const hallazgos: Hallazgo[] = [];
-  for (const archivo of archivos) {
-    readFileSync(archivo, "utf8").split("\n").forEach((texto, i) => {
+  let escaneados = 0;
+  for (const archivo of listarArchivos(raiz)) {
+    const contenido = readFileSync(archivo);
+    if (esBinario(contenido)) continue;
+    escaneados++;
+    contenido.toString("utf8").split("\n").forEach((texto, i) => {
       const normal = normalizarLinea(texto);
       for (const { termino, re } of patrones) {
         if (re.test(normal)) {
@@ -98,7 +119,7 @@ export function escanear(raiz: string, terminos: string[]): { archivos: number; 
       }
     });
   }
-  return { archivos: archivos.length, hallazgos };
+  return { archivos: escaneados, hallazgos };
 }
 
 function main(): void {

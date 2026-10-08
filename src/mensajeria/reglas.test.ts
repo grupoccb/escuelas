@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   dentroDeHorario,
+  esIniciadoPorSistema,
   evaluarReglas,
   motivoBloqueo,
   recorrerODescartar,
@@ -190,4 +191,35 @@ test("precedencia: baja antes que ventana, ventana antes que horario, horario an
   assert.equal(evaluarReglas(entrada({ ...base, conv: { estado: "bot", ventana_servicio_hasta: VENCIDA } })), "fuera_de_ventana");
   assert.equal(evaluarReglas(entrada({ ...base })), "fuera_de_horario");
   assert.equal(evaluarReglas(entrada({ ahora: new Date("2026-10-08T18:00:00Z"), automaticosRecientes: 9 })), "tope_frecuencia");
+});
+
+// ---------------------------------------------------------------------------------------------
+// F1-04: "iniciado por el sistema" no depende de la etiqueta `origen`
+
+const NOCHE_MX = new Date("2026-10-09T04:00:00Z"); // 22:00 local
+
+test("es del sistema todo origen distinto de respuesta y confirmacion_baja, o una plantilla sin ventana abierta", () => {
+  assert.equal(esIniciadoPorSistema({ origen: "automatizacion", conLaPlantilla: false, ventanaAbierta: true }), true);
+  assert.equal(esIniciadoPorSistema({ origen: "respuesta", conLaPlantilla: true, ventanaAbierta: false }), true);
+  assert.equal(esIniciadoPorSistema({ origen: "confirmacion_baja", conLaPlantilla: true, ventanaAbierta: false }), true);
+  // Contestar dentro de la ventana, con o sin plantilla, no lo es.
+  assert.equal(esIniciadoPorSistema({ origen: "respuesta", conLaPlantilla: false, ventanaAbierta: true }), false);
+  assert.equal(esIniciadoPorSistema({ origen: "respuesta", conLaPlantilla: true, ventanaAbierta: true }), false);
+  assert.equal(esIniciadoPorSistema({ origen: "confirmacion_baja", conLaPlantilla: false, ventanaAbierta: true }), false);
+});
+
+test("una plantilla con el origen por defecto (respuesta), sin ventana abierta, a las 22:00 NO sale", () => {
+  const cerrada = { estado: "bot" as const, ventana_servicio_hasta: VENCIDA };
+  assert.equal(evaluarReglas(entrada({ ahora: NOCHE_MX, origen: "respuesta", conv: cerrada, plantilla: APROBADA })), "fuera_de_horario");
+  assert.equal(evaluarReglas(entrada({ ahora: new Date("2026-10-08T18:00:00Z"), origen: "respuesta", conv: cerrada, plantilla: APROBADA })), null);
+});
+
+test("lo mismo con frecuencia: la plantilla fuera de ventana cuenta como iniciada por el sistema aunque diga `respuesta`", () => {
+  const cerrada = { estado: "bot" as const, ventana_servicio_hasta: VENCIDA };
+  assert.equal(evaluarReglas(entrada({ origen: "respuesta", conv: cerrada, plantilla: APROBADA, automaticosRecientes: 1 })), "tope_frecuencia");
+  assert.equal(evaluarReglas(entrada({ origen: "respuesta", conv: cerrada, plantilla: APROBADA, zonaHoraria: null })), "sin_zona_horaria");
+});
+
+test("la respuesta con la ventana abierta sigue sin horario ni frecuencia (decisión 5)", () => {
+  assert.equal(evaluarReglas(entrada({ ahora: NOCHE_MX, origen: "respuesta", automaticosRecientes: 9, zonaHoraria: null })), null);
 });

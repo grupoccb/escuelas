@@ -1,3 +1,4 @@
+import { iniciarBarrido } from "./barrido.ts";
 import { correrAutomatizaciones } from "./automatizaciones/motor.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { barrerTiemposDeEspera } from "./captacion/espera.ts";
@@ -25,23 +26,38 @@ const server = app.listen(port, () => {
   log.info("backend_escuchando", { port, transporte: mensajeria.transporte });
 });
 
-// Cada minuto: el tiempo de espera del bot y las automatizaciones (reenganche). Uno tras otro,
-// no en paralelo, para que no se pisen sobre la misma conversación.
-const barrido = setInterval(() => {
-  void (async () => {
-    try {
-      await barrerTiemposDeEspera({ prisma, mensajeria: mensajeria.provider });
-      await correrAutomatizaciones({ prisma, mensajeria: mensajeria.provider });
-    } catch (e) {
-      log.error("barrido_error", { error: (e as Error).message });
-    }
-  })();
-}, 60_000);
-barrido.unref();
+// Cada minuto: el tiempo de espera del bot y las automatizaciones (reenganche y recuperación de
+// lo que un proceso muerto dejó a medias). Uno tras otro, no en paralelo, para que no se pisen
+// sobre la misma conversación.
+const barrido = iniciarBarrido({
+  intervaloMs: 60_000,
+  tarea: async () => {
+    await barrerTiemposDeEspera({ prisma, mensajeria: mensajeria.provider });
+    await correrAutomatizaciones({ prisma, mensajeria: mensajeria.provider });
+  },
+});
 
+// SIGTERM llega en cada despliegue. Cerrar a la mitad de un barrido dejaría reclamos huérfanos
+// (F1-01): primero se deja de programar barridos y se espera al que corre; la base se cierra al final.
+let cerrando = false;
+async function cerrar(signal: string): Promise<void> {
+  if (cerrando) return;
+  cerrando = true;
+  log.info("backend_cerrando", { signal });
+  const limite = setTimeout(() => process.exit(1), 30_000);
+  limite.unref();
+  try {
+    await barrido.detener();
+    // Las peticiones en curso (un webhook a medio procesar) terminan antes de cerrar la base.
+    await new Promise<void>((resolver) => {
+      server.close(() => resolver());
+      server.closeIdleConnections();
+    });
+    await prisma.$disconnect();
+  } finally {
+    process.exit(0);
+  }
+}
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    server.close();
-    void prisma.$disconnect().finally(() => process.exit(0));
-  });
+  process.on(signal, () => void cerrar(signal));
 }

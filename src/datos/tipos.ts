@@ -6,6 +6,7 @@ export type {
   direccion_mensaje as DireccionMensaje,
   estatus_mensaje as EstatusMensaje,
   origen_mensaje as OrigenMensaje,
+  tipo_tarea_asesor as TipoTareaAsesor,
 } from "../generated/prisma/enums.ts";
 
 import type { Prisma } from "../generated/prisma/client.ts";

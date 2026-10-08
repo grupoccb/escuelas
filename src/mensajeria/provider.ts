@@ -14,18 +14,26 @@
 //    en_atencion_humana. Desde ahí ninguna automatización manda nada.
 
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
-import { esViolacionUnica } from "../datos/prisma.ts";
 import type { OrigenMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
 import { estaDadoDeBaja } from "./consentimiento.ts";
 import { zonaHorariaDeContacto } from "./zona-horaria.ts";
-import { evaluarReglas, type MotivoBloqueo, type PlantillaParaReglas, type TipoSaliente } from "./reglas.ts";
+import { esIniciadoPorSistema, evaluarReglas, ventanaServicioAbierta, type MotivoBloqueo, type PlantillaParaReglas, type TipoSaliente } from "./reglas.ts";
+import { asegurarTareaAsesor, resumirTexto } from "./tareas.ts";
 import type { DestinoConversacion, PlantillaAEnviar, TransporteConversaciones } from "./transporte.ts";
 
 const PROVEEDOR = "chatwoot";
+/** Valor de `mensaje.error` cuando no se sabe si el envío salió. */
+export const ENVIO_INCIERTO = "envio_incierto";
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-/** Mensajes automáticos que se le pueden mandar a un teléfono dentro de la ventana de frecuencia. */
+/**
+ * Cuánto puede quedarse un mensaje en `enviando` sin id del proveedor antes de darlo por
+ * "envío incierto". Un envío normal tarda segundos (el transporte corta a los 4 s).
+ */
+export const ENVIO_INCIERTO_MS = 5 * 60 * 1000;
+
+/** Mensajes iniciados por el sistema que se le pueden mandar a un teléfono dentro de la ventana de frecuencia. */
 export const LIMITE_FRECUENCIA_POR_DEFECTO = { maximo: 1, ventanaMs: DIA_MS };
 
 export interface Saliente {
@@ -104,9 +112,11 @@ export class MessagingProvider {
 
     let falloPrevio = false;
     for (const m of pendientes) {
+      // El reclamo deja la hora (del reloj del provider) en actualizado_en: con ella
+      // recuperarEnviosInciertos distingue un envío en curso de uno que quedó a medias.
       const reclamo = await db.mensaje.updateMany({
         where: { id: m.id, estatus: "pendiente" },
-        data: { estatus: "enviando" },
+        data: { estatus: "enviando", actualizado_en: this.reloj() },
       });
       if (reclamo.count === 0) continue; // otro proceso ya lo tomó
 
@@ -115,6 +125,14 @@ export class MessagingProvider {
       const tipo: TipoSaliente = m.direccion === "nota_interna" ? "nota_interna" : "mensaje";
       const ahora = this.reloj();
       const plantilla = m.plantilla_id ? await this.leerPlantilla(db, m.plantilla_id, conv.vertical_id) : null;
+      // Horario y frecuencia aplican a todo lo que inicia el sistema, no a lo que una etiqueta diga.
+      const iniciadoPorSistema =
+        tipo === "mensaje" &&
+        esIniciadoPorSistema({
+          origen: m.origen,
+          conLaPlantilla: m.plantilla_id !== null,
+          ventanaAbierta: ventanaServicioAbierta(conv.ventana_servicio_hasta, ahora),
+        });
 
       // Si uno anterior falló, los siguientes no salen: llegarían fuera de orden.
       const motivo: MotivoBloqueo | "envio_previo_fallido" | null = falloPrevio
@@ -125,8 +143,8 @@ export class MessagingProvider {
             origen: m.origen,
             ahora,
             plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
-            zonaHoraria: m.origen === "automatizacion" ? conv.zonaHoraria : null,
-            automaticosRecientes: m.origen === "automatizacion" ? await this.automaticosRecientes(db, conv.lead.telefono, m.id, ahora) : 0,
+            zonaHoraria: conv.zonaHoraria,
+            automaticosRecientes: iniciadoPorSistema ? await this.automaticosRecientes(db, conv.lead.telefono, m.id, ahora) : 0,
             limiteFrecuencia: this.limiteFrecuencia.maximo,
           });
 
@@ -207,14 +225,17 @@ export class MessagingProvider {
     return { ...p, enviable, categoria: p.categoria as PlantillaParaReglas["categoria"] };
   }
 
-  /** Mensajes automáticos ya enviados a este teléfono, en toda la organización, dentro de la ventana de frecuencia. */
+  /**
+   * Mensajes iniciados por el sistema ya enviados a este teléfono, en toda la organización,
+   * dentro de la ventana de frecuencia: los de automatización y cualquiera que llevara plantilla.
+   */
   private async automaticosRecientes(db: BaseDatos, telefono: string | null, excluirId: string, ahora: Date): Promise<number> {
     if (!telefono) return 0;
     return db.mensaje.count({
       where: {
         id: { not: excluirId },
         direccion: "saliente",
-        origen: "automatizacion",
+        OR: [{ origen: "automatizacion" }, { plantilla_id: { not: null } }],
         estatus: { in: ["enviado", "entregado", "leido"] },
         enviado_en: { gt: new Date(ahora.getTime() - this.limiteFrecuencia.ventanaMs) },
         conversacion: { lead: { telefono } },
@@ -225,27 +246,50 @@ export class MessagingProvider {
   /**
    * Deja una tarea para el asesor: se quiso escribir fuera de la ventana de servicio y no hay
    * plantilla aprobada aplicable. Una sola pendiente por conversación: reintentar no llena la
-   * bandeja (índice único parcial; si dos despachos chocan, el segundo se ignora).
+   * bandeja.
    */
   private async crearTareaSinPlantilla(db: BaseDatos, conversacionId: string, leadId: string, cuerpo: string): Promise<void> {
-    const pendiente = await db.tarea_asesor.findFirst({
-      where: { conversacion_id: conversacionId, tipo: "sin_plantilla_apta", estado: "pendiente" },
-      select: { id: true },
+    await asegurarTareaAsesor(db, {
+      leadId,
+      conversacionId,
+      tipo: "sin_plantilla_apta",
+      descripcion: `No se le escribió al contacto: la ventana de servicio de 24 h está cerrada y no hay plantilla aprobada aplicable. Mensaje que no salió: «${resumirTexto(cuerpo)}»`,
     });
-    if (pendiente) return;
-    const resumen = cuerpo.length > 160 ? `${cuerpo.slice(0, 160)}…` : cuerpo;
-    try {
-      await db.tarea_asesor.create({
-        data: altaConAlcance({
-          lead_id: leadId,
-          conversacion_id: conversacionId,
-          tipo: "sin_plantilla_apta" as const,
-          descripcion: `No se le escribió al contacto: la ventana de servicio de 24 h está cerrada y no hay plantilla aprobada aplicable. Mensaje que no salió: «${resumen}»`,
-        }),
+  }
+
+  /**
+   * Recuperación de envíos inciertos (F1-01). Un mensaje que lleva más de ENVIO_INCIERTO_MS en
+   * `enviando` sin id del proveedor pudo haber salido o no: el proceso murió entre mandarlo y
+   * guardar el id. NUNCA se reenvía (a lo sumo una vez, invariante 8): se marca `fallido` con
+   * error `envio_incierto` y, si era para el contacto, se deja una tarea al asesor para que lo
+   * revise. Devuelve cuántos recuperó. Idempotente.
+   */
+  async recuperarEnviosInciertos(
+    db: BaseDatos,
+    { desde = new Date(this.reloj().getTime() - ENVIO_INCIERTO_MS), mensajeId }: { desde?: Date; mensajeId?: string } = {},
+  ): Promise<number> {
+    const inciertos = await db.mensaje.findMany({
+      where: { estatus: "enviando", id_externo: null, actualizado_en: { lt: desde }, ...(mensajeId ? { id: mensajeId } : {}) },
+      select: { id: true, direccion: true, cuerpo: true, conversacion: { select: { id: true, lead_id: true } } },
+    });
+    let recuperados = 0;
+    for (const m of inciertos) {
+      const marcado = await db.mensaje.updateMany({
+        where: { id: m.id, estatus: "enviando", id_externo: null },
+        data: { estatus: "fallido", error: ENVIO_INCIERTO },
       });
-    } catch (e) {
-      if (!esViolacionUnica(e)) throw e;
+      if (marcado.count !== 1) continue; // otro proceso lo resolvió
+      recuperados++;
+      log.warn("envio_incierto", { conversacionId: m.conversacion.id, mensajeId: m.id });
+      if (m.direccion !== "saliente") continue; // una nota interna perdida no llega al contacto
+      await asegurarTareaAsesor(db, {
+        leadId: m.conversacion.lead_id,
+        conversacionId: m.conversacion.id,
+        tipo: "revision_manual",
+        descripcion: `Un mensaje al contacto quedó a medias y no se sabe si salió. No se reenvió para no duplicarlo: revisa la conversación y, si hace falta, escríbele tú. Mensaje: «${resumirTexto(m.cuerpo)}»`,
+      });
     }
+    return recuperados;
   }
 
   private async pasarAAsesorSiToca(db: BaseDatos, conversacionId: string): Promise<boolean> {

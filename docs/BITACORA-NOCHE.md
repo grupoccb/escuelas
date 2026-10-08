@@ -134,6 +134,8 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 ## N5. Bot (bloque 1.3)
 
+> **Nota de la noche 2 (F1-16):** esta sección conserva lo que se escribió esa noche. Los 30 min de aquí cambiaron a 72 h en N8, y en la noche 2 (bloque A3, decisión 1 de Eduardo) **volvieron a 30 min**, pero con otro significado: a los 30 min la conversación se vuelve visible para los asesores con la nota de datos parciales **sin** pasar a `en_atencion_humana`; ese estado se activa cuando una persona la toma. Ver `docs/BITACORA-NOCHE-2.md`, A3.
+
 **Qué se hizo**
 - Ya existían (de 0.5) las tres preguntas, validaciones y 3 reintentos. Se agregó lo que faltaba:
 - **Palabras de baja** (`BAJA`, `STOP`, `CANCELAR`, `NO MOLESTAR`): `esPalabraDeBaja()` compara la palabra completa (sin importar mayúsculas, acentos ni puntuación); "quiero cancelar mi clase" no cuenta. Se atiende antes que cualquier otra cosa y en cualquier estado.
