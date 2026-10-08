@@ -14,6 +14,7 @@
 
 import { Router } from "express";
 import express from "express";
+import { marcarAsistencia, type MotivoDeRechazoDeAsistencia } from "../../clases-muestra/asistencia.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, proximasSesionesConLugar, reprogramarClaseMuestra, type MotivoDeRechazo } from "../../clases-muestra/agenda.ts";
 import { describirSesion } from "../../clases-muestra/sesiones.ts";
 import { filtroDeSucursal } from "../alcance.ts";
@@ -39,6 +40,7 @@ export const SELECCION_CLASE = {
   reprogramada_de_id: true,
   motivo_cancelacion: true,
   notas: true,
+  asistencia_marcada_en: true,
   creado_en: true,
   grupo: { select: { nombre: true, instructor_id: true, programa: { select: { id: true, nombre: true, sucursal_id: true, sucursal: { select: { nombre: true, zona_horaria: true } } } } } },
   prospecto: { select: { nombre: true, edad_declarada: true } },
@@ -57,6 +59,7 @@ export interface FilaClase {
   reprogramada_de_id: string | null;
   motivo_cancelacion: string | null;
   notas: string | null;
+  asistencia_marcada_en: Date | null;
   creado_en: Date;
   grupo: { nombre: string; instructor_id: string | null; programa: { id: string; nombre: string; sucursal_id: string; sucursal: { nombre: string; zona_horaria: string } } };
   prospecto: { nombre: string | null; edad_declarada: number | null };
@@ -86,12 +89,13 @@ export const presentarClase = (f: FilaClase, rol: string) => {
     reprogramada_de_id: f.reprogramada_de_id,
     motivo_cancelacion: f.motivo_cancelacion,
     notas: f.notas,
+    asistencia_marcada_en: f.asistencia_marcada_en,
     creado_en: f.creado_en,
     ...(rol === "maestro" ? {} : { contacto: f.lead.nombre_contacto, telefono: f.lead.telefono }),
   };
 };
 
-const instantanea = (c: { lead_id: string; prospecto_id: string; grupo_id: string; fecha_hora: Date; estatus: string; agendada_por: string; reprogramada_de_id: string | null; motivo_cancelacion: string | null }): Instantanea => ({
+const instantanea = (c: { lead_id: string; prospecto_id: string; grupo_id: string; fecha_hora: Date; estatus: string; agendada_por: string; reprogramada_de_id: string | null; motivo_cancelacion: string | null; asistencia_marcada_en?: Date | null }): Instantanea => ({
   lead_id: c.lead_id,
   prospecto_id: c.prospecto_id,
   grupo_id: c.grupo_id,
@@ -100,6 +104,7 @@ const instantanea = (c: { lead_id: string; prospecto_id: string; grupo_id: strin
   agendada_por: c.agendada_por,
   reprogramada_de_id: c.reprogramada_de_id,
   motivo_cancelacion: c.motivo_cancelacion,
+  asistencia_marcada_en: c.asistencia_marcada_en ?? null,
 });
 
 const esquemaId = objeto({ id: uuid() });
@@ -117,6 +122,7 @@ const esquemaSesiones = objeto({ grupo_id: uuid(), maximo: opcional(enteroDeText
 const esquemaAgendar = objeto({ prospecto_id: uuid(), grupo_id: uuid(), fecha_hora: instanteISO(), notas: opcional(texto({ max: 1000 })) });
 const esquemaReprogramar = objeto({ fecha_hora: instanteISO(), grupo_id: opcional(uuid()), notas: opcional(texto({ max: 1000 })) });
 const esquemaCancelar = objeto({ motivo: opcional(texto({ max: 300 })) });
+const esquemaAsistencia = objeto({ estatus: enumerado(["asistio", "no_asistio"] as const) });
 
 /** Condición de alcance sobre la clase: el maestro, sus grupos; los demás, la sucursal del programa del grupo. */
 export async function alcanceDeClases(ctx: ContextoApi) {
@@ -269,5 +275,38 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     res.json(await releer(ctx, id));
   });
 
+  r.patch("/clases-muestra/:id/asistencia", requierePermiso("clases_muestra:asistencia"), json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const { estatus } = parsear(esquemaAsistencia, req.body);
+    if (!(await visible(ctx, id))) throw noEncontrado();
+    const resultado = await ctx.db.$transaction(async (tx) => {
+      const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });
+      const r = await marcarAsistencia(tx, { claseId: id, estatus, usuarioId: ctx.usuario.id, ahora: ctx.ahora() });
+      if (!r.ok || !r.cambio || !antes) return r;
+      const despues = await tx.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION_CLASE });
+      await registrarCambio(tx, ctx, { entidad: "clase_muestra", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(despues) });
+      return r;
+    });
+    if (!resultado.ok) errorDeAsistencia(resultado.motivo);
+    res.json(await releer(ctx, id));
+  });
+
   return r;
+}
+
+/** Convierte un rechazo de la asistencia en el error de la convención de la API. */
+export function errorDeAsistencia(motivo: MotivoDeRechazoDeAsistencia): never {
+  switch (motivo) {
+    case "clase_inexistente":
+      throw noEncontrado();
+    case "aun_no_empieza":
+      throw conflicto("La clase todavía no empieza: la asistencia se marca desde la hora de la clase");
+    case "no_se_puede_marcar":
+      throw conflicto("La clase está cancelada o reagendada: ya no se le marca asistencia");
+    case "fuera_de_la_ventana_de_correccion":
+      throw conflicto("Ya pasó el tiempo para corregir la asistencia de esta clase");
+    case "cambio_concurrente":
+      throw conflicto("Otra persona marcó la asistencia de esta clase al mismo tiempo; revísala");
+  }
 }

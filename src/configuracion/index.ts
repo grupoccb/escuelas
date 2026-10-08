@@ -30,6 +30,8 @@ export interface ConfiguracionOrganizacion {
   claseMuestraAnticipacionMin: number;
   /** Hasta cuántos días hacia adelante se puede agendar una clase muestra (D1). */
   claseMuestraHorizonteDias: number;
+  /** Horas después de marcar asistió / no asistió en que se puede corregir (D4). */
+  claseMuestraCorreccionHoras: number;
 }
 
 /** Lo que vale cuando la organización no tiene fila. Mismos valores que los defaults de la columna. */
@@ -42,6 +44,7 @@ export const CONFIGURACION_POR_DEFECTO: Readonly<ConfiguracionOrganizacion> = Ob
   listaEsperaOfertaHoras: 48,
   claseMuestraAnticipacionMin: 120,
   claseMuestraHorizonteDias: 60,
+  claseMuestraCorreccionHoras: 48,
 });
 
 interface FilaConfiguracion {
@@ -53,6 +56,7 @@ interface FilaConfiguracion {
   lista_espera_oferta_horas: number;
   clase_muestra_anticipacion_min: number;
   clase_muestra_horizonte_dias: number;
+  clase_muestra_correccion_horas: number;
 }
 
 function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
@@ -65,13 +69,14 @@ function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
     listaEsperaOfertaHoras: f.lista_espera_oferta_horas,
     claseMuestraAnticipacionMin: f.clase_muestra_anticipacion_min,
     claseMuestraHorizonteDias: f.clase_muestra_horizonte_dias,
+    claseMuestraCorreccionHoras: f.clase_muestra_correccion_horas,
   };
 }
 
 /** La configuración de la organización del scope; los valores por defecto si no hay fila. */
 export async function leerConfiguracion(db: Consultas): Promise<ConfiguracionOrganizacion> {
   const fila = await db.configuracion_organizacion.findFirst({
-    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true, cotizacion_vigencia_dias: true, lista_espera_oferta_horas: true, clase_muestra_anticipacion_min: true, clase_muestra_horizonte_dias: true },
+    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true, cotizacion_vigencia_dias: true, lista_espera_oferta_horas: true, clase_muestra_anticipacion_min: true, clase_muestra_horizonte_dias: true, clase_muestra_correccion_horas: true },
   });
   return fila ? desdeFila(fila) : { ...CONFIGURACION_POR_DEFECTO };
 }

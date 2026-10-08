@@ -60,6 +60,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "POST /api/clases-muestra": "clases_muestra:escribir",
   "POST /api/clases-muestra/:id/reprogramar": "clases_muestra:escribir",
   "POST /api/clases-muestra/:id/cancelar": "clases_muestra:escribir",
+  "PATCH /api/clases-muestra/:id/asistencia": "clases_muestra:asistencia",
   "GET /api/maestro/clases-muestra": "clases_muestra:leer",
   "GET /api/maestro/avisos": "avisos_maestro:leer",
   "PATCH /api/maestro/avisos/:id": "avisos_maestro:escribir",

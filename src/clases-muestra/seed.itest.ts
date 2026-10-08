@@ -116,3 +116,16 @@ test("D3 seed: los recordatorios de 24 h y 2 h quedan como automatizaciones del 
   assert.deepEqual(vars, ["nombre_prospecto", "nombre_grupo", "fecha_clase", "hora_clase", "nombre_sucursal"]);
   assert.equal(await db().plantilla_mensaje.count({ where: { codigo: "recordatorio_clase_muestra" } }), 1);
 });
+
+test("D4 seed: la recuperación de quien no llegó — evento propio, offset positivo, intentos espaciados con tope y plantilla aprobada; idempotente", async () => {
+  await aplicar("clase-muestra");
+  const a = await db().automatizacion.findMany({ where: { evento_disparador: "clase_muestra_no_asistio" }, include: { plantilla: true } });
+  assert.equal(a.length, 1);
+  assert.deepEqual([a[0]!.offset_minutos, a[0]!.espaciado_minutos, a[0]!.max_intentos, a[0]!.activo], [120, 2880, 2, true]);
+  assert.deepEqual([...a[0]!.dias_permitidos].sort(), [0, 1, 2, 3, 4, 5, 6]);
+  assert.equal(a[0]!.plantilla?.codigo, "recuperacion_no_asistio");
+  assert.equal(a[0]!.plantilla?.estado_aprobacion, "aprobada");
+  assert.deepEqual((a[0]!.plantilla!.variables as { nombre: string }[]).map((v) => v.nombre), ["nombre_prospecto", "nombre_grupo", "fecha_clase"]);
+  assert.equal(/alergia|medic|salud|emergencia/i.test(a[0]!.plantilla!.cuerpo_referencia ?? ""), false);
+  assert.equal(await db().plantilla_mensaje.count({ where: { codigo: "recuperacion_no_asistio" } }), 1);
+});

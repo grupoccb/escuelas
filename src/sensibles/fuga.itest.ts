@@ -20,7 +20,11 @@ import { log } from "../lib/log.ts";
 import { MessagingProvider, TransporteFalso, registrarEstadoEntrega, type EventoEntrante } from "../mensajeria/index.ts";
 import { colectarLogs, type ColectorDeLogs } from "../testutil/logs.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, sembrarFamilia, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { escenarioBot } from "../testutil/bot.ts";
+import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra } from "../clases-muestra/agenda.ts";
+import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
+import { marcarAsistencia } from "../clases-muestra/asistencia.ts";
 import { sembrarUsuario } from "../testutil/api.ts";
 import { crearCifrador } from "./cifrado.ts";
 import { ErrorAccesoSensible, guardarSensible, leerSensible } from "./index.ts";
@@ -197,4 +201,82 @@ test("control: el detector SÍ ve una fuga (un centinela en un log sin pasar por
   const transporte = new TransporteFalso();
   await transporte.enviarNotaInterna({ chatwootAccountId: 1, chatwootConversacionId: 1 }, `Nota: ${CENTINELAS.condiciones_medicas}`);
   assert.deepEqual(fugas(JSON.stringify(transporte.envios)), [CENTINELAS.condiciones_medicas]);
+});
+
+test("D1-D4: ningún centinela de salud aparece en el aviso al maestro, los recordatorios, la recuperación, las notas del bot ni las tareas de la clase muestra", async () => {
+  const AHORA = new Date("2026-11-02T18:00:00Z"); // lunes 12:00 locales
+  // ── A. El bot agenda la clase (nota al asesor con «Clase muestra: …»), con la ficha de salud ya guardada ──
+  const e = await escenarioBot(prisma, { claseMuestra: true, embudo: true, programas: [{ sucursal: 0, nombre: "Programa uno", edadMin: 3, edadMax: 12, grupos: [{ nombre: "Grupo A", cupoMaximo: 5, horarios: [[1, 960, 1020]] }], precio: { inscripcion: "500.00", mensualidad: "300.00" } }] });
+  const db = conAlcance(prisma, e.org.organizacionId);
+  const admin = await sembrarUsuario(prisma, e.org.organizacionId, { rol: "administrador" });
+  const colector: ColectorDeLogs = colectarLogs();
+  try {
+    const c = e.contacto();
+    for (const t of ["Hola", "Luis"]) await c.escribe(t, AHORA);
+    const p = await db.prospecto.findFirstOrThrow({ where: { lead: { telefono: c.telefono } }, select: { id: true } });
+    await guardarSensible(db, { usuarioId: admin.id, organizacionId: e.org.organizacionId, rol: "administrador" }, { sujetoTipo: "prospecto", sujetoId: p.id, motivo: "captura de la inscripción", ruta: "prueba", valores: { ...CENTINELAS } }, { cifrador });
+    for (const t of ["8", "1", "1", "2"]) await c.escribe(t, AHORA); // edad, sucursal, horario, fecha
+    assert.equal(await db.clase_muestra.count({ where: { prospecto_id: p.id, estatus: "agendada" } }), 1, "el bot agendó de verdad");
+
+    // ── B. Otra clase: aviso al maestro, recordatorios, reprogramar, cancelar, asistencia, recuperación ──
+    const grupoId = e.programas[0]!.grupos[0]!.id;
+    const instructor = await prisma.instructor.create({ data: { organizacion_id: e.org.organizacionId, nombre: "Maestra Ana", telefono: `+5255${randomInt(10_000_000, 99_999_999)}` } });
+    await prisma.grupo.update({ where: { id: grupoId }, data: { instructor_id: instructor.id } });
+    for (const [codigo, vars, cuerpo] of [
+      ["aviso_maestro_agendada", [{ pos: 1, nombre: "nombre_alumno" }, { pos: 2, nombre: "nombre_grupo" }], "Nueva clase muestra: {{1}} en {{2}}"],
+      ["aviso_maestro_cancelada", [{ pos: 1, nombre: "nombre_alumno" }, { pos: 2, nombre: "nombre_grupo" }], "Se canceló: {{1}} en {{2}}"],
+      ["aviso_maestro_reprogramada", [{ pos: 1, nombre: "nombre_alumno" }, { pos: 2, nombre: "nombre_grupo" }], "Se cambió: {{1}} en {{2}}"],
+      ["recordatorio_clase_muestra", [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_grupo" }, { pos: 3, nombre: "fecha_clase" }], "Recordatorio {{1}} {{2}} {{3}}"],
+      ["recuperacion_no_asistio", [{ pos: 1, nombre: "nombre_prospecto" }], "No pudo asistir {{1}}"],
+    ] as const) {
+      await prisma.plantilla_mensaje.create({ data: { organizacion_id: e.org.organizacionId, codigo, content_sid: "HX0", categoria: "utility", variables: vars as never, cuerpo_referencia: cuerpo, estado_aprobacion: "aprobada" } });
+    }
+    const plantillaR = await prisma.plantilla_mensaje.findFirstOrThrow({ where: { organizacion_id: e.org.organizacionId, codigo: "recordatorio_clase_muestra" } });
+    const plantillaN = await prisma.plantilla_mensaje.findFirstOrThrow({ where: { organizacion_id: e.org.organizacionId, codigo: "recuperacion_no_asistio" } });
+    await prisma.automatizacion.create({ data: { organizacion_id: e.org.organizacionId, nombre: "R24", evento_disparador: "clase_muestra_proxima", offset_minutos: -1440, plantilla_id: plantillaR.id, dias_permitidos: [0, 1, 2, 3, 4, 5, 6] } });
+    await prisma.automatizacion.create({ data: { organizacion_id: e.org.organizacionId, nombre: "NA", evento_disparador: "clase_muestra_no_asistio", offset_minutos: 120, espaciado_minutos: 2880, max_intentos: 2, plantilla_id: plantillaN.id, dias_permitidos: [0, 1, 2, 3, 4, 5, 6] } });
+    const usuario = await prisma.usuario.create({ data: { organizacion_id: e.org.organizacionId, correo: `f-${Math.random()}@p.test`, nombre: "Asesor", rol: "asesor", contrasena_hash: "x" } });
+    const f = await sembrarFamilia(prisma, e.org, { sucursalId: e.org.sucursales[0]!.id, nombre: "Mateo" });
+    await prisma.conversacion.create({ data: { organizacion_id: e.org.organizacionId, bandeja_chatwoot_id: e.org.bandejaId, lead_id: f.leadId, chatwoot_conversacion_id: randomInt(1, 2_000_000_000) } });
+    await guardarSensible(db, { usuarioId: admin.id, organizacionId: e.org.organizacionId, rol: "administrador" }, { sujetoTipo: "prospecto", sujetoId: f.prospectoId, motivo: "captura de la inscripción", ruta: "prueba", valores: { ...CENTINELAS } }, { cifrador });
+    const ctx = { ahora: AHORA, fuente: new OcupacionFija(), origen: { tipo: "usuario" as const, usuarioId: usuario.id } };
+    const r1 = await db.$transaction((tx) => agendarClaseMuestra(tx, ctx, { prospectoId: f.prospectoId, grupoId, fechaHora: new Date("2026-11-09T22:00:00Z") }));
+    assert.ok(r1.ok);
+    const r2 = await db.$transaction((tx) => reprogramarClaseMuestra(tx, ctx, { claseId: r1.clase.id, fechaHora: new Date("2026-11-16T22:00:00Z") }));
+    assert.ok(r2.ok);
+    await barrerAvisosMaestro({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => AHORA }), reloj: () => AHORA, organizacionId: e.org.organizacionId });
+    await correrAutomatizaciones({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => new Date("2026-11-15T23:00:00Z") }), reloj: () => new Date("2026-11-15T23:00:00Z"), organizacionId: e.org.organizacionId });
+    await db.$transaction((tx) => marcarAsistencia(tx, { claseId: r2.clase.id, estatus: "no_asistio", usuarioId: usuario.id, ahora: new Date("2026-11-16T23:00:00Z") }));
+    await correrAutomatizaciones({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => new Date("2026-11-17T16:00:00Z") }), reloj: () => new Date("2026-11-17T16:00:00Z"), organizacionId: e.org.organizacionId });
+    const otra = await db.$transaction((tx) => agendarClaseMuestra(tx, ctx, { prospectoId: f.prospectoId, grupoId, fechaHora: new Date("2026-11-23T22:00:00Z") }));
+    assert.ok(otra.ok);
+    await db.$transaction((tx) => cancelarClaseMuestra(tx, otra.clase.id, "cambio de planes", AHORA));
+  } finally {
+    colector.detener();
+  }
+  // Los flujos corrieron de verdad.
+  assert.ok(e.transporte.envios.some((x) => x.tipo === "iniciar"), "se abrió la conversación del instructor");
+  assert.ok(e.transporte.envios.filter((x) => x.tipo === "plantilla").length >= 3, "aviso al maestro, recordatorio y recuperación salieron");
+  assert.ok(e.transporte.envios.some((x) => x.tipo === "nota_interna" && /Clase muestra:/.test(x.texto ?? "")), "la nota del bot lleva la clase muestra");
+  assert.ok(await db.tarea_asesor.count({ where: { tipo: "llamar_no_asistio" } }), "quedó la tarea de llamar");
+  assert.ok(await db.aviso_maestro.count() >= 4, "hay avisos al maestro");
+  assert.deepEqual(fugas(colector.texto()), [], "logs");
+  assert.deepEqual(fugas(JSON.stringify(e.transporte.envios)), [], "notas y mensajes enviados");
+  const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
+  await cliente.connect();
+  try {
+    const tablas = (await cliente.query<{ table_name: string }>(`SELECT DISTINCT table_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'organizacion_id'`)).rows.map((r) => r.table_name);
+    assert.ok(tablas.includes("clase_muestra") && tablas.includes("aviso_maestro") && tablas.includes("conversacion_instructor"));
+    let filas = 0;
+    for (const tabla of tablas) {
+      const r = await cliente.query<{ j: string }>(`SELECT row_to_json(t)::text AS j FROM "${tabla}" t WHERE organizacion_id = $1`, [e.org.organizacionId]);
+      for (const fila of r.rows) {
+        filas++;
+        assert.deepEqual(fugas(fila.j), [], `tabla ${tabla}`);
+      }
+    }
+    assert.ok(filas > 30, `se revisaron ${filas} filas`);
+  } finally {
+    await cliente.end();
+  }
 });

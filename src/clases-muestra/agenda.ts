@@ -17,6 +17,7 @@ import { leerConfiguracion } from "../configuracion/index.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
 import { crearAvisoMaestro } from "./avisos.ts";
+import { darPorRecuperadoAlProspecto } from "./asistencia.ts";
 import { cancelarRecordatoriosDeClase, programarRecordatoriosDeClase } from "./recordatorios.ts";
 import { problemaDeFecha, sesionesAgendables, type HorarioDeGrupo, type ProblemaDeFecha } from "./sesiones.ts";
 
@@ -211,6 +212,7 @@ export async function agendarClaseMuestra(tx: Consultas, c: ContextoDeAgenda, en
   await moverLeadAEtapa(tx, prospecto.lead_id, "muestra_agendada", { motivo: "clase_muestra_agendada" });
   await crearAvisoMaestro(tx, { claseId: clase.id, tipo: "agendada", ahora: c.ahora }); // D2: al instructor del grupo
   await programarRecordatoriosDeClase(tx, clase.id, c.ahora); // D3: 24 h y 2 h antes, al lead
+  await darPorRecuperadoAlProspecto(tx, prospecto.id, c.ahora); // D4: si antes no llegó, ya volvió a agendar: la recuperación sobra
   return { ok: true, clase };
 }
 

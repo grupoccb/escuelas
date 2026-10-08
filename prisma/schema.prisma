@@ -116,6 +116,8 @@ model configuracion_organizacion {
   clase_muestra_anticipacion_min Int                       @default(120)
   /// Hasta cuántos días hacia adelante se puede agendar una clase muestra (D1).
   clase_muestra_horizonte_dias   Int                       @default(60)
+  /// Cuántas horas después de marcar asistió / no asistió se puede corregir el error (D4).
+  clase_muestra_correccion_horas Int                       @default(48)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -689,6 +691,9 @@ enum evento_disparador {
   lead_sin_respuesta
   /// Antes de una clase muestra agendada (D3). `offset_minutos` es NEGATIVO (-1440 = 24 h antes). La entidad es la `clase_muestra`.
   clase_muestra_proxima
+  /// Cuando se marca que el lead NO llegó a su clase muestra (D4): la recuperación (ofrecerle reagendar). `offset_minutos` es POSITIVO
+  /// (minutos después de marcarlo); el primer intento sale en `offset_minutos`, los siguientes cada `espaciado_minutos`, hasta `max_intentos`.
+  clase_muestra_no_asistio
 }
 
 /// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás
@@ -711,6 +716,8 @@ model automatizacion {
   hora_fin_min      Int               @default(1200)
   /// 0 = domingo.
   dias_permitidos   Int[]             @default([1, 2, 3, 4, 5, 6])
+  /// Minutos entre un intento y el siguiente cuando `max_intentos` es mayor que 1 (D4). Nulo = el mismo `offset_minutos`.
+  espaciado_minutos Int?
   activo            Boolean           @default(true)
   creado_en         DateTime          @default(now()) @db.Timestamptz(6)
   actualizado_en    DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
@@ -792,6 +799,8 @@ enum tipo_tarea_asesor {
   lista_espera_lugar_liberado
   /// El aviso de una clase muestra al maestro no salió por WhatsApp (sin teléfono, sin plantilla apta, fallo del envío) (D2). El maestro lo ve igual en la aplicación.
   aviso_maestro_no_enviado
+  /// Llamar a la familia que no llegó a su clase muestra para ofrecerle reagendar (D4). Una pendiente por clase.
+  llamar_no_asistio
 }
 
 enum estado_tarea_asesor {
@@ -1254,6 +1263,7 @@ model usuario {
   aplicaciones_autorizadas promocion_aplicacion[] @relation("aplicacion_autorizada_por")
   cotizaciones             cotizacion[]           @relation("cotizacion_creada_por")
   clases_muestra_agendadas clase_muestra[]        @relation("clase_agendada_por")
+  clases_muestra_marcadas  clase_muestra[]        @relation("clase_asistencia_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1628,6 +1638,9 @@ model clase_muestra {
   notas                   String?
   /// Cuándo salió el último recordatorio de esta clase al lead (D3).
   ultimo_recordatorio_en  DateTime?             @db.Timestamptz(6)
+  /// Cuándo y quién marcó asistió / no asistió (D4); se actualiza si se corrige.
+  asistencia_marcada_en   DateTime?             @db.Timestamptz(6)
+  asistencia_marcada_por_usuario_id String?     @db.Uuid
   creado_en               DateTime              @default(now()) @db.Timestamptz(6)
   actualizado_en          DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en            DateTime?             @db.Timestamptz(6)
@@ -1637,6 +1650,7 @@ model clase_muestra {
   prospecto        prospecto       @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupo            grupo           @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   agendada_por_usr usuario?        @relation("clase_agendada_por", fields: [agendada_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  asistencia_por   usuario?        @relation("clase_asistencia_por", fields: [asistencia_marcada_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   conversacion     conversacion?   @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   reprogramada_de  clase_muestra?  @relation("clase_reprogramada", fields: [reprogramada_de_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   reprogramaciones clase_muestra[] @relation("clase_reprogramada")

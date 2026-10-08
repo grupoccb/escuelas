@@ -9,7 +9,11 @@
 
 -- ── D1: el papel de cada etapa del embudo para el sistema ───────────────────────────────────────────────
 -- El código NUNCA busca una etapa por su nombre: busca por `tipo_sistema`. Las etapas de la demo (demo.sql) se marcan por id.
-UPDATE etapa_pipeline SET tipo_sistema = 'nuevo'             WHERE id = '00000000-0000-4000-8000-000000000601' AND tipo_sistema IS NULL;
+-- «Nuevo»: en una base creada antes de demo.sql la primera etapa la crea la migración de Fase 1 con otro id (y demo.sql no inserta la 601 por chocar
+-- con ella), así que se marca por su lugar (la primera abierta de la organización) y no por su id.
+UPDATE etapa_pipeline SET tipo_sistema = 'nuevo'
+WHERE organizacion_id = '00000000-0000-4000-8000-000000000001' AND orden = 1 AND NOT es_ganado AND NOT es_perdido AND eliminado_en IS NULL AND tipo_sistema IS NULL
+  AND NOT EXISTS (SELECT 1 FROM etapa_pipeline x WHERE x.organizacion_id = '00000000-0000-4000-8000-000000000001' AND x.tipo_sistema = 'nuevo' AND x.eliminado_en IS NULL);
 UPDATE etapa_pipeline SET tipo_sistema = 'contactado'        WHERE id = '00000000-0000-4000-8000-000000000602' AND tipo_sistema IS NULL;
 UPDATE etapa_pipeline SET tipo_sistema = 'muestra_agendada'  WHERE id = '00000000-0000-4000-8000-000000000603' AND tipo_sistema IS NULL;
 UPDATE etapa_pipeline SET tipo_sistema = 'muestra_asistida'  WHERE id = '00000000-0000-4000-8000-000000000604' AND tipo_sistema IS NULL;
@@ -62,4 +66,21 @@ INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_i
    'clase_muestra_proxima', -1440, '00000000-0000-4000-8000-000000000705', 1, ARRAY[0,1,2,3,4,5,6]),
   ('00000000-0000-4000-8000-000000000803', '00000000-0000-4000-8000-000000000001', 'Recordatorio de clase muestra: 2 h antes', NULL, NULL,
    'clase_muestra_proxima', -120, '00000000-0000-4000-8000-000000000705', 1, ARRAY[0,1,2,3,4,5,6])
+ON CONFLICT DO NOTHING;
+
+-- ── D4: recuperación de quien no llegó a su clase muestra [SUPUESTO] ─────────────────────────────────────
+-- Evento `clase_muestra_no_asistio`: nace al MARCAR que no asistió. `offset_minutos` es positivo (120 = 2 h después de marcarlo) y los intentos
+-- siguientes salen cada `espaciado_minutos` (2 días), hasta `max_intentos` (2). Dentro del horario de envío de la sucursal, también el domingo.
+-- Respeta baja, frecuencia y atención humana (MessagingProvider); si la familia contesta, la conversación llega a un asesor, que reagenda.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000706', '00000000-0000-4000-8000-000000000001', 'recuperacion_no_asistio',
+   'HX00000000000000000000000000000006', NULL, 'utility', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"}]',
+   'Hola, vimos que {{1}} no pudo asistir a su clase muestra de {{2}} del {{3}}. ¿Te gustaría reagendarla? Responde a este mensaje y te ayudamos.',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_id, evento_disparador, offset_minutos, espaciado_minutos, plantilla_id, max_intentos, dias_permitidos) VALUES
+  ('00000000-0000-4000-8000-000000000804', '00000000-0000-4000-8000-000000000001', 'Recuperación de quien no llegó a la clase muestra', NULL, NULL,
+   'clase_muestra_no_asistio', 120, 2880, '00000000-0000-4000-8000-000000000706', 2, ARRAY[0,1,2,3,4,5,6])
 ON CONFLICT DO NOTHING;

@@ -16,6 +16,7 @@ export const PERMISOS_ACORDADOS = {
   "lista_espera:escribir": ["administrador", "asesor"],
   "clases_muestra:leer": ["administrador", "asesor", "maestro"],
   "clases_muestra:escribir": ["administrador", "asesor"],
+  "clases_muestra:asistencia": ["administrador", "asesor", "maestro"],
   "avisos_maestro:leer": ["administrador", "maestro"],
   "avisos_maestro:escribir": ["administrador", "maestro"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],

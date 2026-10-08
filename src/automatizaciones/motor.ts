@@ -267,8 +267,10 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     });
   };
 
-  // D3: el recordatorio solo vale mientras la clase siga agendada y no haya empezado.
-  if (clase) {
+  // D3 y D4: lo que mandan estas automatizaciones solo vale mientras la clase siga como estaba cuando se programó.
+  const evento = e.automatizacion.evento_disparador;
+  if (clase && evento === "clase_muestra_proxima") {
+    // Recordatorio: la clase sigue agendada y no ha empezado.
     if (clase.estatus !== "agendada") return omitir("clase_no_vigente");
     if (clase.fecha_hora.getTime() <= ahora.getTime()) {
       await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "descartado", motivo_omision: "evento_pasado" } });
@@ -276,6 +278,22 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
       log.info("automatizacion_descartada", { ejecucionId: e.id, motivo: "evento_pasado" });
       return;
     }
+  } else if (clase && evento === "clase_muestra_no_asistio") {
+    // Recuperación: la clase sigue marcada «no asistió» (si se corrigió, no tiene sentido), la familia no volvió a agendar y, del segundo
+    // intento en adelante, el anterior salió y el contacto no ha contestado desde entonces.
+    if (clase.estatus !== "no_asistio") return omitir("clase_no_vigente");
+    if ((await db.clase_muestra.count({ where: { prospecto_id: clase.prospecto_id, estatus: "agendada" } })) > 0) return omitir("ya_reagendo");
+    if (e.ocurrencia > 1) {
+      const previa = await db.automatizacion_ejecucion.findFirst({
+        where: { automatizacion_id: e.automatizacion_id, entidad_tipo: "clase_muestra", entidad_id: clase.id, ocurrencia: e.ocurrencia - 1 },
+        select: { estatus: true, mensaje: { select: { enviado_en: true } } },
+      });
+      if (!previa || previa.estatus !== "enviado") return omitir("intento_anterior_no_salio");
+      const salio = previa.mensaje?.enviado_en ?? null;
+      if (salio && conv.ultimo_mensaje_entrante_en && conv.ultimo_mensaje_entrante_en.getTime() > salio.getTime()) return omitir("contacto_respondio");
+    }
+  } else if (clase) {
+    return omitir("evento_no_soportado");
   }
 
   const plantilla = e.automatizacion.plantilla;
@@ -292,8 +310,13 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const zona = await zonaHorariaDeContacto(db, conv.lead.sucursal_interes_id, conv.bandeja_chatwoot.canal_whatsapp.sucursal_id, conv.lead.vertical_interes_id);
   // Lo programado fuera de rango se recorre; si con eso llegaría después del evento, se descarta.
   const reprogramarODescartar = async (ventana?: VentanaHoraria): Promise<void> => {
-    // Una clase es el evento: llegar a su hora o después ya no sirve (límite exclusivo); el reenganche no tiene evento.
-    const siguiente = zona ? (clase ? recorrerODescartar(ahora, zona, clase.fecha_hora, ventana, true) : recorrerODescartar(ahora, zona, deps.limiteDe?.(e) ?? null, ventana)) : null;
+    // Un recordatorio tiene la clase como evento: llegar a su hora o después ya no sirve (límite exclusivo). La recuperación de quien no llegó y
+    // el reenganche no tienen un evento al cual llegar tarde.
+    const siguiente = zona
+      ? clase && evento === "clase_muestra_proxima"
+        ? recorrerODescartar(ahora, zona, clase.fecha_hora, ventana, true)
+        : recorrerODescartar(ahora, zona, clase ? null : (deps.limiteDe?.(e) ?? null), ventana)
+      : null;
     if (siguiente) {
       await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { programado_para: siguiente, ejecutado_en: null } });
       resumen.reprogramadas++;
@@ -326,7 +349,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
 
   if (r?.resultado === "enviado") {
     await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "enviado", mensaje_id: mensajeId ?? null } });
-    if (clase) await db.clase_muestra.updateMany({ where: { id: clase.id }, data: { ultimo_recordatorio_en: ahora } });
+    if (clase && evento === "clase_muestra_proxima") await db.clase_muestra.updateMany({ where: { id: clase.id }, data: { ultimo_recordatorio_en: ahora } });
     resumen.enviadas++;
     return;
   }
@@ -484,6 +507,7 @@ async function resolverVariables(
 const SELECCION_CLASE = {
   id: true,
   lead_id: true,
+  prospecto_id: true,
   estatus: true,
   fecha_hora: true,
   prospecto: { select: { nombre: true } },
