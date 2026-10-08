@@ -20,6 +20,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import type { MessagingProvider } from "../mensajeria/index.ts";
+import { PASOS_A_MEDIAS } from "./maquina.ts";
 import { resumenParaAsesor } from "./resumen.ts";
 
 /**
@@ -103,7 +104,7 @@ async function barrerOrganizacion(
       estado: "bot",
       pasar_a_asesor_pendiente: false,
       visible_a_asesores_en: null,
-      paso_captacion: { in: ["nombre", "edad", "sucursal"] }, // la captura va a medias
+      paso_captacion: { in: [...PASOS_A_MEDIAS] }, // la captura va a medias
       ultimo_mensaje_entrante_en: { lt: corte },
       lead: { eliminado_en: null },
     },

@@ -104,24 +104,28 @@ model configuracion_organizacion {
 }
 
 model vertical {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizacion_id     String    @db.Uuid
-  nombre              String
-  slug                String
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String    @db.Uuid
+  nombre                    String
+  slug                      String
   /// Cómo se llama el avance del alumno en esta vertical (los textos viven aquí, no en código: invariante 2).
   /// Nulo si la vertical no usa progresión.
-  etiqueta_progresion String?
+  etiqueta_progresion       String?
   /// Cómo se llama el evento de la vertical.
-  etiqueta_evento     String?
+  etiqueta_evento           String?
   /// ¿Esta vertical lleva progresión (niveles, grados)? La usa G3.
-  usa_progresion      Boolean   @default(false)
+  usa_progresion            Boolean   @default(false)
   /// Color de marca `#RRGGBB` para la interfaz y la landing; nulo = el de la organización.
-  color_marca         String?
-  logo_url            String?
-  activo              Boolean   @default(true)
-  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
-  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  eliminado_en        DateTime? @db.Timestamptz(6)
+  color_marca               String?
+  logo_url                  String?
+  /// ¿El bot de WhatsApp cotiza en esta vertical? Encendido: después de las tres preguntas usa el catálogo (programa,
+  /// otra sucursal, horarios, precio y promoción, lista de espera) en vez de pasar directo al asesor. Apagado
+  /// (por omisión): la captura de tres preguntas y el pase al asesor no cambian (decisión 15 del plan).
+  cotizador_whatsapp_activo Boolean   @default(false)
+  activo                    Boolean   @default(true)
+  creado_en                 DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime? @db.Timestamptz(6)
 
   organizacion        organizacion         @relation(fields: [organizacion_id], references: [id])
   sucursal_verticales sucursal_vertical[]
@@ -344,21 +348,25 @@ enum origen_prospecto {
 
 /// Cada niño o alumno potencial de un lead. El bot captura uno; el asesor agrega los demás.
 model prospecto {
-  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizacion_id     String           @db.Uuid
-  lead_id             String           @db.Uuid
-  vertical_interes_id String           @db.Uuid
-  nombre              String?
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id      String           @db.Uuid
+  lead_id              String           @db.Uuid
+  vertical_interes_id  String           @db.Uuid
+  nombre               String?
   /// Lo que dice el adulto ("como 6"). La fecha de nacimiento se captura en la inscripción.
-  edad_declarada      Int?
-  origen              origen_prospecto @default(bot)
-  creado_en           DateTime         @default(now()) @db.Timestamptz(6)
-  actualizado_en      DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
-  eliminado_en        DateTime?        @db.Timestamptz(6)
+  edad_declarada       Int?
+  /// El programa que le corresponde o que eligió en el bot cuando hay varios para su edad (C6). Es una sugerencia,
+  /// no una inscripción.
+  programa_sugerido_id String?          @db.Uuid
+  origen               origen_prospecto @default(bot)
+  creado_en            DateTime         @default(now()) @db.Timestamptz(6)
+  actualizado_en       DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en         DateTime?        @db.Timestamptz(6)
 
-  organizacion     organizacion @relation(fields: [organizacion_id], references: [id])
-  lead             lead         @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  vertical_interes vertical     @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  organizacion      organizacion @relation(fields: [organizacion_id], references: [id])
+  lead              lead         @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  vertical_interes  vertical     @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  programa_sugerido programa?    @relation(fields: [programa_sugerido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -410,6 +418,8 @@ enum paso_captacion {
   nombre
   edad
   sucursal
+  /// C6: hay varios programas para su edad y el contacto elige cuál.
+  programa
   completo
 }
 
@@ -862,12 +872,13 @@ model programa {
   actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en        DateTime? @db.Timestamptz(6)
 
-  organizacion organizacion         @relation(fields: [organizacion_id], references: [id])
-  vertical     vertical             @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  sucursal     sucursal             @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  grupos       grupo[]
-  precios      precio[]
-  promociones  promocion_programa[]
+  organizacion         organizacion         @relation(fields: [organizacion_id], references: [id])
+  vertical             vertical             @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal             sucursal             @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupos               grupo[]
+  precios              precio[]
+  promociones          promocion_programa[]
+  prospectos_sugeridos prospecto[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])

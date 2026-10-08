@@ -18,6 +18,7 @@
 //    ya tiene id del proveedor, queda enviada; si seguía pendiente, se cancela y la ejecución
 //    falla; si estaba en `enviando` sin id (envío incierto), falla y se avisa al asesor.
 
+import { PASOS_A_MEDIAS } from "../captacion/maquina.ts";
 import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
@@ -121,7 +122,7 @@ async function programarUna(db: BaseDatos, a: AutomatizacionParaProgramar, ahora
     where: {
       estado: "bot",
       pasar_a_asesor_pendiente: false,
-      paso_captacion: { in: ["nombre", "edad", "sucursal"] },
+      paso_captacion: { in: [...PASOS_A_MEDIAS] },
       ultimo_mensaje_entrante_en: { lte: corte },
       lead: {
         eliminado_en: null, // un lead borrado no recibe nada (F1-05)

@@ -5,6 +5,9 @@
 // versión. Si dos mensajes de la misma conversación llegan juntos, uno gana y el otro se
 // repite con el estado nuevo.
 
+import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
+import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
 import type { ValorJson } from "../datos/tipos.ts";
@@ -46,6 +49,8 @@ export interface DepsCaptacion {
   mensajeria: MessagingProvider;
   /** De dónde sale la atribución a un anuncio. Por defecto, ninguna. */
   atribucion?: FuenteAtribucion;
+  /** Lugares ocupados por grupo (cotizador del bot). Por omisión ninguno: no hay inscripciones aún (F4 inyecta la real). */
+  fuenteOcupacion?: FuenteOcupacion;
   reloj?: () => Date;
 }
 
@@ -74,7 +79,7 @@ export async function procesarEntrante(
   let r: { resultado: ResultadoEntrante; conversacionId: string } | undefined;
   for (let intento = 1; !r; intento++) {
     try {
-      r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion));
+      r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion, deps.fuenteOcupacion ?? new SinInscripciones()));
     } catch (e) {
       const repetible = e instanceof ConflictoVersion || esViolacionUnica(e);
       if (!repetible || intento >= MAX_REINTENTOS) throw e;
@@ -95,6 +100,7 @@ async function registrarYAvanzar(
   evento: EventoEntrante,
   recibidoEn: Date,
   atribucion: Atribucion | null,
+  fuente: FuenteOcupacion,
 ): Promise<{ resultado: ResultadoEntrante; conversacionId: string }> {
   const previo = await tx.mensaje.findFirst({
     where: { proveedor: evento.llave.proveedor, id_externo: evento.llave.id },
@@ -157,7 +163,7 @@ async function registrarYAvanzar(
     return { resultado: "asesor_tomo_conversacion", conversacionId: conv.id };
   }
 
-  const ctx = await contextoCaptacion(tx, bandeja.vertical_id);
+  const ctx = await contextoCaptacion(tx, bandeja.vertical_id, { paso: conv.paso_captacion, sucursalDelLead: conv.lead.sucursal_interes_id, fuente, ahora: recibidoEn });
   const prospecto = await tx.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } });
   const estado: EstadoCaptacion = {
     paso: conv.paso_captacion,
@@ -165,6 +171,7 @@ async function registrarYAvanzar(
     nombre: prospecto?.nombre ?? null,
     edad: prospecto?.edad_declarada ?? null,
     sucursalId: conv.lead.sucursal_interes_id,
+    ...(ctx.cotizador ? { programaId: prospecto?.programa_sugerido_id ?? null } : {}),
   };
   const r = avanzar(estado, evento.contenido, ctx);
 
@@ -180,7 +187,12 @@ async function registrarYAvanzar(
   });
   // El bot captura un solo prospecto por lead (índice único parcial); los demás los agrega el asesor.
   if (r.estado.nombre !== null || r.estado.edad !== null) {
-    const datos = { nombre: r.estado.nombre, edad_declarada: r.estado.edad };
+    const datos = {
+      nombre: r.estado.nombre,
+      edad_declarada: r.estado.edad,
+      // El programa que el cotizador anotó o que el contacto eligió (C6). Sin cotizador no se toca.
+      ...(r.estado.programaId !== undefined ? { programa_sugerido_id: r.estado.programaId } : {}),
+    };
     if (prospecto) await tx.prospecto.update({ where: { id: prospecto.id }, data: datos });
     else {
       await tx.prospecto.create({
@@ -354,14 +366,27 @@ async function obtenerConversacion(
   });
 }
 
-async function contextoCaptacion(tx: Consultas, verticalId: string): Promise<ContextoCaptacion> {
-  const vertical = await tx.vertical.findUniqueOrThrow({ where: { id: verticalId }, select: { nombre: true } });
+/** Pasos en los que el bot consulta el catálogo: solo ahí se carga (cuesta unas cuantas consultas). */
+const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa"];
+
+async function contextoCaptacion(
+  tx: Consultas,
+  verticalId: string,
+  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date },
+): Promise<ContextoCaptacion> {
+  const vertical = await tx.vertical.findUniqueOrThrow({ where: { id: verticalId }, select: { nombre: true, cotizador_whatsapp_activo: true } });
   const filas = await tx.sucursal_vertical.findMany({
     where: { vertical_id: verticalId, activo: true, sucursal: { activo: true, eliminado_en: null } },
-    select: { sucursal: { select: { id: true, nombre: true } } },
+    select: { sucursal: { select: { id: true, nombre: true, direccion: true, zona_horaria: true } } },
   });
-  const sucursales: OpcionSucursal[] = filas
-    .map((f) => f.sucursal)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es-MX"));
-  return { nombreVertical: vertical.nombre, sucursales };
+  const ordenadas = filas.map((f) => f.sucursal).sort((a, b) => a.nombre.localeCompare(b.nombre, "es-MX"));
+  const sucursales: OpcionSucursal[] = ordenadas.map((s) => ({ id: s.id, nombre: s.nombre, direccion: s.direccion }));
+  if (!vertical.cotizador_whatsapp_activo || !PASOS_CON_CATALOGO.includes(o.paso)) return { nombreVertical: vertical.nombre, sucursales };
+
+  // La fecha de la consulta (precio y promociones vigentes hoy) es la local de la sucursal del contacto; si aún no
+  // eligió, la de la primera que ofrece la vertical.
+  const zona = (ordenadas.find((s) => s.id === o.sucursalDelLead) ?? ordenadas[0])?.zona_horaria;
+  if (!zona) return { nombreVertical: vertical.nombre, sucursales };
+  const catalogo = await cargarCatalogoCotizable(tx, { verticalId, fecha: fechaLocal(o.ahora, zona), fuente: o.fuente });
+  return { nombreVertical: vertical.nombre, sucursales, cotizador: { verticalId, catalogo } };
 }

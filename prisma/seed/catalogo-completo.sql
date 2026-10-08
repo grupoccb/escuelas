@@ -36,6 +36,13 @@ WHERE id = '00000000-0000-4000-8000-000000000102' AND etiqueta_progresion IS NUL
 UPDATE vertical SET etiqueta_progresion = 'Nivel',    etiqueta_evento = 'Showcase', usa_progresion = false, color_marca = '#E67E22'
 WHERE id = '00000000-0000-4000-8000-000000000103' AND etiqueta_progresion IS NULL AND etiqueta_evento IS NULL AND color_marca IS NULL;
 
+-- Cotizador de WhatsApp (decisión 15 del plan): encendido en las tres verticales de la demo. Solo mientras nadie haya
+-- editado la vertical (`actualizado_en = creado_en`: Prisma lo mueve en cada edición), para no pisar una decisión del
+-- administrador al volver a correr el seed. Es un interruptor por vertical: apagarlo deja la captura de tres preguntas.
+UPDATE vertical SET cotizador_whatsapp_activo = true
+WHERE id IN ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000103')
+  AND NOT cotizador_whatsapp_activo AND actualizado_en = creado_en;
+
 -- Las dos sucursales imparten las tres verticales (6 filas en total, como el insumo).
 INSERT INTO sucursal_vertical (id, organizacion_id, sucursal_id, vertical_id, activo) VALUES
   ('00000000-0000-4000-8000-000000000303', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000102', true),

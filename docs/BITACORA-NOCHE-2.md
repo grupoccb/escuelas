@@ -26,7 +26,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C3 | HECHO | d6c38f4 | Promociones: tablas del modelo, resolutor puro (prioridad, acumulación, cupo, montos exactos), consumo de cupo atómico y API CRUD |
 | C4 | HECHO | c4bdc80 | Catálogo completo de las tres verticales del insumo (14 programas, 18 grupos, 31 horarios) con salones, instructores, precios y promociones de ejemplo; las tres verificaciones como tests |
 | C5 | HECHO | ver sección | Cotizador determinista: `src/cotizador/` (puro + capa de consulta), `programa.fecha_corte_edad`, `edadCumplida`, horarios en español, `GET /api/cotizador` |
-| C6 | PENDIENTE | | Varios programas para una edad |
+| C6 | HECHO | ver sección | Varios programas para una edad: el bot (máquina pura) pregunta cuál, lo guarda en `prospecto.programa_sugerido_id`; `vertical.cotizador_whatsapp_activo` |
 | C7 | PENDIENTE | | Otra sucursal |
 | C8 | PENDIENTE | | Cotización guardada y cotizador por WhatsApp |
 | C9 | PENDIENTE | | Lista de espera |
@@ -845,3 +845,29 @@ Mutaciones atrapadas: `>=`→`>` y `<=`→`<` en el rango de edad, ignorar el co
 **Para Eduardo**
 - **No se puso `fecha_corte_edad` en ningún programa del seed:** no hay una fecha de inicio de ciclo que la escuela haya dado. Se captura por programa cuando exista J7 (o por SQL). El cotizador y los tests ya la respetan.
 - El bot captura solo la **edad declarada** (el contacto dice «8»), no la fecha de nacimiento: para un programa con corte, la edad declarada se usa tal cual. Si la escuela quiere que la edad se mida al corte desde WhatsApp, hay que pedir la fecha de nacimiento (decisión de producto; no se cambió el flujo de tres preguntas).
+
+## C6. Varios programas para una edad (decisión 9)
+
+**Qué se hizo**
+- **La máquina de estados consulta el catálogo con el cotizador puro** (`src/captacion/maquina.ts`; sigue sin leer base ni red). El contexto trae `cotizador?: { verticalId, catalogo }` (el catálogo cotizable ya cargado); si no viene, la captura es la de siempre. Con el cotizador encendido, al conocer edad y sucursal: **un** programa para la edad → lo anota y cierra mencionándolo (`textos.cierreConPrograma`); **varios** (programas marcados `permite_traslape`) → paso nuevo `programa` con la lista numerada («1. Nombre — descripción pública»), se elige por número o por nombre; respuesta inválida → reintento y a la **tercera** pasa al asesor (`sin_entender`), como los demás pasos. Los nombres y descripciones salen de las tablas.
+- **Efectos declarativos:** la máquina no escribe; devuelve `efectos` (`{tipo: "programa_sugerido", programaId}`) y `procesarEntrante` los aplica en su transacción (`prospecto.programa_sugerido_id`). Los bloques siguientes agregan más efectos al mismo mecanismo.
+- **Migración `20261012010000_programa_sugerido_y_cotizador_vertical`:** valor `programa` en el enum `paso_captacion` (los datos existentes no cambian: solo se agrega un valor), `prospecto.programa_sugerido_id` (**FK compuesta** a `programa`, Restrict) y **`vertical.cotizador_whatsapp_activo`** (falso por defecto). La columna de la decisión 15 se adelantó de C8 a este bloque porque C6, C7 y C8 solo corren con el cotizador encendido.
+- **Interruptor por vertical:** `cotizador_whatsapp_activo`. **Apagado, la captura NO cambia** (tres preguntas, cierre y pase; los tests existentes de la máquina y del loop pasan sin tocarse). El seed `catalogo-completo.sql` lo enciende en las tres verticales de la demo, solo mientras nadie haya editado la vertical (`actualizado_en = creado_en`).
+- La nota al asesor agrega «• Programa: …» solo si el cotizador anotó uno. `PASOS_A_MEDIAS` (en `maquina.ts`) es la lista única de pasos «a medias»: la usan el aviso de 30 min (`espera.ts`) y el reenganche (`motor.ts`); un paso nuevo que espera respuesta se agrega ahí.
+- Ayudante de pruebas nuevo `src/testutil/bot.ts` (`escenarioBot`): organización con catálogo, transporte falso y contactos que escriben.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 359 · pass 359 · fail 0
+$ npm run test:int    → exit 0 · tests 414 · pass 414 · fail 0
+```
+Tests nuevos: `maquina-cotizador.test.ts` (9: un programa, varios con la lista exacta, sin descripción, elegir por número/nombre, reintentos y tercer fallo, una sola sucursal, programas de otra sucursal, sin cotizador = captura de siempre con el estado final idéntico al de antes, la nota), `cotizador-bot.itest.ts` (6: elección y `programa_sugerido_id`, único programa, tres fallos con nota de datos parciales, cotizador apagado, aviso de 30 min en el paso `programa`, FK compuesta contra otra organización) y dos en `catalogo-completo.itest.ts` (las tres verticales de la demo con el cotizador encendido y el seed no pisa una decisión del administrador; el cotizador sobre el catálogo completo: 6 combinaciones × 99 edades, solo hay varios programas si todos son alternativas, y la edad de las alternativas da exactamente 2).
+
+**Decisiones que tomé**
+- *`programaId` y `efectos` opcionales en el estado y en el resultado de la máquina:* así el estado final de la captura sin cotizador es idéntico (los `deepEqual` existentes siguen valiendo sin cambiar una coma). Alternativa descartada: campos siempre presentes (habría obligado a editar los tests de la máquina).
+- *Con un solo programa no se pregunta:* se anota y se menciona en el cierre; así la nota ya trae el programa. Con **cero** programas la captura cierra como siempre (C7 decide qué hacer).
+- *El catálogo se carga solo en los pasos que lo usan* (`edad`, `sucursal`, `programa`; luego los de C7–C9): el resto de los mensajes no paga las consultas.
+- *La lista de programas no se guarda:* se recalcula del catálogo en cada respuesta (determinista, ordenada por nombre). Si el administrador edita el catálogo entre la pregunta y la respuesta, el número podría apuntar a otro programa; es una ventana de minutos y rara. (La lista de horarios de C8 sí se guarda, porque ahí hay lugares que cambian.)
+
+**Para Eduardo**
+- Con el cotizador encendido, **un contacto cuya edad cae en un programa recibe un cierre distinto** («… para <programa> en la sucursal …»). Es el comportamiento pedido; apagar el interruptor de la vertical lo deja como antes.

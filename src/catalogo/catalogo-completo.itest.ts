@@ -11,6 +11,8 @@ import pg from "pg";
 import { conAlcance } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { promocionesAplicables } from "../promociones/cargar.ts";
+import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
+import { cotizar } from "../cotizador/cotizar.ts";
 import { precioVigente } from "./precios.ts";
 import { alternativasPorEdad, cargarCatalogo, choquesDeInstructor, choquesDeSalon, resumenDeCapacidad, traslapesDeEdad } from "./verificacion.ts";
 
@@ -195,4 +197,50 @@ test("catálogo vacío de la prueba de fuego: demo.sql solo da 1 vertical y la s
   } finally {
     await cliente.end();
   }
+});
+
+test("C6/C8: las tres verticales de la demo traen el cotizador de WhatsApp encendido (decisión 15) y el seed no pisa una decisión posterior", async () => {
+  assert.equal(await db().vertical.count({ where: { cotizador_whatsapp_activo: true } }), 3);
+  // El administrador apaga una (Prisma mueve `actualizado_en`): volver a correr el seed no la enciende.
+  const una = await db().vertical.findFirstOrThrow({ orderBy: { id: "asc" } });
+  await db().vertical.update({ where: { id: una.id }, data: { cotizador_whatsapp_activo: false } });
+  const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
+  await cliente.connect();
+  try {
+    await aplicar(cliente, "catalogo-completo");
+  } finally {
+    await cliente.end();
+  }
+  assert.equal((await db().vertical.findFirstOrThrow({ where: { id: una.id } })).cotizador_whatsapp_activo, false);
+  assert.equal(await db().vertical.count({ where: { cotizador_whatsapp_activo: true } }), 2);
+  await db().vertical.update({ where: { id: una.id }, data: { cotizador_whatsapp_activo: true } });
+});
+
+test("C5/C6: el cotizador sobre el catálogo completo: cada edad da programas de su rango y la edad de las alternativas da DOS programas con grupos, horarios y precio", async () => {
+  const hoy = "2026-10-08";
+  const cargar = (verticalId: string, sucursalId: string) => cargarCatalogoCotizable(db(), { verticalId, sucursalIds: [sucursalId], fecha: hoy });
+  let conPrograma = 0;
+  for (const v of await db().vertical.findMany({ select: { id: true } })) {
+    for (const s of await db().sucursal.findMany({ select: { id: true } })) {
+      const catalogo = await cargar(v.id, s.id);
+      for (let edad = 1; edad <= 99; edad++) {
+        const c = cotizar(catalogo, { verticalId: v.id, sucursalId: s.id, edadDeclarada: edad });
+        for (const p of c.programas) {
+          conPrograma++;
+          assert.ok(p.grupos.length > 0 && p.precio !== null, `${p.nombre}: grupos y precio`);
+          assert.ok(p.grupos.every((g) => g.horarioTexto.length > 0 && g.cupo.disponibles > 0));
+        }
+        // Más de un programa para la misma edad solo si TODOS están marcados como alternativas.
+        if (c.programas.length > 1) assert.ok(c.programas.every((p) => p.permiteTraslape), `edad ${edad}`);
+      }
+    }
+  }
+  assert.ok(conPrograma > 0);
+  const marcados = await db().programa.findMany({ where: { permite_traslape: true } });
+  assert.equal(marcados.length, 2);
+  const [a, b] = marcados as [(typeof marcados)[number], (typeof marcados)[number]];
+  assert.deepEqual([a.vertical_id, a.sucursal_id], [b.vertical_id, b.sucursal_id]);
+  const c = cotizar(await cargar(a.vertical_id, a.sucursal_id), { verticalId: a.vertical_id, sucursalId: a.sucursal_id, edadDeclarada: 20 });
+  assert.equal(c.programas.length, 2, "dos alternativas para esa edad");
+  assert.deepEqual(c.programas.map((p) => p.programaId).sort(), [a.id, b.id].sort());
 });

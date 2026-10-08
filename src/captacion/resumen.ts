@@ -10,6 +10,9 @@ export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: M
   const sucursal = lead.sucursal_interes_id
     ? await tx.sucursal.findFirst({ where: { id: lead.sucursal_interes_id }, select: { nombre: true } })
     : null;
+  const programa = prospecto?.programa_sugerido_id
+    ? await tx.programa.findFirst({ where: { id: prospecto.programa_sugerido_id }, select: { nombre: true } })
+    : null;
   const campana = lead.campana_id ? await tx.campana.findFirst({ where: { id: lead.campana_id }, select: { nombre: true } }) : null;
 
   const origen = lead.anuncio_id
@@ -20,6 +23,7 @@ export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: M
     nombre: prospecto?.nombre ?? null,
     edad: prospecto?.edad_declarada ?? null,
     sucursal: sucursal?.nombre ?? null,
+    ...(prospecto?.programa_sugerido_id ? { programa: programa?.nombre ?? null } : {}),
     telefono: lead.telefono,
     contacto: lead.nombre_contacto,
     origen,
