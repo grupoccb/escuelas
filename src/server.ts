@@ -1,4 +1,5 @@
 import { iniciarBarrido } from "./barrido.ts";
+import { crearCierre } from "./cierre.ts";
 import { correrCiclo } from "./ciclo.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { registrarTomaDeConversacion } from "./captacion/toma.ts";
@@ -39,27 +40,8 @@ const barrido = iniciarBarrido({
   },
 });
 
-// SIGTERM llega en cada despliegue. Cerrar a la mitad de un barrido dejaría reclamos huérfanos
-// (F1-01): primero se deja de programar barridos y se espera al que corre; la base se cierra al final.
-let cerrando = false;
-async function cerrar(signal: string): Promise<void> {
-  if (cerrando) return;
-  cerrando = true;
-  log.info("backend_cerrando", { signal });
-  const limite = setTimeout(() => process.exit(1), 30_000);
-  limite.unref();
-  try {
-    await barrido.detener();
-    // Las peticiones en curso (un webhook a medio procesar) terminan antes de cerrar la base.
-    await new Promise<void>((resolver) => {
-      server.close(() => resolver());
-      server.closeIdleConnections();
-    });
-    await prisma.$disconnect();
-  } finally {
-    process.exit(0);
-  }
-}
+// SIGTERM llega en cada despliegue: cierre ordenado (src/cierre.ts), con código de salida fiel.
+const cerrar = crearCierre({ barrido, server, prisma, salir: (codigo) => process.exit(codigo) });
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => void cerrar(signal));
 }

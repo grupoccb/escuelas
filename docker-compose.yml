@@ -64,6 +64,10 @@ services:
       PORT: "3000"
     ports:
       - "3000:3000"
+    # El cierre ordenado del backend (src/cierre.ts) espera hasta LIMITE_CIERRE_MS (30 s) a que termine
+    # el barrido en curso; compose manda SIGKILL a los 10 s por defecto. Este plazo tiene que ser mayor
+    # (un test lo comprueba).
+    stop_grace_period: 45s
     # Arranca cuando la demo quedó preparada: así `up --wait` falla si la preparación falla.
     depends_on:
       postgres:
