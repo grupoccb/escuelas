@@ -1,0 +1,446 @@
+// E1: la landing pública por vertical, de punta a punta por HTTP (la app real): el cuestionario, el lead + prospecto idempotentes, el aviso de
+// privacidad con evidencia, el consentimiento por formulario, la atribución, el enlace de WhatsApp con el código de rastreo, la protección
+// contra abuso (límite por IP, honeypot, tope de cuerpo, sin enumeración) y que todo lo que se refleja va escapado.
+
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import { randomBytes, randomInt } from "node:crypto";
+import { conAlcance } from "../datos/alcance.ts";
+import { limitesDesdeEntorno } from "./config-limites.ts";
+import { LimitadorDeTasa } from "./limite.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
+import { sembrarDocumentosLegales, sembrarOrganizacion, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { levantarApi, type ApiLevantada } from "../testutil/api.ts";
+import { Barrera, conGanchos } from "../testutil/carrera.ts";
+import { procesarEntrante } from "../captacion/entrante.ts";
+import { MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
+
+let prisma: PrismaPruebas;
+let api: ApiLevantada;
+
+before(() => {
+  prisma = crearPrismaDePruebas();
+  api = levantarApi(prisma);
+});
+after(async () => {
+  await api.cerrar();
+  await prisma.$disconnect();
+});
+
+let consecutivoDeNumero = 0;
+const numeroUnico = (): string => `5255${String(10_000_000 + randomInt(0, 80_000) * 100 + (consecutivoDeNumero++ % 100)).padStart(8, "0")}`;
+
+interface Mundo {
+  org: OrganizacionDePrueba;
+  slug: string;
+  /** El número del canal, en dígitos (como va en `wa.me`), único por corrida: la base no deja repetir un número entre canales. */
+  numero: string;
+  docs: DocumentosLegalesSembrados;
+  db: ReturnType<typeof conAlcance>;
+  ruta: string;
+}
+
+/** Una organización con su vertical de slug ÚNICO (el de `sembrarOrganizacion` se repite en todas), sus documentos legales y un número de WhatsApp. */
+async function mundo(o: { numero?: string | null; color?: string | null; logo?: string | null; sinDocumentos?: boolean } = {}): Promise<Mundo> {
+  const org = await sembrarOrganizacion(prisma, "Landing");
+  const slug = `v-${randomBytes(5).toString("hex")}`;
+  await prisma.vertical.update({ where: { id: org.verticalId }, data: { slug, nombre: "Vertical <Uno> & Cía", color_marca: o.color === undefined ? "#7a1fa2" : o.color, logo_url: o.logo === undefined ? null : o.logo } });
+  const docs = o.sinDocumentos ? ({ reglamento: "", usoImagen: "", avisoPrivacidad: "00000000-0000-4000-8000-0000000000aa" } satisfies DocumentosLegalesSembrados) : await sembrarDocumentosLegales(prisma, org);
+  const numero = numeroUnico();
+  await prisma.canal_whatsapp.update({ where: { id: org.canalId }, data: { numero_whatsapp: o.numero === undefined ? `whatsapp:+${numero}` : o.numero } });
+  return { org, slug, numero, docs, db: conAlcance(prisma, org.organizacionId), ruta: `/l/${slug}` };
+}
+
+/** Los campos de un envío válido; `cambio` los sobrescribe (undefined = no se manda). */
+function campos(m: Mundo, cambio: Record<string, string | undefined> = {}): URLSearchParams {
+  const base: Record<string, string | undefined> = {
+    nombre_alumno: "Mateo Soto",
+    edad: "8",
+    sucursal_id: m.org.sucursales[0]!.id,
+    telefono: "55 1234 5678",
+    nombre_contacto: "Rosa",
+    acepta_aviso: "on",
+    documento_id: m.docs.avisoPrivacidad,
+    version: "1",
+    ...cambio,
+  };
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(base)) if (v !== undefined) p.set(k, v);
+  return p;
+}
+
+const enviar = (base: string, ruta: string, cuerpo: URLSearchParams | string, cabeceras: Record<string, string> = {}) =>
+  fetch(`${base}${ruta}`, { method: "POST", redirect: "manual", headers: { "content-type": "application/x-www-form-urlencoded", "user-agent": "Prueba/1.0", ...cabeceras }, body: cuerpo.toString() });
+
+test("E1 GET: el cuestionario sale de las tablas (nombre, color, sucursales, aviso de privacidad), accesible y con CSP", async () => {
+  const m = await mundo({ logo: "https://cdn.ejemplo.test/logo.png" });
+  const r = await fetch(`${api.base}${m.ruta}?utm_source=anuncio`);
+  const html = await r.text();
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get("content-type") ?? "", /^text\/html; charset=utf-8/);
+  assert.equal(r.headers.get("cache-control"), "no-store");
+  assert.equal(r.headers.get("x-frame-options"), "DENY");
+  assert.match(html, /<html lang="es">/);
+  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
+  // Los datos de las tablas, escapados (el nombre de la vertical trae < > &).
+  assert.match(html, /<h1>Vertical &lt;Uno&gt; &amp; Cía<\/h1>/);
+  assert.ok(!html.includes("<Uno>"), "nada sin escapar");
+  assert.match(html, /--marca: #7a1fa2;/);
+  assert.match(html, /--sobre-marca: #ffffff;/);
+  assert.match(html, /<img src="https:\/\/cdn\.ejemplo\.test\/logo\.png" alt="">/);
+  for (const s of m.org.sucursales) assert.match(html, new RegExp(`<option value="${s.id}">${s.nombre}</option>`));
+  assert.match(html, /<summary>Documento de prueba aviso_privacidad<\/summary>/);
+  assert.match(html, /Texto de prueba de aviso_privacidad, versión 1\./);
+  assert.match(html, new RegExp(`name="documento_id" value="${m.docs.avisoPrivacidad}"`));
+  assert.match(html, /name="version" value="1"/);
+  assert.match(html, /<input type="hidden" name="utm_source" value="anuncio">/);
+  // Accesibilidad: cada control con su etiqueta.
+  for (const id of ["nombre_alumno", "edad", "sucursal_id", "telefono", "nombre_contacto", "acepta_aviso", "sitio_web"]) {
+    assert.match(html, new RegExp(`<input[^>]* id="${id}"|<select id="${id}"`), `control ${id}`);
+    assert.match(html, new RegExp(`<label[^>]*for="${id}"`), `etiqueta de ${id}`);
+  }
+  assert.match(html, /type="tel"[^>]*inputmode="tel"/);
+  assert.match(html, /<div class="trampa" aria-hidden="true">/);
+  // La CSP solo permite lo que la página usa, con el nonce de ESTA respuesta.
+  const csp = r.headers.get("content-security-policy") ?? "";
+  const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+  assert.ok(nonce);
+  assert.match(csp, /default-src 'none'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /form-action 'self'/);
+  assert.ok(html.includes(`<style nonce="${nonce}">`) && html.includes(`<script nonce="${nonce}">`));
+  assert.equal((html.match(/<script/g) ?? []).length, 1, "un solo script");
+  // Otro nonce en cada respuesta.
+  const otra = await fetch(`${api.base}${m.ruta}`);
+  assert.notEqual(/'nonce-([^']+)'/.exec(otra.headers.get("content-security-policy") ?? "")?.[1], nonce);
+  await otra.text();
+});
+
+test("E1 GET: sin color y con un logo peligroso la página usa el color por omisión y no lo muestra; una sola sucursal no se pregunta; slug raro o inexistente, 404 igual; sin aviso vigente, 503 y sin formulario", async () => {
+  // (La base ya rechaza un color que no sea #RRGGBB; aquí el color falta y el logo es peligroso. `colorValido` se prueba aparte.)
+  const m = await mundo({ color: null, logo: "javascript:alert(1)" });
+  const html = await (await fetch(`${api.base}${m.ruta}`)).text();
+  assert.match(html, /--marca: #1f4e79;/, "el color por omisión");
+  assert.ok(!html.includes("javascript:") && !html.includes("<img"), "sin logo");
+  // Una sola sucursal: va escondida, no hay lista.
+  await prisma.sucursal_vertical.updateMany({ where: { vertical_id: m.org.verticalId, sucursal_id: m.org.sucursales[1]!.id }, data: { activo: false } });
+  const una = await (await fetch(`${api.base}${m.ruta}`)).text();
+  assert.ok(!una.includes("<select"));
+  assert.match(una, new RegExp(`<input type="hidden" name="sucursal_id" value="${m.org.sucursales[0]!.id}">`));
+  // 404 uniforme.
+  const desconocida = await fetch(`${api.base}/l/no-existe-${randomBytes(4).toString("hex")}`);
+  const rara = await fetch(`${api.base}/l/${encodeURIComponent("../../etc/passwd")}`);
+  const mayus = await fetch(`${api.base}/l/${m.slug.toUpperCase()}`);
+  assert.deepEqual([desconocida.status, rara.status, mayus.status], [404, 404, 404]);
+  const sinNonce = (t: string): string => t.replace(/nonce="[^"]*"/g, 'nonce=""');
+  const cuerpo404 = sinNonce(await desconocida.text());
+  assert.equal(cuerpo404, sinNonce(await rara.text()), "el mismo cuerpo: no revela nada");
+  await mayus.text();
+  // Sin aviso de privacidad vigente no se recogen datos.
+  const sin = await mundo({ sinDocumentos: true });
+  const r503 = await fetch(`${api.base}${sin.ruta}`);
+  assert.equal(r503.status, 503);
+  assert.ok(!(await r503.text()).includes("<form"));
+  const p503 = await enviar(api.base, sin.ruta, campos(sin));
+  assert.equal(p503.status, 503);
+  await p503.text();
+  assert.equal(await sin.db.lead.count(), 0);
+});
+
+test("E1 slug repetido entre organizaciones: ambiguo sin `org` (404), claro con `org`", async () => {
+  const a = await mundo();
+  const b = await mundo();
+  const comun = `comun-${randomBytes(4).toString("hex")}`;
+  await prisma.vertical.update({ where: { id: a.org.verticalId }, data: { slug: comun } });
+  await prisma.vertical.update({ where: { id: b.org.verticalId }, data: { slug: comun } });
+  assert.equal((await fetch(`${api.base}/l/${comun}`)).status, 404);
+  const ok = await fetch(`${api.base}/l/${comun}?org=${a.org.slug}`);
+  assert.equal(ok.status, 200);
+  await ok.text();
+  const p = await enviar(api.base, `/l/${comun}?org=${b.org.slug}`, campos(b));
+  assert.equal(p.status, 303);
+  assert.equal(await b.db.lead.count(), 1);
+  assert.equal(await a.db.lead.count(), 0, "el lead es de la organización de la URL");
+});
+
+test("E1 POST: crea el lead y el prospecto, el aviso de privacidad con su evidencia, el consentimiento y redirige a WhatsApp con el código de rastreo", async () => {
+  const m = await mundo();
+  const r = await enviar(api.base, `${m.ruta}?utm_source=facebook&utm_campaign=verano`, campos(m, { telefono: "+52 1 55 1234 5678", utm_source: "facebook", utm_campaign: "verano" }));
+  assert.equal(r.status, 303);
+  const destino = r.headers.get("location")!;
+  assert.ok(destino.startsWith(`https://wa.me/${m.numero}?text=`), destino);
+  const texto = decodeURIComponent(destino.split("text=")[1]!);
+  const codigo = /Mi código es ([A-Z2-9]{4}-[A-Z2-9]{4})$/.exec(texto)?.[1];
+  assert.ok(codigo, texto);
+  assert.match(texto, /^Hola, quiero información de Vertical <Uno> & Cía\./);
+  await r.text();
+
+  const lead = await m.db.lead.findFirstOrThrow({ include: { prospectos: true } });
+  assert.equal(lead.telefono, "+525512345678", "normalizarTelefono(): +521… colapsa a +52…");
+  assert.deepEqual([lead.nombre_contacto, lead.vertical_interes_id, lead.sucursal_interes_id, lead.etapa_id], ["Rosa", m.org.verticalId, m.org.sucursales[0]!.id, m.org.etapaInicialId]);
+  assert.deepEqual(lead.atribucion, { fuente: "landing", utm: { utm_source: "facebook", utm_campaign: "verano" } });
+  assert.equal(lead.prospectos.length, 1);
+  assert.deepEqual([lead.prospectos[0]!.nombre, lead.prospectos[0]!.edad_declarada, lead.prospectos[0]!.origen], ["Mateo Soto", 8, "bot"]);
+  // El alta es la primera fila del historial (D7).
+  const historial = await m.db.lead_etapa_historial.findMany({ where: { lead_id: lead.id } });
+  assert.deepEqual(historial.map((h) => [h.etapa_anterior_id, h.motivo]), [[null, "alta"]]);
+  // La evidencia del aviso de privacidad (D6): canal web, IP y agente, la huella del texto que se mostró.
+  const aceptacion = await m.db.aceptacion_legal.findFirstOrThrow({ where: { prospecto_id: lead.prospectos[0]!.id } });
+  assert.deepEqual([aceptacion.tipo, aceptacion.resultado, aceptacion.canal, aceptacion.version_aceptada, aceptacion.documento_id, aceptacion.capturada_por_usuario_id], ["aviso_privacidad", "aceptada", "web", 1, m.docs.avisoPrivacidad, null]);
+  assert.equal(aceptacion.aceptante_nombre, "Rosa");
+  assert.ok(aceptacion.ip && aceptacion.ip.length > 0);
+  assert.equal(aceptacion.agente_usuario, "Prueba/1.0");
+  assert.match(aceptacion.texto_hash, /^[0-9a-f]{64}$/);
+  // El consentimiento por formulario, con la evidencia.
+  const consentimiento = await m.db.consentimiento.findMany({ where: { telefono: "+525512345678" } });
+  assert.equal(consentimiento.length, 1);
+  assert.deepEqual([consentimiento[0]!.estado, consentimiento[0]!.alcance, consentimiento[0]!.origen], ["opt_in", "todo", "formulario"]);
+  assert.deepEqual(consentimiento[0]!.evidencia, { aceptacion_legal_id: aceptacion.id, documento_id: m.docs.avisoPrivacidad, version: 1, lead_id: lead.id, canal: "landing" });
+  // El código de rastreo del lead (E2): es el del mensaje, sin usar, de un solo uso y con vigencia.
+  const codigoDb = await m.db.codigo_rastreo.findFirstOrThrow({ where: { lead_id: lead.id } });
+  assert.deepEqual([codigoDb.codigo, codigoDb.tipo, codigoDb.usos, codigoDb.max_usos, codigoDb.vertical_id, codigoDb.activo], [codigo.replace("-", ""), "lead", 0, 1, m.org.verticalId, true]);
+  assert.ok(codigoDb.vigente_hasta && codigoDb.vigente_hasta.getTime() > Date.now());
+  // Nada de esto es un mensaje saliente ni una tarea.
+  assert.equal(await m.db.mensaje.count(), 0);
+});
+
+test("E1 POST: idempotente — reenviar, doble clic y envíos simultáneos dejan UN lead, UN prospecto, UNA aceptación, UN consentimiento y el MISMO código; otro nombre es otro prospecto", async () => {
+  const m = await mundo();
+  const rs = await Promise.all([1, 2, 3, 4, 5, 6].map(() => enviar(api.base, m.ruta, campos(m))));
+  assert.deepEqual(rs.map((r) => r.status), [303, 303, 303, 303, 303, 303]);
+  assert.equal(new Set(rs.map((r) => r.headers.get("location"))).size, 1, "todos mandan al mismo enlace");
+  for (const r of rs) await r.text();
+  assert.equal(await m.db.lead.count(), 1);
+  assert.equal(await m.db.prospecto.count(), 1);
+  assert.equal(await m.db.aceptacion_legal.count(), 1);
+  assert.equal(await m.db.consentimiento.count(), 1);
+  assert.equal(await m.db.codigo_rastreo.count(), 1);
+  assert.equal(await m.db.lead_etapa_historial.count(), 1);
+  // Otra vez, con el teléfono escrito de otra forma y el nombre con otras mayúsculas/espacios: el mismo lead y el mismo prospecto.
+  const otra = await enviar(api.base, m.ruta, campos(m, { telefono: "+52 1 (55) 1234-5678", nombre_alumno: "  MATEO   soto " }));
+  assert.equal(otra.status, 303);
+  await otra.text();
+  assert.equal(await m.db.lead.count(), 1);
+  assert.equal(await m.db.prospecto.count(), 1);
+  // Otro niño con el mismo teléfono: el mismo lead, otro prospecto (el primero fue del bot; este es de la landing).
+  const hermano = await enviar(api.base, m.ruta, campos(m, { nombre_alumno: "Lucía Soto", edad: "5" }));
+  assert.equal(hermano.status, 303);
+  await hermano.text();
+  assert.equal(await m.db.lead.count(), 1);
+  const prospectos = await m.db.prospecto.findMany({ orderBy: { creado_en: "asc" }, select: { nombre: true, origen: true } });
+  assert.deepEqual(prospectos.map((p) => [p.nombre, p.origen]), [["Mateo Soto", "bot"], ["Lucía Soto", "landing"]]);
+  assert.equal(await m.db.aceptacion_legal.count(), 2, "una aceptación por prospecto");
+  assert.equal(await m.db.consentimiento.count(), 1, "el consentimiento del teléfono no se repite");
+  // Quien reenvía no sobreescribe al lead: el nombre de contacto y la atribución siguen siendo los del primero.
+  const l = await m.db.lead.findFirstOrThrow();
+  assert.equal(l.nombre_contacto, "Rosa");
+  await enviar(api.base, m.ruta, campos(m, { nombre_contacto: "Alguien más", utm_source: "otro" })).then((x) => x.text());
+  assert.equal((await m.db.lead.findFirstOrThrow()).nombre_contacto, "Rosa");
+  assert.deepEqual((await m.db.lead.findFirstOrThrow()).atribucion, { fuente: "landing" });
+});
+
+test("E1 POST: validaciones — cada campo con su mensaje, los valores repintados escapados, 422 y NADA se guarda", async () => {
+  const m = await mundo();
+  const mal = async (cambio: Record<string, string | undefined>) => {
+    const r = await enviar(api.base, m.ruta, campos(m, cambio));
+    const html = await r.text();
+    assert.equal(r.status, 422, JSON.stringify(cambio));
+    assert.match(html, /role="alert"/);
+    return html;
+  };
+  assert.match(await mal({ nombre_alumno: "" }), /Escribe el nombre de quien tomará la clase/);
+  assert.match(await mal({ edad: "0" }), /Escribe la edad con número/);
+  assert.match(await mal({ edad: "abc" }), /Escribe la edad con número/);
+  assert.match(await mal({ sucursal_id: "" }), /Elige una de las sucursales/);
+  assert.match(await mal({ sucursal_id: "11111111-1111-4111-8111-111111111111" }), /Elige una de las sucursales/);
+  assert.match(await mal({ telefono: "123" }), /Escribe un teléfono válido/);
+  assert.match(await mal({ telefono: "" }), /Escribe un teléfono válido/);
+  assert.match(await mal({ acepta_aviso: undefined }), /aceptes el aviso de privacidad/);
+  assert.match(await mal({ version: "9" }), /El aviso de privacidad cambió/);
+  assert.match(await mal({ documento_id: m.docs.reglamento }), /El aviso de privacidad cambió/, "otro documento");
+  // Todos los errores a la vez y los valores buenos se conservan.
+  const varios = await mal({ nombre_alumno: "Ana", edad: "x", telefono: "1" });
+  assert.match(varios, /value="Ana"/);
+  assert.match(varios, /Escribe la edad/);
+  assert.match(varios, /Escribe un teléfono válido/);
+  assert.match(varios, /<a href="#edad">/);
+  assert.match(varios, /aria-invalid="true" aria-describedby="edad-error"/);
+  // XSS: lo que se refleja va escapado.
+  const xss = await mal({ nombre_alumno: `"><img src=x onerror=alert(1)>`, telefono: `'><script>alert(2)</script>`, nombre_contacto: `<svg onload=alert(3)>` });
+  for (const peligroso of ["<img src=x", "<script>alert(2)", "<svg onload", `"><img`]) assert.ok(!xss.includes(peligroso), `sin «${peligroso}»`);
+  assert.match(xss, /value="&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;"/);
+  assert.match(xss, /value="&#39;&gt;&lt;script&gt;alert\(2\)&lt;\/script&gt;"/);
+  assert.equal((xss.match(/<script/g) ?? []).length, 1, "solo el script propio");
+  // Los parámetros de la URL también se escapan.
+  const get = await (await fetch(`${api.base}${m.ruta}?utm_source=${encodeURIComponent('"><script>alert(4)</script>')}&c=${encodeURIComponent("<b>")}`)).text();
+  assert.ok(!get.includes("<script>alert(4)") && !get.includes("<b>"));
+  assert.match(get, /name="utm_source" value="&quot;&gt;&lt;script&gt;alert\(4\)&lt;\/script&gt;"/);
+  assert.equal(await m.db.lead.count(), 0);
+  assert.equal(await m.db.aceptacion_legal.count(), 0);
+  assert.equal(await m.db.consentimiento.count(), 0);
+});
+
+test("E1 anti-abuso: el campo trampa, el tope de cuerpo y el límite de peticiones por IP", async () => {
+  const m = await mundo();
+  // Honeypot: se responde como a una persona y no se guarda nada.
+  const trampa = await enviar(api.base, m.ruta, campos(m, { sitio_web: "http://spam.test" }));
+  assert.equal(trampa.status, 200);
+  assert.match(await trampa.text(), /Gracias/);
+  assert.equal(await m.db.lead.count(), 0);
+  // Tope de cuerpo (16 KB): 413 sin contenido.
+  const grande = await enviar(api.base, m.ruta, new URLSearchParams({ nombre_alumno: "x".repeat(20_000) }));
+  assert.equal(grande.status, 413);
+  assert.equal(await grande.text(), "");
+  // Otro tipo de contenido: el cuerpo no se lee y los campos faltan.
+  const json = await fetch(`${api.base}${m.ruta}`, { method: "POST", redirect: "manual", headers: { "content-type": "application/json" }, body: JSON.stringify({ nombre_alumno: "x" }) });
+  assert.equal(json.status, 422);
+  await json.text();
+  // Límite por IP: con 3 por minuto, la cuarta petición recibe 429 con Retry-After y una página (GET y POST comparten cupo).
+  const limitado = levantarApi(prisma, {}, { limites: limitesDesdeEntorno({ LIMITE_LANDING_POR_MINUTO: "3" }), limitador: new LimitadorDeTasa() });
+  try {
+    for (let i = 0; i < 3; i++) assert.equal((await fetch(`${limitado.base}${m.ruta}`).then(async (x) => (await x.text(), x.status))), 200);
+    const cuarta = await fetch(`${limitado.base}${m.ruta}`);
+    assert.equal(cuarta.status, 429);
+    assert.ok(Number(cuarta.headers.get("retry-after")) >= 1);
+    assert.match(await cuarta.text(), /Demasiadas solicitudes/);
+    const post = await enviar(limitado.base, m.ruta, campos(m));
+    assert.equal(post.status, 429);
+    await post.text();
+    assert.equal(await m.db.lead.count(), 0, "lo limitado no llegó a la base");
+  } finally {
+    await limitado.cerrar();
+  }
+});
+
+test("E1 sin enumeración: quien manda un teléfono que ya existe recibe la misma respuesta que con uno nuevo (salvo el código)", async () => {
+  const m = await mundo();
+  const nuevo = await enviar(api.base, m.ruta, campos(m, { telefono: "55 1111 2222" }));
+  await nuevo.text();
+  const repetido = await enviar(api.base, m.ruta, campos(m, { telefono: "55 1111 2222", nombre_alumno: "Otro Nombre" }));
+  await repetido.text();
+  const otroNuevo = await enviar(api.base, m.ruta, campos(m, { telefono: "55 3333 4444" }));
+  await otroNuevo.text();
+  const sinCodigo = (r: Response): string => decodeURIComponent(r.headers.get("location") ?? "").replace(/[A-Z2-9]{4}-[A-Z2-9]{4}/, "CODIGO");
+  assert.deepEqual([nuevo.status, repetido.status, otroNuevo.status], [303, 303, 303]);
+  assert.equal(sinCodigo(nuevo), sinCodigo(repetido));
+  assert.equal(sinCodigo(nuevo), sinCodigo(otroNuevo));
+  assert.equal(nuevo.headers.get("content-type"), repetido.headers.get("content-type"));
+  assert.equal(await m.db.lead.count(), 2);
+});
+
+test("E1 baja: un teléfono dado de baja NO recupera el consentimiento por llenar el formulario (no prueba que sea suyo); el lead se crea igual", async () => {
+  const m = await mundo();
+  await prisma.consentimiento.create({ data: { organizacion_id: m.org.organizacionId, telefono: "+525544445555", estado: "opt_out", alcance: "todo", origen: "palabra_clave", fecha: new Date("2026-10-01T00:00:00Z") } });
+  const r = await enviar(api.base, m.ruta, campos(m, { telefono: "55 4444 5555" }));
+  assert.equal(r.status, 303);
+  await r.text();
+  assert.equal(await m.db.lead.count(), 1);
+  assert.equal(await m.db.aceptacion_legal.count(), 1, "la aceptación del aviso sí queda");
+  const filas = await m.db.consentimiento.findMany({ where: { telefono: "+525544445555" }, orderBy: [{ fecha: "desc" }] });
+  assert.deepEqual(filas.map((f) => f.estado), ["opt_out"], "la baja sigue siendo lo último");
+});
+
+test("E1 atribución: un código de campaña (QR) se registra una vez por lead nuevo; uno inválido, vencido, agotado o de otra organización se ignora sin romper; el lead conserva su PRIMERA atribución", async () => {
+  const m = await mundo();
+  const otra = await mundo();
+  const campana = await prisma.campana.create({ data: { organizacion_id: m.org.organizacionId, nombre: "QR sucursal", origen: "presencial", sucursal_id: m.org.sucursales[0]!.id } });
+  const crear = (codigo: string, o: Record<string, unknown> = {}) => prisma.codigo_rastreo.create({ data: { organizacion_id: m.org.organizacionId, codigo, tipo: "campana", campana_id: campana.id, sucursal_id: m.org.sucursales[0]!.id, ...o } });
+  const bueno = await crear("QR7M2KXA");
+  await crear("VEQCDMX7", { vigente_hasta: new Date("2020-01-01T00:00:00Z") });
+  await crear("AGQTADM5", { max_usos: 1, usos: 1 });
+  await crear("APAGADK4", { activo: false });
+  await prisma.codigo_rastreo.create({ data: { organizacion_id: otra.org.organizacionId, codigo: "AJEHNK77", tipo: "campana", campana_id: (await prisma.campana.create({ data: { organizacion_id: otra.org.organizacionId, nombre: "Ajena", origen: "otro" } })).id } });
+  // La página lleva el código a un campo oculto (normalizado) para el envío.
+  const pagina = await (await fetch(`${api.base}${m.ruta}?c=qr7m-2kxa&s=${m.org.sucursales[1]!.id}`)).text();
+  assert.match(pagina, /name="c" value="QR7M2KXA"/);
+  assert.match(pagina, new RegExp(`<option value="${m.org.sucursales[1]!.id}" selected>`), "la sucursal sugerida queda elegida");
+  const r = await enviar(api.base, m.ruta, campos(m, { c: "QR7M2KXA", telefono: "55 0000 0001" }));
+  await r.text();
+  const lead = await m.db.lead.findFirstOrThrow({ where: { telefono: "+525500000001" } });
+  assert.equal(lead.campana_id, campana.id);
+  assert.deepEqual(lead.atribucion, { fuente: "landing", codigo_rastreo: "QR7M2KXA", campana_id: campana.id, sucursal_del_codigo_id: m.org.sucursales[0]!.id });
+  assert.equal((await m.db.codigo_rastreo.findFirstOrThrow({ where: { id: bueno.id } })).usos, 1, "el código de campaña cuenta un uso");
+  // El código del lead hereda la campaña.
+  const delLead = await m.db.codigo_rastreo.findFirstOrThrow({ where: { lead_id: lead.id } });
+  assert.deepEqual([delLead.campana_id, delLead.sucursal_id], [campana.id, m.org.sucursales[0]!.id]);
+  // Reenviar el mismo formulario no suma otro uso ni cambia nada.
+  await enviar(api.base, m.ruta, campos(m, { c: "QR7M2KXA", telefono: "55 0000 0001" })).then((x) => x.text());
+  assert.equal((await m.db.codigo_rastreo.findFirstOrThrow({ where: { id: bueno.id } })).usos, 1);
+  // Cada código que no sirve se ignora: el lead se crea, sin campaña y sin error.
+  for (const [i, c] of ["VEQCDMX7", "AGQTADM5", "APAGADK4", "AJEHNK77", "NQEXKST7", "<script>"].entries()) {
+    const x = await enviar(api.base, m.ruta, campos(m, { c, telefono: `55 0000 02${i}0` }));
+    assert.equal(x.status, 303, c);
+    await x.text();
+  }
+  const sinCampana = await m.db.lead.findMany({ where: { campana_id: null } });
+  assert.equal(sinCampana.length, 6, "los seis envíos con código inservible no tienen campaña");
+  assert.ok(sinCampana.every((l) => (l.atribucion as { codigo_rastreo?: string } | null)?.codigo_rastreo === undefined));
+  // Ni el vencido, ni el agotado, ni el apagado, ni el de otra organización sumaron usos.
+  assert.deepEqual((await m.db.codigo_rastreo.findMany({ where: { codigo: { in: ["VEQCDMX7", "AGQTADM5", "APAGADK4"] } }, orderBy: { codigo: "asc" }, select: { codigo: true, usos: true } })).map((c) => [c.codigo, c.usos]), [["AGQTADM5", 1], ["APAGADK4", 0], ["VEQCDMX7", 0]]);
+  assert.equal((await otra.db.codigo_rastreo.findFirstOrThrow({ where: { codigo: "AJEHNK77" } })).usos, 0);
+});
+
+test("E1 sin número de WhatsApp (la demo usa una bandeja API): se guarda todo y se agradece; con varios canales, el de la sucursal elegida", async () => {
+  const m = await mundo({ numero: null });
+  const r = await enviar(api.base, m.ruta, campos(m));
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /Gracias! Recibimos tus datos/);
+  assert.equal(await m.db.lead.count(), 1);
+  assert.equal(await m.db.codigo_rastreo.count(), 1);
+  // Con un canal por sucursal: cada quien escribe al de su sucursal; el general queda para quien no tiene.
+  const m2 = await mundo();
+  const numeroSur = numeroUnico();
+  await prisma.canal_whatsapp.create({ data: { organizacion_id: m2.org.organizacionId, vertical_id: m2.org.verticalId, sucursal_id: m2.org.sucursales[1]!.id, nombre_publico: "Sur", numero_whatsapp: `whatsapp:+${numeroSur}` } });
+  const sur = await enviar(api.base, m2.ruta, campos(m2, { sucursal_id: m2.org.sucursales[1]!.id, telefono: "55 0000 0021" }));
+  const norte = await enviar(api.base, m2.ruta, campos(m2, { sucursal_id: m2.org.sucursales[0]!.id, telefono: "55 0000 0022" }));
+  assert.ok((sur.headers.get("location") ?? "").startsWith(`https://wa.me/${numeroSur}?`));
+  assert.ok((norte.headers.get("location") ?? "").startsWith(`https://wa.me/${m2.numero}?`));
+  await sur.text();
+  await norte.text();
+});
+
+test("E1 → bot: quien llenó la landing y luego escribe por WhatsApp NO vuelve a dar nombre ni edad; el bot sigue con su prospecto (cero recaptura)", async () => {
+  const m = await mundo();
+  const r = await enviar(api.base, m.ruta, campos(m, { telefono: "55 7777 8888", nombre_alumno: "Valeria Ríos", edad: "9", sucursal_id: m.org.sucursales[1]!.id }));
+  await r.text();
+  const transporte = new TransporteFalso();
+  const idMensaje = `m-${randomBytes(4).toString("hex")}`;
+  const evento: EventoEntrante = { chatwootAccountId: m.org.chatwootAccountId, chatwootInboxId: m.org.chatwootInboxId, chatwootConversacionId: 987_654, idMensaje, contenido: "Hola, quiero información. Mi código es ABCD-EFG2", estadoConversacion: "pending", contacto: { nombre: "Rosa", telefono: "+52 1 55 7777 8888" }, creadoEn: null, llave: { proveedor: "chatwoot", id: idMensaje }, numeroReceptor: null, crudo: null };
+  const resultado = await procesarEntrante({ prisma, mensajeria: new MessagingProvider({ transporte }) }, evento);
+  assert.equal(resultado.resultado, "procesado");
+  const mensajes = transporte.envios.filter((e) => e.tipo === "mensaje").map((e) => e.texto ?? "");
+  assert.equal(mensajes.length, 2);
+  assert.match(mensajes[0]!, /Ya tenemos los datos que nos dejaste para Valeria Ríos/);
+  assert.match(mensajes[1]!, /Ya tengo los datos de Valeria Ríos para la sucursal Sur/);
+  for (const t of mensajes) assert.ok(!/Cómo se llama|Qué edad|Qué sucursal/i.test(t), `no pregunta otra vez: ${t}`);
+  // El mismo lead y el mismo prospecto (no se duplicó nada); la conversación pasó al asesor con todo capturado.
+  assert.equal(await m.db.lead.count(), 1);
+  assert.equal(await m.db.prospecto.count(), 1);
+  assert.equal((await m.db.conversacion.findFirstOrThrow()).paso_captacion, "completo");
+  // Las notas internas para el asesor llevan los datos de la landing.
+  const nota = transporte.envios.find((e) => e.tipo === "nota_interna");
+  assert.match(nota?.texto ?? "", /Valeria Ríos/);
+});
+
+test("E1 concurrencia FORZADA: ocho envíos del mismo teléfono llegan al mismo tiempo a la sección crítica y dejan UN lead, UN prospecto y UN código (el candado por teléfono)", async () => {
+  const m = await mundo();
+  const barrera = new Barrera(8);
+  // La barrera va justo antes de la transacción: los ocho piden la misma sección crítica a la vez (sin ella, un Promise.all puede no intercalarse).
+  const raiz = conGanchos(prisma, { modelo: "etapa_pipeline", operacion: "findFirst", despues: async () => barrera.esperar(3000) });
+  const forzada = levantarApi(prisma, {}, { landing: { prisma: raiz } });
+  try {
+    const rs = await Promise.all(Array.from({ length: 8 }, () => enviar(forzada.base, m.ruta, campos(m, { telefono: "55 9999 0001" }))));
+    for (const r of rs) await r.text();
+    assert.ok(barrera.completa, "los ocho llegaron juntos a la barrera");
+    assert.deepEqual(rs.map((r) => r.status), Array(8).fill(303));
+    assert.equal(new Set(rs.map((r) => r.headers.get("location"))).size, 1, "el mismo enlace, con el mismo código");
+    assert.equal(await m.db.lead.count(), 1);
+    assert.equal(await m.db.prospecto.count(), 1);
+    assert.equal(await m.db.codigo_rastreo.count(), 1);
+    assert.equal(await m.db.aceptacion_legal.count(), 1);
+    assert.equal(await m.db.consentimiento.count(), 1);
+    assert.equal(await m.db.lead_etapa_historial.count(), 1);
+  } finally {
+    await forzada.cerrar();
+  }
+});

@@ -316,20 +316,24 @@ test("D7: lead estancado — una consulta por el umbral de la etapa (días compl
   const nunca = await crear("nuevo", null, { creado: hace(4), nombre: "nunca" });
   const sinUmbral = await crear("negociacion", hace(60), { nombre: "sinumbral" });
   const inscrito = await crear("inscrito", hace(60), { nombre: "inscrito" });
+  // Una etapa PROPIA de la escuela (sin tipo_sistema) con su umbral también alerta: NULL no es «distinto de inscrito».
+  const propia = await prisma.etapa_pipeline.create({ data: { organizacion_id: eOrg.organizacionId, nombre: "Seguimiento propio", orden: 20, dias_alerta_sin_movimiento: 4 } });
+  const enPropia = (await prisma.lead.create({ data: { organizacion_id: eOrg.organizacionId, vertical_interes_id: eOrg.verticalId, sucursal_interes_id: eOrg.sucursales[0]!.id, etapa_id: propia.id, nombre_contacto: "propia", ultima_interaccion_en: hace(6), creado_en: hace(100) } })).id;
   const perdido = await crear("perdido", hace(60), { nombre: "perdido" });
   const sur = await crear("contactado", hace(5), { sucursal: 1, nombre: "sur" });
   const r = await c.get<{ datos: { id: string; dias_sin_movimiento: number; etapa: { dias_alerta: number } }[]; paginacion: { total: number } }>("/api/leads/estancados");
   assert.equal(r.estado, 200, JSON.stringify(r.cuerpo));
-  assert.deepEqual(r.cuerpo.datos.map((x) => x.id), [nunca, estancado9, sur, estancado3], "los más viejos primero (sin interacción alguna, antes)");
-  assert.equal(r.cuerpo.paginacion.total, 4);
-  assert.deepEqual(r.cuerpo.datos.map((x) => x.dias_sin_movimiento), [4, 9, 5, 3]);
+  assert.deepEqual(r.cuerpo.datos.map((x) => x.id), [nunca, estancado9, enPropia, sur, estancado3], "los más viejos primero (sin interacción alguna, antes)");
+  assert.equal(r.cuerpo.paginacion.total, 5);
+  assert.deepEqual(r.cuerpo.datos.map((x) => x.dias_sin_movimiento), [4, 9, 6, 5, 3]);
   assert.ok(![casi, sinUmbral, inscrito, perdido].some((id) => r.cuerpo.datos.some((x) => x.id === id)), "ni los que aún no cumplen, ni sin umbral, ni los de cierre");
   // Por etapa, por sucursal, paginado, y el alcance del asesor.
   const soloContactado = await c.get<{ datos: { id: string }[] }>(`/api/leads/estancados?etapa_id=${ee.contactado}`);
   assert.deepEqual(soloContactado.cuerpo.datos.map((x) => x.id), [estancado9, sur, estancado3]);
+  assert.deepEqual((await c.get<{ datos: { id: string }[] }>(`/api/leads/estancados?etapa_id=${propia.id}`)).cuerpo.datos.map((x) => x.id), [enPropia]);
   assert.deepEqual((await c.get<{ datos: { id: string }[] }>(`/api/leads/estancados?sucursal_id=${eOrg.sucursales[1]!.id}`)).cuerpo.datos.map((x) => x.id), [sur]);
   const pag = await c.get<{ datos: { id: string }[]; paginacion: { total: number; limite: number } }>("/api/leads/estancados?limite=2&pagina=2");
-  assert.deepEqual([pag.cuerpo.datos.length, pag.cuerpo.paginacion.total, pag.cuerpo.paginacion.limite], [2, 4, 2]);
+  assert.deepEqual([pag.cuerpo.datos.length, pag.cuerpo.paginacion.total, pag.cuerpo.paginacion.limite], [2, 5, 2]);
   assert.deepEqual((await cs.get<{ datos: { id: string }[] }>("/api/leads/estancados")).cuerpo.datos.map((x) => x.id), [sur], "el asesor de la sucursal sur ve solo los suyos");
   const ajenaSucursal = await cs.get<{ datos: unknown[] }>(`/api/leads/estancados?sucursal_id=${eOrg.sucursales[0]!.id}`);
   assert.equal(ajenaSucursal.cuerpo.datos.length, 0, "pedir una sucursal ajena da una lista vacía");

@@ -90,6 +90,7 @@ model organizacion {
   historial_etapas           lead_etapa_historial[]
   transiciones_etapa         transicion_etapa[]
   avisos_promocion           aviso_promocion[]
+  codigos_rastreo            codigo_rastreo[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -174,6 +175,7 @@ model vertical {
   programas           programa[]
   promociones         promocion_vertical[]
   documentos_legales  documento_legal[]
+  codigos_rastreo     codigo_rastreo[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -203,6 +205,7 @@ model sucursal {
   instructores        instructor_sucursal[]
   promociones         promocion_sucursal[]
   cotizaciones        cotizacion[]
+  codigos_rastreo     codigo_rastreo[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -318,6 +321,7 @@ model campana {
   vertical     vertical?    @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   sucursal     sucursal?    @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   leads        lead[]
+  codigos_rastreo codigo_rastreo[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -391,6 +395,7 @@ model lead {
   motivo_perdida   motivo_perdida? @relation(fields: [motivo_perdida_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   historial_etapas lead_etapa_historial[]
   avisos_promocion aviso_promocion[]
+  codigos_rastreo  codigo_rastreo[]
   vertical_interes vertical       @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   sucursal_interes sucursal?      @relation(fields: [sucursal_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   campana          campana?       @relation(fields: [campana_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
@@ -413,6 +418,8 @@ model lead {
 enum origen_prospecto {
   bot
   asesor
+  /// Un prospecto ADICIONAL que llegó por el cuestionario de la landing (el primero es `bot`: el bot de WhatsApp sigue sin repetirlo).
+  landing
 }
 
 /// Cada niño o alumno potencial de un lead. El bot captura uno; el asesor agrega los demás.
@@ -2138,6 +2145,48 @@ model aviso_promocion {
   prospecto      prospecto      @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   cotizacion     cotizacion     @relation(fields: [cotizacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   promocion      promocion      @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([lead_id])
+}
+
+// ── Códigos de rastreo de WhatsApp (E1, E2) ────────────────────────────────────────────
+
+enum tipo_codigo_rastreo {
+  /// De una campaña (y quizá una sucursal): se imprime en un QR o se pone en un anuncio; lo usan muchas personas.
+  campana
+  /// De UN lead que llenó la landing: va en su mensaje prellenado de WhatsApp y se consume al llegar.
+  lead
+}
+
+/// Un código corto que viaja en el primer mensaje de WhatsApp (o en la URL de la landing) y dice de dónde viene el contacto: campaña, sucursal
+/// y, si vino de la landing, qué lead es. 8 caracteres de un alfabeto sin ambiguos (sin I, L, O, 0 ni 1) y con al menos un dígito, único entre
+/// los vivos de la organización. `usos` cuenta las veces que se aprovechó; `max_usos` lo limita (1 en los de lead); fuera de su vigencia, apagado o
+/// de otra organización, se ignora sin romper nada (E2).
+model codigo_rastreo {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String              @db.Uuid
+  codigo          String
+  tipo            tipo_codigo_rastreo
+  campana_id      String?             @db.Uuid
+  sucursal_id     String?             @db.Uuid
+  vertical_id     String?             @db.Uuid
+  lead_id         String?             @db.Uuid
+  usos            Int                 @default(0)
+  max_usos        Int?
+  vigente_desde   DateTime?           @db.Timestamptz(6)
+  vigente_hasta   DateTime?           @db.Timestamptz(6)
+  activo          Boolean             @default(true)
+  creado_en       DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?           @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  campana      campana?     @relation(fields: [campana_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal?    @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  vertical     vertical?    @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead         lead?        @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])

@@ -36,6 +36,8 @@ const app = crearApp({
   pingDb: () => pingBaseDatos(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
   twilio,
+  // Landing pública por vertical (/l/:vertical): el cuestionario que crea el lead y manda a WhatsApp con su código de rastreo (E1).
+  landing: { prisma },
   // API de la aplicación (/api): sesiones, usuarios y recursos. Configuración por variables de entorno.
   // Falla al arrancar (en producción) si falta CLAVE_DATOS_SENSIBLES, en vez de al primer uso.
   api: { prisma, sensibles: { cifrador: cifradorDesdeEntorno() }, directorio: directorioAgentesDesdeEntorno(), fuenteOcupacion },

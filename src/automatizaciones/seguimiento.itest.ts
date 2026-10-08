@@ -540,3 +540,14 @@ test("D8 promoción: solo cotizaciones VIGENTES de leads abiertos con promocione
   assert.equal(r.programadas, 0);
   assert.equal(await m.db.aviso_promocion.count(), 0);
 });
+
+test("D8: una etapa PROPIA de la escuela (sin tipo_sistema) con umbral también cuenta para el lead frío (NULL no es «distinto de inscrito»)", async () => {
+  const m = await mundo();
+  const propia = await prisma.etapa_pipeline.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Seguimiento propio", orden: 30, dias_alerta_sin_movimiento: 2 } });
+  const f = await sembrarFamilia(prisma, m.org, { etapaId: propia.id, telefono: "+525512349999" });
+  await prisma.lead.update({ where: { id: f.leadId }, data: { ultima_interaccion_en: hace(3 * DIA), creado_en: hace(100 * DIA) } });
+  await prisma.conversacion.create({ data: { organizacion_id: m.org.organizacionId, bandeja_chatwoot_id: m.org.bandejaId, lead_id: f.leadId, chatwoot_conversacion_id: randomInt(1, 2_000_000_000) } });
+  await m.corre(T);
+  assert.equal((await m.tareas(f.leadId)).length, 1);
+  assert.equal(m.enviados().length, 1);
+});

@@ -95,8 +95,9 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "GET /api/salud-accesos": "registro_cambios:leer",
 };
 
-/** Lo que no cuelga de /api: tiene su propia autenticación (firma o secreto) y no usa sesión. */
-const FUERA_DE_API = ["GET /salud", "POST /webhooks/chatwoot", "POST /webhooks/twilio/entrantes", "POST /webhooks/twilio/estados"];
+/** Lo que no cuelga de /api: tiene su propia autenticación (firma o secreto) o es público a propósito, y no usa sesión. */
+// /l/:vertical es la landing pública (E1): sin sesión a propósito; su protección (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
+const FUERA_DE_API = ["GET /salud", "POST /webhooks/chatwoot", "POST /webhooks/twilio/entrantes", "POST /webhooks/twilio/estados", "GET /l/:vertical", "POST /l/:vertical"];
 
 interface RutaReal {
   clave: string;
@@ -115,7 +116,7 @@ export function recorrer(stack: any[], prefijo = ""): RutaReal[] {
         });
       }
     } else if (capa.handle?.stack) {
-      const golpe = (capa.matchers as ((p: string) => { path?: string } | false)[]).map((m) => m("/api/yo") || m("/x")).find(Boolean);
+      const golpe = (capa.matchers as ((p: string) => { path?: string } | false)[]).map((m) => m("/api/yo") || m("/l/x") || m("/x")).find(Boolean);
       salida.push(...recorrer(capa.handle.stack, prefijo + ((golpe && golpe.path) || "")));
     }
   }
@@ -158,6 +159,7 @@ function appReal() {
     estadosEntrega: { interpretar: () => null },
     registrarEstadoEntrega: async () => "x",
     api: { prisma: {} as never },
+    landing: { prisma: {} as never },
   });
 }
 

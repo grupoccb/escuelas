@@ -125,6 +125,7 @@ export function levantarApi(prisma: PrismaPruebas, api: Partial<ApiDepsEntrada> 
     estadosEntrega: { interpretar: () => null },
     registrarEstadoEntrega: async () => "actualizado",
     api: { prisma, parametrosHash: PARAMETROS_PRUEBA, cookieSegura: false, origenesPermitidos: [], ...api },
+    landing: { prisma },
     ...deps,
   });
   const server = app.listen(0);

@@ -39,7 +39,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D6 | HECHO | ver `git log` (`D6:`) | Reglamento y autorización de imagen: `documento_legal` versionado e inmutable, `aceptacion_legal` de solo anexar con evidencia, revocación como fila nueva, el registro no cierra sin reglamento |
 | D7 | HECHO | ver `git log` (`D7:`) | Embudo con historial de solo anexar, motivos de pérdida, perdido/recuperado, matriz de transiciones, tiempo por etapa, leads estancados (consulta) y concurrencia por lead |
 | D8 | HECHO | ver `git log` (`D8:`) | Lead frío y promoción por vencer sobre el motor: eventos nuevos, `aviso_promocion` (uno por lead y promoción), plantillas de marketing por el provider con frecuencia, bajas, horario y atención humana |
-| E1 | PENDIENTE | | Landing pública por vertical |
+| E1 | HECHO | ver `git log` (`E1:`) | Landing pública `/l/:vertical` con cuestionario: lead + prospecto idempotentes, aviso de privacidad con evidencia, consentimiento por formulario, atribución, `wa.me` con código de rastreo, anti-abuso y XSS; el bot no vuelve a preguntar lo capturado |
 | E2 | PENDIENTE | | Código de rastreo de WhatsApp |
 | E3 | PENDIENTE | | Códigos QR |
 | F1 | PENDIENTE | | Tutor, alumno y relación M:N |
@@ -1362,3 +1362,36 @@ Mutaciones atrapadas: quitar la omisión por atención humana, quitar la exigenc
 - **[SUPUESTO]** los textos de las plantillas, 3 días antes, 3 episodios, 14 días de atraso máximo, lunes a sábado. Registrar `reenganche_lead_frio` (2 variables) y `promocion_por_vencer` (3) en Twilio como categoría `marketing`.
 - Decisión de producto: ¿un lead que una persona atiende debe generar igualmente la tarea de frío? Hoy no (invariante 6); se ve en estancados.
 - Decisión de producto: la baja total / de marketing no quita la tarea para el asesor (puede llamarlo si hay otro teléfono); si Eduardo prefiere que tampoco haya tarea, es una línea en `ejecutarUna`.
+
+
+## E1. Landing pública por vertical con cuestionario
+
+**Qué se hizo**
+- **Migración `20261015040000_landing_y_codigos_rastreo`:** tabla `codigo_rastreo` (la comparte E2: código único entre los vivos de la organización con formato fijo de 8 caracteres sin ambiguos y con un dígito, tipo `campana` | `lead`, `usos`/`max_usos`, vigencia, apagado) y el valor `landing` de `origen_prospecto`.
+- **`GET|POST /l/:vertical`** (`src/http/landing.ts`, `landing-html.ts`; lógica en `src/captacion/landing.ts`; la organización se resuelve con `resolverVerticalPublica`, la única consulta sin scope nueva, en `src/datos/sistema.ts`). Página sobria, accesible (`lang="es"`, etiquetas, resumen de errores con foco, `aria-invalid`), primero celular, sin dependencias, con un solo script (nonce) que evita el doble envío. Nombre, color, logo, sucursales y aviso de privacidad salen de las tablas. Un envío válido crea el lead y el prospecto, registra el aviso con evidencia, el consentimiento por formulario y redirige a `wa.me` con el mensaje prellenado y el código de rastreo del lead (ver `docs/API.md`, «Landing pública»).
+- **Anti-abuso:** límite por IP (`LIMITE_LANDING_POR_MINUTO`, GET y POST), tope de cuerpo de 16 KB (413), campo trampa, 404 igual para «no existe», «es ambiguo» y «slug raro», respuesta igual exista o no el lead, y CSP con nonce por respuesta.
+- **El bot no vuelve a preguntar** (`maquina.ts`): con `datosDeLanding` (el lead entró por la landing) el primer mensaje saluda con el nombre y sigue desde lo que falta; el catálogo se carga desde el primer mensaje cuando el cotizador está encendido. Es el único cambio al bot, y solo aplica a leads de la landing.
+- **Corrección de D7/D8 que apareció al escribir E1:** `NOT: { tipo_sistema: { in: [...] } }` de Prisma deja fuera las etapas con `tipo_sistema` NULO (la lógica de tres valores de SQL), o sea las etapas PROPIAS de la escuela: no salían en la lista de estancados ni en el lead frío, y la landing no encontraba etapa inicial en una organización sin tipos. Ahora es `OR [tipo nulo, tipo notIn]` en las cuatro consultas, con un test para estancados y otro para lead frío.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 481 · pass 481 · fail 0
+$ npm run test:int    → exit 0 · tests 693 · pass 693 · fail 0
+```
+Tests nuevos: `landing.test.ts` (7, puros: alfabeto y formato de los códigos, parámetros, validación campo por campo, enlace de WhatsApp, color y logo, `escapar`) y `maquina.test.ts` (+1: el bot con los datos de la landing) y `landing.itest.ts` (13, por HTTP contra la app real): el cuestionario desde las tablas con accesibilidad y CSP; color/logo peligrosos; slug ambiguo con `org`; el envío completo (lead, prospecto, historial, aceptación con IP y agente, consentimiento con evidencia, código de rastreo, `wa.me`); **idempotencia con seis envíos simultáneos**, teléfono escrito de otra forma y otro niño; validaciones con valores repintados y XSS en el cuerpo y en la URL; honeypot, 413, JSON, **límite de peticiones**; **sin enumeración**; baja sin consentimiento nuevo; atribución por código (vencido, agotado, apagado, de otra organización, inexistente, basura) y primera atribución conservada; sin número de WhatsApp y un canal por sucursal; el bot después de la landing; y **concurrencia FORZADA** (ocho envíos del mismo teléfono a la vez con barrera).
+Mutaciones atrapadas: quitar el candado por teléfono (solo la prueba con barrera lo atrapa: un `Promise.all` simple pasaba sin él), levantar el consentimiento aunque haya baja.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El formulario nunca levanta una baja** y el aviso de privacidad sí queda como evidencia. Un formulario sin verificación del teléfono no prueba que quien lo llena sea su dueño; alguien podría suscribir a otra persona. Alternativa descartada: opt-in siempre. La persona que quiere de verdad escribe por WhatsApp; si estaba dada de baja, el sistema genera la tarea «volvió a escribir» (A4).
+2. **El lead que ya existe no se reescribe**: nombre de contacto, atribución y sucursal son los del primer contacto; nadie puede cambiar un lead mandando su teléfono. Solo se agrega un prospecto si el nombre o la edad son otros.
+3. **El primer prospecto de la landing es `bot`** (el índice único deja uno por lead y el bot de WhatsApp continúa sobre él) y los siguientes `landing`. Alternativa descartada: un origen propio para el primero (el bot no lo vería y duplicaría el prospecto al chatear).
+4. **Un código de rastreo por lead** (un solo uso, 30 días, un lead vivo sin usar a la vez) que hereda campaña y sucursal del código de la URL, y el código de campaña cuenta un uso por lead nuevo. Con él E2 puede ligar el mensaje al lead aunque escriba de otro teléfono.
+5. **La organización sale de la URL** con el slug de la vertical (y `?org=` si se repite). Alternativa descartada: un prefijo de organización obligatorio (hoy hay una sola organización y el encargo pidió `/l/:slug-de-vertical`).
+6. **Sin aviso de privacidad vigente no se recoge nada** (503). Alternativa descartada: recoger y registrar la aceptación después (se perdería la evidencia).
+7. **Respuesta de validación 422 con la página repintada** (los valores del usuario van escapados) en vez de redirigir y perder lo capturado.
+8. **No se vuelve a pedir lo capturado**: el bot saluda con los datos y solo pregunta la sucursal si falta. Cambio acotado a leads de la landing para no alterar el resto de conversaciones.
+
+**Para Eduardo**
+- **[SUPUESTO]** el texto del cuestionario (genérico) y del mensaje prellenado; el aviso de privacidad es el de ejemplo de `seguimiento.sql` y debe revisarlo el abogado.
+- Los canales de la demo no tienen número real: la landing termina en «gracias». Con un número en `canal_whatsapp.numero_whatsapp` redirige a `wa.me`.
+- Pendiente de producto: si la landing debe pedir correo o el nombre del tutor como obligatorio (hoy el nombre de contacto es opcional).

@@ -153,7 +153,7 @@ Límite por **IP** y ruta, en memoria (`src/http/limite.ts`: cubeta de fichas, r
 |---|---|---|---|
 | Inicio de sesión | `LIMITE_LOGIN_POR_MINUTO` | 10 | Además del bloqueo por (correo, IP) de B1 |
 | Resto de `/api` | `LIMITE_API_POR_MINUTO` | 600 | Antes de revisar la sesión |
-| Landing pública (E1) | `LIMITE_LANDING_POR_MINUTO` | 30 | Perfil listo: la landing usará `limitarApiPorIp(limitador, "landing", limites.landing)` y `LIMITE_CUERPO_LANDING` |
+| Landing pública (E1) | `LIMITE_LANDING_POR_MINUTO` | 30 | `GET` y `POST` de `/l/:vertical` comparten el cupo por IP; al excederlo, 429 con una página y `Retry-After`. Cuerpo máximo `LIMITE_CUERPO_LANDING` (16 KB → 413) |
 | Webhooks: firmas INVÁLIDAS | `LIMITE_WEBHOOK_FALLOS_POR_MINUTO` | 30 | Por IP y por ruta; cada rechazo gasta este cupo y, agotado, los siguientes rechazos responden 429 |
 | Webhooks: techo | `LIMITE_WEBHOOK_POR_MINUTO` | 6000 | Solo lo firmado y legítimo lo gasta; frena una inundación sin estorbar al tráfico normal |
 | Tope de memoria | `LIMITE_MAX_CLAVES` | 50000 | Cubetas guardadas |
@@ -175,6 +175,21 @@ Con `NODE_ENV=production` y sin valor, el backend loguea una alerta fuerte (`tru
 - El estado vive en el proceso: con **varias réplicas** cada una cuenta aparte (el límite efectivo se multiplica) y un reinicio lo borra. Con más de una réplica hace falta un almacén compartido (Redis, la base) o un WAF/balanceador que limite antes.
 - Una IP compartida (oficina con NAT) comparte cupo; un atacante con muchísimas IPs distintas no se frena por IP (ni puede expulsar cubetas sin límite, pero sí algunas).
 - No protege contra denegación de servicio de red (volumétrica): eso es del balanceador/CDN.
+
+## Landing pública por vertical (E1)
+
+Página servida por el backend, sin sesión ni JavaScript externo: **`GET /l/:vertical`** muestra el cuestionario y **`POST /l/:vertical`** (`application/x-www-form-urlencoded`) lo envía. `:vertical` es el `slug` de la vertical; los slugs son únicos por organización, así que si el mismo slug existe en dos
+organizaciones hace falta `?org=<slug-de-la-organización>` (sin él, y para cualquier slug inexistente o raro, la respuesta es la MISMA página 404: no se revela qué hay). Parámetros opcionales de la URL: `c` (código de campaña/QR, ver E2/E3), `s` (sucursal sugerida, un id) y `utm_source|medium|campaign|content|term` (a lo más 100 caracteres; lo raro se ignora).
+Todo lo que se ve sale de las tablas: nombre y color de la vertical (`vertical.color_marca` validado `#RRGGBB`, `vertical.logo_url` solo https), sus sucursales activas y el **aviso de privacidad vigente** (`documento_legal` de D6). Sin aviso vigente la página responde 503 y no recoge datos (no habría evidencia de consentimiento).
+
+**Cuestionario** (los mismos datos que el bot): `nombre_alumno` (quien tomará la clase), `edad` (1–99), `sucursal_id` (de las que ofrece la vertical; con una sola no se pregunta), `telefono` de contacto, `nombre_contacto` (opcional), `acepta_aviso` y los ocultos `documento_id`/`version` (el aviso que se mostró) y `c`/`utm_*`. Validación completa en el servidor: 422 con la página repintada, un mensaje por campo y los valores conservados.
+**Un envío válido**, en este orden y sin duplicar nada si se repite: (1) `normalizarTelefono()`; (2) bajo un candado por (teléfono, vertical) se encuentra o se crea el **lead** (mismo teléfono y vertical = el mismo lead; los demás campos NO se reescriben si ya existía) con `atribucion = {fuente: "landing", utm?, codigo_rastreo?, campana_id?}` y `campana_id` si el código de campaña sirve (activo, vigente, con usos, de la organización y de la vertical: cuenta un uso),
+su fila de alta en el historial y el **prospecto** (el primero del lead es `origen = bot` para que el bot de WhatsApp siga sobre él; otro niño del mismo teléfono es otro prospecto `origen = landing`; mismo nombre y edad = el mismo); (3) la **aceptación del aviso de privacidad** como evidencia (`aceptacion_legal`, canal `web`, IP y agente, huella del texto; D6); (4) el **consentimiento** (`consentimiento`, opt-in `todo`, origen `formulario`, con el id de esa aceptación),
+**excepto si el teléfono tiene una baja** (un formulario no prueba que sea el dueño del número); (5) el **código de rastreo del lead** (`codigo_rastreo` tipo `lead`: un solo uso, 30 días) y la respuesta **`303` a `https://wa.me/<número>?text=…`** con el mensaje «Hola, quiero información de <vertical>. Mi código es ABCD-EFGH». El número es el del canal de WhatsApp de la sucursal elegida, o el general de la vertical; sin número (la demo usa una bandeja API) se muestra una página de agradecimiento.
+La respuesta es la misma exista o no el lead (**sin enumeración**).
+
+**Anti-abuso:** límite por IP (`LIMITE_LANDING_POR_MINUTO`, 30), cuerpo de a lo más 16 KB (413), un campo trampa `sitio_web` (honeypot: si viene lleno, se responde 200 como a cualquiera y no se guarda nada) y validación estricta. **Seguridad de la página:** todo valor reflejado va escapado (texto y atributos); CSP `default-src 'none'` con `style-src`/`script-src` por **nonce** distinto en cada respuesta, `img-src https:`, `form-action 'self'`, `frame-ancestors 'none'`;
+`Cache-Control: no-store`; `noindex`. Código: `src/captacion/landing.ts` (lógica), `src/http/landing.ts` (rutas), `src/http/landing-html.ts` (plantilla), `src/captacion/codigos.ts` (códigos de rastreo). **El bot** (`maquina.ts`): quien llenó la landing y luego escribe por WhatsApp recibe «Ya tenemos los datos que nos dejaste para <nombre>» y solo se le pregunta lo que falte (la sucursal, si no la dio): cero recaptura.
 
 ## Rutas
 

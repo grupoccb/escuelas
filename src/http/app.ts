@@ -9,6 +9,8 @@ import { log } from "../lib/log.ts";
 import type { ConfigLimites } from "./config-limites.ts";
 import type { LimitadorDeTasa } from "./limite.ts";
 import { admitirWebhookValido, rechazar429, registrarFirmaInvalida } from "./limite-http.ts";
+import { rutasDeLanding } from "./landing.ts";
+import type { PrismaRaiz } from "../datos/prisma.ts";
 import {
   interpretarDesasignacion,
   interpretarEventoChatwoot,
@@ -52,6 +54,8 @@ export interface AppDeps {
   twilio?: AppTwilio;
   /** API de la aplicación (/api). Sin ella, /api no existe. */
   api?: ApiDepsEntrada;
+  /** Landing pública por vertical (/l/:vertical, E1). Sin ella, /l no existe. */
+  landing?: { prisma: PrismaRaiz };
   /** Límites de peticiones (B6). Sin ellos no se limita nada: `server.ts` siempre los pasa. */
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
@@ -75,6 +79,9 @@ export function crearApp(deps: AppDeps): Express {
 
   // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
+
+  // Landing pública (E1): sin sesión; su propia protección contra abuso (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
+  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
 
   app.get("/salud", async (_req, res) => {
     try {

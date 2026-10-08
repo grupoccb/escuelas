@@ -199,6 +199,7 @@ async function registrarYAvanzar(
     conversacionId: conv.id,
     prospectoId: prospecto?.id ?? null,
     muestraOfrecida: conv.muestra_ofrecida,
+    deLanding: esDeLanding(conv.lead.atribucion),
   });
   const estado: EstadoCaptacion = {
     paso: conv.paso_captacion,
@@ -508,13 +509,18 @@ async function obtenerConversacion(
   });
 }
 
+/** ¿El lead entró por la landing (E1)? Su atribución lo dice. */
+function esDeLanding(atribucion: unknown): boolean {
+  return typeof atribucion === "object" && atribucion !== null && !Array.isArray(atribucion) && (atribucion as Record<string, unknown>)["fuente"] === "landing";
+}
+
 /** Pasos en los que el bot consulta el catálogo: solo ahí se carga (cuesta unas cuantas consultas). */
 const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal", "horario", "lista_espera", "fecha_muestra"];
 
 async function contextoCaptacion(
   tx: Consultas,
   verticalId: string,
-  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date; conversacionId: string; prospectoId: string | null; muestraOfrecida: unknown },
+  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date; conversacionId: string; prospectoId: string | null; muestraOfrecida: unknown; deLanding?: boolean },
 ): Promise<ContextoCaptacion> {
   const vertical = await tx.vertical.findUniqueOrThrow({ where: { id: verticalId }, select: { nombre: true, cotizador_whatsapp_activo: true, clase_muestra_whatsapp_activo: true } });
   const filas = await tx.sucursal_vertical.findMany({
@@ -525,7 +531,10 @@ async function contextoCaptacion(
   const sucursales: OpcionSucursal[] = ordenadas.map((s) => ({ id: s.id, nombre: s.nombre, direccion: s.direccion }));
   // Con la clase muestra encendida, un «gracias» después de agendar no pasa la conversación a una persona.
   const claseAgendada = vertical.clase_muestra_whatsapp_activo && vertical.cotizador_whatsapp_activo && o.paso === "completo" && o.prospectoId ? await claseAgendadaDe(tx, o.prospectoId) : null;
-  if (!vertical.cotizador_whatsapp_activo || !PASOS_CON_CATALOGO.includes(o.paso)) return { nombreVertical: vertical.nombre, sucursales, ...(claseAgendada ? { claseAgendada } : {}) };
+  const deLanding = o.deLanding ? { datosDeLanding: true } : {};
+  // Con los datos de la landing ya en mano, desde el primer mensaje el bot necesita el catálogo (sigue con la cotización sin preguntar de nuevo).
+  const necesitaCatalogo = PASOS_CON_CATALOGO.includes(o.paso) || (o.deLanding === true && o.paso === "inicio");
+  if (!vertical.cotizador_whatsapp_activo || !necesitaCatalogo) return { nombreVertical: vertical.nombre, sucursales, ...(claseAgendada ? { claseAgendada } : {}), ...deLanding };
 
   // La fecha de la consulta (precio y promociones vigentes hoy) es la local de la sucursal del contacto; si aún no
   // eligió, la de la primera que ofrece la vertical.

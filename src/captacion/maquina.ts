@@ -93,6 +93,11 @@ export interface ContextoCaptacion {
   claseMuestra?: ContextoClaseMuestraBot;
   /** La clase muestra agendada que el prospecto tiene (D1): con ella, un «gracias» no pasa la conversación a una persona. */
   claseAgendada?: { texto: string } | null;
+  /**
+   * E1: el lead llenó el cuestionario de la landing, así que su prospecto ya trae nombre y edad (y la sucursal que eligió). Con esto el bot saluda y
+   * sigue desde lo que falta en vez de volver a preguntar (cero recaptura). Solo aplica en el primer mensaje (`inicio`).
+   */
+  datosDeLanding?: boolean;
 }
 
 export interface EstadoCaptacion {
@@ -152,6 +157,8 @@ export const ESTADO_INICIAL: EstadoCaptacion = {
 export const textos = {
   saludo: (vertical: string) =>
     `¡Hola! Gracias por escribir a ${vertical}. Para darte horarios y costos exactos te hago tres preguntas rápidas.`,
+  /** E1: el contacto ya llenó el cuestionario de la landing; no se le pregunta otra vez lo que ya dio. */
+  saludoConDatos: (vertical: string, nombre: string) => `¡Hola! Gracias por escribir a ${vertical}. Ya tenemos los datos que nos dejaste para ${nombre}.`,
   preguntaNombre: "¿Cómo se llama la persona que tomaría las clases?",
   preguntaEdad: (nombre: string) => `Mucho gusto. ¿Qué edad tiene ${nombre}?`,
   preguntaSucursal: (sucursales: OpcionSucursal[]) =>
@@ -305,6 +312,15 @@ function listarProgramas(programas: OpcionPrograma[]): string {
 export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoCaptacion): ResultadoCaptacion {
   switch (estado.paso) {
     case "inicio":
+      if (ctx.datosDeLanding && estado.nombre && estado.edad !== null) {
+        const base: EstadoCaptacion = { ...estado, intentosFallidos: 0 };
+        // Con la sucursal ya elegida (o una sola) se sigue de ahí; si falta y hay varias, es lo único que se pregunta.
+        const siguiente: ResultadoCaptacion =
+          estado.sucursalId !== null || ctx.sucursales.length <= 1
+            ? conSucursal({ ...base, sucursalId: estado.sucursalId ?? ctx.sucursales[0]?.id ?? null }, ctx)
+            : { estado: { ...base, paso: "sucursal" }, respuestas: [textos.preguntaSucursal(ctx.sucursales)], pasarAAsesor: null };
+        return { ...siguiente, respuestas: [textos.saludoConDatos(ctx.nombreVertical, estado.nombre), ...siguiente.respuestas] };
+      }
       return {
         estado: { ...estado, paso: "nombre", intentosFallidos: 0 },
         respuestas: [textos.saludo(ctx.nombreVertical), textos.preguntaNombre],

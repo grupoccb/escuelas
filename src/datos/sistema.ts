@@ -8,6 +8,10 @@
 // - `unicaOrganizacion`: si solo existe UNA organización viva, el login puede omitir el slug.
 // - `buscarSesionPorHash`: la cookie trae un token; su SHA-256 es la única llave para llegar a la
 //   sesión, y la sesión dice la organización. Después de esto TODO va con `conAlcance`.
+//
+// Excepción de la landing pública (E1): la URL `/l/:vertical` no trae sesión ni organización; el slug de la vertical (y, si hay
+// ambigüedad, el slug de la organización) es lo único que identifica a quién pertenece la página.
+// - `resolverVerticalPublica`: devuelve la (organización, vertical) SOLO si el slug identifica exactamente una vertical activa.
 
 import { clienteSinAlcance, type PrismaRaiz } from "./prisma.ts";
 import { normalizarNumeroWhatsapp } from "../lib/telefono.ts";
@@ -125,4 +129,19 @@ export async function buscarSesionPorHash(raiz: PrismaRaiz, tokenHash: string): 
     where: { token_hash: tokenHash, eliminado_en: null, organizacion: { eliminado_en: null } },
     select: { id: true, organizacion_id: true, usuario_id: true, expira_en: true, ultima_actividad_en: true, revocada_en: true },
   });
+}
+
+/**
+ * La vertical y su organización a partir de lo que trae la URL pública de la landing (E1): el slug de la vertical y, opcionalmente, el de la
+ * organización (los slugs de vertical son únicos por organización, no globales). Solo cuenta lo vivo y activo. Si el slug identifica más de una
+ * vertical (o ninguna) devuelve null: la página responde igual para «no existe» y «es ambiguo», sin revelar qué organizaciones hay.
+ */
+export async function resolverVerticalPublica(raiz: PrismaRaiz, slugVertical: string, slugOrganizacion: string | null): Promise<{ organizacion_id: string; vertical_id: string } | null> {
+  const filas = await clienteSinAlcance(raiz).vertical.findMany({
+    where: { slug: slugVertical, activo: true, eliminado_en: null, organizacion: { eliminado_en: null, ...(slugOrganizacion ? { slug: slugOrganizacion } : {}) } },
+    select: { id: true, organizacion_id: true },
+    take: 2,
+  });
+  const una = filas.length === 1 ? filas[0] : undefined;
+  return una ? { organizacion_id: una.organizacion_id, vertical_id: una.id } : null;
 }

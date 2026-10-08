@@ -22,7 +22,7 @@ export interface LeadEstancado {
 /** Las condiciones de Prisma para «estancado ahora» (una por etapa con umbral). Vacío si ninguna etapa tiene umbral. */
 export async function condicionDeEstancado(db: BaseDatos, ahora: Date, etapaId?: string): Promise<{ OR: Record<string, unknown>[] } | null> {
   const etapas = await db.etapa_pipeline.findMany({
-    where: { dias_alerta_sin_movimiento: { not: null }, es_ganado: false, es_perdido: false, NOT: { tipo_sistema: { in: ["inscrito", "perdido"] } }, ...(etapaId ? { id: etapaId } : {}) },
+    where: { dias_alerta_sin_movimiento: { not: null }, es_ganado: false, es_perdido: false, OR: [{ tipo_sistema: null }, { tipo_sistema: { notIn: ["inscrito", "perdido"] } }], ...(etapaId ? { id: etapaId } : {}) },
     select: { id: true, dias_alerta_sin_movimiento: true },
   });
   if (etapas.length === 0) return null;

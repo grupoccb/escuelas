@@ -149,3 +149,31 @@ test("resumen para el asesor cuando el contacto dejó de contestar", () => {
   assert.match(r, /Nombre: Ana/);
   assert.match(r, /Edad: —/);
 });
+
+test("E1: con los datos de la landing el bot saluda y sigue desde lo que falta, sin volver a preguntar nombre ni edad", () => {
+  const conLanding: ContextoCaptacion = { ...CTX, datosDeLanding: true };
+  // Ya trae nombre, edad y la sucursal que eligió en el formulario: saluda y cierra como la captura de siempre.
+  const completo = avanzar({ ...ESTADO_INICIAL, nombre: "Sofía", edad: 8, sucursalId: "s-sur" }, "Hola, quiero informes. Mi código es ABCD-EFG2", conLanding);
+  assert.deepEqual(completo.respuestas, [textos.saludoConDatos("Vertical Uno", "Sofía"), textos.cierre("Sofía", "Sur Poniente")]);
+  assert.equal(completo.pasarAAsesor, "captura_completa");
+  assert.deepEqual(completo.estado, { paso: "completo", intentosFallidos: 0, nombre: "Sofía", edad: 8, sucursalId: "s-sur" });
+  // Sin sucursal y con varias: lo único que pregunta es la sucursal.
+  const sinSucursal = avanzar({ ...ESTADO_INICIAL, nombre: "Sofía", edad: 8 }, "Hola", conLanding);
+  assert.deepEqual(sinSucursal.respuestas, [textos.saludoConDatos("Vertical Uno", "Sofía"), textos.preguntaSucursal(CTX.sucursales)]);
+  assert.equal(sinSucursal.estado.paso, "sucursal");
+  assert.equal(sinSucursal.pasarAAsesor, null);
+  // Con una sola sucursal no hay nada que preguntar.
+  const una = avanzar({ ...ESTADO_INICIAL, nombre: "Sofía", edad: 8 }, "Hola", { ...conLanding, sucursales: [{ id: "s-unica", nombre: "Única" }] });
+  assert.equal(una.estado.sucursalId, "s-unica");
+  assert.equal(una.pasarAAsesor, "captura_completa");
+  // Sin la marca de landing, o si falta el nombre o la edad, el bot sigue como siempre (pregunta todo).
+  for (const [estado, ctx] of [
+    [{ ...ESTADO_INICIAL, nombre: "Sofía", edad: 8 }, CTX],
+    [{ ...ESTADO_INICIAL, nombre: "Sofía" }, conLanding],
+    [{ ...ESTADO_INICIAL, edad: 8 }, conLanding],
+  ] as const) {
+    const r = avanzar(estado, "Hola", ctx);
+    assert.deepEqual(r.respuestas, [textos.saludo("Vertical Uno"), textos.preguntaNombre]);
+    assert.equal(r.estado.paso, "nombre");
+  }
+});

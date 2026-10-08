@@ -85,7 +85,7 @@ const ETAPAS_DE_CIERRE = ["inscrito", "perdido"] as const;
 export async function programarLeadsFrios(db: BaseDatos, a: AutomatizacionDeSeguimiento, ahora: Date): Promise<number> {
   const atraso = atrasoMaximoDias(a.condiciones);
   const etapas = await db.etapa_pipeline.findMany({
-    where: { dias_alerta_sin_movimiento: { not: null }, es_ganado: false, es_perdido: false, NOT: { tipo_sistema: { in: [...ETAPAS_DE_CIERRE] } } },
+    where: { dias_alerta_sin_movimiento: { not: null }, es_ganado: false, es_perdido: false, OR: [{ tipo_sistema: null }, { tipo_sistema: { notIn: [...ETAPAS_DE_CIERRE] } }] },
     select: { id: true, dias_alerta_sin_movimiento: true },
   });
   let creadas = 0;
@@ -223,7 +223,7 @@ export async function programarAvisosDePromocion(db: BaseDatos, a: Automatizacio
       lead: {
         ...(a.vertical_id ? { vertical_interes_id: a.vertical_id } : {}),
         ...(a.sucursal_id ? { sucursal_interes_id: a.sucursal_id } : {}),
-        etapa: { es_ganado: false, es_perdido: false, NOT: { tipo_sistema: { in: [...ETAPAS_DE_CIERRE] } } },
+        etapa: { es_ganado: false, es_perdido: false, OR: [{ tipo_sistema: null }, { tipo_sistema: { notIn: [...ETAPAS_DE_CIERRE] } }] },
       },
     },
     select: { id: true, lead_id: true, prospecto_id: true, sucursal_id: true, vigente_hasta: true, snapshot: true },
