@@ -12,7 +12,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A5 | HECHO | ebb4fc9 | Entrega fallida: tarea con el código de error, una por mensaje; cierra F1-03 (evento adelantado y tiempo agotado) |
 | A6 | HECHO | b9913a3 | Frecuencia: 3 automáticos al día y 1 de marketing cada 7 días, configurable por organización (`configuracion_organizacion`) |
 | A7 | HECHO | ddf95c0 | Firma en el borde: rutas de Twilio con `X-Twilio-Signature`, reintentos por `MessageSid`, reenvío sin modificar a Chatwoot |
-| A8 | PENDIENTE | | SPEC.md al día |
+| A8 | HECHO | (ver git log) | SPEC.md al día: Fase 1 como quedó, Fases 2 y 3 detalladas |
 | B1 | PENDIENTE | | Usuarios y roles |
 | B2 | PENDIENTE | | Autorización por rol y sucursal |
 | B3 | PENDIENTE | | API base |
@@ -337,3 +337,18 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 - La lista de lo que falta probar con Twilio real está en `docs/DECISION-ATRIBUCION.md` (sección A7). Lo crítico: la URL pública exacta contra la que Twilio firma y qué hace Twilio ante un 502/503 (por defecto no reintenta ante un 5xx; si no reintenta, un reenvío fallido se perdería y habría que activar el reintento o poner una cola propia).
 - Para usarlo: `TWILIO_AUTH_TOKEN` y `PUBLIC_BASE_URL` en el entorno del backend; el webhook del número de Twilio apunta a `PUBLIC_BASE_URL/webhooks/twilio/entrantes` y el de estados a `/webhooks/twilio/estados`. En la demo local queda apagado.
 - Sigue sin resolverse la elección entre la vía A y la C; este borde sirve a las dos.
+
+## A8. `SPEC.md` al día
+
+**Qué se hizo**
+- Fase 1 reescrita como quedó (bloques 1.1–1.7 y los ajustes de la etapa A), con sus gates sin marcar y un gate nuevo: elegir la vía de atribución con Twilio real.
+- Fases 2 y 3 detalladas con los bloques de este plan (C–E y B, F–K), cada una con gates en borrador. Se quitó el "Fuera de alcance. No construir" (queda suspendido por el plan, solo para esta sesión).
+
+**Verificación**
+- `git diff --stat SPEC.md`; ninguna casilla `[x]`: `grep -c '\[x\]' SPEC.md` da 0.
+
+**Decisiones que tomé**
+- Los gates de Fases 2 y 3 son un borrador mío; Eduardo los ajusta. Alternativa descartada: no escribir gates; el SPEC los trae en todas las fases y sin ellos no hay qué marcar.
+
+**Para Eduardo**
+- Revisar los gates de Fases 2 y 3 y el gate nuevo de atribución en Fase 1.
