@@ -20,7 +20,8 @@
     "validar": "npm run lint && npm run typecheck && npm run check:generico && npm run check:capas && npm test",
     "test:int": "node scripts/test-int.ts",
     "check:capas": "node scripts/check-capas.ts",
-    "demo:contacto": "node --env-file=config/demo-local.env scripts/simular-contacto.ts"
+    "demo:contacto": "node --env-file=config/demo-local.env scripts/simular-contacto.ts",
+    "reporte:leads": "node --env-file-if-exists=.env scripts/reporte-leads.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {

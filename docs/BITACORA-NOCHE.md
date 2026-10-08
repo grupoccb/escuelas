@@ -13,7 +13,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N6 | HECHO | 57b3a90 | Handoff |
 | N7 | HECHO | d0c0882 | Estados de entrega |
 | N8 | HECHO | b50a9f1 | Reenganche |
-| N9 | PENDIENTE | | Reporte mínimo |
+| N9 | HECHO | (ver git log) | Reporte mínimo |
 | N10 | PENDIENTE | | Prueba de fuego (segunda vertical) |
 | N11 | PENDIENTE | | Catálogo de Fase 2 |
 
@@ -226,3 +226,23 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 - La sincronización de plantillas con Twilio y su estado de aprobación real están **pendientes** (requieren credenciales). Hoy `estado_aprobacion` se edita en la tabla.
 - El tope de frecuencia (1 por 24 h) es un valor conservador mío; no hay cifra en los insumos.
 - Un `fallido` de entrega (p. ej. 63016) no crea tarea ni cancela nada (ver N7).
+
+## N9. Reporte mínimo (bloque 1.7)
+
+**Qué se hizo**
+- **Consulta** `reporteLeads(db, filtros)` (`src/reportes/leads.ts`): leads por campaña × sucursal × etapa, con resumen por etapa (en el orden del embudo) y total. Solo por el scope de organización; no cuenta lo borrado. Filtros opcionales: `desde` (inclusive) / `hasta` (exclusive) por fecha de alta, y `verticalSlug`.
+- **Comando** `npm run reporte:leads` (`scripts/reporte-leads.ts`), con `--organizacion <nombre|id>` (obligatorio si hay varias), `--desde`/`--hasta AAAA-MM-DD`, `--vertical <slug>` y `--json`. Lee `DATABASE_URL` de `.env`.
+- Los leads sin campaña o sin sucursal aparecen como `(sin campaña)` / `(sin sucursal)`; una campaña, sucursal o etapa borrada después se nombra `(… eliminada)` en vez de perder el conteo.
+
+**Verificación**
+- `npm run validar` exit 0 (91 tests) · `npm run test:int` exit 0 (78 tests).
+- Tests: conteo por grupo, lo borrado y otras organizaciones no cuentan, orden de filas, filtros de fecha (bordes), filtro de vertical, aislamiento, campaña borrada, y el comando ejecutado como proceso (texto, JSON, organización obligatoria, fecha inválida).
+- Ejemplo (base de pruebas, organización sin leads): `npm run reporte:leads -- --organizacion "Escuela demo"` → `Sin leads para los filtros dados.` (con datos, ver la tabla en el test de `leads.itest.ts`).
+
+**Decisiones que tomé**
+- La sucursal del reporte es `lead.sucursal_interes_id` (la que eligió el contacto en el bot), no la del canal.
+- "Etapa" es la etapa actual del lead (no un histórico de cambios; el historial de etapas no está en el alcance de Fase 1).
+- No expuse el reporte por HTTP: el plan pide consulta y comando.
+
+**Para Eduardo**
+- Con datos reales hay que correr primero la demo (ver abajo, N10/N11) o apuntar `DATABASE_URL` a la base que quieras: la base de la demo (`inscripciones`) se migra al hacer `docker compose up --build`, no antes.
