@@ -30,6 +30,8 @@ export const PERMISOS_ACORDADOS = {
   "alumnos:escribir": ["administrador", "asesor", "recepcion"],
   "inscripciones:leer": ["administrador", "asesor", "recepcion", "maestro"],
   "inscripciones:escribir": ["administrador", "asesor", "recepcion"],
+  "asistencia:leer": ["administrador", "asesor", "recepcion", "maestro"],
+  "asistencia:registrar": ["administrador", "recepcion", "maestro"],
   "conversion:leer": ["administrador", "asesor", "maestro"],
   "conversion:ejecutar": ["administrador", "asesor", "maestro"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],

@@ -98,6 +98,7 @@ model organizacion {
   inscripciones              inscripcion[]
   motivos_baja               motivo_baja[]
   inscripciones_movimientos  inscripcion_movimiento[]
+  asistencias                asistencia[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -1113,6 +1114,7 @@ model grupo {
   movimientos_desde     inscripcion_movimiento[] @relation("movimiento_grupo_anterior")
   movimientos_hacia     inscripcion_movimiento[] @relation("movimiento_grupo_nuevo")
 
+  asistencias           asistencia[]
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([programa_id])
@@ -1373,6 +1375,7 @@ model usuario {
   inscripciones_movidas    inscripcion_movimiento[] @relation("movimiento_usuario")
   clases_listas_para_cerrar clase_muestra[]          @relation("clase_listo_por")
 
+  asistencias_registradas asistencia[] @relation("asistencia_registrada_por")
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
 }
@@ -2423,6 +2426,7 @@ model inscripcion {
   aplicaciones  promocion_aplicacion[]
   movimientos   inscripcion_movimiento[]
 
+  asistencias   asistencia[]
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([alumno_id])
@@ -2542,4 +2546,45 @@ model evento_inesperado {
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+}
+
+// ── Pase de lista (G1) ──────────────────────────────────────────────────────────────────────────
+
+enum estatus_asistencia {
+  presente
+  falta
+  /// Falta avisada o con motivo. No cuenta como falta ni como asistencia en el porcentaje, y no suma ni rompe la racha de faltas (G2).
+  justificada
+}
+
+enum metodo_asistencia {
+  manual
+  qr
+}
+
+/// Una fila por (inscripción, fecha): idempotente. La fecha es el día de calendario LOCAL de la sucursal en que sesionó el grupo; solo hay filas de las
+/// sesiones con pase tomado, así la racha de faltas (G2) cuenta sesiones y no días del calendario. Corregir una fila deja su registro en `registro_cambio`.
+model asistencia {
+  id                        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String             @db.Uuid
+  inscripcion_id            String             @db.Uuid
+  /// El grupo en el que se tomó el pase (el de la inscripción ese día; la inscripción puede cambiar de grupo después).
+  grupo_id                  String             @db.Uuid
+  fecha                     DateTime           @db.Date
+  estatus                   estatus_asistencia
+  metodo                    metodo_asistencia  @default(manual)
+  registrado_por_usuario_id String?            @db.Uuid
+  creado_en                 DateTime           @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime?          @db.Timestamptz(6)
+
+  organizacion  organizacion @relation(fields: [organizacion_id], references: [id])
+  inscripcion   inscripcion  @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupo         grupo        @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registrado_por usuario?    @relation("asistencia_registrada_por", fields: [registrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([inscripcion_id, fecha])
+  @@index([grupo_id, fecha])
 }

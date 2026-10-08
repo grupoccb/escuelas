@@ -486,3 +486,21 @@ constancia: un dato raro no cuesta el mensaje de una familia. Si ese reenvío ta
 lanzar al barrido (una restricción de la base), queda `abandonado` con constancia (`barrido_twilio`, clave `evento_twilio:<id>`) y tarea; una falla del momento no lo abandona, se reintenta en el siguiente barrido.
 
 **No cubierto** (documentado): un cuerpo mayor al límite de la ruta responde 413 antes de leerse (no se sabe de qué organización es); y el límite de peticiones (429) sigue siendo del proveedor.
+
+## Asistencia: pase de lista (G1)
+
+Código: `src/asistencia/` (`pase.ts` las reglas y el guardado, `alcance.ts`), `src/api/rutas/asistencia.ts`. Tabla `asistencia` (migración `20261019000000_asistencia`): `inscripcion_id`, `grupo_id` (el grupo en que
+se tomó), `fecha` (el día de calendario LOCAL de la sucursal), `estatus` (`presente` | `falta` | `justificada`), `metodo` (`manual` | `qr`), `registrado_por_usuario_id`. **Una fila por (inscripción, fecha)**
+entre las vivas (índice único parcial): el pase es idempotente.
+
+| Método y ruta | Permiso | Qué |
+|---|---|---|
+| `GET /api/grupos/:id/pase?fecha=AAAA-MM-DD` | `asistencia:leer` (administrador, asesor, recepción, maestro) | La lista del pase con lo ya registrado: `{ grupo, fecha, hoy, es_sesion, sesiones[], puede_registrar, problema, pase_tomado, lista: [{ inscripcion_id, alumno_id, alumno, activa, estatus, metodo }] }` |
+| `PUT /api/grupos/:id/pase` `{ fecha, asistencias: [{ inscripcion_id, estatus, metodo? }] }` | `asistencia:registrar` (administrador, recepción, maestro) | Guardado masivo, idempotente, TODO o nada: `{ creadas, actualizadas, sin_cambio, lista }` |
+
+- **Alcance:** el maestro solo toma y ve el pase de SUS grupos (los de su instructor); asesor y recepción los de sus sucursales; el administrador todos. Lo ajeno (otro maestro, otra sucursal, otra organización) es 404. El asesor lee pero no registra (403).
+- **La fecha** tiene que ser una sesión del `grupo_horario` en la zona de la sucursal y **haber empezado ya**: `no_es_sesion` (ese día no da clase) o `fecha_futura` → 409 con `detalles: [{ campo: "motivo", mensaje }]`. El borde es el instante exacto de inicio de la primera sesión del día. La hora que no existe un día de cambio de horario no es sesión.
+- **La lista** son las inscripciones ACTIVAS del grupo que ya habían empezado esa fecha (`fecha_inicio <= fecha`), más las que ya tienen fila ese día (para poder corregir un pase aunque el alumno se haya dado de baja después; a esas no se les crea una fila nueva). Una congelada, una baja o una de otro grupo → 400 con `asistencias[i].inscripcion_id`; una repetida → 400. Nada se guarda si algo falla.
+- **Idempotente y concurrente:** guardar lo mismo otra vez no cambia nada ni deja otro registro de cambios. El guardado toma un candado por (grupo, fecha): dos pases simultáneos se forman en fila, gana el último pase completo, sin duplicar filas (y sin 500) y el índice único de la base lo respalda.
+- **Registro de cambios:** cada alta y cada corrección (`registro_cambio`, entidad `asistencia`: estatus, método, inscripción, grupo y fecha; nada identificable).
+- `metodo: "qr"` solo queda registrado: la lectura del código del alumno en mostrador es de la interfaz (J2).

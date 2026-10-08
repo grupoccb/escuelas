@@ -52,6 +52,8 @@ export const CAMPOS_AUDITABLES = {
   // F3: la inscripción. Nada identificable: ids, fechas, estatus y los importes congelados.
   inscripcion: ["estatus", "alumno_id", "grupo_id", "programa_id", "lead_id", "promocion_id", "fecha_inicio", "fecha_baja", "dia_corte_pago", "precio_inscripcion_aplicado", "precio_mensualidad_aplicado", "motivo_baja_id"],
   motivo_baja: ["codigo", "nombre", "orden", "activo"],
+  // G1: el pase de lista. Solo ids, la fecha, el estatus y el método (nada identificable).
+  asistencia: ["inscripcion_id", "grupo_id", "fecha", "estatus", "metodo"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

@@ -54,7 +54,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F-fix | HECHO (parcial: EF-06 y EF-07 esperan decisión de Eduardo; EF-17 solo corrige el síntoma, el cruce de puertos entre pruebas paralelas sigue sin diagnóstico; EF-11 a EF-15 y EF-18 a EF-25 pendientes) | 6c9ef58…3ba2ca0 | Correcciones de la auditoría de la etapa F (`docs/auditorias/etapa-F.md`): ver la sección «Auditoría y correcciones de la etapa F» |
 | INV-6 | HECHO | ver `git log` (`INV-6:`) | Invariante 6 reformulado: `plantilla_mensaje.clase_mensaje` (servicio / marketing, declarada), el provider deja pasar solo los avisos de servicio con una persona atendiendo; el bot pasa al asesor tras agendar; el motor ya no mira la atención humana |
 | WH | HECHO | ver `git log` (`WH:`) | Un webhook nunca responde 500 por un dato inesperado: clasificación única (transitoria → 503, dato inesperado → 200 con constancia `evento_inesperado` + tarea idempotentes) en Chatwoot, Twilio (entrantes, estados y barrido del borde) y landing |
-| G1 | PENDIENTE | | Pase de lista |
+| G1 | HECHO | ver `git log` (`G1:`) | Pase de lista por grupo y fecha: `asistencia` única por (inscripción, fecha), solo sesiones que ya empezaron, lista de inscritos activos, guardado masivo idempotente y serializado, corrección con registro de cambios |
 | G2 | PENDIENTE | | Derivados de asistencia |
 | G3 | PENDIENTE | | Progresión genérica |
 | G4 | PENDIENTE | | Eventos y elegibilidad |
@@ -1943,3 +1943,32 @@ $ npm run test:int    → exit 0 · tests 871 · pass 871 · fail 0   (antes 859
 - No hay (todavía) una lista de constancias en la API; se consultan por la tarea. Candidato a J8 si lo quieres en la interfaz.
 - Un cuerpo mayor al límite de la ruta responde 413 sin constancia (no se sabe de qué organización es).
 - Chatwoot, ante un 503, ¿reintenta? Hay que confirmarlo con el Chatwoot real (el payload y los reintentos de webhooks de Chatwoot no se probaron fuera de los fixtures).
+
+
+## G1. Pase de lista
+
+**Qué se hizo**
+- **Tabla `asistencia`** (migración `20261019000000_asistencia`): `inscripcion_id`, `grupo_id` (el grupo en que se tomó el pase: la inscripción puede cambiar de grupo después), `fecha` (día de calendario local de la sucursal), `estatus` (`presente|falta|justificada`), `metodo` (`manual|qr`), `registrado_por_usuario_id`; FK compuestas, `eliminado_en`, **índice único parcial `(inscripcion_id, fecha)`** entre las vivas, CHECK de rango de fecha.
+- **`src/asistencia/pase.ts`:** `sesionesDelDia` (los instantes de inicio de ese día en la zona de la sucursal, con la hora de pared y sin la hora que no existe en un cambio de horario), `problemaDePase` (`no_es_sesion` / `fecha_futura`; el borde es el instante exacto de inicio), `listaDelPase` y `guardarPase` (todo o nada, bajo el candado `pase:<grupo>:<fecha>`).
+- **API** (`docs/API.md`, «Asistencia: pase de lista»): `GET|PUT /api/grupos/:id/pase`. Permisos nuevos `asistencia:leer` (administrador, asesor, recepción, maestro) y `asistencia:registrar` (administrador, recepción, maestro); el alcance es el de las inscripciones (`dondeGrupoVisible`). Registro de cambios de la entidad `asistencia`.
+- **Helper de prueba** `src/testutil/operacion.ts` (`mundoDeOperacion`): organización con dos sucursales, grupos, un maestro por grupo, un cliente HTTP por rol y un reloj que el test mueve; lo usarán G2 a G5.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 525 · pass 525 · fail 0   (antes 520)
+$ npm run test:int    → exit 0 · tests 879 · pass 879 · fail 0   (antes 871)
+```
+Tests nuevos: `pase.test.ts` (5, puros: sesiones del día, dos sesiones, cambio de horario de verano en Nueva York con la hora inexistente, el borde exacto, el día local de Tokio frente a UTC) y `pase.itest.ts` (8, la app real + Postgres): alcance por los seis roles/identidades (maestro propio y ajeno, asesor de la sucursal y de otra, recepción, administrador, otra organización), lista de activos (sin congeladas, bajas ni las que empezaron después), `no_es_sesion` / `fecha_futura` / fechas mal escritas y el reloj que avanza hasta el inicio, todo o nada con cuatro tipos de renglón inválido y siete cuerpos mal formados, idempotencia (lo mismo dos veces no toca filas ni registra), corrección con su antes y después y el método `qr`, **diez pases simultáneos** (una fila por inscripción, ningún 500, los ocho con el estatus de UN mismo pase), SQL directo (único y llave foránea entre organizaciones) y no-fuga entre organizaciones.
+Mutaciones atrapadas: sin el candado (la concurrencia), sin validar antes de escribir (2 pruebas), sin la regla de la fecha futura (2) y sin el registro de la corrección.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **No se puede pasar lista de una clase que no ha empezado** (el instante de inicio de la primera sesión del día ya pasó). Alternativa descartada: permitir cualquier fecha que no sea futura por día (el maestro podría pasar lista a las 9:00 de una clase de las 16:00).
+2. **La lista incluye a los que ya tienen fila aunque su inscripción ya no esté activa**, solo para corregir. Alternativa descartada: solo activas (un pase quedaría incorregible si el alumno se da de baja al día siguiente).
+3. **Un candado por (grupo, fecha) y último-pase-gana.** Alternativa descartada: `INSERT … ON CONFLICT DO UPDATE` fila por fila (dos pases a la vez dejarían filas mezcladas de ambos); el candado hace atómico cada pase.
+4. **Recepción registra, el asesor solo lee.** Recepción está en el mostrador (y es quien usaría el QR); el asesor es de captación. Decisión de producto abierta.
+5. **`fecha` es el día de calendario local de la sucursal**, no un instante: un grupo que cambia de horario no cambia el día de la sesión pasada.
+
+**Para Eduardo**
+- **[SUPUESTO]** quién registra el pase (maestro, recepción, administrador) y que no se pueda pasar lista antes de que empiece la clase.
+- Decisión de producto: ¿una ventana máxima para corregir un pase pasado? Hoy se puede corregir siempre (queda el registro de cambios).
+- El método `qr` solo se guarda: la lectura del código es de la interfaz.

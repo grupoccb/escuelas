@@ -52,6 +52,9 @@ export const MATRIZ_DE_PERMISOS = {
   // Inscripción (F3): inscribir y, después, cambiar de grupo, congelar y dar de baja (F5) son del administrador, el asesor y recepción. El maestro lee las de SUS grupos.
   "inscripciones:leer": ["administrador", "asesor", "recepcion", "maestro"],
   "inscripciones:escribir": ["administrador", "asesor", "recepcion"],
+  // Pase de lista (G1): lo toma el maestro de ese grupo, recepción (en el mostrador, también por QR) y el administrador; lo lee además el asesor. El alcance es el de las inscripciones.
+  "asistencia:leer": ["administrador", "asesor", "recepcion", "maestro"],
+  "asistencia:registrar": ["administrador", "recepcion", "maestro"],
   // Conversión del lead en familia e inscripciones (F2): quien cierra la inscripción. El maestro tiene el permiso, pero la ruta solo se lo concede con el modo de cierre `maestro_en_sitio` (F6, `puedeConvertir`) y de SUS alumnos.
   "conversion:leer": ["administrador", "asesor", "maestro"],
   "conversion:ejecutar": ["administrador", "asesor", "maestro"],
