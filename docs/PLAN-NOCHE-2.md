@@ -63,6 +63,17 @@ Aplican todas las reglas de la noche de `docs/PLAN-NOCHE.md`. Además:
 - Tres intentos serios; si no, regresa al último commit, marca BLOQUEADO con motivo y sigue con el siguiente bloque que no dependa de él.
 - Si una etapa completa queda bloqueada, sigue con la siguiente que no dependa de ella.
 
+**Reglas añadidas por Eduardo durante la sesión (etapas F a K)**
+1. Audita cada etapa antes de empezar la siguiente.
+2. Las correcciones de una auditoría las verifica un subagente distinto del que las hizo.
+3. En inscripción y finanzas, cupo y dinero se protegen en la base, dentro de la misma transacción. Nada de comprobar y luego actuar. Resuelve EC-14 y EC-16 antes de F3.
+4. La landing y toda pantalla se prueban en un navegador real, no solo por API.
+5. Un webhook nunca responde 500 por un dato inesperado: se atrapa, se registra y se crea tarea.
+6. Las pruebas nunca corren contra la base de la demo.
+7. Un bloque con salvedades se anota como "HECHO (parcial: lo que falta)".
+8. No reinterpretes un invariante. Si un bloque lo necesita, anota la propuesta para Eduardo y elige la opción que no lo rompe.
+9. Cambio al invariante 6 (ya aplicado en `CLAUDE.md`): `en_atencion_humana` bloquea al bot y al marketing; los avisos de servicio sobre algo ya acordado (recordatorio de clase muestra, recordatorio de pago) sí salen; cada plantilla declara si es de servicio o de marketing. Se implementa como bloque aparte "INV-6", con sus tests, antes de la etapa H (revisa D1 y ED-11).
+
 **Sin tráfico real**
 - Nada contra Twilio, Meta ni AWS. La infraestructura se escribe y se valida sin desplegar.
 

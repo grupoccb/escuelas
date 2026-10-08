@@ -43,7 +43,7 @@ Los índices únicos parciales del modelo (`WHERE estatus='activa'`, teléfono n
    - `ventana_gratis_hasta`: 72 h desde la entrada por anuncio Click-to-WhatsApp. Solo afecta el costo.
    - Fuera de la ventana de servicio: plantilla aprobada o nada. Si no hay plantilla apta, no se manda y se crea tarea para el asesor.
 
-6. **`en_atencion_humana` bloquea toda automatización.** Sin excepción. La verificación vive en `MessagingProvider`, no en cada automatización.
+6. **`en_atencion_humana` bloquea al bot y al marketing.** Con una persona atendiendo, el sistema no contesta ni manda reenganche, lead frío ni promociones. Sí salen los avisos de servicio sobre algo que la familia ya acordó, como el recordatorio de clase muestra y el recordatorio de pago. Cada plantilla declara si es de servicio o de marketing. La verificación vive en `MessagingProvider`, no en cada automatización.
 
 7. **Una sola función de teléfonos.** `normalizarTelefono()` convierte a E.164 y colapsa `+521` a `+52`. Ningún otro código toca el formato. Toda búsqueda o alta de contacto pasa por ella.
 
