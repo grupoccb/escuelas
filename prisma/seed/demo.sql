@@ -6,8 +6,9 @@
 --
 -- La organización solo se crea por seed (invariante 1).
 
-INSERT INTO organizacion (id, nombre) VALUES
-  ('00000000-0000-4000-8000-000000000001', 'Escuela demo')
+-- `slug` es el identificador con el que se inicia sesión (POST /api/sesion).
+INSERT INTO organizacion (id, nombre, slug) VALUES
+  ('00000000-0000-4000-8000-000000000001', 'Escuela demo', 'escuela-demo')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO vertical (id, organizacion_id, nombre, slug, activo) VALUES
@@ -70,4 +71,24 @@ ON CONFLICT DO NOTHING;
 -- organización. ON CONFLICT sin destino: la migración ya crea la fila en las bases existentes.
 INSERT INTO configuracion_organizacion (id, organizacion_id, max_automaticos_por_dia, max_marketing_por_ventana, ventana_marketing_dias) VALUES
   ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000001', 3, 1, 7)
+ON CONFLICT DO NOTHING;
+
+-- Usuarios de la demo (B1). SOLO DEMO: los cuatro tienen la contraseña `Demo-local-2026!` (la misma
+-- del asesor de Chatwoot de la demo). Los hashes son scrypt (src/auth/contrasena.ts) generados con
+-- `CONTRASENA=… node scripts/crear-usuario.ts --solo-hash`. En un ambiente real el primer
+-- administrador se crea con `scripts/crear-usuario.ts` y NUNCA se corre este seed.
+-- El correo del asesor coincide con el del agente de Chatwoot de la demo (para vincularlos, B5).
+INSERT INTO usuario (id, organizacion_id, correo, nombre, rol, contrasena_hash, activo) VALUES
+  ('00000000-0000-4000-8000-000000001001', '00000000-0000-4000-8000-000000000001', 'admin@demo.test',     'Administrador demo', 'administrador', 'scrypt$32768$8$3$OQkFfX_NJYpeRxcQeU9G0A$M1mgs8FZQBb7imOJUKM3EXr7b1oY2CMKQ6t5Z1zHYI4', true),
+  ('00000000-0000-4000-8000-000000001002', '00000000-0000-4000-8000-000000000001', 'asesor@demo.test',    'Asesor demo',        'asesor',        'scrypt$32768$8$3$d1Bw6qFmJ58LV3GP_nopAg$pqsTWIV2qd5FhzLAqpYCp6MZLkg_XeG9-TB3SPFhHy4', true),
+  ('00000000-0000-4000-8000-000000001003', '00000000-0000-4000-8000-000000000001', 'maestro@demo.test',   'Maestro demo',       'maestro',       'scrypt$32768$8$3$cKzvj_ErPzrnorsWBclwFA$izwu8B1jNj_IuqILemEOe_LU8JuQHb84-Yl38OpCBYU', true),
+  ('00000000-0000-4000-8000-000000001004', '00000000-0000-4000-8000-000000000001', 'recepcion@demo.test', 'Recepción demo',    'recepcion',     'scrypt$32768$8$3$KX4RIqyh7oyybCFL2_dp1w$petqDz1zi__fOm_AxpJt7e-PPQTAmdXVvpXBZGrf_Yw', true)
+ON CONFLICT DO NOTHING;
+
+-- Sucursales de cada quien: el asesor ve solo la primera; recepción ve las dos; el administrador ve
+-- todas sin necesitar filas. El maestro se limita por sus grupos (B2), no por sucursal.
+INSERT INTO usuario_sucursal (id, organizacion_id, usuario_id, sucursal_id) VALUES
+  ('00000000-0000-4000-8000-000000001101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000001002', '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000001102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000001004', '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000001103', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000001004', '00000000-0000-4000-8000-000000000202')
 ON CONFLICT DO NOTHING;

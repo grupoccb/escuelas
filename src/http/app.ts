@@ -2,6 +2,8 @@
 // no necesiten base ni red.
 
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import { cabecerasDeSeguridad } from "../api/cabeceras.ts";
+import { crearApiRouter, type ApiDepsEntrada } from "../api/index.ts";
 import { log } from "../lib/log.ts";
 import {
   interpretarEventoChatwoot,
@@ -41,12 +43,18 @@ export interface AppDeps {
   registrarEstadoEntrega(cambio: CambioDeEstado): Promise<string>;
   /** Borde de Twilio. Sin él, las rutas /webhooks/twilio/* rechazan todo. */
   twilio?: AppTwilio;
+  /** API de la aplicación (/api). Sin ella, /api no existe. */
+  api?: ApiDepsEntrada;
   reloj?: () => Date;
 }
 
 export function crearApp(deps: AppDeps): Express {
   const app = express();
   app.disable("x-powered-by");
+  app.use(cabecerasDeSeguridad(deps.api?.cookieSegura ?? false));
+
+  // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
+  if (deps.api) app.use("/api", crearApiRouter(deps.api));
 
   app.get("/salud", async (_req, res) => {
     try {

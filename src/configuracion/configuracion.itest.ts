@@ -74,7 +74,7 @@ test("la base rechaza topes negativos o una ventana de marketing fuera de 1 a 36
 
 test("el seed de la demo deja a la organización con su fila de configuración con los valores por defecto (idempotente)", async () => {
   const prefijo = randomBytes(4).toString("hex");
-  const aOrganizacionNueva = (sql: string): string => sql.replace(/00000000-0000-4000-8000-000000000(\d{3})/g, `${prefijo}-0000-4000-8000-000000000$1`);
+  const aOrganizacionNueva = (sql: string): string => sql.replace(/00000000-0000-4000-8000-000000000(\d{3})/g, `${prefijo}-0000-4000-8000-000000000$1`).replaceAll("escuela-demo", `escuela-${prefijo}`);
   const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
   await cliente.connect();
   try {

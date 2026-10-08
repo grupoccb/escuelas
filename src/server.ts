@@ -21,6 +21,8 @@ const app = crearApp({
   pingDb: () => pingBaseDatos(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
   twilio,
+  // API de la aplicación (/api): sesiones, usuarios y recursos. Configuración por variables de entorno.
+  api: { prisma },
   estadosEntrega: new EstadosEntregaChatwoot(),
   registrarEstadoEntrega: (cambio) => registrarEstadoEntrega({ prisma }, cambio),
   procesarEntrante: (evento) => procesarEntrante({ prisma, mensajeria: mensajeria.provider, atribucion }, evento),

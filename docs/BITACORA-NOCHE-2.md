@@ -14,7 +14,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A7 | HECHO | ddf95c0 | Firma en el borde: rutas de Twilio con `X-Twilio-Signature`, reintentos por `MessageSid`, reenvío sin modificar a Chatwoot |
 | A8 | HECHO | (ver git log) | SPEC.md al día: Fase 1 como quedó, Fases 2 y 3 detalladas |
 | A-fix | HECHO (2 pendientes, 1 decisión) | 46645c0…4ac0bb0 | Correcciones de la auditoría de la etapa A (`docs/auditorias/etapa-A.md`): ver la sección «Correcciones de la auditoría de la etapa A» |
-| B1 | PENDIENTE | | Usuarios y roles |
+| B1 | HECHO | (ver git log) | Usuarios, roles, sesiones y contraseñas con scrypt; login con bloqueo; CSRF |
 | B2 | PENDIENTE | | Autorización por rol y sucursal |
 | B3 | PENDIENTE | | API base |
 | B4 | PENDIENTE | | Datos sensibles |
@@ -460,3 +460,35 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 - Auditoría de cierre: `docs/auditorias/etapa-A.md` (1 ALTA, 11 MEDIA, 11 BAJA). La ALTA (EA-01) y casi todos los demás se corrigieron en commits `A-fix` (ver la sección anterior). Pendientes que son decisión de Eduardo: EA-02 (estados de entrega de Twilio en la vía A), EA-21, EA-22 y la excepción del borde de Twilio al invariante 4 (no toqué `CLAUDE.md`).
 - Verificación personal en el último commit: `npm run validar` exit 0 (194 tests); `npm run test:int` exit 0 (244 tests).
 - Etiqueta `etapa-A`.
+
+## B1. Usuarios y roles
+
+**Qué se hizo**
+- **Tablas** (migración `20261010000000_usuarios_y_sesiones`): `usuario` (correo normalizado en minúsculas, único entre los vivos de la organización; rol como enum `rol_usuario`: administrador, asesor, maestro, recepcion; `contrasena_hash`; `activo`), `usuario_sucursal` (M:N; el administrador ve todas sin filas), `sesion` (solo el SHA-256 del token, `expira_en`, `ultima_actividad_en`, `revocada_en`), `intento_acceso` (bloqueo). `organizacion.slug` (único entre las vivas, `CHECK` de formato; backfill desde el nombre en la migración, con sufijo del id si dos coinciden). Índices parciales y CHECK a mano al final de la migración.
+- **Contraseñas** (`src/auth/contrasena.ts`): `scrypt` de `node:crypto`, N=2^15, r=8, p=3 (combinación equivalente de OWASP), sal de 16 bytes por usuario, formato `scrypt$N$r$p$sal$hash` que recuerda sus parámetros, comparación con `timingSafeEqual`, NFKC, cotas de parámetros al leer de la base. Política: 10 a 128 caracteres, ni el correo ni el nombre, ni un solo carácter repetido. Sin dependencias nuevas.
+- **Sesiones** (`src/auth/sesiones.ts`): token de 32 bytes aleatorios (base64url) en cookie `sesion` `HttpOnly; SameSite=Lax; Path=/` y `Secure` con `NODE_ENV=production` (o `COOKIE_SEGURA`). Expiración absoluta de 12 h; inactividad configurable (`SESION_INACTIVIDAD_MIN`, 120 por defecto). La actividad se refresca a lo más cada minuto con una escritura condicional a `revocada_en IS NULL`. El usuario se relee en cada petición: desactivarlo o borrarlo corta la sesión al instante.
+- **Login** (`src/auth/acceso.ts`, `POST /api/sesion {organizacion?, correo, contrasena}`): un solo mensaje y un solo código para organización inexistente, correo inexistente, usuario inactivo y contraseña mala; si el usuario no existe se verifica contra un hash ficticio con los mismos parámetros. Bloqueo temporal por (correo, IP): 5 intentos en 15 min; el cupo se RESERVA antes de verificar bajo un candado consultivo (`transaccionConBloqueo`) y se libera al acertar, así que intentos simultáneos no se cuelan. También cuenta para correos inexistentes. `DELETE /api/sesion` (siempre 204), `GET /api/yo`, `POST /api/yo/contrasena` (exige la actual con el mismo bloqueo, aplica la política y cierra las demás sesiones).
+- **Excepción acotada al scope** en `src/datos/sistema.ts` (documentada en su encabezado): `resolverOrganizacionPorSlug`, `unicaOrganizacion` (si hay exactamente una organización viva el campo `organizacion` puede omitirse) y `buscarSesionPorHash` (la cookie solo trae un token; la sesión dice la organización, y de ahí todo va con `conAlcance`). El usuario por correo NO necesita excepción: se busca ya dentro del alcance.
+- **CSRF** (`src/api/csrf.ts`): SameSite=Lax + todo método que cambia algo debe traer `Content-Type: application/json` o `X-Requested-With`, y su `Origin`/`Referer`, si vienen, deben coincidir con `ORIGEN_PUBLICO` (o con el propio host si no está configurado).
+- **Esqueleto de API** necesario para el login: `src/api/` (`errores.ts` con la convención, `validar.ts`, `cookies.ts`, `csrf.ts`, `cabeceras.ts`, `autenticar.ts`, `contexto.ts`, `index.ts`), montado en `crearApp` solo si se pasa `api`. B3 completa lo que falta (paginación, registro de cambios, documentación).
+- **Seed**: `prisma/seed/demo.sql` trae `slug` y cuatro usuarios de demo (contraseña común `Demo-local-2026!`, hashes precalculados, marcados solo-demo) y las sucursales del asesor y de recepción. `scripts/crear-usuario.ts` da de alta al primer administrador real (o imprime solo el hash con `--solo-hash`).
+- `src/testutil/api.ts`: `sembrarUsuario`, `levantarApi` (la app real en un puerto libre) y `ClienteApi` con frasco de cookies.
+
+**Verificación**
+- `npm run validar` → exit 0 · `ℹ tests 201 · pass 201 · fail 0` · `check:generico: 162 archivos` · `check:capas: 57 archivos`.
+- `npm run test:int` → exit 0 · `ℹ tests 265 · pass 265 · fail 0` (antes 244).
+- Tests: `contrasena.test.ts` (7), `sesion.itest.ts` (21): cookie y hash en base, mensajes idénticos, expiración absoluta con uso continuo, inactividad, desactivar corta la sesión, cambio de contraseña, CSRF (origen ajeno, formulario, ORIGEN_PUBLICO), 404 JSON y cabeceras, bloqueo (misma pareja, otra IP, otro correo, correos inexistentes, ventana), bloqueo con 12 intentos simultáneos (5 y 7), dos logins simultáneos, revocación vs uso simultáneo, refresco condicional en medio de la validación, aislamiento entre organizaciones.
+- Mutaciones: refresco de actividad sin `revocada_en: null` → falla el test del refresco; reservar el intento sin candado (`$transaction` simple) → falla el de los 12 simultáneos.
+
+**Decisiones que tomé**
+- *Bloqueo en la base y no en memoria*: sobrevive a un reinicio y a varias réplicas. Costo: una fila por intento fallido (se marcan eliminadas al acertar; no hay `DELETE` físico). Alternativa descartada: contador en memoria (lo resuelve B6 solo por IP).
+- *Bloqueo por (correo, IP)*, como se pidió: un atacante con muchas IPs puede probar contraseñas contra un mismo correo; lo frena el costo de scrypt, la política de 10 caracteres y el límite por IP de B6. Alternativa descartada: bloqueo solo por correo (permite dejar fuera a cualquiera con 5 intentos).
+- *`slug` nullable*: las organizaciones de prueba nacen sin él; las reales lo reciben del seed. Alternativa descartada: NOT NULL con default; obligaba a inventar uno en cada alta.
+- *Sin rehash automático* al subir los parámetros de scrypt: el hash guarda los suyos y sigue valiendo; se puede agregar al login cuando haga falta.
+- *`Secure` según entorno*, no siempre: la demo corre en http://localhost.
+- *Tests existentes cambiados porque cambió el seed*: `catalogo`, `prueba-de-fuego` y `configuracion` ahora re-prefijan también el `slug` del seed (global entre organizaciones vivas); nada se debilitó.
+- La API de usuarios (`/api/usuarios`) y los permisos llegan en B2; este bloque no deja ninguna ruta con permiso, solo sesión.
+
+**Para Eduardo**
+- La contraseña de los usuarios de demo es conocida y está en el repo a propósito; no usar ese seed fuera de la demo.
+- Decidir si se quiere 2FA o inicio de sesión con terceros más adelante (hoy fuera de alcance por la decisión 11).

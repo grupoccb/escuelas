@@ -23,7 +23,7 @@ before(async () => {
   prisma = crearPrismaDePruebas();
   // Los seeds usan ids fijos; cada corrida los lleva a una organización propia.
   const prefijo = randomBytes(4).toString("hex");
-  const aOrganizacionNueva = (sql: string): string => sql.replace(ID_FIJO, `${prefijo}-0000-4000-8000-000000000$1`);
+  const aOrganizacionNueva = (sql: string): string => sql.replace(ID_FIJO, `${prefijo}-0000-4000-8000-000000000$1`).replaceAll("escuela-demo", `escuela-${prefijo}`);
   orgId = `${prefijo}-0000-4000-8000-000000000001`;
 
   const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });

@@ -30,6 +30,9 @@ datasource db {
 model organizacion {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre         String
+  /// Identificador corto y estable para iniciar sesión (minúsculas, dígitos y guiones). Único entre
+  /// las organizaciones vivas (índice parcial en la migración). Nulo solo en organizaciones de prueba.
+  slug           String?
   creado_en      DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en   DateTime? @db.Timestamptz(6)
@@ -57,6 +60,10 @@ model organizacion {
   programas                  programa[]
   grupos                     grupo[]
   grupo_horarios             grupo_horario[]
+  usuarios                   usuario[]
+  usuarios_sucursales        usuario_sucursal[]
+  sesiones                   sesion[]
+  intentos_acceso            intento_acceso[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -126,6 +133,7 @@ model sucursal {
   leads               lead[]
   automatizaciones    automatizacion[]
   programas           programa[]
+  usuarioSucursals    usuario_sucursal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -865,4 +873,100 @@ model grupo_horario {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([grupo_id])
+}
+
+// ── Usuarios, roles y sesiones (B1) ────────────────────────────────────────────────────
+
+enum rol_usuario {
+  administrador
+  asesor
+  maestro
+  recepcion
+}
+
+/// Persona que entra al sistema con correo y contraseña. El correo va normalizado en minúsculas y es
+/// único entre los usuarios vivos de la organización (índice parcial en la migración). La contraseña
+/// NUNCA se guarda ni se registra: solo `contrasena_hash` (scrypt con sal propia, src/auth/contrasena.ts).
+model usuario {
+  id                     String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id        String      @db.Uuid
+  correo                 String
+  nombre                 String
+  rol                    rol_usuario
+  contrasena_hash        String
+  activo                 Boolean     @default(true)
+  contrasena_cambiada_en DateTime?   @db.Timestamptz(6)
+  creado_en              DateTime    @default(now()) @db.Timestamptz(6)
+  actualizado_en         DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en           DateTime?   @db.Timestamptz(6)
+
+  organizacion organizacion       @relation(fields: [organizacion_id], references: [id])
+  sucursales   usuario_sucursal[]
+  sesiones     sesion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Sucursales que ve un usuario. El administrador ve todas sin necesidad de filas aquí.
+model usuario_sucursal {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  usuario_id      String    @db.Uuid
+  sucursal_id     String    @db.Uuid
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  usuario      usuario      @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([usuario_id])
+}
+
+/// Sesión de un usuario. El token (32 bytes aleatorios) solo viaja en la cookie; aquí se guarda su
+/// SHA-256. `revocada_en` cierra la sesión sin borrarla. Expira a las 12 h absolutas y por inactividad.
+model sesion {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String    @db.Uuid
+  usuario_id          String    @db.Uuid
+  /// SHA-256 (hex) del token de la cookie. Único: es la llave de búsqueda.
+  token_hash          String    @unique
+  expira_en           DateTime  @db.Timestamptz(6)
+  ultima_actividad_en DateTime  @db.Timestamptz(6)
+  revocada_en         DateTime? @db.Timestamptz(6)
+  ip                  String?
+  agente_usuario      String?
+  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  usuario      usuario      @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([usuario_id])
+}
+
+/// Intento de acceso fallido (o en curso: se reserva antes de verificar la contraseña y se libera al
+/// acertar). Cuenta por (correo, IP) para el bloqueo temporal. Se registra también para correos que
+/// no existen, para que el bloqueo no delate qué usuarios hay.
+model intento_acceso {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  correo          String
+  ip              String
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([organizacion_id, correo, ip, creado_en])
 }

@@ -31,7 +31,7 @@ const ID_FIJO = /00000000-0000-4000-8000-000000000(\d{3})/g;
 before(async () => {
   prisma = crearPrismaDePruebas();
   const prefijo = randomBytes(4).toString("hex");
-  const aOrganizacionNueva = (sql: string): string => sql.replace(ID_FIJO, `${prefijo}-0000-4000-8000-000000000$1`);
+  const aOrganizacionNueva = (sql: string): string => sql.replace(ID_FIJO, `${prefijo}-0000-4000-8000-000000000$1`).replaceAll("escuela-demo", `escuela-${prefijo}`);
   orgId = `${prefijo}-0000-4000-8000-000000000001`;
 
   const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });

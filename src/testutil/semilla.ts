@@ -8,6 +8,8 @@ import type { PrismaPruebas } from "./prisma-pruebas.ts";
 
 export interface OrganizacionDePrueba {
   organizacionId: string;
+  /** Identificador de login de la organización (único por corrida). */
+  slug: string;
   verticalId: string;
   sucursales: { id: string; nombre: string }[];
   canalId: string;
@@ -19,7 +21,8 @@ export interface OrganizacionDePrueba {
 }
 
 export async function sembrarOrganizacion(prisma: PrismaPruebas, nombre = "Organización de prueba"): Promise<OrganizacionDePrueba> {
-  const organizacion = await prisma.organizacion.create({ data: { nombre: `${nombre} ${randomUUID().slice(0, 8)}` } });
+  const slug = `prueba-${randomUUID().slice(0, 12)}`;
+  const organizacion = await prisma.organizacion.create({ data: { nombre: `${nombre} ${randomUUID().slice(0, 8)}`, slug } });
   const org = organizacion.id;
   const vertical = await prisma.vertical.create({
     data: { organizacion_id: org, nombre: "Vertical Prueba", slug: "vertical-prueba" },
@@ -49,6 +52,7 @@ export async function sembrarOrganizacion(prisma: PrismaPruebas, nombre = "Organ
   });
   return {
     organizacionId: org,
+    slug,
     verticalId: vertical.id,
     sucursales,
     canalId: canal.id,

@@ -50,6 +50,27 @@ parciales. Todavía **nadie la atiende**: el bot sigue si el contacto vuelve a e
 el aviso sale en el siguiente barrido de un minuto después de que se cumplan los 30 minutos (para
 verlo sin esperar, ajusta `ultimo_mensaje_entrante_en` de la conversación en la base).
 
+## Usuarios de la aplicación (API)
+
+La API vive en `http://localhost:3000/api` (ver `docs/API.md`). El seed de la demo crea la
+organización `escuela-demo` y cuatro usuarios, todos con la contraseña **`Demo-local-2026!`**
+(solo demo; en un ambiente real el primer administrador se crea con `scripts/crear-usuario.ts`):
+
+| Correo | Rol | Sucursales |
+|---|---|---|
+| `admin@demo.test` | administrador | todas |
+| `asesor@demo.test` | asesor | solo la primera |
+| `maestro@demo.test` | maestro | sus grupos |
+| `recepcion@demo.test` | recepción | las dos |
+
+```bash
+curl -i -c /tmp/sesion.txt -H 'content-type: application/json' \
+  -d '{"correo":"admin@demo.test","contrasena":"Demo-local-2026!"}' http://localhost:3000/api/sesion
+curl -b /tmp/sesion.txt http://localhost:3000/api/yo
+```
+
+(`organizacion` puede omitirse mientras exista una sola organización.)
+
 ## Cómo está armada
 
 | Pieza | Dónde |
@@ -65,6 +86,7 @@ verlo sin esperar, ajusta `ultimo_mensaje_entrante_en` de la conversación en la
 | Reglas de envío y pase al asesor | `src/mensajeria/provider.ts`, `src/mensajeria/reglas.ts` |
 | Topes de frecuencia (configurables por organización) | `src/configuracion/index.ts`, tabla `configuracion_organizacion` |
 | Borde de Twilio (firma, reintentos, reenvío a Chatwoot) | `src/mensajeria/twilio/`, rutas en `src/http/app.ts` |
+| Usuarios, sesiones y contraseñas | `src/auth/`, `src/api/rutas/sesion.ts`, `scripts/crear-usuario.ts` |
 | Simulador del contacto | `scripts/simular-contacto.ts` |
 | Catálogo de la vertical (programas, grupos, horarios) | `prisma/seed/catalogo.sql` |
 | Reporte de leads por campaña, sucursal y etapa | `npm run reporte:leads` |
