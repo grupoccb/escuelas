@@ -377,6 +377,61 @@ test("bienvenida: pasa por MessagingProvider con TODAS sus reglas — una baja d
   }
 });
 
+test("EF-02: la bienvenida sale por la conversación de la VERTICAL de la inscripción aunque el mismo teléfono tenga una más reciente en otra; sin conversación de esa vertical no se manda y queda tarea", async () => {
+  const m = await mundoDeBienvenida();
+  let m2: Awaited<ReturnType<typeof mundoDeBienvenida>> | null = null;
+  let m3: Awaited<ReturnType<typeof mundoDeBienvenida>> | null = null;
+  try {
+    const canalB = await prisma.canal_whatsapp.create({ data: { organizacion_id: org.organizacionId, vertical_id: verticalB, nombre_publico: "Canal B" } });
+    const bandejaB = await prisma.bandeja_chatwoot.create({ data: { organizacion_id: org.organizacionId, canal_whatsapp_id: canalB.id, nombre: "Vertical B", chatwoot_account_id: randomInt(1_000_000, 2_000_000_000), chatwoot_inbox_id: randomInt(1_000_000, 2_000_000_000) } });
+    /** La misma familia (mismo teléfono) escribió también a la otra vertical, DESPUÉS: su conversación es la más reciente. */
+    const conversacionEnB = async (telefono: string) => {
+      const lead = await prisma.lead.create({ data: { organizacion_id: org.organizacionId, vertical_interes_id: verticalB, sucursal_interes_id: norte, etapa_id: org.etapaInicialId, telefono, nombre_contacto: "Mamá" } });
+      return prisma.conversacion.create({ data: { organizacion_id: org.organizacionId, bandeja_chatwoot_id: bandejaB.id, lead_id: lead.id, chatwoot_conversacion_id: randomInt(1, 2_000_000_000), creado_en: new Date(Date.now() + 3_600_000) } });
+    };
+    const convB = await conversacionEnB(m.a.telefono);
+    const destinos = () => m.enviados().map((e) => e.destino.chatwootConversacionId);
+
+    // Inscrita en un grupo de la vertical A: sale por la conversación de A, no por la más reciente (B).
+    const iA = await inscribir(admin, m.a.alumnoId, (await programa()).grupoId);
+    assert.equal(iA.estado, 201);
+    assert.equal((await m.corre(new Date("2026-11-10T15:00:00Z"))).enviadas, 1);
+    assert.deepEqual(destinos(), [m.conv!.chatwoot_conversacion_id]);
+
+    // Inscrita en un grupo de la vertical B: sale por la conversación de B.
+    const iB = await inscribir(admin, m.a.alumnoId, (await programa({ verticalId: verticalB })).grupoId);
+    assert.equal(iB.estado, 201);
+    assert.equal((await m.corre(new Date("2026-11-10T16:00:00Z"))).enviadas, 1);
+    assert.deepEqual(destinos(), [m.conv!.chatwoot_conversacion_id, convB.chatwoot_conversacion_id]);
+
+    // Otra familia que SOLO tiene conversación en B y se inscribe en A: no se adivina otra vertical; no sale nada y una persona decide.
+    await m.apagar(); // una sola automatización viva a la vez: cada una crea su propia ejecución por inscripción
+    m2 = await mundoDeBienvenida({ sinConversacion: true });
+    const convB2 = await conversacionEnB(m2.a.telefono);
+    const i2 = await inscribir(admin, m2.a.alumnoId, (await programa()).grupoId);
+    assert.equal(i2.estado, 201);
+    await m2.corre(new Date("2026-11-10T15:00:00Z"));
+    assert.equal(m2.enviados().filter((e) => e.destino.chatwootConversacionId === convB2.chatwoot_conversacion_id).length, 0, "no sale por el canal de otra vertical");
+    const e2 = (await m2.ejecuciones(i2.cuerpo.id))[0]!;
+    assert.deepEqual([e2.estatus, e2.motivo_omision], ["omitido", "sin_conversacion"]);
+    assert.ok(await prisma.tarea_asesor.findFirst({ where: { lead_id: m2.a.leadId, tipo: "automatizacion_omitida", estado: "pendiente" } }), "tarea para el asesor");
+
+    // Tampoco por la conversación del lead de origen cuando es de otra vertical (inscrita en B, escribió solo a A): una persona decide.
+    await m2.apagar();
+    m3 = await mundoDeBienvenida();
+    const i3 = await inscribir(admin, m3.a.alumnoId, (await programa({ verticalId: verticalB })).grupoId);
+    assert.equal(i3.estado, 201);
+    await m3.corre(new Date("2026-11-10T15:00:00Z"));
+    assert.equal(m3.enviados().length, 0, "la conversación del lead de origen es de otra vertical");
+    const e3 = (await m3.ejecuciones(i3.cuerpo.id))[0]!;
+    assert.deepEqual([e3.estatus, e3.motivo_omision], ["omitido", "sin_conversacion"]);
+  } finally {
+    await m.apagar();
+    await m2?.apagar();
+    await m3?.apagar();
+  }
+});
+
 test("bienvenida: NO incluye datos de salud — ni en el texto, ni en las variables, ni en el envío; y la plantilla del seed es de servicio (utility), no de marketing", async () => {
   const m = await mundoDeBienvenida();
   try {

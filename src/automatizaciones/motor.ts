@@ -303,7 +303,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   if (!conv && inscr) {
     // El tutor responsable no tiene una conversación de WhatsApp (se dio de alta por mostrador): no hay por dónde mandarle la bienvenida y una persona decide.
     await omitir("sin_conversacion");
-    if (inscr.lead_id) await asegurarTareaDeLead(db, { leadId: inscr.lead_id, descripcion: `La bienvenida de inscripción de ${inscr.alumno.nombre} no se mandó: la familia no tiene una conversación de WhatsApp. Dale la bienvenida tú.` });
+    if (inscr.lead_id) await asegurarTareaDeLead(db, { leadId: inscr.lead_id, descripcion: `La bienvenida de inscripción de ${inscr.alumno.nombre} no se mandó: la familia no tiene una conversación de WhatsApp en el canal de esa vertical. Dale la bienvenida tú.` });
     return;
   }
   if (!conv) {
@@ -614,7 +614,7 @@ async function cargarInscripcion(db: BaseDatos, id: string) {
       lead_id: true,
       fecha_inicio: true,
       alumno: { select: { id: true, nombre: true, tutores: { where: { eliminado_en: null, es_responsable_pago: true, tutor: { eliminado_en: null } }, select: { tutor: { select: { telefono: true } } }, take: 1 } } },
-      grupo: { select: { nombre: true, programa: { select: { sucursal: { select: { nombre: true } } } } } },
+      grupo: { select: { nombre: true, programa: { select: { vertical_id: true, sucursal: { select: { nombre: true } } } } } },
     },
   });
 }
@@ -622,16 +622,19 @@ async function cargarInscripcion(db: BaseDatos, id: string) {
 const INCLUIR_CONVERSACION = { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } } as const;
 
 /**
- * La conversación de WhatsApp del TUTOR RESPONSABLE de pago (la del lead cuyo teléfono es el suyo); si no tiene, la del lead de origen de la
- * inscripción. null si ninguno tiene conversación.
+ * La conversación de WhatsApp del TUTOR RESPONSABLE de pago EN LA VERTICAL de la inscripción (la del lead cuyo teléfono es el suyo y cuya vertical es la
+ * del programa); si no tiene, la del lead de origen de la inscripción, solo si también es de esa vertical. EF-02: un lead es único por (vertical, teléfono)
+ * y cada vertical tiene su canal, así que una familia que escribió a dos verticales tiene dos conversaciones con el mismo teléfono: la bienvenida de una
+ * inscripción nunca sale por el canal de la otra. Sin conversación de esa vertical, null (una persona decide).
  */
 async function conversacionDeBienvenida(db: BaseDatos, inscr: InscripcionDeEjecucion) {
+  const verticalId = inscr.grupo.programa.vertical_id;
   const telefono = inscr.alumno.tutores[0]?.tutor.telefono;
   if (telefono) {
-    const c = await db.conversacion.findFirst({ where: { lead: { telefono, eliminado_en: null } }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: INCLUIR_CONVERSACION });
+    const c = await db.conversacion.findFirst({ where: { lead: { telefono, vertical_interes_id: verticalId, eliminado_en: null } }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: INCLUIR_CONVERSACION });
     if (c) return c;
   }
-  return inscr.lead_id ? db.conversacion.findFirst({ where: { lead_id: inscr.lead_id }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: INCLUIR_CONVERSACION }) : null;
+  return inscr.lead_id ? db.conversacion.findFirst({ where: { lead_id: inscr.lead_id, lead: { vertical_interes_id: verticalId } }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: INCLUIR_CONVERSACION }) : null;
 }
 
 /** Tarea para el asesor ligada al lead (cuando no hay conversación a la que atarla). Una pendiente por lead y tipo. */
