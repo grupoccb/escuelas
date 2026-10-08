@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { escanear, leerTerminos, ARCHIVO_TERMINOS } from "./check-generico.ts";
+import { escanear, leerTerminos, ARCHIVO_TERMINOS, BYTE_NULO } from "./check-generico.ts";
 
 const TERMINOS = leerTerminos();
 const UNO = TERMINOS[0]!;
@@ -176,6 +176,28 @@ test("los archivos binarios no se escanean (imágenes, .DS_Store)", () => {
   const binario = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x00]), Buffer.from(TERMINO)]);
   assert.equal(hallazgosEn("src/z.png", binario), 0);
   assert.equal(hallazgosEn("src/z.png", Buffer.from(TERMINO)), 1, "el mismo contenido sin bytes nulos sí es texto");
+});
+
+test("EA-16: un archivo de código con un byte nulo NO se salta: se reporta y se escanea completo", () => {
+  const nulo = "\0";
+  const detalle = (ruta: string, contenido: string): string[] => {
+    const raiz = repoTemporal({ [ruta]: contenido });
+    try {
+      return escanear(raiz, TERMINOS).hallazgos.map((h) => h.termino);
+    } finally {
+      rmSync(raiz, { recursive: true, force: true });
+    }
+  };
+  // Node ejecuta un .ts con NUL en un comentario: la guarda no puede tratarlo como imagen.
+  assert.deepEqual(detalle("src/z.ts", `// ${nulo}\nexport const x = 1;\n`), [BYTE_NULO]);
+  assert.deepEqual(detalle("src/z.ts", `// ${nulo}\nconst nombre = "${UNO}";\n`), [BYTE_NULO, UNO], "y además se escanea: el término escondido tras el NUL aparece");
+  for (const ruta of ["src/z.mts", "src/z.js", "src/z.json", "src/z.md", "src/z.sh", "Dockerfile", "Dockerfile.prod", "src/.env", "src/z.sql"]) {
+    assert.deepEqual(detalle(ruta, `${nulo}\n`), [BYTE_NULO], ruta);
+  }
+  // Lo que de verdad es binario sigue sin escanearse.
+  assert.deepEqual(detalle("src/z.png", `${nulo}${UNO}`), []);
+  assert.deepEqual(detalle("src/.DS_Store", `${nulo}${UNO}`), []);
+  assert.deepEqual(detalle("src/z.bin", `${nulo}${UNO}`), []);
 });
 
 test("el comando sale con 1 al sembrar el término en un archivo `.mts`", () => {

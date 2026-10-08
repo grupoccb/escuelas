@@ -56,6 +56,16 @@ const esSeedSql = (rel: string): boolean => rel.startsWith("prisma/seed/") && re
 /** Un archivo con bytes nulos al inicio es binario (imagen, .DS_Store…): no es texto del proyecto. */
 const esBinario = (contenido: Buffer): boolean => contenido.subarray(0, 8000).includes(0);
 
+/**
+ * Archivos que son código o texto del proyecto por su extensión (o nombre). Un byte nulo en uno de
+ * estos NO lo vuelve binario (EA-16): Node ejecuta un `.ts` con NUL y la guarda lo saltaba, así que
+ * bastaba un NUL en un comentario para esconder un término. Se reporta como hallazgo y se escanea.
+ */
+const ES_TEXTO_POR_NOMBRE = /(?:\.(?:[cm]?[jt]sx?|json|md|css|scss|html?|sh|ya?ml|sql|txt|rb|prisma|toml|env)|^Dockerfile(?:\..*)?|^\.env(?:\..*)?)$/i;
+const esTextoPorNombre = (ruta: string): boolean => ES_TEXTO_POR_NOMBRE.test(ruta.split(/[\\/]/).pop() ?? "");
+
+export const BYTE_NULO = "byte nulo en un archivo de texto";
+
 export interface Hallazgo {
   archivo: string;
   linea: number;
@@ -108,7 +118,13 @@ export function escanear(raiz: string, terminos: string[]): { archivos: number; 
   let escaneados = 0;
   for (const archivo of listarArchivos(raiz)) {
     const contenido = readFileSync(archivo);
-    if (esBinario(contenido)) continue;
+    if (esBinario(contenido)) {
+      if (!esTextoPorNombre(archivo)) continue; // imagen, .DS_Store…
+      // Código con un NUL escondido: no se salta, se reporta (y se escanea completo).
+      const posicion = contenido.indexOf(0);
+      const linea = contenido.subarray(0, posicion).toString("utf8").split("\n").length;
+      hallazgos.push({ archivo: relative(raiz, archivo), linea, termino: BYTE_NULO, texto: "(contiene el byte 0x00: no es texto válido)" });
+    }
     escaneados++;
     contenido.toString("utf8").split("\n").forEach((texto, i) => {
       const normal = normalizarLinea(texto);
