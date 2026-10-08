@@ -1,0 +1,171 @@
+{
+  "recibido_en": "2026-10-08T03:46:13.742Z",
+  "encabezados": {
+    "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+    "accept": "application/json",
+    "user-agent": "Ruby",
+    "host": "192.168.65.254:4599",
+    "content-type": "application/json",
+    "x-chatwoot-delivery": "5f3b3867-ac13-4d06-ad7c-0a90ef9bff87",
+    "x-chatwoot-timestamp": "1791431173",
+    "x-chatwoot-signature": "sha256=6794bc31dea51d3d2f73dbb10a06d9914e941b77c48bbd43cfca2eee9ece8e9b",
+    "content-length": "2887"
+  },
+  "cuerpo": {
+    "account": {
+      "id": 2,
+      "name": "Demo local"
+    },
+    "additional_attributes": {},
+    "content_attributes": {
+      "referral": {
+        "source_id": "120200000000000001",
+        "source_type": "ad",
+        "source_url": "https://fb.me/n2-anuncio",
+        "headline": "Clase muestra gratis",
+        "body": "Texto del anuncio",
+        "num_media": "0",
+        "ctwa_clid": "AffN2ctwaClidDePrueba123"
+      }
+    },
+    "content_type": "text",
+    "content": "Hola, vi su anuncio",
+    "conversation": {
+      "additional_attributes": {},
+      "can_reply": true,
+      "channel": "Channel::TwilioSms",
+      "contact_inbox": {
+        "id": 10,
+        "contact_id": 10,
+        "inbox_id": 2,
+        "source_id": "whatsapp:+5215599990001",
+        "created_at": "2026-10-08T03:46:13.661Z",
+        "updated_at": "2026-10-08T03:46:13.661Z",
+        "hmac_verified": false,
+        "pubsub_token": "vXBCXe1qD1eFXnYiMmc3rebN"
+      },
+      "id": 9,
+      "inbox_id": 2,
+      "messages": [
+        {
+          "id": 44,
+          "content": "Hola, vi su anuncio",
+          "account_id": 2,
+          "inbox_id": 2,
+          "conversation_id": 9,
+          "message_type": 0,
+          "created_at": 1791431173,
+          "updated_at": "2026-10-08T03:46:13.702Z",
+          "private": false,
+          "status": "sent",
+          "source_id": "SMn2captura00000000000000000001",
+          "content_type": "text",
+          "content_attributes": {
+            "referral": {
+              "source_id": "120200000000000001",
+              "source_type": "ad",
+              "source_url": "https://fb.me/n2-anuncio",
+              "headline": "Clase muestra gratis",
+              "body": "Texto del anuncio",
+              "num_media": "0",
+              "ctwa_clid": "AffN2ctwaClidDePrueba123"
+            }
+          },
+          "sender_type": "Contact",
+          "sender_id": 10,
+          "external_source_ids": {},
+          "additional_attributes": {},
+          "processed_message_content": "Hola, vi su anuncio",
+          "sentiment": {},
+          "conversation": {
+            "assignee_id": null,
+            "unread_count": 1,
+            "last_activity_at": 1791431173,
+            "contact_inbox": {
+              "source_id": "whatsapp:+5215599990001"
+            }
+          },
+          "sender": {
+            "additional_attributes": {},
+            "custom_attributes": {},
+            "email": null,
+            "id": 10,
+            "identifier": null,
+            "name": "Contacto N2c",
+            "phone_number": "+5215599990001",
+            "thumbnail": "",
+            "blocked": false,
+            "type": "contact"
+          }
+        }
+      ],
+      "labels": [],
+      "meta": {
+        "sender": {
+          "additional_attributes": {},
+          "custom_attributes": {},
+          "email": null,
+          "id": 10,
+          "identifier": null,
+          "name": "Contacto N2c",
+          "phone_number": "+5215599990001",
+          "thumbnail": "",
+          "blocked": false,
+          "type": "contact"
+        },
+        "assignee": {
+          "id": 2,
+          "name": "Captura N2",
+          "avatar_url": "",
+          "type": "agent_bot"
+        },
+        "assignee_type": "AgentBot",
+        "team": null,
+        "hmac_verified": false
+      },
+      "status": "pending",
+      "custom_attributes": {},
+      "snoozed_until": null,
+      "unread_count": 1,
+      "first_reply_created_at": null,
+      "priority": null,
+      "waiting_since": 1791431173,
+      "agent_last_seen_at": 0,
+      "contact_last_seen_at": 0,
+      "last_activity_at": 1791431173,
+      "timestamp": 1791431173,
+      "created_at": 1791431173,
+      "updated_at": 1791431173.7122297,
+      "account": {
+        "id": 2,
+        "name": "Demo local"
+      }
+    },
+    "created_at": "2026-10-08T03:46:13.702Z",
+    "id": 44,
+    "inbox": {
+      "id": 2,
+      "name": "N2 Twilio falso"
+    },
+    "message_type": "incoming",
+    "private": false,
+    "sender": {
+      "account": {
+        "id": 2,
+        "name": "Demo local"
+      },
+      "additional_attributes": {},
+      "avatar": "",
+      "custom_attributes": {},
+      "email": null,
+      "id": 10,
+      "identifier": null,
+      "name": "Contacto N2c",
+      "phone_number": "+5215599990001",
+      "thumbnail": "",
+      "blocked": false
+    },
+    "source_id": "SMn2captura00000000000000000001",
+    "event": "message_created"
+  }
+}

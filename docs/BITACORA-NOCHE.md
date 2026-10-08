@@ -6,7 +6,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 |---|---|---|---|
 | N0 | HECHO | 0c205e6 + bitácora | Preparación |
 | N1 | HECHO | 24f667f | Correcciones a CLAUDE.md (invariantes 13 y 14) |
-| N2 | PENDIENTE | | Prueba simulada de atribución y transporte |
+| N2 | HECHO | (ver git log) | Prueba simulada de atribución y transporte |
 | N3 | PENDIENTE | | Esquema de Fase 1 |
 | N4 | PENDIENTE | | Entrada |
 | N5 | PENDIENTE | | Bot |
@@ -48,3 +48,31 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 **Para Eduardo**
 - `SPEC.md` y `docs/CONTEXTO-PROYECTO.md` aún pueden hablar del lead con nombre/edad/sucursal planos; manda `CLAUDE.md`. No los toqué.
+
+## N2. Prueba simulada de atribución y transporte (0.3a)
+
+**Qué se hizo**
+- Bandeja `Channel::TwilioSms` (WhatsApp) con credenciales falsas en el Chatwoot local, creada con `chatwoot/n2-bandeja-twilio.rb` por `rails runner` (el endpoint de la API autentica contra Twilio real y no sirve sin credenciales reales).
+- Webhooks Twilio simulados contra `/twilio/callback` y `/twilio/delivery_status`; payloads reales del Agent Bot capturados con `scripts/receptor-captura.ts` en `docs/evidencia-n2/`.
+- `docs/DECISION-ATRIBUCION.md` con P1, P2, P3, hallazgos y vía propuesta.
+
+**Resultados clave**
+- P1: los `Referral*` llegan al Agent Bot en `content_attributes.referral` → vía A viable. Requiere `ReferralSourceId`; sin él Chatwoot descarta el referral.
+- P2: lo enviado por la API de Chatwoot aparece en la transcripción; un SID ajeno no crea nada. Confirmación con Twilio real: PENDIENTE.
+- P3: el bot recibe `message_updated` por cada cambio (`sent`/`delivered`/`read`/`failed`), error en `content_attributes.external_error`.
+- H1: Chatwoot 4.18 NO valida `X-Twilio-Signature` (choca con invariante 9 si se expone directo).
+- H2: un reintento de Twilio con el mismo `MessageSid` duplicó el mensaje en Chatwoot (y cayó en otra conversación). La llave de idempotencia debe ser el `source_id` del payload.
+
+**Verificación**
+- `npm run validar` exit 0 (54 tests) · `npm run test:int` exit 0 (18 tests).
+- `docker exec inscripciones-chatwoot-sidekiq-1 getent hosts api.twilio.com` → `127.0.0.1` (guarda activa).
+
+**Decisiones que tomé**
+- Bloqueé en `docker-compose.yml` (`extra_hosts`) los dominios de Twilio para `chatwoot` y `chatwoot-sidekiq`. Alternativa descartada: dejar que Chatwoot intentara Twilio con credenciales falsas (sería tráfico contra Twilio real, prohibido por el plan). Efecto: el servicio sigue funcionando para la demo; solo no puede salir a Twilio.
+- Los callbacks de estado se simularon poniendo a mano el `source_id` de los mensajes salientes (lo que Twilio habría devuelto). Alternativa descartada: ninguna viable sin Twilio real.
+- Usé la base de Chatwoot de la demo (cuenta "Demo local") para la prueba; quedaron una bandeja `N2 Twilio falso`, un Agent Bot `Captura N2` apuntando a una IP local que ya no escucha, y varios contactos de prueba. No afectan la demo de 0.5 (otra bandeja, otro bot). Alternativa descartada: proyecto compose aparte (reconstruir Chatwoot desde cero; sin necesidad).
+
+**Para Eduardo**
+- Elegir la vía (propongo A + firma en el borde + idempotencia por `source_id`).
+- G0.3b y los pendientes de P2 requieren Twilio real.
+- Si quieres limpiar la bandeja de prueba: borrarla desde Chatwoot (Ajustes → Bandejas) o `down -v` en otro momento.

@@ -1,0 +1,142 @@
+{
+  "recibido_en": "2026-10-08T03:45:31.707Z",
+  "encabezados": {
+    "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+    "accept": "application/json",
+    "user-agent": "Ruby",
+    "host": "192.168.65.254:4599",
+    "content-type": "application/json",
+    "x-chatwoot-delivery": "56f57fb8-d7e1-4661-8304-da58a9b591ca",
+    "x-chatwoot-timestamp": "1791431131",
+    "x-chatwoot-signature": "sha256=449eb1068067c732dd352124ebd1481ab47042f71906cf3bdc4e4723400d3070",
+    "content-length": "2350"
+  },
+  "cuerpo": {
+    "account": {
+      "id": 2,
+      "name": "Demo local"
+    },
+    "additional_attributes": {},
+    "content_attributes": {
+      "external_error": null
+    },
+    "content_type": "text",
+    "content": "Hola, soy el asistente. ¿Cómo te llamas?",
+    "conversation": {
+      "additional_attributes": {},
+      "can_reply": true,
+      "channel": "Channel::TwilioSms",
+      "contact_inbox": {
+        "id": 5,
+        "contact_id": 5,
+        "inbox_id": 2,
+        "source_id": "whatsapp:+5215512345679",
+        "created_at": "2026-10-08T03:43:18.977Z",
+        "updated_at": "2026-10-08T03:43:18.977Z",
+        "hmac_verified": false,
+        "pubsub_token": "ed8BijKzMjL4XRdFE4r7yRQ5"
+      },
+      "id": 5,
+      "inbox_id": 2,
+      "messages": [
+        {
+          "id": 42,
+          "content": "Hola, soy el asistente. ¿Cómo te llamas?",
+          "account_id": 2,
+          "inbox_id": 2,
+          "conversation_id": 5,
+          "message_type": 1,
+          "created_at": 1791431106,
+          "updated_at": "2026-10-08T03:45:31.685Z",
+          "private": false,
+          "status": "read",
+          "source_id": "SMn2saliente00000000000000000001",
+          "content_type": "text",
+          "content_attributes": {
+            "external_error": null
+          },
+          "sender_type": "User",
+          "sender_id": 2,
+          "external_source_ids": {},
+          "additional_attributes": {},
+          "processed_message_content": "Hola, soy el asistente. ¿Cómo te llamas?",
+          "sentiment": {},
+          "conversation": {
+            "assignee_id": null,
+            "unread_count": 1,
+            "last_activity_at": 1791431106,
+            "contact_inbox": {
+              "source_id": "whatsapp:+5215512345679"
+            }
+          },
+          "sender": {
+            "id": 2,
+            "name": "Asesor demo",
+            "available_name": "Asesor demo",
+            "avatar_url": "",
+            "type": "user",
+            "availability_status": null,
+            "thumbnail": ""
+          }
+        }
+      ],
+      "labels": [],
+      "meta": {
+        "sender": {
+          "additional_attributes": {},
+          "custom_attributes": {},
+          "email": null,
+          "id": 5,
+          "identifier": null,
+          "name": "Contacto N2b",
+          "phone_number": "+5215512345679",
+          "thumbnail": "",
+          "blocked": false,
+          "type": "contact"
+        },
+        "assignee": {
+          "id": 2,
+          "name": "Captura N2",
+          "avatar_url": "",
+          "type": "agent_bot"
+        },
+        "assignee_type": "AgentBot",
+        "team": null,
+        "hmac_verified": false
+      },
+      "status": "pending",
+      "custom_attributes": {},
+      "snoozed_until": null,
+      "unread_count": 1,
+      "first_reply_created_at": "2026-10-08T03:45:06.242Z",
+      "priority": null,
+      "waiting_since": 0,
+      "agent_last_seen_at": 0,
+      "contact_last_seen_at": 0,
+      "last_activity_at": 1791431106,
+      "timestamp": 1791431106,
+      "created_at": 1791430998,
+      "updated_at": 1791431106.2920709,
+      "account": {
+        "id": 2,
+        "name": "Demo local"
+      }
+    },
+    "created_at": "2026-10-08T03:45:06.242Z",
+    "id": 42,
+    "inbox": {
+      "id": 2,
+      "name": "N2 Twilio falso"
+    },
+    "message_type": "outgoing",
+    "private": false,
+    "sender": {
+      "id": 2,
+      "name": "Asesor demo",
+      "email": "asesor@demo.test",
+      "type": "user"
+    },
+    "source_id": "SMn2saliente00000000000000000001",
+    "event": "message_updated"
+  }
+}
