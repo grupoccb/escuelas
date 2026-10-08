@@ -10,7 +10,7 @@
 // uno repetido, y el reintento solo ocurre si el reenvío falló o su resultado no se conoce).
 
 import { altaConAlcance, conAlcance, type BaseDatos } from "../../datos/alcance.ts";
-import { esViolacionUnica, type PrismaClient } from "../../datos/prisma.ts";
+import { esViolacionUnica, type PrismaRaiz } from "../../datos/prisma.ts";
 import { resolverBandejaPorNumero } from "../../datos/sistema.ts";
 import { enmascararTelefono, log } from "../../lib/log.ts";
 import { normalizarNumeroWhatsapp } from "../../lib/telefono.ts";
@@ -44,7 +44,7 @@ export interface BordeTwilio {
 }
 
 export interface DepsBorde {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
   reenviador: ReenviadorTwilio;
   /**
    * Opción apagada por defecto: llevar `From` de los entrantes a la forma canónica (invariante 7)

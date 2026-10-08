@@ -6,14 +6,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import pg from "pg";
-import { crearPrisma, esViolacionUnica, type PrismaClient } from "../datos/prisma.ts";
+import { esViolacionUnica } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { fijarConfiguracion, sembrarOrganizacion } from "../testutil/semilla.ts";
 import { CONFIGURACION_POR_DEFECTO, leerConfiguracion } from "./index.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 before(() => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
 });
 after(async () => {
   await prisma.$disconnect();

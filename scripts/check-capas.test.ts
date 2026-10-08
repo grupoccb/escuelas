@@ -16,7 +16,8 @@ function hallazgos(archivos: Record<string, string>): string[] {
       mkdirSync(join(raiz, ruta, ".."), { recursive: true });
       writeFileSync(join(raiz, ruta), contenido);
     }
-    return escanearCapas(raiz).hallazgos.map((h) => `${h.archivo}:${h.invariante}`);
+    // Sin repetidos: una línea puede violar varias reglas a la vez; interesa qué línea de qué invariante.
+    return [...new Set(escanearCapas(raiz).hallazgos.map((h) => `${h.archivo}:${h.linea}:${h.invariante}`))].map((x) => x.replace(/:\d+(?=:\d+$)/, ""));
   } finally {
     rmSync(raiz, { recursive: true, force: true });
   }
@@ -115,4 +116,92 @@ test("también se revisan .mts, .tsx y .js; los tests se excluyen por su nombre"
   assert.deepEqual(hallazgos({ "src/x/a.test.mts": malo, "src/x/b.itest.ts": malo, "src/x/c.test.tsx": malo }), []);
   // Un archivo que solo tiene "test" en el nombre no es un test.
   assert.deepEqual(hallazgos({ "src/x/attest.ts": malo }), ["src/x/attest.ts:1"]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-12: el cliente completo ya no llega a los módulos. Las siembras de la auditoría.
+
+test("EA-12: obtener el cliente completo o las utilidades de prueba desde código de producción", () => {
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import { clienteSinAlcance } from "../datos/prisma.ts";` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const p = clienteSinAlcance(deps.prisma);` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import { crearPrismaDePruebas } from "../testutil/prisma-pruebas.ts";` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import { sembrarOrganizacion } from "../testutil/semilla.ts";` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import type { PrismaClient } from "../datos/prisma.ts";` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const raiz = prisma as unknown as { lead: { findMany(): unknown } };` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import { f } from "./otro.test.ts";` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import { f } from "./otro.itest.ts";` }), ["src/x/a.ts:1"]);
+  // Dentro de src/datos/ y src/testutil/ sí; el tipo opaco no se castiga.
+  assert.deepEqual(hallazgos({ "src/datos/a.ts": `import { clienteSinAlcance } from "./prisma.ts"; const p = clienteSinAlcance(r) as PrismaClient;` }), []);
+  assert.deepEqual(hallazgos({ "src/testutil/a.ts": `import { crearPrismaDePruebas } from "./prisma-pruebas.ts";` }), []);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import type { PrismaRaiz } from "../datos/prisma.ts"; const db = conAlcance(deps.prisma, id);` }), []);
+});
+
+test("EA-12: cargas dinámicas, createRequire y primitivas de red fuera de src/mensajeria", () => {
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const m = await import(ruta);` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": "const m = await import(`../${nombre}.ts`);" }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const m = await import("./literal.ts");` }), [], "con ruta literal sí se ve y se puede revisar");
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const r = createRequire(import.meta.url)("twilio");` }), ["src/x/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": "const v = process.env[`CHATWOOT_${x}`];" }), ["src/x/a.ts:4"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `await fetch(url);` }), ["src/x/a.ts:4"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `await fetch('https://api.' + 'twil' + 'io.com/x');` }), ["src/x/a.ts:4"]);
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `import https from "node:https";` }), ["src/x/a.ts:4"]);
+  assert.deepEqual(hallazgos({ "src/mensajeria/a.ts": `await fetch(url); import https from "node:https";` }), []);
+});
+
+/**
+ * Compila cuerpos de función contra los tipos REALES de src/datos/prisma.ts y devuelve, por
+ * siembra, si el compilador la rechazó. Una sola corrida de tsc para todas.
+ */
+function compilar(siembras: Record<string, string>): Record<string, boolean> {
+  const dir = join(RAIZ_REPO, ".tmp", `siembras-${process.pid}-${Date.now()}`);
+  mkdirSync(dir, { recursive: true });
+  try {
+    for (const [nombre, cuerpo] of Object.entries(siembras)) {
+      writeFileSync(
+        join(dir, `${nombre}.ts`),
+        `import type { PrismaRaiz } from "../../src/datos/prisma.ts";\nexport async function f(deps: { prisma: PrismaRaiz }, prisma: PrismaRaiz): Promise<unknown> {\n${cuerpo}\n}\n`,
+      );
+    }
+    writeFileSync(join(dir, "tsconfig.json"), JSON.stringify({ extends: "../../tsconfig.json", include: ["./*.ts"], compilerOptions: { noEmit: true } }));
+    const r = spawnSync(process.execPath, [join(RAIZ_REPO, "node_modules", "typescript", "bin", "tsc"), "-p", join(dir, "tsconfig.json"), "--pretty", "false"], { encoding: "utf8" });
+    const salida = r.stdout + r.stderr;
+    return Object.fromEntries(Object.keys(siembras).map((n) => [n, new RegExp(`${n}\\.ts\\(\\d+,\\d+\\): error TS`).test(salida)]));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const RAIZ_REPO = fileURLToPath(new URL("..", import.meta.url));
+
+test("EA-12: las siembras de la auditoría que esquivaban la guarda de texto ahora NO COMPILAN", () => {
+  const rechazadas = compilar({
+    alias: `const p = deps.prisma;\nreturn p.lead.findMany();`,
+    multilinea: `return deps.prisma\n  .lead\n  .findMany();`,
+    corchetes: `return deps["prisma"].lead.findMany();`,
+    desestructuracion: `const { lead } = deps.prisma;\nreturn lead.findMany();`,
+    transaccion: `return prisma.$transaction(async (tx) => tx.lead.findMany());`,
+    sqlCrudo: "return prisma.$queryRaw`SELECT 1`;",
+    extends: `return prisma.$extends({});`,
+    // Control: lo legítimo compila.
+    legitima: `await prisma.$disconnect();\nreturn deps.prisma;`,
+  });
+  assert.deepEqual(rechazadas, {
+    alias: true,
+    multilinea: true,
+    corchetes: true,
+    desestructuracion: true,
+    transaccion: true,
+    sqlCrudo: true,
+    extends: true,
+    legitima: false,
+  });
+});
+
+test("EA-12: lo que el tipo NO impide (cast doble deliberado) lo ve la guarda de texto solo si el cliente va en la misma línea", () => {
+  // Documentado: compila, porque el desarrollador escribió a propósito la forma del cliente.
+  assert.deepEqual(compilar({ casteo: `return (deps.prisma as never as { lead: { findMany(): unknown } }).lead.findMany();` }), { casteo: false });
+  // La guarda de texto sí lo atrapa cuando `prisma` y el cast comparten línea.
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `return (deps.prisma as never as { lead: { findMany(): unknown } }).lead.findMany();` }), ["src/x/a.ts:1"]);
+  // Y no cuando se parte en dos líneas: residual conocido.
+  assert.deepEqual(hallazgos({ "src/x/a.ts": `const p = deps.prisma;\nconst q = p as never as { lead: { findMany(): unknown } };` }), []);
 });

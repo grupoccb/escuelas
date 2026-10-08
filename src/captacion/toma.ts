@@ -14,7 +14,7 @@
 // atendió). Una conversación NUEVA de Chatwoot abre otra fila y el bot atiende desde cero.
 
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
-import type { PrismaClient } from "../datos/prisma.ts";
+import type { PrismaRaiz } from "../datos/prisma.ts";
 import { resolverBandejaChatwoot } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import type { EventoTomaDeConversacion } from "../mensajeria/index.ts";
@@ -22,7 +22,7 @@ import type { EventoTomaDeConversacion } from "../mensajeria/index.ts";
 export type ResultadoToma = "tomada" | "sin_cambio" | "conversacion_desconocida" | "bandeja_desconocida";
 
 export interface DepsToma {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
 }
 
 const MAX_REINTENTOS = 3;

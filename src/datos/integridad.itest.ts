@@ -6,10 +6,11 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import pg from "pg";
-import { crearPrisma, esViolacionUnica, type PrismaClient } from "./prisma.ts";
+import { esViolacionUnica } from "./prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let A: OrganizacionDePrueba;
 let B: OrganizacionDePrueba;
 let leadA: string;
@@ -25,7 +26,7 @@ let grupoB: string;
 const esViolacionFk = (e: unknown): boolean => (e as { code?: unknown }).code === "P2003";
 
 before(async () => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
   A = await sembrarOrganizacion(prisma, "IntegridadA");
   B = await sembrarOrganizacion(prisma, "IntegridadB");
   leadA = (await prisma.lead.create({ data: { organizacion_id: A.organizacionId, vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: "+525500001111" } })).id;

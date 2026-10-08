@@ -13,9 +13,17 @@
 // los tests (`*.test.*`, `*.itest.*`) y, por RUTA EXACTA, src/generated y src/testutil: un
 // `src/otro/testutil/` o `src/otro/generated/` sí se revisan.
 //
-// Límite conocido: es una revisión de texto. No ve un cliente crudo pasado por una variable con
-// otro nombre ni SQL armado a trozos. El tipo `BaseDatos` (src/datos/alcance.ts) cierra el resto:
-// el cliente con alcance no ofrece SQL crudo.
+// El invariante 1 NO descansa solo en esta revisión de texto (EA-12): los módulos reciben un
+// `PrismaRaiz` opaco (src/datos/prisma.ts) que no tiene modelos ni `$transaction` ni SQL crudo, así
+// que un alias, una desestructuración, `deps["prisma"]` o una consulta multilínea no compilan
+// (el typecheck de `npm run validar` falla). Esta guarda cierra lo que el tipo no ve: obtener el
+// cliente completo (`clienteSinAlcance`, `crearPrismaDePruebas`, `PrismaClient`), importar
+// utilidades de prueba desde código de producción, cargas dinámicas y primitivas de red.
+//
+// Límite conocido (documentado, no resuelto): un doble cast deliberado a una forma escrita a mano
+// (`x as never as { lead: … }`) compila; la guarda solo ve el que lleva `prisma` en la misma línea.
+// Un host de Twilio armado a trozos ya no importa: `fetch` y los módulos de red están prohibidos
+// fuera de src/mensajeria/.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
@@ -42,6 +50,14 @@ export const REGLAS: Regla[] = [
       { re: /\borganizacion_id\s*:/, que: "organizacion_id a mano (lo pone el scope)" },
       { re: /["'`][^"'`]*\borganizacion_id\s*(?:=(?!=)|<>|!=|\s+in\b)/i, que: "organizacion_id a mano dentro de SQL" },
       { re: /\bprisma\.(?!\$)[A-Za-z_]\w*\.\w+\s*\(/, que: "consulta con el PrismaClient crudo (sin conAlcance)" },
+      { re: /\bPrismaClient\b/, que: "menciona PrismaClient (los módulos reciben un PrismaRaiz opaco)" },
+      { re: /\bclienteSinAlcance\b/, que: "obtiene el cliente completo sin alcance (solo src/datos/)" },
+      { re: /\b(?:crearPrismaDePruebas|PrismaPruebas)\b/, que: "usa el cliente de pruebas en código de producción" },
+      { re: /(?:from\s+|require\(\s*|import\(\s*)["'][^"']*\btestutil\//, que: "importa utilidades de prueba (src/testutil) desde código de producción" },
+      { re: /(?:from\s+|require\(\s*|import\(\s*)["'][^"']*\.i?test\.[cm]?[jt]sx?["']/, que: "importa un archivo de prueba desde código de producción" },
+      { re: /\bimport\(\s*[^"'\s)]/, que: "importación dinámica con ruta calculada" },
+      { re: /\bcreateRequire\b/, que: "carga de módulos con createRequire" },
+      { re: /\bprisma\b[^;\n]*\bas\s+(?:unknown|never|any)\b/, que: "cast del cliente de base de datos" },
     ],
   },
   {
@@ -51,7 +67,9 @@ export const REGLAS: Regla[] = [
       { re: /\/api\/v1\/|\/public\/api\//, que: "API de Chatwoot" },
       { re: /api_access_token/i, que: "token de Chatwoot" },
       { re: /https?:\/\/[^"'`\s]*chatwoot/i, que: "URL de Chatwoot" },
-      { re: /\bCHATWOOT_[A-Z_]+/, que: "variable de entorno de Chatwoot" },
+      { re: /\bCHATWOOT_/, que: "variable de entorno de Chatwoot" },
+      { re: /\bfetch\s*\(/, que: "petición de red (fetch) fuera de mensajeria" },
+      { re: /["']node:(?:https?|net|tls|dgram|http2)["']|from\s+["'](?:https?|net|tls|undici)["']|\bXMLHttpRequest\b/, que: "módulo de red fuera de mensajeria" },
       { re: /twilio\.com/i, que: "host de Twilio" },
       { re: /(?:from\s+|require\(\s*|import\(\s*)["']twilio["']/, que: "Twilio directo" },
       { re: /x-(?:twilio|chatwoot)-signature/i, que: "firma de webhook" },

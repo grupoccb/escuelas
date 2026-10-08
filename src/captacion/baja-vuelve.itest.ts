@@ -5,19 +5,19 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomInt, randomUUID } from "node:crypto";
-import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
 import { procesarEntrante } from "./entrante.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let org: OrganizacionDePrueba;
 let siguiente = randomInt(1_000_000, 2_000_000_000);
 
 before(async () => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
   org = await sembrarOrganizacion(prisma, "BajaVuelve");
 });
 after(async () => {

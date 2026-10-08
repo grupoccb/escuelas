@@ -12,7 +12,7 @@
 // `fallido` deja una tarea para el asesor con el código de error, una por mensaje (A5).
 
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
-import { esViolacionUnica, type PrismaClient } from "../datos/prisma.ts";
+import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
 import { resolverBandejaChatwoot } from "../datos/sistema.ts";
 import type { EstatusMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
@@ -64,7 +64,7 @@ export function siguienteEstatus(actual: EstatusMensaje, estado: EstadoDeEntrega
 }
 
 export interface DepsEstados {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
   reloj?: () => Date;
 }
 

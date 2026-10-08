@@ -2,7 +2,7 @@
 // organización a partir de un identificador externo, antes de poder abrir el scope.
 // Agregar otra aquí es una decisión explícita, no un atajo.
 
-import type { PrismaClient } from "../generated/prisma/client.ts";
+import { clienteSinAlcance, type PrismaRaiz } from "./prisma.ts";
 import { normalizarNumeroWhatsapp } from "../lib/telefono.ts";
 
 export interface BandejaResuelta {
@@ -17,10 +17,11 @@ export interface BandejaResuelta {
 
 /** Bandeja de Chatwoot de la que viene un evento del Agent Bot. */
 export async function resolverBandejaChatwoot(
-  prisma: PrismaClient,
+  raiz: PrismaRaiz,
   chatwootAccountId: number,
   chatwootInboxId: number,
 ): Promise<BandejaResuelta | null> {
+  const prisma = clienteSinAlcance(raiz);
   const b = await prisma.bandeja_chatwoot.findFirst({
     where: {
       chatwoot_account_id: chatwootAccountId,
@@ -50,7 +51,8 @@ export async function resolverBandejaChatwoot(
  * Bandeja del canal de WhatsApp que tiene ese número receptor. El número se normaliza antes de
  * buscar (invariante 7). Sirve a las fuentes que traen el número receptor en el evento.
  */
-export async function resolverBandejaPorNumero(prisma: PrismaClient, numeroReceptor: string): Promise<BandejaResuelta | null> {
+export async function resolverBandejaPorNumero(raiz: PrismaRaiz, numeroReceptor: string): Promise<BandejaResuelta | null> {
+  const prisma = clienteSinAlcance(raiz);
   const numero = normalizarNumeroWhatsapp(numeroReceptor);
   if (!numero) return null;
   const canal = await prisma.canal_whatsapp.findFirst({
@@ -75,8 +77,8 @@ export async function resolverBandejaPorNumero(prisma: PrismaClient, numeroRecep
 }
 
 /** Organizaciones vivas. Lo usa el aprovisionamiento de la demo para recorrerlas una por una. */
-export async function listarOrganizaciones(prisma: PrismaClient): Promise<{ id: string; nombre: string }[]> {
-  return prisma.organizacion.findMany({
+export async function listarOrganizaciones(raiz: PrismaRaiz): Promise<{ id: string; nombre: string }[]> {
+  return clienteSinAlcance(raiz).organizacion.findMany({
     where: { eliminado_en: null },
     select: { id: true, nombre: true },
     orderBy: { creado_en: "asc" },
@@ -84,6 +86,6 @@ export async function listarOrganizaciones(prisma: PrismaClient): Promise<{ id: 
 }
 
 /** Verifica que la base responde. */
-export async function pingBaseDatos(prisma: PrismaClient): Promise<void> {
-  await prisma.$queryRaw`SELECT 1`;
+export async function pingBaseDatos(raiz: PrismaRaiz): Promise<void> {
+  await clienteSinAlcance(raiz).$queryRaw`SELECT 1`;
 }

@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, randomInt } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { crearPrisma, type PrismaClient } from "../../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../../datos/alcance.ts";
 import { crearApp } from "../../http/app.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../../testutil/semilla.ts";
@@ -17,9 +17,9 @@ const BASE = "https://escuela.example.test";
 const ENTRANTES = "/webhooks/twilio/entrantes";
 const ESTADOS = "/webhooks/twilio/estados";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 before(() => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
 });
 after(async () => {
   await prisma.$disconnect();

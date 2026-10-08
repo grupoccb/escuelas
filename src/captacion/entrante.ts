@@ -6,7 +6,7 @@
 // repite con el estado nuevo.
 
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
-import { esViolacionUnica, type PrismaClient } from "../datos/prisma.ts";
+import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
 import type { ValorJson } from "../datos/tipos.ts";
 import { resolverBandejaChatwoot, resolverBandejaPorNumero, type BandejaResuelta } from "../datos/sistema.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
@@ -40,7 +40,7 @@ export type ResultadoEntrante =
   | "procesado";
 
 export interface DepsCaptacion {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
   mensajeria: MessagingProvider;
   /** De dónde sale la atribución a un anuncio. Por defecto, ninguna. */
   atribucion?: FuenteAtribucion;

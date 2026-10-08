@@ -16,7 +16,7 @@
 // en Chatwoot falla, el aviso ya salió y solo se reintenta la apertura.
 
 import { conAlcance } from "../datos/alcance.ts";
-import type { PrismaClient } from "../datos/prisma.ts";
+import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import type { MessagingProvider } from "../mensajeria/index.ts";
@@ -36,7 +36,7 @@ export const TIEMPO_ESPERA_MS = 30 * 60 * 1000;
 const REINTENTO_APERTURA_MS = 60 * 1000;
 
 export interface DepsEspera {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
   mensajeria: MessagingProvider;
   esperaMs?: number;
   /** Limita el barrido a una organización. Sin él, recorre todas. */

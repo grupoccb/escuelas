@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
-import { crearPrisma, type PrismaClient } from "./datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "./testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "./datos/alcance.ts";
 import { barrerEspera, TIEMPO_ESPERA_MS } from "./captacion/espera.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
@@ -15,11 +15,11 @@ import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type EventoEntrante
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "./testutil/semilla.ts";
 import { conGanchos, soloOrganizaciones } from "./testutil/carrera.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let siguiente = randomInt(1_000_000, 2_000_000_000);
 
 before(() => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
 });
 after(async () => {
   await prisma.$disconnect();

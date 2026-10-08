@@ -5,12 +5,12 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomInt } from "node:crypto";
-import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { reporteLeads, SIN_CAMPANA, SIN_SUCURSAL } from "./leads.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let A: OrganizacionDePrueba;
 let B: OrganizacionDePrueba;
 let etapaContactado: string;
@@ -18,7 +18,7 @@ let campanaUno: string;
 let campanaDos: string;
 
 before(async () => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
   A = await sembrarOrganizacion(prisma, "ReporteA");
   B = await sembrarOrganizacion(prisma, "ReporteB");
   etapaContactado = (await prisma.etapa_pipeline.create({ data: { organizacion_id: A.organizacionId, nombre: "Contactado", orden: 2 } })).id;

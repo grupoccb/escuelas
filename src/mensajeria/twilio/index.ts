@@ -8,7 +8,7 @@
 //   TWILIO_REENVIO_ESTADOS_URL          a dónde se reenvían los estados (por defecto $CHATWOOT_URL/twilio/delivery_status)
 //   TWILIO_NORMALIZAR_FROM_AL_REENVIAR  "true" para normalizar `From` antes de reenviar (apagado por defecto)
 
-import type { PrismaClient } from "../../datos/prisma.ts";
+import type { PrismaRaiz } from "../../datos/prisma.ts";
 import { log } from "../../lib/log.ts";
 import { crearBordeTwilio, type BordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso, ReenviadorTwilioHttp, type ReenviadorTwilio } from "./reenviador.ts";
@@ -26,7 +26,7 @@ export interface TwilioConfigurado {
   reenvio: "http" | "falso";
 }
 
-export function bordeTwilioDesdeEntorno(prisma: PrismaClient, env: NodeJS.ProcessEnv = process.env): TwilioConfigurado {
+export function bordeTwilioDesdeEntorno(prisma: PrismaRaiz, env: NodeJS.ProcessEnv = process.env): TwilioConfigurado {
   const authToken = env["TWILIO_AUTH_TOKEN"] || null;
   const publicBaseUrl = env["PUBLIC_BASE_URL"] || null;
   const chatwoot = env["CHATWOOT_URL"]?.replace(/\/+$/, "");

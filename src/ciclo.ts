@@ -9,12 +9,12 @@
 
 import { correrAutomatizaciones, type ResumenMotor } from "./automatizaciones/motor.ts";
 import { barrerEspera, type ResumenEspera } from "./captacion/espera.ts";
-import type { PrismaClient } from "./datos/prisma.ts";
+import type { PrismaRaiz } from "./datos/prisma.ts";
 import { log } from "./lib/log.ts";
 import type { MessagingProvider } from "./mensajeria/index.ts";
 
 export interface DepsCiclo {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
   mensajeria: MessagingProvider;
   reloj?: () => Date;
 }

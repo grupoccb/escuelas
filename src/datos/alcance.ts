@@ -19,6 +19,7 @@
 // organizacion_id la rechaza la base (columna NOT NULL).
 
 import type { PrismaClient } from "../generated/prisma/client.ts";
+import { clienteSinAlcance, type PrismaRaiz } from "./prisma.ts";
 
 export class ErrorAlcance extends Error {}
 
@@ -118,8 +119,8 @@ export type BaseDatos = Omit<Cliente, "$transaction" | SqlCrudo> & {
   $transaction<R>(fn: (tx: Consultas) => Promise<R>, opciones?: OpcionesTransaccion): Promise<R>;
 };
 
-export function conAlcance(prisma: PrismaClient, organizacionId: string): BaseDatos {
-  return crearCliente(prisma, organizacionId) as unknown as BaseDatos;
+export function conAlcance(raiz: PrismaRaiz, organizacionId: string): BaseDatos {
+  return crearCliente(clienteSinAlcance(raiz), organizacionId) as unknown as BaseDatos;
 }
 
 /**

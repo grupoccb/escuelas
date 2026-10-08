@@ -7,19 +7,20 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
-import { crearPrisma, esViolacionUnica, type PrismaClient } from "../datos/prisma.ts";
+import { esViolacionUnica } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { sembrarOrganizacion } from "../testutil/semilla.ts";
 import { calcularCupo, cupoPorGrupo, type FuenteOcupacion } from "./cupo.ts";
 import { cargarCatalogo, choquesDeSalon, resumenDeCapacidad, traslapesDeEdad } from "./verificacion.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let orgId: string;
 
 const ID_FIJO = /00000000-0000-4000-8000-000000000(\d{3})/g;
 
 before(async () => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
   // Los seeds usan ids fijos; cada corrida los lleva a una organización propia.
   const prefijo = randomBytes(4).toString("hex");
   const aOrganizacionNueva = (sql: string): string => sql.replace(ID_FIJO, `${prefijo}-0000-4000-8000-000000000$1`);

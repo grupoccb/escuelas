@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { randomBytes, randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
-import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { correrAutomatizaciones } from "../automatizaciones/motor.ts";
 import { MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
@@ -18,7 +18,7 @@ import { reporteLeads } from "../reportes/leads.ts";
 import { procesarEntrante } from "./entrante.ts";
 import { textos } from "./maquina.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let orgId: string;
 let primera: { id: string; nombre: string; slug: string; bandejaId: string; cuenta: number; inbox: number };
 let segunda: { id: string; nombre: string; slug: string; bandejaId: string; cuenta: number; inbox: number };
@@ -29,7 +29,7 @@ let siguiente = randomInt(1_000_000, 2_000_000_000);
 const ID_FIJO = /00000000-0000-4000-8000-000000000(\d{3})/g;
 
 before(async () => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
   const prefijo = randomBytes(4).toString("hex");
   const aOrganizacionNueva = (sql: string): string => sql.replace(ID_FIJO, `${prefijo}-0000-4000-8000-000000000$1`);
   orgId = `${prefijo}-0000-4000-8000-000000000001`;

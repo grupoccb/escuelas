@@ -2,18 +2,18 @@
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { crearPrisma, type PrismaClient } from "./prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance, ErrorAlcance } from "./alcance.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let A: OrganizacionDePrueba;
 let B: OrganizacionDePrueba;
 let leadA: string;
 let leadB: string;
 
 before(async () => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
   A = await sembrarOrganizacion(prisma, "A");
   B = await sembrarOrganizacion(prisma, "B");
   leadA = (await conAlcance(prisma, A.organizacionId).lead.create({

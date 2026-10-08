@@ -3,7 +3,7 @@
 // ids de Chatwoot son aleatorios para que las corridas no choquen entre sí.
 
 import { randomInt, randomUUID } from "node:crypto";
-import type { PrismaClient } from "../datos/prisma.ts";
+import type { PrismaPruebas } from "./prisma-pruebas.ts";
 
 export interface OrganizacionDePrueba {
   organizacionId: string;
@@ -17,7 +17,7 @@ export interface OrganizacionDePrueba {
   chatwootInboxId: number;
 }
 
-export async function sembrarOrganizacion(prisma: PrismaClient, nombre = "Organización de prueba"): Promise<OrganizacionDePrueba> {
+export async function sembrarOrganizacion(prisma: PrismaPruebas, nombre = "Organización de prueba"): Promise<OrganizacionDePrueba> {
   const organizacion = await prisma.organizacion.create({ data: { nombre: `${nombre} ${randomUUID().slice(0, 8)}` } });
   const org = organizacion.id;
   const vertical = await prisma.vertical.create({
@@ -60,7 +60,7 @@ export async function sembrarOrganizacion(prisma: PrismaClient, nombre = "Organi
 
 /** Crea o actualiza la fila de configuración de la organización (los tests la fijan a su medida). */
 export async function fijarConfiguracion(
-  prisma: PrismaClient,
+  prisma: PrismaPruebas,
   organizacionId: string,
   valores: { max_automaticos_por_dia?: number; max_marketing_por_ventana?: number; ventana_marketing_dias?: number },
 ): Promise<void> {

@@ -19,7 +19,7 @@
 //    falla; si estaba en `enviando` sin id (envío incierto), falla y se avisa al asesor.
 
 import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts";
-import type { PrismaClient } from "../datos/prisma.ts";
+import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, asegurarTareaAsesor, type MessagingProvider } from "../mensajeria/index.ts";
@@ -33,7 +33,7 @@ const POR_CORRIDA = 200;
 export const RECLAMO_VENCE_MS = 10 * MINUTO_MS;
 
 export interface DepsMotor {
-  prisma: PrismaClient;
+  prisma: PrismaRaiz;
   mensajeria: MessagingProvider;
   reloj?: () => Date;
   /** Limita la corrida a una organización. Sin él, recorre todas. */

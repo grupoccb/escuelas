@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { correrAutomatizaciones } from "../automatizaciones/motor.ts";
 import {
@@ -21,11 +21,11 @@ import { procesarEntrante } from "./entrante.ts";
 import { barrerTiemposDeEspera } from "./espera.ts";
 import { registrarTomaDeConversacion } from "./toma.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 let siguiente = randomInt(1_000_000, 2_000_000_000);
 
 before(() => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
 });
 after(async () => {
   await prisma.$disconnect();

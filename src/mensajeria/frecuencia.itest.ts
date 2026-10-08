@@ -4,14 +4,14 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomInt, randomUUID } from "node:crypto";
-import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
+import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type Saliente } from "./index.ts";
 
-let prisma: PrismaClient;
+let prisma: PrismaPruebas;
 before(() => {
-  prisma = crearPrisma();
+  prisma = crearPrismaDePruebas();
 });
 after(async () => {
   await prisma.$disconnect();

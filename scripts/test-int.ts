@@ -16,6 +16,11 @@ const url = new URL(
 );
 const nombreBase = url.pathname.slice(1);
 if (!/^[a-z_][a-z0-9_]*$/.test(nombreBase)) throw new Error(`Nombre de base inválido: ${nombreBase}`);
+// EA-17: nunca contra la base de la demo. Los tests dejan organizaciones propias y los itests se
+// niegan a conectarse a una base que no termine en _pruebas o _test (src/testutil/prisma-pruebas.ts).
+if (!/(?:_pruebas|_test)$/.test(nombreBase)) {
+  throw new Error(`DATABASE_URL_PRUEBAS apunta a «${nombreBase}»: la base de pruebas debe terminar en _pruebas o _test.`);
+}
 
 const mantenimiento = new URL(url);
 mantenimiento.pathname = "/postgres";
