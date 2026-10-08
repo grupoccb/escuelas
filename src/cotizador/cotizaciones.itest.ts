@@ -9,7 +9,7 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { fijarConfiguracion, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, type ProgramaSembrado } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { conAlcance } from "../datos/alcance.ts";
-import { vencerCotizaciones } from "./guardar.ts";
+import { elegirHorario, vencerCotizaciones } from "./guardar.ts";
 import { resumenDeCotizacion } from "./cotizacion.ts";
 import { vencerCotizacionesDeTodas } from "./vencer.ts";
 import { correrCiclo } from "../ciclo.ts";
@@ -321,4 +321,23 @@ test("EC-08: los supuestos del asesor (hermanos inscritos, meses por adelantado)
   } finally {
     await apiLocal.cerrar();
   }
+});
+
+test("EC-09 (Z06): elegirHorario no anota un grupo que no es del programa cotizado (ni uno inexistente): devuelve false y no cambia nada", async () => {
+  const o = await sembrarOrganizacion(prisma, "CotizacionesGrupoAjeno");
+  const dbo = conAlcance(prisma, o.organizacionId);
+  const p1 = await sembrarPrograma(prisma, o, { sucursalId: o.sucursales[0]!.id, nombre: "P1", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G1", horarios: [[1, 960, 1020]] }] });
+  const p2 = await sembrarPrograma(prisma, o, { sucursalId: o.sucursales[0]!.id, nombre: "P2", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G2", horarios: [[2, 960, 1020]] }] });
+  const lead = await prisma.lead.create({ data: { organizacion_id: o.organizacionId, vertical_interes_id: o.verticalId, sucursal_interes_id: o.sucursales[0]!.id, etapa_id: o.etapaInicialId, telefono: "+525511110077" } });
+  const pro = await prisma.prospecto.create({ data: { organizacion_id: o.organizacionId, lead_id: lead.id, vertical_interes_id: o.verticalId, nombre: "N", edad_declarada: 8, origen: "bot" } });
+  const bandejaConv = await prisma.conversacion.create({ data: { organizacion_id: o.organizacionId, bandeja_chatwoot_id: o.bandejaId, lead_id: lead.id, chatwoot_conversacion_id: 987654, estado: "bot" } });
+  await prisma.cotizacion.create({ data: { organizacion_id: o.organizacionId, lead_id: lead.id, prospecto_id: pro.id, programa_id: p1.id, sucursal_id: o.sucursales[0]!.id, origen: "bot", conversacion_id: bandejaConv.id, fecha: new Date("2026-10-08T00:00:00Z"), vigente_hasta: new Date("2026-10-15T00:00:00Z"), snapshot: { version: 1 } } });
+  const intento = (grupoId: string | null) => elegirHorario(dbo, { conversacionId: bandejaConv.id, prospectoId: pro.id, grupoId });
+  assert.equal(await intento(p2.grupos[0]!.id), false, "un grupo de OTRO programa");
+  assert.equal(await intento(randomUUID()), false, "un grupo inexistente");
+  assert.equal((await dbo.cotizacion.findFirstOrThrow({ where: { prospecto_id: pro.id } })).grupo_elegido_id, null);
+  assert.equal(await intento(p1.grupos[0]!.id), true);
+  assert.equal((await dbo.cotizacion.findFirstOrThrow({ where: { prospecto_id: pro.id } })).grupo_elegido_id, p1.grupos[0]!.id);
+  assert.equal(await intento(null), true, "descartar el horario tentativo");
+  assert.equal((await dbo.cotizacion.findFirstOrThrow({ where: { prospecto_id: pro.id } })).grupo_elegido_id, null);
 });

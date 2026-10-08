@@ -244,3 +244,20 @@ test("sucursalesConPrograma lista las sucursales con programa para esa persona",
   assert.deepEqual(sucursalesConPrograma(cat, { verticalId: V, edadDeclarada: 8 }), [S2]);
   assert.deepEqual(sucursalesConPrograma(cat, { verticalId: V, edadDeclarada: 30 }), []);
 });
+
+test("EC-09 (Q07): venceEl es el MENOR de los fines: el del precio y el de cada promoción aplicada, sin importar cuál sea", () => {
+  const con = (precioHasta: string | null, promoHasta: string | null, extraPromo: Partial<PromocionDef> = {}) => {
+    const p = programa("p", 3, 12, { precio: { id: "pr", costoInscripcion: deTexto("500.00"), costoMensualidad: deTexto("800.00"), moneda: "MXN", desde: "2026-01-01", hasta: precioHasta } });
+    const c = cotizar(catalogo([p], { promociones: [promo("a", { vigenciaHasta: promoHasta, ...extraPromo })] }), entrada(8));
+    return c.programas[0]!.venceEl;
+  };
+  assert.equal(con("2026-12-31", "2026-11-30"), "2026-11-30", "la promoción vence antes que el precio");
+  assert.equal(con("2026-11-30", "2026-12-31"), "2026-11-30", "el precio vence antes que la promoción");
+  assert.equal(con(null, "2026-11-30"), "2026-11-30");
+  assert.equal(con("2026-11-30", null), "2026-11-30");
+  assert.equal(con(null, null), null, "si nada vence, no hay fin");
+  // Varias promociones aplicadas: gana la que vence primero; una que no aplica (fuera de vigencia) no cuenta.
+  const p = programa("p", 3, 12);
+  const varias = cotizar(catalogo([p], { promociones: [promo("a", { vigenciaHasta: "2026-12-31" }), promo("b", { vigenciaHasta: "2026-10-20" }), promo("c", { vigenciaHasta: "2026-10-01" })] }), entrada(8));
+  assert.equal(varias.programas[0]!.venceEl, "2026-10-20", "la c ya venció el 1 de octubre y no se aplicó");
+});

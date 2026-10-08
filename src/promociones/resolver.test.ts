@@ -245,3 +245,14 @@ test("una promoción sin beneficios aplica sin efecto; un beneficio de importe s
   assert.deepEqual(resolverPromociones([promo("a")], ctx()).aplicadas.map((x) => x.promocionId), ["a"]);
   assert.throws(() => resolverPromociones([promo("a", {}, beneficio({ tipo: "descuento_inscripcion", modo: "porcentaje", valor: null }))], ctx()), /sin valor/);
 });
+
+test("EC-09 (R18): solo las líneas de meses gratis llevan meses; descuentos y productos llevan 0", () => {
+  const r = resolverPromociones(
+    [
+      promo("a", { acumulable: true }, beneficio({ tipo: "descuento_inscripcion", modo: "porcentaje", valor: "10.00" }), beneficio({ tipo: "descuento_mensualidad", modo: "monto_fijo", valor: "50.00" }), beneficio({ tipo: "producto_gratis", modo: "total", descripcion: "un regalo" })),
+      promo("b", { acumulable: true }, beneficio({ tipo: "meses_gratis", modo: "total", valor: "2.00" })),
+    ],
+    ctx(),
+  );
+  assert.deepEqual(r.lineas.map((l) => [l.tipo, l.meses]), [["descuento_inscripcion", 0], ["descuento_mensualidad", 0], ["producto_gratis", 0], ["meses_gratis", 2]]);
+});

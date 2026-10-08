@@ -412,3 +412,48 @@ test("EC-05: altas simultáneas del mismo salón con nombres equivalentes dejan 
     assert.equal(filas.length, 1, `ronda ${ronda}`);
   }
 });
+
+// ── Los disparadores de la base, una propiedad por prueba (huecos de mutación S3 a S6 de la auditoría de C) ──────────
+
+const horarioDirecto = (grupoId: string, dia: number, ini: number, fin: number) => ({ data: { organizacion_id: org.organizacionId, grupo_id: grupoId, dia_semana: dia, hora_inicio_min: ini, hora_fin_min: fin } });
+const grupoDirecto = (programa: string, nombre: string, extra: Record<string, unknown> = {}) => prisma.grupo.create({ data: { organizacion_id: org.organizacionId, programa_id: programa, nombre, cupo_maximo: 5, ...extra } });
+
+test("EC-09 (S3): la BASE serializa también al INSTRUCTOR: dos transacciones que le dan clase a la misma hora en salones distintos → una gana", async () => {
+  const instructor = await prisma.instructor.create({ data: { organizacion_id: org.organizacionId, nombre: "Instructor directo" } });
+  const s1 = await prisma.salon.create({ data: { organizacion_id: org.organizacionId, sucursal_id: norte, nombre: `Dir A ${randomUUID().slice(0, 4)}` } });
+  const s2 = await prisma.salon.create({ data: { organizacion_id: org.organizacionId, sucursal_id: norte, nombre: `Dir B ${randomUUID().slice(0, 4)}` } });
+  const g1 = await grupoDirecto(pNorte1, `Inst 1 ${randomUUID().slice(0, 4)}`, { salon_id: s1.id, instructor_id: instructor.id });
+  const g2 = await grupoDirecto(pNorte2, `Inst 2 ${randomUUID().slice(0, 4)}`, { salon_id: s2.id, instructor_id: instructor.id });
+  const barrera = new Barrera(2);
+  const intento = (grupoId: string) =>
+    prisma.$transaction(async (tx) => {
+      await tx.grupo_horario.create(horarioDirecto(grupoId, 5, 1000, 1060)); // el disparador toma el candado del instructor aquí
+      await barrera.esperar(400);
+    });
+  const resultados = await Promise.allSettled([intento(g1.id), intento(g2.id)]);
+  assert.deepEqual(resultados.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
+  assert.match(String((resultados.find((r) => r.status === "rejected") as PromiseRejectedResult).reason), /choque_de_ocupacion: el instructor/);
+  assert.equal(await prisma.grupo_horario.count({ where: { grupo_id: { in: [g1.id, g2.id] }, eliminado_en: null } }), 1);
+});
+
+test("EC-09 (S4, S5, S6): en la base un grupo INACTIVO o un horario dado de baja no ocupan el salón; reactivarlos o restaurarlos vuelve a revisar el choque", async () => {
+  const salon = await prisma.salon.create({ data: { organizacion_id: org.organizacionId, sucursal_id: norte, nombre: `Dir C ${randomUUID().slice(0, 4)}` } });
+  const dia = 4;
+  // S4: un grupo inactivo con horario no ocupa el salón.
+  const inactivo = await grupoDirecto(pNorte1, `Inactivo ${randomUUID().slice(0, 4)}`, { salon_id: salon.id, activo: false });
+  await prisma.grupo_horario.create(horarioDirecto(inactivo.id, dia, 600, 660));
+  const activo = await grupoDirecto(pNorte2, `Activo ${randomUUID().slice(0, 4)}`, { salon_id: salon.id });
+  await prisma.grupo_horario.create(horarioDirecto(activo.id, dia, 620, 680)); // se pisa con el inactivo y entra
+  // ...pero reactivar al inactivo ahora sí choca.
+  await assert.rejects(prisma.grupo.update({ where: { id: inactivo.id }, data: { activo: true } }), /choque_de_ocupacion/);
+
+  // S5: un horario dado de baja de otro grupo no ocupa.
+  const otro = await grupoDirecto(pNorte1, `Con baja ${randomUUID().slice(0, 4)}`, { salon_id: salon.id });
+  const baja = await prisma.grupo_horario.create(horarioDirecto(otro.id, dia, 900, 960));
+  await prisma.grupo_horario.update({ where: { id: baja.id }, data: { eliminado_en: new Date() } });
+  const nuevo = await grupoDirecto(pNorte2, `Nuevo ${randomUUID().slice(0, 4)}`, { salon_id: salon.id });
+  await prisma.grupo_horario.create(horarioDirecto(nuevo.id, dia, 920, 980)); // se pisa con el horario dado de baja y entra
+
+  // S6: restaurar (quitar la baja) un horario que ahora choca se rechaza.
+  await assert.rejects(prisma.grupo_horario.update({ where: { id: baja.id }, data: { eliminado_en: null } }), /choque_de_ocupacion/);
+});

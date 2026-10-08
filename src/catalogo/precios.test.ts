@@ -56,3 +56,9 @@ test("planDeAlta: la primera no cierra nada; la siguiente cierra la anterior el 
   assert.equal(planDeAlta([v("a", "2026-01-01", "2026-03-31"), v("b", "2026-04-01", null)], "2026-04-02").ok, true);
   assert.deepEqual(planDeAlta([v("a", "2026-01-01", "2026-03-31"), v("b", "2026-04-01", null)], "2026-04-02"), { ok: true, cerrar: { id: "b", hasta: "2026-04-01" } }, "cierra la última, no la primera");
 });
+
+test("EC-09 (P05): si la vigencia anterior termina justo el día que empieza la nueva, se recorta un día (nunca se queda un día traslapada)", () => {
+  assert.deepEqual(planDeAlta([v("a", "2026-01-01", "2026-06-01")], "2026-06-01"), { ok: true, cerrar: { id: "a", hasta: "2026-05-31" } });
+  assert.deepEqual(planDeAlta([v("a", "2026-01-01", "2026-06-02")], "2026-06-01"), { ok: true, cerrar: { id: "a", hasta: "2026-05-31" } });
+  assert.deepEqual(planDeAlta([v("a", "2026-01-01", "2026-05-31")], "2026-06-01"), { ok: true, cerrar: null }, "la que ya terminaba el día previo no se toca");
+});

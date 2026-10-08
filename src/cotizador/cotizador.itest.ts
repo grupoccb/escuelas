@@ -276,3 +276,45 @@ test("el catálogo cargado ignora programas inactivos, borrados, grupos inactivo
     await prisma.sucursal_vertical.updateMany({ where: { organizacion_id: org.organizacionId, sucursal_id: sur }, data: { activo: true } });
   }
 });
+
+test("EC-09 (X39): una promoción con el cupo agotado NO se cotiza (el cupo usado se lee de la base), con su motivo en las descartadas", async () => {
+  const o = await sembrarOrganizacion(prisma, "CotizadorCupo");
+  const apiLocal = levantarApi(prisma, { reloj: () => AHORA });
+  try {
+    const u = await sembrarUsuario(prisma, o.organizacionId, { rol: "administrador" });
+    const c = apiLocal.cliente();
+    assert.equal((await c.login(o.slug, u.correo, u.contrasena)).estado, 201);
+    const p = await sembrarPrograma(prisma, o, { sucursalId: o.sucursales[0]!.id, nombre: "P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", horarios: [H(1)] }], precio: { inscripcion: "100.00", mensualidad: "200.00" } });
+    const creada = await c.post<{ id: string }>("/api/promociones", { nombre: "Con cupo", codigo: `K-${randomUUID().slice(0, 6)}`.toUpperCase(), vigencia_desde: "2026-01-01", cupo_maximo: 1, beneficios: [{ tipo: "descuento_inscripcion", modo: "total" }] });
+    assert.equal(creada.estado, 201, JSON.stringify(creada.cuerpo));
+    const consulta = () => c.get<CotizacionJson>(`/api/cotizador?vertical_id=${o.verticalId}&sucursal_id=${o.sucursales[0]!.id}&edad=8`);
+    const antes = (await consulta()).cuerpo.programas[0]!;
+    assert.equal(antes.promociones!.inscripcion.final_ahora, "0.00", "con cupo disponible aplica");
+    await prisma.promocion.update({ where: { id: creada.cuerpo.id }, data: { cupo_usado: 1 } });
+    const despues = (await consulta()).cuerpo.programas[0]!;
+    assert.equal(despues.programa_id, p.id);
+    assert.deepEqual(despues.promociones!.aplicadas, []);
+    assert.equal(despues.promociones!.inscripcion.final_ahora, "100.00");
+    assert.deepEqual(despues.promociones!.descartadas.map((d) => d.motivo), ["sin_cupo"]);
+  } finally {
+    await apiLocal.cerrar();
+  }
+});
+
+test("EC-09 (X40): la moneda del precio vigente llega tal cual al cotizador (no se supone MXN)", async () => {
+  const o = await sembrarOrganizacion(prisma, "CotizadorMoneda");
+  const apiLocal = levantarApi(prisma, { reloj: () => AHORA });
+  try {
+    const u = await sembrarUsuario(prisma, o.organizacionId, { rol: "administrador" });
+    const c = apiLocal.cliente();
+    assert.equal((await c.login(o.slug, u.correo, u.contrasena)).estado, 201);
+    const p = await sembrarPrograma(prisma, o, { sucursalId: o.sucursales[0]!.id, nombre: "P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", horarios: [H(1)] }] });
+    const alta = await c.post("/api/precios", { programa_id: p.id, costo_inscripcion: "10.00", costo_mensualidad: "20.00", moneda: "usd", vigencia_desde: "2026-01-01" });
+    assert.equal(alta.estado, 201, JSON.stringify(alta.cuerpo));
+    const r = await c.get<CotizacionJson>(`/api/cotizador?vertical_id=${o.verticalId}&sucursal_id=${o.sucursales[0]!.id}&edad=8`);
+    assert.equal(r.cuerpo.programas[0]!.precio!.moneda, "USD");
+    assert.equal((await precioVigente(conAlcance(prisma, o.organizacionId), p.id, "2026-10-08"))?.moneda, "USD");
+  } finally {
+    await apiLocal.cerrar();
+  }
+});
