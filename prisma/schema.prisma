@@ -65,6 +65,7 @@ model organizacion {
   sesiones                   sesion[]
   intentos_acceso            intento_acceso[]
   instructores               instructor[]
+  registros_cambio           registro_cambio[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -908,6 +909,7 @@ model usuario {
   sucursales   usuario_sucursal[]
   sesiones     sesion[]
   instructores instructor[]
+  cambios      registro_cambio[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -999,4 +1001,34 @@ model instructor {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([usuario_id])
+}
+
+// ── Registro de cambios (B3) ───────────────────────────────────────────────────────────
+
+/// Quién cambió qué. Solo de anexar (un disparador en la migración impide UPDATE y DELETE). `antes` y
+/// `despues` guardan SOLO los campos de la lista blanca de su entidad (src/api/registro.ts): nunca
+/// contraseñas, tokens ni datos de salud. Se escribe en la MISMA transacción que el cambio.
+model registro_cambio {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  /// Quien hizo el cambio.
+  usuario_id      String    @db.Uuid
+  /// Nombre de la tabla afectada (`usuario`, `tarea_asesor`…).
+  entidad_tipo    String
+  entidad_id      String    @db.Uuid
+  /// Verbo corto: crear, actualizar, resolver, descartar, cambiar_contrasena…
+  accion          String
+  antes           Json?
+  despues         Json?
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  usuario      usuario      @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([organizacion_id, entidad_tipo, entidad_id])
+  @@index([organizacion_id, creado_en])
 }

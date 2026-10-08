@@ -17,6 +17,7 @@ import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
+import { registrarCambio } from "../registro.ts";
 import { enumerado, objeto, opcional, parsear, parsearQuery, uuid } from "../validar.ts";
 
 const SELECCION = {
@@ -62,12 +63,21 @@ export function rutasDeTareas(deps: DepsApi): Router {
     const filtro = filtroDeSucursal(await ctx.alcance());
     const where = { id, ...(filtro ? { lead: { sucursal_interes_id: filtro } } : {}) };
     const resultado = await ctx.db.$transaction(async (tx) => {
-      const tarea = await tx.tarea_asesor.findFirst({ where, select: { id: true } });
+      const tarea = await tx.tarea_asesor.findFirst({ where, select: { id: true, estado: true, resuelta_en: true } });
       if (!tarea) throw noEncontrado();
       // Atómico: solo cambia si sigue pendiente.
       const cambio = await tx.tarea_asesor.updateMany({ where: { id, estado: "pendiente" }, data: { estado, resuelta_en: ctx.ahora() } });
       if (cambio.count !== 1) throw conflicto("La tarea ya estaba resuelta");
-      return tx.tarea_asesor.findFirstOrThrow({ where: { id }, select: SELECCION });
+      const despues = await tx.tarea_asesor.findFirstOrThrow({ where: { id }, select: SELECCION });
+      await registrarCambio(tx, ctx, {
+        entidad: "tarea_asesor",
+        entidadId: id,
+        accion: estado === "hecha" ? "resolver" : "descartar",
+        antes: { estado: tarea.estado, resuelta_en: tarea.resuelta_en },
+        despues: { estado: despues.estado, resuelta_en: despues.resuelta_en },
+        soloDiferencias: false,
+      });
+      return despues;
     });
     res.json(resultado);
   });

@@ -25,6 +25,7 @@ import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { booleano, booleanoDeTexto, correo, enumerado, listaDe, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "../validar.ts";
 import { autenticar } from "../autenticar.ts";
+import { registrarCambio, type Instantanea } from "../registro.ts";
 
 const SELECCION = {
   id: true,
@@ -44,6 +45,11 @@ interface FilaUsuario {
   activo: boolean;
   creado_en: Date;
   sucursales: { sucursal_id: string }[];
+}
+
+/** Lo que se audita de un usuario (lista blanca de registro.ts; sin contraseña). */
+function instantaneaDe(u: FilaUsuario): Instantanea {
+  return { nombre: u.nombre, rol: u.rol, activo: u.activo, sucursales: u.sucursales.map((s) => s.sucursal_id) };
 }
 
 export function presentarUsuario(u: FilaUsuario) {
@@ -131,7 +137,9 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
         });
         await fijarSucursales(tx, u.id, entrada.sucursales ?? [], ahora);
         if (entrada.rol === "maestro") await asegurarInstructor(tx, u.id, entrada.nombre);
-        return tx.usuario.findFirstOrThrow({ where: { id: u.id }, select: SELECCION });
+        const fila = await tx.usuario.findFirstOrThrow({ where: { id: u.id }, select: SELECCION });
+        await registrarCambio(tx, ctx, { entidad: "usuario", entidadId: u.id, accion: "crear", despues: instantaneaDe(fila) });
+        return fila;
       });
       res.status(201).json(presentarUsuario(creado));
     } catch (e) {
@@ -161,7 +169,7 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
 
     // Bajo candado: la regla «siempre queda un administrador activo» compara con el estado actual.
     const actualizado = await transaccionConBloqueo(ctx.db, ctx.organizacionId, "usuarios:administradores", async (tx) => {
-      const actual = await tx.usuario.findFirst({ where: { id }, select: { id: true, nombre: true, rol: true, activo: true } });
+      const actual = await tx.usuario.findFirst({ where: { id }, select: SELECCION });
       if (!actual) throw noEncontrado();
       const dejaDeSerAdminActivo = actual.rol === "administrador" && actual.activo && (cambios.activo === false || (cambios.rol !== undefined && cambios.rol !== "administrador"));
       if (dejaDeSerAdminActivo) {
@@ -180,7 +188,11 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
       if ((cambios.rol ?? actual.rol) === "maestro") await asegurarInstructor(tx, id, cambios.nombre ?? actual.nombre);
       const cierraSesiones = cambios.activo === false || (cambios.rol !== undefined && cambios.rol !== actual.rol) || hash !== undefined;
       if (cierraSesiones) await revocarSesionesDeUsuario(tx, id, ahora, esYo ? ctx.sesionId : undefined);
-      return tx.usuario.findFirstOrThrow({ where: { id }, select: SELECCION });
+      const despues = await tx.usuario.findFirstOrThrow({ where: { id }, select: SELECCION });
+      await registrarCambio(tx, ctx, { entidad: "usuario", entidadId: id, accion: "actualizar", antes: instantaneaDe(actual), despues: instantaneaDe(despues) });
+      // La contraseña no se registra: solo que se restableció.
+      if (hash !== undefined) await registrarCambio(tx, ctx, { entidad: "usuario", entidadId: id, accion: "restablecer_contrasena" });
+      return despues;
     });
     res.json(presentarUsuario(actualizado));
   });

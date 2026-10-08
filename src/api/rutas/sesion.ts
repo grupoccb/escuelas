@@ -17,6 +17,7 @@ import { correo, objeto, opcional, parsear, texto, textoLiteral } from "../valid
 import { normalizarIp } from "../../http/ip.ts";
 import { autenticar } from "../autenticar.ts";
 import { permisosDe } from "../permisos.ts";
+import { registrarCambio } from "../registro.ts";
 import { LIMITE_CUERPO_LOGIN } from "../cuerpos.ts";
 
 const esquemaLogin = objeto({
@@ -108,6 +109,7 @@ export function rutasDeSesionPropia(deps: DepsApi): Router {
       if (e instanceof ErrorContrasenaDebil) throw validacion(e.problemas.map((mensaje) => ({ campo: "nueva", mensaje })));
       throw e;
     }
+    await ctx.db.$transaction((tx) => registrarCambio(tx, ctx, { entidad: "usuario", entidadId: ctx.usuario.id, accion: "cambiar_contrasena" }));
     res.status(204).end();
   });
 

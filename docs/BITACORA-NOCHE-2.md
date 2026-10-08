@@ -16,7 +16,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A-fix | HECHO (2 pendientes, 1 decisión) | 46645c0…4ac0bb0 | Correcciones de la auditoría de la etapa A (`docs/auditorias/etapa-A.md`): ver la sección «Correcciones de la auditoría de la etapa A» |
 | B1 | HECHO | (ver git log) | Usuarios, roles, sesiones y contraseñas con scrypt; login con bloqueo; CSRF |
 | B2 | HECHO | (ver git log) | Matriz permiso×rol, alcance por sucursal y por grupo del maestro, usuarios/grupos/tareas/leads |
-| B3 | PENDIENTE | | API base |
+| B3 | HECHO | (ver git log) | API base: errores, validador, paginación, registro de cambios solo de anexar, cabeceras; docs/API.md |
 | B4 | PENDIENTE | | Datos sensibles |
 | B5 | PENDIENTE | | Usuario y agente de Chatwoot |
 | B6 | PENDIENTE | | Protección de rutas públicas |
@@ -520,3 +520,28 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 
 **Para Eduardo**
 - Revisar la matriz (`src/api/permisos.ts`): sobre todo que recepción no vea tareas ni conversaciones y que el asesor no escriba el catálogo.
+
+## B3. API base
+
+**Qué se hizo**
+- **Un solo montaje** `src/api/` detrás de `/api` (`crearApiRouter`, un router por recurso en `src/api/rutas/`). Orden fijo: cabeceras de API → CSRF → rutas públicas → `autenticar` → rutas → 404 JSON → manejador de errores. `docs/API.md` documenta convenciones, rutas y la guía para agregar un recurso, un permiso y un registro de cambio.
+- **Convención de errores** (`src/api/errores.ts`): `{ error: { codigo, mensaje, detalles? } }` con los códigos estables `no_autenticado`, `prohibido`, `no_encontrado`, `validacion`, `conflicto`, `limite_excedido`, `interno`. El manejador (`errores-http.ts`) traduce también los errores del parser de cuerpos (413, JSON inválido) y, ante cualquier otro, responde `interno` genérico; en el log de un error de Prisma solo van el tipo y el código (sus mensajes citan los valores de la consulta).
+- **Validador propio** (`src/api/validar.ts`, sin librerías): `texto`, `entero`, `booleano`, `enumerado`, `uuid`, `correo`, `listaDe`, `opcional`, `nulable`, `objeto` (rechaza campos desconocidos), y para la query `enteroDeTexto`/`booleanoDeTexto`; `parsear` y `parsearQuery` juntan TODOS los errores. Tipos inferidos del esquema.
+- **Paginación** (`paginacion.ts`): `?limite=&pagina=`, defecto 25, tope duro 100 (se recorta y la respuesta dice el límite real), página hasta 10 000, `{datos, paginacion:{pagina,limite,total}}`, orden estable (criterio + `id`).
+- **Registro de cambios** (migración `20261010020000_registro_cambio`): tabla `registro_cambio` (organización, usuario, entidad, accion, antes/despues JSON) **solo de anexar** — un disparador impide UPDATE y DELETE —. `registrarCambio(tx, ctx, …)` va en la misma transacción que el cambio y guarda SOLO los campos de la lista blanca de su entidad (`CAMPOS_AUDITABLES`); al cargar el módulo se verifica que ninguna lista nombre contraseñas, tokens ni hashes. Lo usan alta y cambio de usuarios (la contraseña se registra solo como «restablecida»), resolver tareas y cambiar la contraseña propia. `GET /api/registro-cambios` (solo administrador; filtros por entidad, id y usuario).
+- **Cabeceras de seguridad** (`cabeceras.ts`): `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` en todo el backend (HSTS con cookie segura); en `/api` además CSP `default-src 'none'; frame-ancestors 'none'`, `Cache-Control: no-store` y `Cross-Origin-Resource-Policy`.
+
+**Verificación**
+- `npm run validar` → exit 0 (`ℹ tests 219` unitarios; `check:generico: 179`, `check:capas: 67`). `npm run test:int` → exit 0 · `ℹ tests 297 · pass 297 · fail 0` (antes 287).
+- `validar.test.ts` (10) y `registro.test.ts` (4): campos desconocidos, todos los errores juntos, sin coacción, `__proto__`, query con parámetros repetidos, lista blanca con la fila completa y la contraseña presente.
+- `base.itest.ts` (10): crear/modificar/restablecer deja `crear`, `actualizar` (solo `rol`) y `restablecer_contrasena` sin rastro de contraseña ni hash; un cambio rechazado (409/404/400) no deja registro; si registrar falla (gancho que lanza) el cambio se revierte y el cliente ve `interno` sin el texto; solo el administrador lo consulta y no ve otra organización; UPDATE, DELETE y el soft delete del registro fallan por el disparador; paginación con 7 filas de la MISMA fecha en tres páginas (sin repetidos ni huecos); tope y entradas inválidas; un fallo de la base no filtra nada; forma de cada código de error.
+
+**Decisiones que tomé**
+- *El registro es solo de anexar, también contra el soft delete.* La convención dice «nunca DELETE físico»; para una tabla de auditoría tampoco se admite `eliminado_en` (la columna existe por la convención y nunca se usa). Alternativa descartada: permitir `UPDATE` de `eliminado_en`.
+- *`usuario_id` obligatorio* en el registro: todo cambio tiene autor. Los procesos del sistema que escriban en el futuro (barridos) tendrán que decidir su autor.
+- *La paginación se recorta, no se rechaza* (`limite=1000` → 100). Alternativa descartada: 400; el cliente aprende el tope de la respuesta.
+- *`actualizar` guarda solo diferencias* y no escribe nada si no cambió lo auditable.
+- *Paginación y errores se adelantaron a B2* porque las primeras rutas ya los necesitan; B3 los fija como convención y los documenta.
+
+**Para Eduardo**
+- Qué entidades se auditan hoy: usuarios, tareas (y el vínculo de Chatwoot en B5). Cada bloque que agregue una escritura debe agregar su entidad a `CAMPOS_AUDITABLES`.
