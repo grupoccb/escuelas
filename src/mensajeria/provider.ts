@@ -13,6 +13,7 @@
 // 3. Si la conversación tiene pasar_a_asesor_pendiente, la abre en Chatwoot y la marca
 //    en_atencion_humana. Desde ahí ninguna automatización manda nada.
 
+import { leerConfiguracion, type ConfiguracionOrganizacion } from "../configuracion/index.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import type { OrigenMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
@@ -33,9 +34,6 @@ const DIA_MS = 24 * 60 * 60 * 1000;
  * "envío incierto". Un envío normal tarda segundos (el transporte corta a los 4 s).
  */
 export const ENVIO_INCIERTO_MS = 5 * 60 * 1000;
-
-/** Mensajes iniciados por el sistema que se le pueden mandar a un teléfono dentro de la ventana de frecuencia. */
-export const LIMITE_FRECUENCIA_POR_DEFECTO = { maximo: 1, ventanaMs: DIA_MS };
 
 export interface Saliente {
   tipo: TipoSaliente;
@@ -64,19 +62,15 @@ export interface ResumenDespacho {
 export interface DepsMessagingProvider {
   transporte: TransporteConversaciones;
   reloj?: () => Date;
-  /** Tope de mensajes automáticos por teléfono. */
-  limiteFrecuencia?: { maximo: number; ventanaMs: number };
 }
 
 export class MessagingProvider {
   private readonly transporte: TransporteConversaciones;
   private readonly reloj: () => Date;
-  private readonly limiteFrecuencia: { maximo: number; ventanaMs: number };
 
   constructor(deps: DepsMessagingProvider) {
     this.transporte = deps.transporte;
     this.reloj = deps.reloj ?? (() => new Date());
-    this.limiteFrecuencia = deps.limiteFrecuencia ?? LIMITE_FRECUENCIA_POR_DEFECTO;
   }
 
   /** Registra salientes pendientes dentro de la transacción del llamador. Devuelve sus ids, en orden. */
@@ -111,6 +105,10 @@ export class MessagingProvider {
       select: { id: true, direccion: true, cuerpo: true, origen: true, plantilla_id: true, variables_usadas: true },
     });
 
+    // Los topes de frecuencia son de la organización (configuracion_organizacion): se leen una vez y solo si hacen falta.
+    let configuracion: ConfiguracionOrganizacion | undefined;
+    const config = async () => (configuracion ??= await leerConfiguracion(db));
+
     let falloPrevio = false;
     for (const m of pendientes) {
       // El reclamo deja la hora (del reloj del provider) en actualizado_en: con ella
@@ -136,18 +134,27 @@ export class MessagingProvider {
         });
 
       // Si uno anterior falló, los siguientes no salen: llegarían fuera de orden.
-      const motivo: MotivoBloqueo | "envio_previo_fallido" | null = falloPrevio
-        ? "envio_previo_fallido"
-        : evaluarReglas({
-            conv,
-            tipo,
-            origen: m.origen,
-            ahora,
-            plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
-            zonaHoraria: conv.zonaHoraria,
-            automaticosRecientes: iniciadoPorSistema ? await this.automaticosRecientes(db, conv.lead.telefono, m.id, ahora) : 0,
-            limiteFrecuencia: this.limiteFrecuencia.maximo,
-          });
+      let motivo: MotivoBloqueo | "envio_previo_fallido" | null;
+      if (falloPrevio) motivo = "envio_previo_fallido";
+      else {
+        const esMarketing = plantilla?.enviable === true && plantilla.categoria === "marketing";
+        const conteo = iniciadoPorSistema || esMarketing ? await config() : null;
+        motivo = evaluarReglas({
+          conv,
+          tipo,
+          origen: m.origen,
+          ahora,
+          plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
+          zonaHoraria: conv.zonaHoraria,
+          automaticosRecientes: iniciadoPorSistema && conteo ? await this.enviadosAlTelefono(db, conv.lead.telefono, m.id, new Date(ahora.getTime() - DIA_MS)) : 0,
+          limiteFrecuencia: conteo?.maxAutomaticosPorDia ?? Number.POSITIVE_INFINITY,
+          marketingRecientes:
+            esMarketing && conteo
+              ? await this.enviadosAlTelefono(db, conv.lead.telefono, m.id, new Date(ahora.getTime() - conteo.ventanaMarketingDias * DIA_MS), true)
+              : 0,
+          limiteMarketing: conteo?.maxMarketingPorVentana ?? Number.POSITIVE_INFINITY,
+        });
+      }
 
       if (motivo) {
         await db.mensaje.update({ where: { id: m.id }, data: { estatus: "bloqueado", motivo_bloqueo: motivo } });
@@ -246,18 +253,26 @@ export class MessagingProvider {
   }
 
   /**
-   * Mensajes iniciados por el sistema ya enviados a este teléfono, en toda la organización,
-   * dentro de la ventana de frecuencia: los de automatización y cualquiera que llevara plantilla.
+   * Cuántos mensajes iniciados por el sistema se le mandaron a este teléfono desde `desde`, en
+   * TODA la organización (cualquier conversación o vertical): los de automatización y cualquiera
+   * que llevara plantilla. Con `soloMarketing`, solo los de plantillas de categoría marketing.
+   * Cuentan también los envíos inciertos (pudieron haber salido): lo conservador.
    */
-  private async automaticosRecientes(db: BaseDatos, telefono: string | null, excluirId: string, ahora: Date): Promise<number> {
+  private async enviadosAlTelefono(db: BaseDatos, telefono: string | null, excluirId: string, desde: Date, soloMarketing = false): Promise<number> {
     if (!telefono) return 0;
     return db.mensaje.count({
       where: {
         id: { not: excluirId },
         direccion: "saliente",
-        OR: [{ origen: "automatizacion" }, { plantilla_id: { not: null } }],
-        estatus: { in: ["enviado", "entregado", "leido"] },
-        enviado_en: { gt: new Date(ahora.getTime() - this.limiteFrecuencia.ventanaMs) },
+        ...(soloMarketing ? { plantilla: { categoria: "marketing" } } : { OR: [{ origen: "automatizacion" }, { plantilla_id: { not: null } }] }),
+        AND: [
+          {
+            OR: [
+              { estatus: { in: ["enviado", "entregado", "leido"] }, enviado_en: { gt: desde } },
+              { estatus: "fallido", error: ENVIO_INCIERTO, actualizado_en: { gt: desde } },
+            ],
+          },
+        ],
         conversacion: { lead: { telefono } },
       },
     });
@@ -324,7 +339,7 @@ export class MessagingProvider {
   ): Promise<boolean> {
     const marcado = await db.mensaje.updateMany({
       where: { id: m.id, estatus: "enviando", id_externo: null },
-      data: { estatus: "fallido", error: ENVIO_INCIERTO },
+      data: { estatus: "fallido", error: ENVIO_INCIERTO, actualizado_en: this.reloj() },
     });
     if (marcado.count !== 1) return false; // otro proceso lo resolvió
     log.warn("envio_incierto", { conversacionId: m.conversacionId, mensajeId: m.id });

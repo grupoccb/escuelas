@@ -57,3 +57,14 @@ export async function sembrarOrganizacion(prisma: PrismaClient, nombre = "Organi
     chatwootInboxId,
   };
 }
+
+/** Crea o actualiza la fila de configuración de la organización (los tests la fijan a su medida). */
+export async function fijarConfiguracion(
+  prisma: PrismaClient,
+  organizacionId: string,
+  valores: { max_automaticos_por_dia?: number; max_marketing_por_ventana?: number; ventana_marketing_dias?: number },
+): Promise<void> {
+  const viva = await prisma.configuracion_organizacion.findFirst({ where: { organizacion_id: organizacionId, eliminado_en: null } });
+  if (viva) await prisma.configuracion_organizacion.update({ where: { id: viva.id }, data: valores });
+  else await prisma.configuracion_organizacion.create({ data: { organizacion_id: organizacionId, ...valores } });
+}

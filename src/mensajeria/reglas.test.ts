@@ -172,6 +172,22 @@ test("frecuencia: tope de mensajes automáticos por teléfono; no limita las res
   assert.equal(evaluarReglas(entrada({ automaticosRecientes: 5, origen: "respuesta" })), null);
 });
 
+test("frecuencia de marketing: tope propio por ventana, solo para plantillas de marketing, además del diario", () => {
+  const MARKETING = { enviable: true, categoria: "marketing" as const };
+  const m = (extra: Partial<EntradaReglas> = {}) => entrada({ plantilla: MARKETING, limiteFrecuencia: 3, limiteMarketing: 1, ...extra });
+  assert.equal(evaluarReglas(m({ marketingRecientes: 0 })), null);
+  assert.equal(evaluarReglas(m({ marketingRecientes: 1 })), "tope_frecuencia");
+  assert.equal(evaluarReglas(m({ marketingRecientes: 0, limiteMarketing: 0 })), "tope_frecuencia", "0 apaga el marketing");
+  // El diario sigue valiendo para el marketing.
+  assert.equal(evaluarReglas(m({ automaticosRecientes: 3 })), "tope_frecuencia");
+  // Una plantilla de servicio no se frena por el marketing reciente.
+  assert.equal(evaluarReglas(entrada({ plantilla: APROBADA, limiteFrecuencia: 3, marketingRecientes: 9, limiteMarketing: 1 })), null);
+  // Marketing dentro de la ventana de servicio, aunque se etiquete `respuesta`, sigue limitado.
+  assert.equal(evaluarReglas(m({ origen: "respuesta", marketingRecientes: 1 })), "tope_frecuencia");
+  // Sin dato de marketing (reglas simples) no se limita.
+  assert.equal(evaluarReglas(entrada({ plantilla: MARKETING, limiteFrecuencia: 3 })), null);
+});
+
 test("baja de marketing: bloquea plantillas de marketing, no las de servicio", () => {
   const conv = { estado: "bot" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA, dado_de_baja_marketing: true };
   assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: true, categoria: "marketing" } })), "opt_out");

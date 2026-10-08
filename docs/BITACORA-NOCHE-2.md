@@ -10,7 +10,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A3 | HECHO | 8f607f2 | Lead a medias: visible a los 30 min sin marcar atención humana; una persona la toma por asignación o primer mensaje |
 | A4 | HECHO | ver sección | Baja que vuelve a escribir: tarea `baja_volvio_a_escribir` (una pendiente por conversación), el sistema calla |
 | A5 | HECHO | ver sección | Entrega fallida: tarea con el código de error, una por mensaje; cierra F1-03 (evento adelantado y tiempo agotado) |
-| A6 | PENDIENTE | | Frecuencia |
+| A6 | HECHO | ver sección | Frecuencia: 3 automáticos al día y 1 de marketing cada 7 días, configurable por organización (`configuracion_organizacion`) |
 | A7 | PENDIENTE | | Firma en el borde |
 | A8 | PENDIENTE | | SPEC.md al día |
 | B1 | PENDIENTE | | Usuarios y roles |
@@ -277,3 +277,32 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 **Para Eduardo**
 - Con Twilio real conviene medir si un mensaje de un asesor genera muchos eventos huérfanos (se descartan a la hora, no hacen daño).
 - `entrega_fallida` y `revision_manual` aparecen como tareas distintas: cuando exista la bandeja de tareas (J3) habrá que decidir si se agrupan por conversación.
+
+## A6. Frecuencia configurable por organización
+
+**Qué se hizo**
+- **Tabla `configuracion_organizacion`** (migración `20261009030000_configuracion_organizacion`): una fila viva por organización (índice único parcial), con `max_automaticos_por_dia` (3), `max_marketing_por_ventana` (1) y `ventana_marketing_dias` (7); CHECK de que los topes no sean negativos y la ventana vaya de 1 a 365 días (0 es válido: apaga lo automático). La migración crea la fila con los valores por defecto para las organizaciones que ya existen, y `prisma/seed/demo.sql` la trae para la organización de la demo (idempotente).
+- **Lector único** `leerConfiguracion(db)` en `src/configuracion/index.ts`: devuelve la configuración del scope o `CONFIGURACION_POR_DEFECTO` si no hay fila. Para extenderla: columna con default + migración, campo y default en ese archivo, y una línea en `desdeFila` (instrucciones en el encabezado; un test comprueba que los defaults del código coinciden con los de la columna). Helper de pruebas: `fijarConfiguracion()` en `src/testutil/semilla.ts`.
+- **El tope vive en `MessagingProvider`** (invariante 4). Se quitó `LIMITE_FRECUENCIA_POR_DEFECTO` y la dependencia `limiteFrecuencia`; el provider lee la configuración una vez por `despachar` (solo si hace falta). Reglas:
+  - *Diario:* a todo lo iniciado por el sistema (`esIniciadoPorSistema`, sin cambios) le aplica `max_automaticos_por_dia` en una **ventana móvil de 24 h**, contando por teléfono en toda la organización (cualquier conversación o vertical), los de automatización y cualquiera con plantilla.
+  - *Marketing:* a toda plantilla de categoría `marketing` le aplica además `max_marketing_por_ventana` dentro de `ventana_marketing_dias` (móvil). Cuenta también para el diario. Se aplica aunque la ventana de servicio esté abierta o el origen diga `respuesta`: una plantilla de marketing nunca es contestar. El borde es estricto: lo enviado exactamente hace 7 días ya no cuenta.
+  - *Sin límite:* respuestas libres, confirmación de baja y notas internas (como antes).
+  - Los envíos **inciertos** (A5) cuentan para ambos topes (pudieron haber salido); los bloqueados y los fallos definitivos no.
+- `reglas.ts`: `EntradaReglas` gana `marketingRecientes` y `limiteMarketing` (opcionales: sin dato no se limita, así las pruebas simples no cambian).
+
+**Verificación**
+- `src/mensajeria/frecuencia.itest.ts` (14 tests): 3.º pasa y 4.º `tope_frecuencia`; ventana móvil (a las 23 h 59 min bloqueado, a las 24 h 1 min pasa); otro teléfono no cuenta; el tope se comparte entre verticales de la organización; otra organización con su propia configuración no se afecta ni consume mi tope; el cambio de configuración surte efecto (1 → 2 → 0); marketing 1 por 7 días (6 d 23 h bloqueado, 7 d pasa, y el de los 7 días abre ventana nueva); servicio y marketing no se frenan entre sí pero marketing sí cuenta en el diario; ventana y tope de marketing configurables; marketing con la ventana de servicio abierta limitado; respuestas, notas y confirmación de baja nunca limitadas; fallo definitivo no cuenta; incierto sí; el horario sigue ganando a la frecuencia.
+- `src/configuracion/configuracion.itest.ts` (7): defaults sin fila, defaults = columnas, lectura y cambio, aislamiento, una fila viva por organización (borrada no cuenta), CHECK, seed de la demo con su fila (doble ejecución).
+- `reglas.test.ts` (+1): tope de marketing puro. Tests existentes que asumían 1 por día (`provider.itest.ts`, `motor.itest.ts`) ahora fijan `max_automaticos_por_dia: 1` en la configuración de su organización y siguen afirmando lo mismo.
+- `npm run validar` → exit 0 · `ℹ tests 148 · pass 148 · fail 0`. `npm run test:int` → exit 0 · `ℹ tests 181 · pass 181 · fail 0` (antes 159).
+
+**Decisiones que tomé**
+- *Marketing limitado también como "respuesta" dentro de la ventana de servicio.* Alternativa descartada: aplicar el tope de marketing solo a lo iniciado por el sistema; dejaría mandar promociones ilimitadas a quien escribió hace una hora.
+- *Marketing cuenta en el diario.* Un mensaje de marketing es un automático; si no, 3 de servicio + 1 de marketing pasarían de lo que el contexto permite. Alternativa descartada: contadores independientes.
+- *Ventana de 24 h fija en código* (no configurable): la decisión 4 fija "al día"; solo el número es configurable.
+- *Contar incierto:* conservador (puede que se mande uno menos de lo permitido, nunca uno de más).
+- *Migración que inserta filas para las organizaciones existentes* en vez de depender solo del seed (el lector ya tolera su ausencia). Alternativa descartada: no insertar nada; la demo ya creada se habría quedado sin fila hasta volver a correr el seed.
+
+**Para Eduardo**
+- **Límite conocido (no corregido):** el conteo y el envío no son atómicos. Dos mensajes automáticos al mismo teléfono despachados en el mismo instante desde conversaciones distintas pueden pasar los dos justo en el tope (3 → 4). Cerrarlo exige un candado por (organización, teléfono) con SQL crudo en `src/datos/`; no se hizo porque el motor y la espera corren en serie dentro de un solo proceso. Decídelo antes de tener más de una réplica del backend.
+- Los valores 3 / 1 / 7 vienen del contexto (sección 11) y de la decisión 4; no hay interfaz para cambiarlos todavía (J8). Hoy se editan con SQL en `configuracion_organizacion`.

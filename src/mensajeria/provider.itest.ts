@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { crearPrisma, type PrismaClient } from "../datos/prisma.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
-import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, MessagingProvider, TransporteFalso } from "./index.ts";
 
 let prisma: PrismaClient;
@@ -82,6 +82,8 @@ test("horario por contenido, no por etiqueta: plantilla con el origen por defect
 
 test("la misma plantilla en horario sale; la segunda del día se frena por frecuencia aunque no diga `automatizacion` (F1-04)", async () => {
   const s = await escenario(MEDIODIA, { ventanaAbiertaHasta: null });
+  // El tope diario es de la organización (A6): aquí se fija en 1 para probar la regla sin depender del valor por defecto.
+  await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1 });
   const ids = await s.db.$transaction((tx) =>
     s.provider.encolar(tx, s.conv.id, [
       { tipo: "mensaje", cuerpo: "primera", plantilla: { id: s.plantilla.id, variables: {} } },

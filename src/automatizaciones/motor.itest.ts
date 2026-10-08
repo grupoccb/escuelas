@@ -11,7 +11,7 @@ import { procesarEntrante } from "../captacion/entrante.ts";
 import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
 import type { TransporteConversaciones } from "../mensajeria/transporte.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
-import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { correrAutomatizaciones, RECLAMO_VENCE_MS, type DepsMotor } from "./motor.ts";
 
 let prisma: PrismaClient;
@@ -259,8 +259,9 @@ test("baja solo de marketing: bloquea una plantilla de marketing, no una utilita
   assert.equal(utilitaria.plantillasEnviadas().length, 1);
 });
 
-test("frecuencia: un solo mensaje automático por teléfono cada 24 h; la segunda automatización se omite", async () => {
+test("frecuencia: con el tope de la organización en 1 por día, la segunda automatización se omite", async () => {
   const s = await escenario();
+  await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1 });
   const otra = await prisma.automatizacion.create({
     data: { organizacion_id: s.o.organizacionId, nombre: "Otro", evento_disparador: "lead_sin_respuesta", offset_minutos: 1500, plantilla_id: s.plantilla.id },
   });

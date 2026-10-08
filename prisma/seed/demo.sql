@@ -64,3 +64,10 @@ INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_i
   ('00000000-0000-4000-8000-000000000801', '00000000-0000-4000-8000-000000000001', 'Reenganche de captación', NULL, NULL,
    'lead_sin_respuesta', 1500, '00000000-0000-4000-8000-000000000701', 1)
 ON CONFLICT DO NOTHING;
+
+-- Configuración de la organización (A6). Los valores por defecto del contexto, sección 11:
+-- 3 mensajes automáticos por teléfono al día y 1 de marketing cada 7 días. Editables por
+-- organización. ON CONFLICT sin destino: la migración ya crea la fila en las bases existentes.
+INSERT INTO configuracion_organizacion (id, organizacion_id, max_automaticos_por_dia, max_marketing_por_ventana, ventana_marketing_dias) VALUES
+  ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000001', 3, 1, 7)
+ON CONFLICT DO NOTHING;

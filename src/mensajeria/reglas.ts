@@ -8,7 +8,8 @@
 // 4. ventana de servicio (invariante 5): fuera de ella solo cabe una plantilla aprobada;
 // 5. horario (invariante 14): lo iniciado por el sistema solo sale de 09:00 a 20:00, hora local
 //    de la sucursal. Contestar a quien acaba de escribir no tiene restricción de horario;
-// 6. frecuencia: tope de mensajes iniciados por el sistema por teléfono.
+// 6. frecuencia (configurable por organización): tope diario de mensajes iniciados por el
+//    sistema por teléfono y tope de mensajes de marketing en su ventana de días.
 //
 // "Iniciado por el sistema" NO depende de la etiqueta que ponga quien llama (F1-04): es todo
 // saliente con origen distinto de `respuesta` y `confirmacion_baja`, y también el que lleva
@@ -55,9 +56,14 @@ export interface EntradaReglas {
   plantilla: PlantillaParaReglas | null;
   /** Zona horaria IANA de la sucursal. Obligatoria para lo iniciado por el sistema. */
   zonaHoraria: string | null;
-  /** Mensajes automáticos ya enviados a este teléfono en la ventana de frecuencia. */
+  /** Mensajes automáticos ya enviados a este teléfono en las últimas 24 h. */
   automaticosRecientes: number;
+  /** Tope diario (`max_automaticos_por_dia` de la configuración de la organización). */
   limiteFrecuencia: number;
+  /** Mensajes de plantilla de marketing ya enviados a este teléfono dentro de la ventana de marketing. */
+  marketingRecientes?: number;
+  /** Tope de marketing por ventana (`max_marketing_por_ventana`). Sin dato, no se limita. */
+  limiteMarketing?: number;
 }
 
 /** true si la ventana de servicio sigue abierta: hay un mensaje entrante vigente que contestar. */
@@ -99,6 +105,11 @@ export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
     if (!e.zonaHoraria) return "sin_zona_horaria";
     if (!dentroDeHorario(ahora, e.zonaHoraria)) return "fuera_de_horario";
     if (e.automaticosRecientes >= e.limiteFrecuencia) return "tope_frecuencia";
+  }
+  // El marketing tiene además su propio tope, en cualquier caso: una plantilla de marketing nunca
+  // es "responder" a nadie, aunque la ventana de servicio esté abierta.
+  if (plantilla?.categoria === "marketing" && (e.marketingRecientes ?? 0) >= (e.limiteMarketing ?? Number.POSITIVE_INFINITY)) {
+    return "tope_frecuencia";
   }
   return null;
 }

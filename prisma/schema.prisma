@@ -52,9 +52,34 @@ model organizacion {
   ejecuciones                automatizacion_ejecucion[]
   tareas_asesor              tarea_asesor[]
   eventos_entrega_pendientes evento_entrega_pendiente[]
+  configuraciones            configuracion_organizacion[]
   programas                  programa[]
   grupos                     grupo[]
   grupo_horarios             grupo_horario[]
+}
+
+/// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
+/// Se lee SIEMPRE con leerConfiguracion() (src/configuracion/), que pone los valores por defecto
+/// cuando no hay fila. Para agregar un ajuste: columna tipada con default aquí + migración, campo
+/// y default en src/configuracion/ y una línea en el lector. Los bloques siguientes la extienden
+/// (modo de cierre de inscripción, sucursal alterna, etc.).
+model configuracion_organizacion {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String    @db.Uuid
+  /// Tope de mensajes automáticos por teléfono en una ventana móvil de 24 h (contexto, sección 11).
+  max_automaticos_por_dia   Int       @default(3)
+  /// Tope de mensajes de marketing por teléfono dentro de la ventana de abajo.
+  max_marketing_por_ventana Int       @default(1)
+  /// Días de la ventana del tope de marketing.
+  ventana_marketing_dias    Int       @default(7)
+  creado_en                 DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
 }
 
 model vertical {
