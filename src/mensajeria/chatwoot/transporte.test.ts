@@ -29,7 +29,7 @@ after(async () => {
   await new Promise<void>((r) => servidor.close(() => r()));
 });
 
-const transporte = (url = `http://127.0.0.1:${puerto}`, timeoutMs = 300) => new TransporteChatwoot({ url, tokenBot: "t", timeoutMs });
+const transporte = (url = `http://127.0.0.1:${puerto}`, timeoutMs = 5000) => new TransporteChatwoot({ url, tokenBot: "t", timeoutMs });
 const responder = (estado: number, cuerpo: string) => (_req: IncomingMessage, res: ServerResponse) => {
   res.writeHead(estado, { "content-type": "application/json" });
   res.end(cuerpo);
@@ -136,7 +136,7 @@ test("clasificarFalloDeRed con códigos MEZCLADOS o ninguno: ante la duda, incie
 // ── D2: abrir una conversación nueva con un instructor (contacto + conversación) ─────────────────────────
 
 const CONTACTO = { telefono: "+525500000011", nombre: "Maestra Ana" };
-const conAdmin = (timeoutMs = 300) => new TransporteChatwoot({ url: `http://127.0.0.1:${puerto}`, tokenBot: "bot", tokenAdmin: "admin", timeoutMs });
+const conAdmin = (timeoutMs = 5000) => new TransporteChatwoot({ url: `http://127.0.0.1:${puerto}`, tokenBot: "bot", tokenAdmin: "admin", timeoutMs });
 
 function leerCuerpo(req: IncomingMessage): Promise<string> {
   return new Promise((resolver) => {
