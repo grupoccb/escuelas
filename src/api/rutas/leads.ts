@@ -10,7 +10,6 @@
 import { Router } from "express";
 import { normalizarTelefono } from "../../lib/telefono.ts";
 import { filtroDeSucursal } from "../alcance.ts";
-import { autenticar } from "../autenticar.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { noEncontrado, validacion } from "../errores.ts";
@@ -32,9 +31,9 @@ const SELECCION = {
 const esquemaListado = objeto({ ...esquemaPaginacion, etapa_id: opcional(uuid()), sucursal_id: opcional(uuid()), telefono: opcional(texto({ max: 30 })) });
 const esquemaId = objeto({ id: uuid() });
 
-export function rutasDeLeads(deps: DepsApi): Router {
+export function rutasDeLeads(_deps: DepsApi): Router {
   const r = Router();
-  const dentro = [autenticar(deps), requierePermiso("leads:leer")];
+  const dentro = [requierePermiso("leads:leer")];
 
   r.get("/leads", ...dentro, async (req, res) => {
     const ctx = contextoDe(res);

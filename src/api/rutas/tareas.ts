@@ -11,7 +11,6 @@ import { Router } from "express";
 import express from "express";
 import { ESTADOS_DE_TAREA, TIPOS_DE_TAREA } from "../../datos/tipos.ts";
 import { filtroDeSucursal } from "../alcance.ts";
-import { autenticar } from "../autenticar.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -37,11 +36,11 @@ const esquemaListado = objeto({ ...esquemaPaginacion, estado: opcional(enumerado
 const esquemaId = objeto({ id: uuid() });
 const esquemaResolver = objeto({ estado: enumerado(["hecha", "descartada"] as const) });
 
-export function rutasDeTareas(deps: DepsApi): Router {
+export function rutasDeTareas(_deps: DepsApi): Router {
   const r = Router();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
-  r.get("/tareas", autenticar(deps), requierePermiso("tareas:leer"), async (req, res) => {
+  r.get("/tareas", requierePermiso("tareas:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
@@ -56,7 +55,7 @@ export function rutasDeTareas(deps: DepsApi): Router {
     );
   });
 
-  r.patch("/tareas/:id", autenticar(deps), requierePermiso("tareas:resolver"), json, async (req, res) => {
+  r.patch("/tareas/:id", requierePermiso("tareas:resolver"), json, async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const { estado } = parsear(esquemaResolver, req.body);

@@ -4,18 +4,22 @@
 //
 //   GET /api/salud/:sujeto_tipo/:sujeto_id?motivo=…&campos=a,b   (salud:leer: administrador, maestro del grupo)
 //   PUT /api/salud/:sujeto_tipo/:sujeto_id   { motivo, <campo>?: valor | null }   (salud:escribir)
+//   GET /api/salud-accesos?sujeto_id=&usuario_id=&resultado=   (registro_cambios:leer: administrador) quién vio a quién
+//
+// Todo intento denegado —también el de un rol sin permiso, que ni llega al servicio— queda en el
+// registro de accesos (EB-01): la guarda de permiso de estas rutas es `requierePermisoConRastro`.
 //
 // Un maestro solo accede a sujetos de sus grupos; mientras no exista la inscripción (F1/F3) eso
 // significa ninguno (falla cerrado). Lo que no existe o no es tuyo da 404. Las respuestas no se
 // guardan en cachés (`Cache-Control: no-store` de /api).
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import express from "express";
 import { normalizarTelefono } from "../../lib/telefono.ts";
-import { CAMPOS_SENSIBLES, ErrorAccesoSensible, guardarSensible, leerSensible, type CampoSensible, type SujetoSalud } from "../../sensibles/index.ts";
-import { autenticar } from "../autenticar.ts";
-import { requierePermiso } from "../autorizar.ts";
-import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
+import { CAMPOS_SENSIBLES, ErrorAccesoSensible, guardarSensible, leerSensible, listarAccesos, registrarDenegado, type CampoSensible, type SujetoSalud } from "../../sensibles/index.ts";
+import { requierePermiso, requierePermisoConRastro } from "../autorizar.ts";
+import { contextoDe, contextoParaAutorizar, type ContextoApi, type DepsApi } from "../contexto.ts";
+import { esquemaPaginacion, leerPaginacion } from "../paginacion.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { noEncontrado, prohibido, validacion } from "../errores.ts";
 import { booleano, enumerado, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -32,6 +36,8 @@ const esquemaEscritura = objeto({
   autorizacion_atencion_medica: opcional(nulable(booleano())),
 });
 
+const esquemaAccesos = objeto({ ...esquemaPaginacion, sujeto_id: opcional(uuid()), usuario_id: opcional(uuid()), resultado: opcional(enumerado(["permitido", "denegado"] as const)) });
+
 const actorDe = (ctx: ContextoApi) => ({ usuarioId: ctx.usuario.id, organizacionId: ctx.organizacionId, rol: ctx.usuario.rol });
 
 function traducir(e: unknown): never {
@@ -43,7 +49,26 @@ export function rutasDeSalud(deps: DepsApi): Router {
   const r = Router();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
-  r.get("/salud/:sujeto_tipo/:sujeto_id", autenticar(deps), requierePermiso("salud:leer"), async (req, res) => {
+  /** Un rol sin permiso que sondea un sujeto válido deja constancia (sin leer nada ni confirmar que exista). */
+  const rastro = (accion: "leer" | "escribir") => async (req: Request, res: Response): Promise<void> => {
+    const ctx = contextoParaAutorizar(res);
+    let ruta;
+    try {
+      ruta = parsear(esquemaRuta, req.params);
+    } catch {
+      return; // identificador mal formado: no hay sujeto a quien atribuir el intento
+    }
+    const motivo = typeof req.query["motivo"] === "string" && req.query["motivo"].trim() ? req.query["motivo"].trim().slice(0, 300) : "(sin motivo)";
+    await registrarDenegado(
+      ctx.db,
+      actorDe(ctx),
+      { sujetoTipo: ruta.sujeto_tipo as SujetoSalud, sujetoId: ruta.sujeto_id, motivo: accion === "leer" ? motivo : "(escritura denegada antes de leer el cuerpo)", ruta: `${req.method} ${req.baseUrl}${req.path}` },
+      accion,
+      "sin_permiso",
+    );
+  };
+
+  r.get("/salud/:sujeto_tipo/:sujeto_id", requierePermisoConRastro("salud:leer", rastro("leer")), async (req, res) => {
     const ctx = contextoDe(res);
     const ruta = parsear(esquemaRuta, req.params);
     const q = parsearQuery(esquemaLectura, req.query);
@@ -70,7 +95,7 @@ export function rutasDeSalud(deps: DepsApi): Router {
     }
   });
 
-  r.put("/salud/:sujeto_tipo/:sujeto_id", autenticar(deps), requierePermiso("salud:escribir"), json, async (req, res) => {
+  r.put("/salud/:sujeto_tipo/:sujeto_id", requierePermisoConRastro("salud:escribir", rastro("escribir")), json, async (req, res) => {
     const ctx = contextoDe(res);
     const ruta = parsear(esquemaRuta, req.params);
     const { motivo, ...valores } = parsear(esquemaEscritura, req.body);
@@ -91,6 +116,19 @@ export function rutasDeSalud(deps: DepsApi): Router {
       traducir(e);
     }
     res.status(204).end();
+  });
+
+  // Quién vio la ficha de quién (EB-21): solo el administrador. Nunca trae valores, solo nombres de campos.
+  r.get("/salud-accesos", requierePermiso("registro_cambios:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const q = parsearQuery(esquemaAccesos, req.query);
+    const pag = leerPaginacion(q);
+    const { total, filas } = await listarAccesos(
+      ctx.db,
+      { ...(q.sujeto_id ? { sujetoId: q.sujeto_id } : {}), ...(q.usuario_id ? { usuarioId: q.usuario_id } : {}), ...(q.resultado ? { resultado: q.resultado } : {}) },
+      { saltar: pag.saltar, tomar: pag.limite },
+    );
+    res.json({ datos: filas, paginacion: { pagina: pag.pagina, limite: pag.limite, total } });
   });
 
   return r;

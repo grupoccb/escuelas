@@ -101,23 +101,38 @@ test("actualizar mezcla: lo no mencionado no cambia y null borra", async () => {
   assert.equal(await prisma.ficha_salud.count({ where: { sujeto_id: id } }), 1);
 });
 
-test("quién puede: administrador sí; asesor y recepción nunca (ni leer ni escribir); y no queda ni registro de sus intentos por permiso", async () => {
+test("quién puede: administrador sí; asesor y recepción nunca (ni leer ni escribir), y CADA intento suyo queda registrado como denegado (EB-01)", async () => {
   const id = await sembrarProspecto();
   await guardarSensible(db(), actor(admin), { sujetoTipo: "prospecto", sujetoId: id, motivo: "alta", valores: { alergias: "a" } }, opciones);
   for (const u of [asesor, recepcion]) {
     await assert.rejects(leerSensible(db(), actor(u), { sujetoTipo: "prospecto", sujetoId: id, motivo: "curiosidad" }, opciones), (e) => e instanceof ErrorAccesoSensible && e.motivo === "sin_permiso");
     await assert.rejects(guardarSensible(db(), actor(u), { sujetoTipo: "prospecto", sujetoId: id, motivo: "x", valores: { alergias: "x" } }, opciones), (e) => e instanceof ErrorAccesoSensible && e.motivo === "sin_permiso");
   }
-  assert.equal((await accesos(id)).length, 1, "solo el del administrador");
+  const filas = await accesos(id);
+  assert.equal(filas.length, 5, "el del administrador y los cuatro intentos denegados");
+  const denegados = filas.filter((f) => f.resultado === "denegado");
+  assert.deepEqual(denegados.map((f) => [f.usuario_id === asesor.id ? "asesor" : "recepcion", f.accion, f.causa]), [
+    ["asesor", "leer", "sin_permiso"],
+    ["asesor", "escribir", "sin_permiso"],
+    ["recepcion", "leer", "sin_permiso"],
+    ["recepcion", "escribir", "sin_permiso"],
+  ]);
+  assert.ok(filas.filter((f) => f.resultado === "permitido").every((f) => f.causa === null));
 });
 
-test("el maestro falla CERRADO: sin la relación inscripción→grupo no lee nada, y el intento queda registrado como denegado", async () => {
+test("el maestro falla CERRADO: sin la relación inscripción→grupo no lee ni escribe, y AMBOS intentos quedan registrados como denegados (EB-01)", async () => {
   const id = await sembrarProspecto();
   await guardarSensible(db(), actor(admin), { sujetoTipo: "prospecto", sujetoId: id, motivo: "alta", valores: { alergias: "a" } }, opciones);
   await assert.rejects(leerSensible(db(), actor(maestro), { sujetoTipo: "prospecto", sujetoId: id, motivo: "clase" }, opciones), (e) => e instanceof ErrorAccesoSensible && e.motivo === "no_es_de_tu_grupo");
   await assert.rejects(guardarSensible(db(), actor(maestro), { sujetoTipo: "prospecto", sujetoId: id, motivo: "clase", valores: { alergias: "x" } }, opciones), ErrorAccesoSensible);
   const filas = await accesos(id);
-  assert.deepEqual(filas.map((f) => [f.usuario_id === maestro.id ? "maestro" : "admin", f.accion, f.resultado]), [["admin", "escribir", "permitido"], ["maestro", "leer", "denegado"]]);
+  assert.deepEqual(filas.map((f) => [f.usuario_id === maestro.id ? "maestro" : "admin", f.accion, f.resultado, f.causa]), [
+    ["admin", "escribir", "permitido", null],
+    ["maestro", "leer", "denegado", "no_es_de_tu_grupo"],
+    ["maestro", "escribir", "denegado", "no_es_de_tu_grupo"],
+  ]);
+  const leida = await leerSensible(db(), actor(admin), { sujetoTipo: "prospecto", sujetoId: id, motivo: "verifico" }, opciones);
+  assert.equal(leida.campos.alergias?.revelar(), "a", "la escritura denegada del maestro no cambió nada");
 });
 
 test("con la regla del maestro conectada (F1/F3), el maestro lee SOLO a los de su grupo", async () => {
@@ -130,12 +145,17 @@ test("con la regla del maestro conectada (F1/F3), el maestro lee SOLO a los de s
   await assert.rejects(leerSensible(db(), actor(maestro), { sujetoTipo: "prospecto", sujetoId: ajeno, motivo: "curiosidad" }, o), ErrorAccesoSensible);
 });
 
-test("sujeto inexistente, de otra organización o `alumno` (aún sin tabla) → no encontrado", async () => {
+test("sujeto inexistente, de otra organización o `alumno` (aún sin tabla) → no encontrado, y el sondeo queda registrado (EB-01)", async () => {
   const otra = await sembrarOrganizacion(prisma, "FichaOtra");
   const deOtra = await sembrarProspecto(otra);
   for (const [tipo, id] of [["prospecto", randomUUID()], ["prospecto", deOtra], ["alumno", randomUUID()]] as const) {
     await assert.rejects(leerSensible(db(), actor(admin), { sujetoTipo: tipo, sujetoId: id, motivo: "x" }, opciones), (e) => e instanceof ErrorAccesoSensible && e.motivo === "sujeto_no_encontrado");
     await assert.rejects(guardarSensible(db(), actor(admin), { sujetoTipo: tipo, sujetoId: id, motivo: "x", valores: { alergias: "a" } }, opciones), ErrorAccesoSensible);
+    const filas = await accesos(id);
+    assert.deepEqual(filas.map((f) => [f.organizacion_id === org.organizacionId, f.accion, f.resultado, f.causa]), [
+      [true, "leer", "denegado", "sujeto_no_encontrado"],
+      [true, "escribir", "denegado", "sujeto_no_encontrado"],
+    ], `${tipo} ${id}`);
   }
 });
 
@@ -227,10 +247,30 @@ test("API: PUT/GET con motivo; el teléfono de emergencia se normaliza; asesor y
     assert.equal((await cAdmin.get(`/api/salud/prospecto/${randomUUID()}?motivo=ver`)).estado, 404);
     assert.equal((await cAdmin.get(`/api/salud/alumno/${randomUUID()}?motivo=ver`)).estado, 404);
     assert.equal((await cAdmin.get(`/api/salud/mascota/${id}?motivo=ver`)).estado, 400);
-    // Los accesos quedaron registrados (incluido el intento denegado del maestro).
+    // Los accesos quedaron registrados (incluido el intento denegado del maestro y los de asesor y recepción, que niega la ruta antes del servicio).
     const filas = await accesos(id);
-    assert.ok(filas.some((f) => f.usuario_id === maestro.id && f.resultado === "denegado"));
+    assert.ok(filas.some((f) => f.usuario_id === maestro.id && f.resultado === "denegado" && f.causa === "no_es_de_tu_grupo"));
+    for (const u of [asesor, recepcion]) {
+      const suyos = filas.filter((f) => f.usuario_id === u.id);
+      assert.deepEqual(suyos.map((f) => [f.accion, f.resultado, f.causa]), [["leer", "denegado", "sin_permiso"], ["escribir", "denegado", "sin_permiso"]], u.rol);
+    }
     assert.ok(filas.every((f) => !JSON.stringify(f).includes("polen-API")));
+    // Un identificador mal formado no tiene a quién atribuirse: 400 al administrador, nada para el asesor, y sin rastro.
+    const antes = await prisma.acceso_dato_sensible.count({ where: { usuario_id: asesor.id } });
+    const cAsesor = await entrar(asesor);
+    assert.equal((await cAsesor.get(`/api/salud/prospecto/no-es-uuid?motivo=ver`)).estado, 403);
+    assert.equal(await prisma.acceso_dato_sensible.count({ where: { usuario_id: asesor.id } }), antes);
+
+    // El administrador consulta el registro: quién vio a quién. Asesor y maestro no.
+    const lista = await cAdmin.get<{ datos: { usuario_id: string; resultado: string; causa: string | null; accion: string; sujeto_id: string }[]; paginacion: { total: number } }>(`/api/salud-accesos?sujeto_id=${id}&limite=100`);
+    assert.equal(lista.estado, 200);
+    assert.equal(lista.cuerpo.paginacion.total, filas.length);
+    assert.ok(lista.cuerpo.datos.every((f) => f.sujeto_id === id));
+    assert.ok(lista.cuerpo.datos.some((f) => f.usuario_id === asesor.id && f.resultado === "denegado" && f.causa === "sin_permiso"));
+    assert.ok(!JSON.stringify(lista.cuerpo).includes("polen-API"));
+    const soloDenegados = await cAdmin.get<{ datos: { resultado: string }[] }>(`/api/salud-accesos?sujeto_id=${id}&resultado=denegado`);
+    assert.ok(soloDenegados.cuerpo.datos.length > 0 && soloDenegados.cuerpo.datos.every((f) => f.resultado === "denegado"));
+    for (const u of [asesor, maestro, recepcion]) assert.equal((await (await entrar(u)).get(`/api/salud-accesos`)).estado, 403, u.rol);
   } finally {
     await api.cerrar();
   }

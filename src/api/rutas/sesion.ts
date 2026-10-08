@@ -15,7 +15,7 @@ import { contextoDe, type DepsApi } from "../contexto.ts";
 import { ErrorApi, demasiadasPeticiones, validacion } from "../errores.ts";
 import { correo, objeto, opcional, parsear, texto, textoLiteral } from "../validar.ts";
 import { normalizarIp } from "../../http/ip.ts";
-import { autenticar } from "../autenticar.ts";
+import { soloSesion } from "../autorizar.ts";
 import { permisosDe } from "../permisos.ts";
 import { registrarCambio } from "../registro.ts";
 import { LIMITE_CUERPO_LOGIN } from "../cuerpos.ts";
@@ -72,7 +72,7 @@ export function rutasPublicasDeSesion(deps: DepsApi, antesDeLogin: express.Reque
 /** Rutas del usuario en sesión. */
 export function rutasDeSesionPropia(deps: DepsApi): Router {
   const r = Router();
-  const dentro = autenticar(deps);
+  const dentro = soloSesion();
 
   r.get("/yo", dentro, async (_req, res) => {
     const ctx = contextoDe(res);

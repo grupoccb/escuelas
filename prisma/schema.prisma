@@ -1092,6 +1092,8 @@ model acceso_dato_sensible {
   accion          String
   /// permitido o denegado.
   resultado       String
+  /// Si fue denegado, por qué: sin_permiso, sujeto_no_encontrado o no_es_de_tu_grupo (EB-01).
+  causa           String?
   /// Nombres de los campos tocados. Nunca sus valores.
   campos          String[]
   motivo          String?

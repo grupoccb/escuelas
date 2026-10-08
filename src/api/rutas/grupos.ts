@@ -7,7 +7,6 @@
 
 import { Router } from "express";
 import { filtroDeSucursal } from "../alcance.ts";
-import { autenticar } from "../autenticar.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
@@ -15,10 +14,10 @@ import { objeto, opcional, parsearQuery, uuid } from "../validar.ts";
 
 const esquemaListado = objeto({ ...esquemaPaginacion, programa_id: opcional(uuid()), sucursal_id: opcional(uuid()) });
 
-export function rutasDeGrupos(deps: DepsApi): Router {
+export function rutasDeGrupos(_deps: DepsApi): Router {
   const r = Router();
 
-  r.get("/grupos", autenticar(deps), requierePermiso("grupos:leer"), async (req, res) => {
+  r.get("/grupos", requierePermiso("grupos:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);

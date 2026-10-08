@@ -6,7 +6,9 @@
 //   inscripción —F1/F3— esa comprobación devuelve false: el maestro queda fuera, falla CERRADO).
 // - Cada lectura y cada escritura deja una fila en `acceso_dato_sensible` (quién, a quién, qué campos
 //   —solo sus nombres—, motivo, ruta), en la MISMA transacción que la lectura: si no se puede
-//   registrar, no se lee. Los intentos denegados también se registran.
+//   registrar, no se lee. TODO intento denegado también se registra (EB-01), con su causa: falta de
+//   permiso, sujeto que no existe (o de otra organización) y maestro que no es del grupo, tanto al
+//   leer como al escribir. Quien sondea ids queda en el registro.
 // - Los valores van cifrados en la base y salen envueltos en `Sensible`: si se cuelan a un log o a un
 //   texto, se imprimen como [REDACTADO].
 // - Nunca se escriben en logs, notas de Chatwoot ni mensajes de WhatsApp (lo vigila un test y
@@ -78,6 +80,7 @@ async function registrarAcceso(
   accion: "leer" | "escribir",
   resultado: "permitido" | "denegado",
   campos: readonly CampoSensible[],
+  causa: ErrorAccesoSensible["motivo"] | null = null,
 ): Promise<void> {
   await tx.acceso_dato_sensible.create({
     data: altaConAlcance({
@@ -86,6 +89,7 @@ async function registrarAcceso(
       sujeto_id: p.sujetoId,
       accion,
       resultado,
+      causa,
       campos: [...campos],
       motivo: p.motivo.slice(0, 300),
       ruta: p.ruta?.slice(0, 200) ?? null,
@@ -93,10 +97,26 @@ async function registrarAcceso(
   });
 }
 
-/** Deniega y deja constancia (fuera de cualquier transacción que se vaya a revertir). */
+/**
+ * Deja constancia de un intento DENEGADO, en su propia transacción (nunca dentro de una que se vaya a
+ * revertir). La usan el servicio y la guarda de permiso de la ruta de salud (que niega antes de llegar
+ * al servicio): así ningún intento queda sin rastro (EB-01).
+ */
+export async function registrarDenegado(
+  db: BaseDatos,
+  actor: ActorSensible,
+  p: Peticion,
+  accion: "leer" | "escribir",
+  causa: ErrorAccesoSensible["motivo"],
+  campos: readonly CampoSensible[] = [],
+): Promise<void> {
+  await db.$transaction((tx) => registrarAcceso(tx, actor, p, accion, "denegado", campos, causa));
+  log.warn("acceso_dato_sensible_denegado", { usuario: actor.usuarioId, sujeto_tipo: p.sujetoTipo, accion, causa });
+}
+
+/** Deniega y deja constancia. */
 async function denegar(db: BaseDatos, actor: ActorSensible, p: Peticion, accion: "leer" | "escribir", campos: readonly CampoSensible[], motivo: ErrorAccesoSensible["motivo"]): Promise<never> {
-  await db.$transaction((tx) => registrarAcceso(tx, actor, p, accion, "denegado", campos));
-  log.warn("acceso_dato_sensible_denegado", { usuario: actor.usuarioId, sujeto_tipo: p.sujetoTipo, accion, causa: motivo });
+  await registrarDenegado(db, actor, p, accion, motivo, campos);
   throw new ErrorAccesoSensible(motivo);
 }
 
@@ -116,11 +136,11 @@ export async function leerSensible(
   opciones?: OpcionesSensibles,
 ): Promise<FichaLeida> {
   const campos = p.campos ?? CAMPOS_SENSIBLES;
-  if (!tienePermiso(actor.rol, "salud:leer")) throw new ErrorAccesoSensible("sin_permiso");
+  if (!tienePermiso(actor.rol, "salud:leer")) return denegar(db, actor, p, "leer", campos, "sin_permiso");
   const cifrador = cifradorDe(opciones);
 
   const existe = await db.$transaction((tx) => existeSujeto(tx, p.sujetoTipo, p.sujetoId));
-  if (!existe) throw new ErrorAccesoSensible("sujeto_no_encontrado");
+  if (!existe) return denegar(db, actor, p, "leer", campos, "sujeto_no_encontrado");
   if (actor.rol === "maestro") {
     const suyo = await (opciones?.maestroDelSujeto ?? maestroDelSujetoPorDefecto)(db, actor.usuarioId, p.sujetoTipo, p.sujetoId);
     if (!suyo) return denegar(db, actor, p, "leer", campos, "no_es_de_tu_grupo");
@@ -151,22 +171,72 @@ export async function guardarSensible(
   opciones?: OpcionesSensibles,
 ): Promise<void> {
   const campos = (Object.keys(p.valores) as CampoSensible[]).filter((c) => (CAMPOS_SENSIBLES as readonly string[]).includes(c) && p.valores[c] !== undefined);
-  if (!tienePermiso(actor.rol, "salud:escribir")) throw new ErrorAccesoSensible("sin_permiso");
+  if (!tienePermiso(actor.rol, "salud:escribir")) return denegar(db, actor, p, "escribir", campos, "sin_permiso");
   const cifrador = cifradorDe(opciones);
 
-  await transaccionConBloqueo(db, actor.organizacionId, `ficha_salud:${p.sujetoTipo}:${p.sujetoId}`, async (tx) => {
-    if (!(await existeSujeto(tx, p.sujetoTipo, p.sujetoId))) throw new ErrorAccesoSensible("sujeto_no_encontrado");
-    if (actor.rol === "maestro" && !(await (opciones?.maestroDelSujeto ?? maestroDelSujetoPorDefecto)(tx, actor.usuarioId, p.sujetoTipo, p.sujetoId))) {
-      throw new ErrorAccesoSensible("no_es_de_tu_grupo");
-    }
-    const datos: Partial<Record<CampoSensible, string | null>> = {};
-    for (const c of campos) {
-      const v = p.valores[c];
-      datos[c] = v === null ? null : cifrador.cifrar(JSON.stringify(v), aad(actor, p, c));
-    }
-    const existente = await tx.ficha_salud.findFirst({ where: { sujeto_tipo: p.sujetoTipo, sujeto_id: p.sujetoId }, select: { id: true } });
-    if (existente) await tx.ficha_salud.update({ where: { id: existente.id }, data: datos });
-    else await tx.ficha_salud.create({ data: altaConAlcance({ sujeto_tipo: p.sujetoTipo, sujeto_id: p.sujetoId, ...datos }) });
-    await registrarAcceso(tx, actor, p, "escribir", "permitido", campos);
-  });
+  try {
+    await transaccionConBloqueo(db, actor.organizacionId, `ficha_salud:${p.sujetoTipo}:${p.sujetoId}`, async (tx) => {
+      if (!(await existeSujeto(tx, p.sujetoTipo, p.sujetoId))) throw new ErrorAccesoSensible("sujeto_no_encontrado");
+      if (actor.rol === "maestro" && !(await (opciones?.maestroDelSujeto ?? maestroDelSujetoPorDefecto)(tx, actor.usuarioId, p.sujetoTipo, p.sujetoId))) {
+        throw new ErrorAccesoSensible("no_es_de_tu_grupo");
+      }
+      const datos: Partial<Record<CampoSensible, string | null>> = {};
+      for (const c of campos) {
+        const v = p.valores[c];
+        datos[c] = v === null ? null : cifrador.cifrar(JSON.stringify(v), aad(actor, p, c));
+      }
+      const existente = await tx.ficha_salud.findFirst({ where: { sujeto_tipo: p.sujetoTipo, sujeto_id: p.sujetoId }, select: { id: true } });
+      if (existente) await tx.ficha_salud.update({ where: { id: existente.id }, data: datos });
+      else await tx.ficha_salud.create({ data: altaConAlcance({ sujeto_tipo: p.sujetoTipo, sujeto_id: p.sujetoId, ...datos }) });
+      await registrarAcceso(tx, actor, p, "escribir", "permitido", campos);
+    });
+  } catch (e) {
+    // La transacción se revirtió; la constancia del intento denegado va aparte (EB-01).
+    if (e instanceof ErrorAccesoSensible) await registrarDenegado(db, actor, p, "escribir", e.motivo, campos);
+    throw e;
+  }
+}
+
+export interface FiltroAccesos {
+  sujetoId?: string;
+  usuarioId?: string;
+  resultado?: "permitido" | "denegado";
+}
+
+export interface FilaAcceso {
+  id: string;
+  usuario_id: string;
+  sujeto_tipo: string;
+  sujeto_id: string;
+  accion: string;
+  resultado: string;
+  causa: string | null;
+  campos: string[];
+  motivo: string | null;
+  ruta: string | null;
+  creado_en: Date;
+}
+
+/**
+ * Consulta del registro de accesos a salud (quién vio a quién), más reciente primero. Es lo único que
+ * lee `acceso_dato_sensible` fuera de esta carpeta: la ruta del administrador (EB-21). Nunca trae
+ * valores de salud, solo los NOMBRES de los campos tocados.
+ */
+export async function listarAccesos(db: BaseDatos, filtro: FiltroAccesos, pagina: { saltar: number; tomar: number }): Promise<{ total: number; filas: FilaAcceso[] }> {
+  const where = {
+    ...(filtro.sujetoId ? { sujeto_id: filtro.sujetoId } : {}),
+    ...(filtro.usuarioId ? { usuario_id: filtro.usuarioId } : {}),
+    ...(filtro.resultado ? { resultado: filtro.resultado } : {}),
+  };
+  const [total, filas] = await Promise.all([
+    db.acceso_dato_sensible.count({ where }),
+    db.acceso_dato_sensible.findMany({
+      where,
+      select: { id: true, usuario_id: true, sujeto_tipo: true, sujeto_id: true, accion: true, resultado: true, causa: true, campos: true, motivo: true, ruta: true, creado_en: true },
+      orderBy: [{ creado_en: "desc" }, { id: "desc" }],
+      skip: pagina.saltar,
+      take: pagina.tomar,
+    }),
+  ]);
+  return { total, filas };
 }

@@ -7,7 +7,6 @@
 
 import { Router } from "express";
 import { filtroDeSucursal } from "../alcance.ts";
-import { autenticar } from "../autenticar.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { validacion } from "../errores.ts";
@@ -18,10 +17,10 @@ const ESTADOS = ["bot", "en_atencion_humana", "cerrada", "opt_out"] as const;
 const esquemaListado = objeto({ ...esquemaPaginacion, asignada_a: opcional(texto({ max: 36 })), estado: opcional(enumerado(ESTADOS)) });
 const esUuid = uuid();
 
-export function rutasDeConversaciones(deps: DepsApi): Router {
+export function rutasDeConversaciones(_deps: DepsApi): Router {
   const r = Router();
 
-  r.get("/conversaciones", autenticar(deps), requierePermiso("conversaciones:leer"), async (req, res) => {
+  r.get("/conversaciones", requierePermiso("conversaciones:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);

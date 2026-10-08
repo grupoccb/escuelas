@@ -215,8 +215,13 @@ test("CSRF: con ORIGEN_PUBLICO configurado solo ese origen vale", async () => {
   }
 });
 
-test("rutas desconocidas de /api: 404 en JSON; cabeceras de seguridad y CSP restrictiva en la API", async () => {
-  const r = await api.cliente().get<{ error: { codigo: string } }>("/api/no-existe");
+test("rutas desconocidas de /api: 401 sin sesión (no se revela qué rutas hay) y 404 en JSON con sesión; cabeceras de seguridad y CSP restrictiva en la API", async () => {
+  const anonimo = await api.cliente().get<{ error: { codigo: string } }>("/api/no-existe");
+  assert.equal(anonimo.estado, 401, "autenticar va antes que cualquier ruta: denegar por omisión");
+  const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "recepcion" });
+  const c = api.cliente();
+  await c.login(org.slug, u.correo, u.contrasena);
+  const r = await c.get<{ error: { codigo: string } }>("/api/no-existe");
   assert.equal(r.estado, 404);
   assert.equal(r.cuerpo.error.codigo, "no_encontrado");
   assert.equal(r.cabeceras.get("x-content-type-options"), "nosniff");

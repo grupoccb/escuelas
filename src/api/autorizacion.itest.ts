@@ -15,7 +15,10 @@ import { autenticar } from "./autenticar.ts";
 import { requierePermiso } from "./autorizar.ts";
 import { resolverDepsApi } from "./index.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
-import { MATRIZ_DE_PERMISOS, PERMISOS, tienePermiso } from "./permisos.ts";
+import { PERMISOS_ACORDADOS } from "../testutil/permisos-acordados.ts";
+import { MATRIZ_DE_PERMISOS, PERMISOS } from "./permisos.ts";
+import { soloSesion } from "./autorizar.ts";
+import { contextoDe } from "./contexto.ts";
 
 let prisma: PrismaPruebas;
 let api: ApiLevantada;
@@ -136,7 +139,10 @@ const ids = (r: { cuerpo: unknown }): string[] => ((r.cuerpo as { datos: { id: s
 
 // ── Permiso × rol, generado de la matriz ───────────────────────────────────────────────
 
-test("cada permiso de la matriz × cada rol → 200 si lo tiene y 403 si no (ruta de prueba con requierePermiso)", async () => {
+/** Lo que DEBE pasar según la lista acordada escrita a mano (NO según `tienePermiso`, que es lo que se prueba). */
+const loTiene = (rol: Rol, permiso: keyof typeof MATRIZ_DE_PERMISOS): boolean => (PERMISOS_ACORDADOS[permiso] as readonly string[]).includes(rol);
+
+test("cada permiso de la matriz × cada rol → 200 si lo tiene y 403 si no, contra la lista acordada a mano (ruta de prueba con requierePermiso)", async () => {
   const deps = resolverDepsApi({ prisma, parametrosHash: PARAMETROS_PRUEBA, cookieSegura: false, origenesPermitidos: [] });
   const app = express();
   const router = express.Router();
@@ -159,7 +165,7 @@ test("cada permiso de la matriz × cada rol → 200 si lo tiene y 403 si no (rut
       for (const permiso of PERMISOS) {
         const r = await fetch(`${base}/api/sonda/${permiso}`, { headers: { cookie: `sesion=${cookie}` } });
         await r.arrayBuffer();
-        assert.equal(r.status, tienePermiso(rol, permiso) ? 200 : 403, `${rol} · ${permiso}`);
+        assert.equal(r.status, loTiene(rol, permiso) ? 200 : 403, `${rol} · ${permiso}`);
         comprobaciones++;
       }
     }
@@ -167,6 +173,37 @@ test("cada permiso de la matriz × cada rol → 200 si lo tiene y 403 si no (rut
     // Sin sesión: 401 antes de preguntar por el permiso.
     const sinSesion = await fetch(`${base}/api/sonda/leads:leer`);
     assert.equal(sinSesion.status, 401);
+  } finally {
+    server.close();
+  }
+});
+
+// ── Denegar por omisión (EB-09): una ruta que no declara su acceso no puede operar ───────
+
+test("una ruta con sesión pero SIN declarar su acceso responde 500 y no toca la base; con soloSesion() responde 200", async () => {
+  const deps = resolverDepsApi({ prisma, parametrosHash: PARAMETROS_PRUEBA, cookieSegura: false, origenesPermitidos: [] });
+  const app = express();
+  const router = express.Router();
+  router.use(autenticar(deps));
+  router.get("/sin-declarar", (_req, res) => {
+    res.json({ db: contextoDe(res).db ? "tocada" : "no" });
+  });
+  router.get("/declarada", soloSesion(), (_req, res) => {
+    res.json({ organizacion: contextoDe(res).organizacionId });
+  });
+  router.use(manejadorDeErroresApi);
+  app.use("/api", router);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const cookie = `sesion=${como("asesor").cookieDeSesion!}`;
+    const sin = await fetch(`${base}/api/sin-declarar`, { headers: { cookie } });
+    assert.equal(sin.status, 500);
+    assert.deepEqual(await sin.json(), { error: { codigo: "interno", mensaje: "Ocurrió un error. Inténtalo de nuevo." } });
+    const con = await fetch(`${base}/api/declarada`, { headers: { cookie } });
+    assert.equal(con.status, 200);
+    assert.equal(((await con.json()) as { organizacion: string }).organizacion, A.organizacionId);
+    assert.equal((await fetch(`${base}/api/declarada`)).status, 401);
   } finally {
     server.close();
   }
@@ -199,7 +236,7 @@ test("cada ruta real da 403 a los roles sin su permiso y no-403 a los que lo tie
     for (const r of rutas) {
       const c = como(rol);
       const res = await c.pedir(r.metodo, r.ruta, r.cuerpo);
-      const esperado = tienePermiso(rol, r.permiso) ? r.siPermitido : 403;
+      const esperado = loTiene(rol, r.permiso) ? r.siPermitido : 403;
       assert.equal(res.estado, esperado, `${rol} ${r.metodo} ${r.ruta}`);
     }
   }
@@ -378,6 +415,29 @@ test("usuarios: desactivar, cambiar el rol o restablecer la contraseña cierran 
   const c = await entrar(A, u);
   await admin.patch(`/api/usuarios/${u.id}`, { nombre: "Solo el nombre" });
   assert.equal((await c.get("/api/yo")).estado, 200);
+});
+
+test("usuarios (EB-02): cambiar la PROPIA contraseña por PATCH se rechaza (hay que usar /api/yo/contrasena, que pide la actual); restablecer la de OTRO sí, sin la actual", async () => {
+  const jefa = await sembrarUsuario(prisma, A.organizacionId, { rol: "administrador" });
+  const otroAdmin = await entrar(A, jefa);
+  const segunda = await entrar(A, jefa); // otra sesión de la misma persona (la «robada»)
+  const r = await otroAdmin.patch<{ error: { codigo: string; detalles: { campo: string }[] } }>(`/api/usuarios/${jefa.id}`, { contrasena: "contrasena-del-intruso-1" });
+  assert.equal(r.estado, 400);
+  assert.equal(r.cuerpo.error.codigo, "validacion");
+  assert.deepEqual(r.cuerpo.error.detalles.map((d) => d.campo), ["contrasena"]);
+  assert.equal((await segunda.get("/api/yo")).estado, 200, "no cerró nada: no pasó nada");
+  assert.equal((await api.cliente().login(A.slug, jefa.correo, jefa.contrasena)).estado, 201, "sigue la contraseña de siempre");
+  // Con otros cambios sobre sí misma sí puede (nombre).
+  assert.equal((await otroAdmin.patch(`/api/usuarios/${jefa.id}`, { nombre: "Nombre nuevo" })).estado, 200);
+  // La vía correcta exige la actual y pasa por el bloqueo de intentos (la misma 5 y 6.ª → 429).
+  const bloqueable = await sembrarUsuario(prisma, A.organizacionId, { rol: "asesor" });
+  const c = await entrar(A, bloqueable);
+  for (let i = 0; i < 5; i++) assert.equal((await c.post("/api/yo/contrasena", { actual: "no-es-esta-123", nueva: "otra-contrasena-1" })).estado, 400);
+  assert.equal((await c.post("/api/yo/contrasena", { actual: bloqueable.contrasena, nueva: "una-contrasena-nueva-1" })).estado, 429, "ni la actual correcta pasa tras el bloqueo");
+  // Un administrador restablece la de OTRA persona sin conocer la actual.
+  const otra = await sembrarUsuario(prisma, A.organizacionId, { rol: "recepcion" });
+  assert.equal((await como("administrador").patch(`/api/usuarios/${otra.id}`, { contrasena: "restablecida-por-el-admin-1" })).estado, 200);
+  assert.equal((await api.cliente().login(A.slug, otra.correo, "restablecida-por-el-admin-1")).estado, 201);
 });
 
 test("usuarios: cambiar sucursales reemplaza el conjunto (las que sobran se marcan eliminadas, sin borrar)", async () => {

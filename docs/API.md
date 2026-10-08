@@ -69,12 +69,12 @@ Tamaño de cuerpo por ruta (`src/api/cuerpos.ts`): login 4 KB, resto de la API 1
 | Método y ruta | Permiso | Descripción |
 |---|---|---|
 | `POST /api/sesion` `{organizacion?, correo, contrasena}` | pública | Inicia sesión (201 + cookie). `organizacion` = slug; se puede omitir si solo hay una |
-| `DELETE /api/sesion` | pública | Cierra la sesión (siempre 204) |
+| `DELETE /api/sesion` | pública | Cierra la sesión (204; borra la cookie). Como toda escritura, exige el encabezado anti-CSRF (`Content-Type: application/json` o `X-Requested-With`): sin él, 403 |
 | `GET /api/yo` | sesión | Usuario, organización, sucursales y permisos |
-| `POST /api/yo/contrasena` `{actual, nueva}` | sesión | Cambia tu contraseña; cierra tus demás sesiones |
+| `POST /api/yo/contrasena` `{actual, nueva}` | sesión | Cambia tu contraseña (exige la actual y pasa por el bloqueo de intentos); cierra tus demás sesiones |
 | `GET /api/usuarios?rol=&activo=` | `usuarios:administrar` | Lista |
 | `POST /api/usuarios` `{correo, nombre, rol, contrasena, sucursales?}` | `usuarios:administrar` | Alta (409 si el correo existe) |
-| `PATCH /api/usuarios/:id` `{nombre?, rol?, activo?, contrasena?, sucursales?}` | `usuarios:administrar` | Cambia; cierra sesiones si desactiva, cambia el rol o la contraseña |
+| `PATCH /api/usuarios/:id` `{nombre?, rol?, activo?, contrasena?, sucursales?}` | `usuarios:administrar` | Cambia; cierra sesiones si desactiva, cambia el rol o la contraseña. `contrasena` solo sirve para restablecer la de OTRA persona (sin la actual); la propia se cambia con `POST /api/yo/contrasena` (400 si se intenta aquí). Desactivar suelta el agente de Chatwoot |
 | `GET /api/grupos?programa_id=&sucursal_id=` | `grupos:leer` | Grupos con programa y horarios (el maestro, solo los suyos) |
 | `GET /api/tareas?estado=&tipo=` | `tareas:leer` | Tareas para el asesor |
 | `PATCH /api/tareas/:id` `{estado: hecha\|descartada}` | `tareas:resolver` | Resuelve (409 si ya estaba resuelta) |
@@ -82,10 +82,12 @@ Tamaño de cuerpo por ruta (`src/api/cuerpos.ts`): login 4 KB, resto de la API 1
 | `GET /api/leads/:id` | `leads:leer` | Detalle con prospectos |
 | `GET /api/registro-cambios?entidad_tipo=&entidad_id=&usuario_id=` | `registro_cambios:leer` | Auditoría |
 
-| `GET /api/salud/:sujeto_tipo/:sujeto_id?motivo=&campos=` | `salud:leer` | Ficha de salud de un menor (`prospecto`; `alumno` llega con F1). `motivo` obligatorio. Se registra el acceso |
+| `GET /api/salud/:sujeto_tipo/:sujeto_id?motivo=&campos=` | `salud:leer` | Ficha de salud de un menor (`prospecto`; `alumno` llega con F1). `motivo` obligatorio. Se registra el acceso, y también todo intento denegado (sin permiso, sujeto inexistente o ajeno, maestro fuera de su grupo) |
 | `PUT /api/salud/:sujeto_tipo/:sujeto_id` `{motivo, alergias?, condiciones_medicas?, medicamentos?, contacto_emergencia?, autorizacion_atencion_medica?}` | `salud:escribir` | Guarda (cifrado). `null` borra un campo |
 
+| `GET /api/salud-accesos?sujeto_id=&usuario_id=&resultado=` | `registro_cambios:leer` | Quién vio (o intentó ver) la ficha de quién: usuario, sujeto, acción, resultado, causa de la denegación, campos (solo nombres), motivo, ruta. Nunca valores. Más reciente primero |
 | `POST /api/usuarios/:id/vincular-chatwoot` `{agente_id?}` | `usuarios:administrar` | Enlaza al usuario con su agente de Chatwoot (por correo, o por `agente_id`). 409 si el agente ya es de otro usuario o Chatwoot no responde |
+| `DELETE /api/usuarios/:id/vincular-chatwoot` | `usuarios:administrar` | Desenlaza al usuario de su agente (idempotente; no toca Chatwoot). Las conversaciones dejan de apuntar al usuario pero conservan el agente |
 | `GET /api/conversaciones?asignada_a=yo\|nadie\|<usuario>&estado=` | `conversaciones:leer` | Qué asesor tiene cada conversación (alcance por sucursal del lead) |
 
 **Chatwoot ↔ usuarios.** El agente de Chatwoot se enlaza con `usuario.chatwoot_agent_id` (único entre los vivos). Cuando llega el evento de asignación
@@ -99,8 +101,11 @@ borra la asignación (no devuelve el bot). El directorio de agentes (`Directorio
 
 1. Tabla en `prisma/schema.prisma` con las convenciones de siempre (`organizacion_id`, `eliminado_en`, FK compuestas) y su migración.
 2. `src/api/rutas/<recurso>.ts` con una función `rutasDe<Recurso>(deps: DepsApi): Router`. Cada ruta:
-   `router.get("/x", autenticar(deps), requierePermiso("x:leer"), async (req, res) => { const ctx = contextoDe(res); … })`.
+   `router.get("/x", requierePermiso("x:leer"), async (req, res) => { const ctx = contextoDe(res); … })`.
+   **No pongas `autenticar`**: `crearApiRouter` lo monta una sola vez antes de todas las rutas protegidas. **Denegar por omisión**: cada ruta DEBE declarar su acceso con
+   `requierePermiso(…)` (o, si vale cualquier persona con sesión, `soloSesion()`); sin la declaración `contextoDe(res)` lanza y la ruta responde 500 sin tocar la base.
    Usa **`ctx.db`** (ya con el alcance de la organización); nunca abras otro. Las escrituras llevan `express.json({ limit: LIMITE_CUERPO_API })`.
+   Agrega la ruta a la tabla `LAS_RUTAS` de `src/api/rutas.test.ts` (escrita a mano): el test recorre el router real de Express y falla si hay una ruta que no está ahí o que declara otro permiso.
 3. Móntalo en `src/api/index.ts` con `api.use(rutasDe<Recurso>(deps))`, **antes** del 404 final.
 4. Entradas con `parsear(esquema, req.body)` / `parsearQuery(esquema, req.query)` / `parsear(objeto({ id: uuid() }), req.params)`.
 5. Listas con `esquemaPaginacion` + `leerPaginacion` + `paginar` y un `orderBy` estable.

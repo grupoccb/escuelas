@@ -35,6 +35,11 @@ export interface ContextoApi {
   ahora(): Date;
   /** Sucursales que ve el usuario (se consulta una vez por petición). */
   alcance(): Promise<AlcanceDeSucursales>;
+  /**
+   * ¿La ruta declaró su acceso (`requierePermiso` o `soloSesion`)? Mientras no, `contextoDe` se niega
+   * a entregar el contexto: una ruta sin declaración falla con 500 en vez de operar (EB-09).
+   */
+  accesoDeclarado: boolean;
 }
 
 const LLAVE = "contexto";
@@ -50,14 +55,29 @@ export function fijarContexto(res: Response, req: Request, deps: DepsApi, usuari
     ip: normalizarIp(req.ip),
     ahora: deps.reloj,
     alcance: () => (alcance ??= alcanceDeSucursales(db, usuario)),
+    accesoDeclarado: false,
   };
   res.locals[LLAVE] = ctx;
   return ctx;
 }
 
-/** El contexto de la petición. Lanza si se llama en una ruta que no pasó por `autenticar` (error de programación). */
-export function contextoDe(res: Response): ContextoApi {
+/**
+ * El contexto SIN exigir la declaración de acceso. Solo para `src/api/autorizar.ts`, que es quien
+ * la hace; las rutas usan `contextoDe`.
+ */
+export function contextoParaAutorizar(res: Response): ContextoApi {
   const ctx = res.locals[LLAVE] as ContextoApi | undefined;
-  if (!ctx) throw new Error("contextoDe() en una ruta sin autenticar");
+  if (!ctx) throw new Error("contextoParaAutorizar() en una ruta sin autenticar");
+  return ctx;
+}
+
+/**
+ * El contexto de la petición. Lanza (500) si la ruta no pasó por `autenticar` o NO declaró su acceso
+ * con `requierePermiso(...)` / `soloSesion()`: denegar por omisión (EB-09). Es un error de
+ * programación, no del usuario.
+ */
+export function contextoDe(res: Response): ContextoApi {
+  const ctx = contextoParaAutorizar(res);
+  if (!ctx.accesoDeclarado) throw new Error("Ruta sin acceso declarado: usa requierePermiso(…) o soloSesion() (EB-09)");
   return ctx;
 }

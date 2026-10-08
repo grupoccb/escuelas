@@ -3,8 +3,12 @@
 //   GET   /api/usuarios?rol=&activo=&limite=&pagina=
 //   POST  /api/usuarios   { correo, nombre, rol, contrasena, sucursales?: uuid[] }
 //   PATCH /api/usuarios/:id   { nombre?, rol?, activo?, contrasena?, sucursales? }
+//   POST/DELETE /api/usuarios/:id/vincular-chatwoot   enlaza / desenlaza al agente de Chatwoot
 //
-// Reglas: el correo no se cambia; no puedes desactivarte ni quitarte el rol de administrador; nunca
+// Reglas: el correo no se cambia; la contraseña PROPIA solo se cambia con `POST /api/yo/contrasena`, que
+// exige la actual y pasa por el bloqueo de intentos (EB-02: una sesión robada no sirve para fijar una
+// contraseña nueva); un administrador sí puede restablecer la de OTRA persona sin la actual. No puedes
+// desactivarte ni quitarte el rol de administrador; desactivar a alguien libera su agente de Chatwoot; nunca
 // puede quedar la organización sin un administrador activo (se comprueba bajo candado, así que dos
 // administradores que se quitan el rol a la vez no la dejan vacía). Desactivar, cambiar el rol o la
 // contraseña cierra las sesiones del usuario. Un usuario con rol maestro tiene un instructor ligado
@@ -25,7 +29,6 @@ import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { booleano, booleanoDeTexto, correo, entero, enumerado, listaDe, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "../validar.ts";
-import { autenticar } from "../autenticar.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 
 const SELECCION = {
@@ -96,6 +99,12 @@ async function fijarSucursales(tx: Consultas, usuarioId: string, ids: string[], 
   }
 }
 
+/** Quita el vínculo con el agente de Chatwoot y las asignaciones que dependían de él (el agente mismo sigue en Chatwoot). */
+async function desvincularAgente(tx: Consultas, usuarioId: string): Promise<void> {
+  await tx.usuario.update({ where: { id: usuarioId }, data: { chatwoot_agent_id: null } });
+  await tx.conversacion.updateMany({ where: { asignada_a_usuario_id: usuarioId }, data: { asignada_a_usuario_id: null } });
+}
+
 /** Un maestro necesita su instructor para que «sus grupos» tengan sentido. */
 async function asegurarInstructor(tx: Consultas, usuarioId: string, nombre: string): Promise<void> {
   const existe = await tx.instructor.findFirst({ where: { usuario_id: usuarioId }, select: { id: true } });
@@ -104,7 +113,7 @@ async function asegurarInstructor(tx: Consultas, usuarioId: string, nombre: stri
 
 export function rutasDeUsuarios(deps: DepsApi): Router {
   const r = Router();
-  const dentro = [autenticar(deps), requierePermiso("usuarios:administrar")];
+  const dentro = [requierePermiso("usuarios:administrar")];
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/usuarios", ...dentro, async (req, res) => {
@@ -158,6 +167,9 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
     const cambios = parsear(esquemaCambio, req.body);
     if (Object.keys(cambios).length === 0) throw validacion([{ mensaje: "No hay nada que cambiar" }]);
     const esYo = id === ctx.usuario.id;
+    if (esYo && cambios.contrasena !== undefined) {
+      throw validacion([{ campo: "contrasena", mensaje: "Para cambiar tu propia contraseña usa POST /api/yo/contrasena (pide la actual)" }]);
+    }
     if (esYo && (cambios.activo === false || (cambios.rol !== undefined && cambios.rol !== "administrador"))) {
       throw conflicto("No puedes desactivarte ni quitarte el rol de administrador");
     }
@@ -188,6 +200,8 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
         ...(hash !== undefined ? { contrasena_hash: hash, contrasena_cambiada_en: ahora } : {}),
       };
       if (Object.keys(datos).length > 0) await tx.usuario.update({ where: { id }, data: datos });
+      // Quien se desactiva suelta su agente de Chatwoot: el vínculo es único y su reemplazo lo necesita (EB-23).
+      if (cambios.activo === false && actual.chatwoot_agent_id !== null) await desvincularAgente(tx, id);
       if (cambios.sucursales) await fijarSucursales(tx, id, cambios.sucursales, ahora);
       if ((cambios.rol ?? actual.rol) === "maestro") await asegurarInstructor(tx, id, cambios.nombre ?? actual.nombre);
       const cierraSesiones = cambios.activo === false || (cambios.rol !== undefined && cambios.rol !== actual.rol) || hash !== undefined;
@@ -247,6 +261,22 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
       if (esViolacionUnica(e)) throw conflicto("Ese agente de Chatwoot ya está vinculado a otro usuario");
       throw e;
     }
+  });
+
+  // Desenlaza al usuario de su agente de Chatwoot (EB-23). Idempotente. No cambia nada en Chatwoot.
+  r.delete("/usuarios/:id/vincular-chatwoot", ...dentro, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const resultado = await ctx.db.$transaction(async (tx) => {
+      const antes = await tx.usuario.findFirst({ where: { id }, select: { chatwoot_agent_id: true } });
+      if (!antes) throw noEncontrado();
+      if (antes.chatwoot_agent_id !== null) {
+        await desvincularAgente(tx, id);
+        await registrarCambio(tx, ctx, { entidad: "usuario", entidadId: id, accion: "desvincular_chatwoot", antes: { chatwoot_agent_id: antes.chatwoot_agent_id }, despues: { chatwoot_agent_id: null } });
+      }
+      return tx.usuario.findFirstOrThrow({ where: { id }, select: SELECCION });
+    });
+    res.json(presentarUsuario(resultado));
   });
 
   return r;

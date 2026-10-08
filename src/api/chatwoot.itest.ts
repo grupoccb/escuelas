@@ -116,6 +116,40 @@ test("un agente solo puede ser de un usuario: el segundo recibe 409; dos víncul
   }
 });
 
+test("desvincular (EB-23): suelta el agente y las asignaciones, deja registro, es idempotente y deja reasignar el agente; desactivar a alguien también lo suelta", async () => {
+  const e = await escenario();
+  try {
+    const c = await e.entrar(e.admin);
+    assert.equal((await c.post(`/api/usuarios/${e.asesor.id}/vincular-chatwoot`)).estado, 200);
+    const conv = await conversacion(e.org, e.org.sucursales[0]!.id);
+    await registrarTomaDeConversacion({ prisma }, asignacion(e.org, conv.chatwootId));
+    assert.equal((await prisma.conversacion.findFirstOrThrow({ where: { id: conv.id } })).asignada_a_usuario_id, e.asesor.id);
+
+    const r = await c.delete<{ chatwoot_agent_id: number | null }>(`/api/usuarios/${e.asesor.id}/vincular-chatwoot`);
+    assert.equal(r.estado, 200);
+    assert.equal(r.cuerpo.chatwoot_agent_id, null);
+    const despues = await prisma.conversacion.findFirstOrThrow({ where: { id: conv.id } });
+    assert.equal(despues.asignada_a_usuario_id, null);
+    assert.equal(despues.asignada_a_agente_chatwoot_id, 2, "Chatwoot sigue diciendo quién la tiene; solo se corta el vínculo con el usuario");
+    const reg = await prisma.registro_cambio.findMany({ where: { entidad_id: e.asesor.id, accion: "desvincular_chatwoot" } });
+    assert.equal(reg.length, 1);
+    assert.deepEqual([reg[0]!.antes, reg[0]!.despues], [{ chatwoot_agent_id: 2 }, { chatwoot_agent_id: null }]);
+    assert.equal((await c.delete(`/api/usuarios/${e.asesor.id}/vincular-chatwoot`)).estado, 200, "idempotente");
+    assert.equal(await prisma.registro_cambio.count({ where: { entidad_id: e.asesor.id, accion: "desvincular_chatwoot" } }), 1, "sin registro de lo que no cambió");
+    // El agente queda libre para quien lo reemplace.
+    assert.equal((await c.post(`/api/usuarios/${e.otro.id}/vincular-chatwoot`, { agente_id: 2 })).estado, 200);
+    // Desactivar suelta el vínculo.
+    assert.equal((await c.patch(`/api/usuarios/${e.otro.id}`, { activo: false })).estado, 200);
+    assert.equal((await prisma.usuario.findFirstOrThrow({ where: { id: e.otro.id } })).chatwoot_agent_id, null);
+    assert.equal((await c.post(`/api/usuarios/${e.asesor.id}/vincular-chatwoot`, { agente_id: 2 })).estado, 200, "y el agente se puede reasignar");
+    // Solo el administrador; un usuario ajeno → 404.
+    assert.equal((await (await e.entrar(e.asesor)).delete(`/api/usuarios/${e.otro.id}/vincular-chatwoot`)).estado, 403);
+    assert.equal((await c.delete(`/api/usuarios/${"00000000-0000-4000-8000-0000000000aa"}/vincular-chatwoot`)).estado, 404);
+  } finally {
+    await e.api.cerrar();
+  }
+});
+
 test("vincular: solo el administrador; el directorio caído o sin configurar → 409; un usuario de otra organización → 404", async () => {
   const e = await escenario();
   try {

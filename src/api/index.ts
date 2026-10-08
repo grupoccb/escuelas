@@ -4,7 +4,9 @@
 // Orden (importa):
 //   1. cabeceras de API y protección CSRF para todo /api;
 //   2. rutas públicas: iniciar y cerrar sesión;
-//   3. a partir de aquí TODO exige sesión (`autenticar`) y cada ruta declara su permiso;
+//   3. a partir de aquí TODO exige sesión (`autenticar`, UNA vez, aquí) y cada ruta DEBE declarar su
+//      acceso con `requierePermiso(…)` o `soloSesion()`: sin declaración `contextoDe` falla (denegar
+//      por omisión, EB-09). `rutas.test.ts` recorre el router real y compara con una tabla escrita a mano;
 //   4. 404 en JSON para rutas desconocidas, y el manejador de errores de la convención.
 
 import { Router } from "express";
@@ -15,6 +17,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { ConfigLimites } from "../http/config-limites.ts";
 import type { LimitadorDeTasa } from "../http/limite.ts";
 import { limitarApiPorIp } from "../http/limite-http.ts";
+import { autenticar } from "./autenticar.ts";
 import { cabecerasDeApi } from "./cabeceras.ts";
 import type { DepsApi } from "./contexto.ts";
 import { cookieSeguraDesdeEntorno } from "./cookies.ts";
@@ -78,6 +81,8 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   // ...y el del login, más estricto, solo para iniciar sesión.
   api.use(rutasPublicasDeSesion(deps, limites && limitador ? [limitarApiPorIp(limitador, "login", limites.login)] : []));
 
+  // Desde aquí, todo con sesión. Una ruta nueva montada después queda autenticada sin que nadie lo recuerde.
+  api.use(autenticar(deps));
   api.use(rutasDeSesionPropia(deps));
   api.use(rutasDeUsuarios(deps));
   api.use(rutasDeGrupos(deps));

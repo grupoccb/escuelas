@@ -33,7 +33,8 @@ export type AccionDeCambio =
   | "descartar"
   | "cambiar_contrasena"
   | "restablecer_contrasena"
-  | "vincular_chatwoot";
+  | "vincular_chatwoot"
+  | "desvincular_chatwoot";
 
 type Valor = string | number | boolean | null | Date | (string | number | boolean | null)[];
 export type Instantanea = Record<string, Valor | undefined>;

@@ -1,26 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ROLES } from "../auth/roles.ts";
+import { PERMISOS_ACORDADOS as ACORDADO } from "../testutil/permisos-acordados.ts";
 import { MATRIZ_DE_PERMISOS, PERMISOS, permisosDe, tienePermiso } from "./permisos.ts";
-
-/**
- * La matriz escrita A MANO, a propósito: si alguien cambia un permiso en permisos.ts, este test falla
- * y obliga a cambiarlo aquí también, a la vista de quien revisa. Es la fotografía de lo acordado.
- */
-const ACORDADO = {
-  "usuarios:administrar": ["administrador"],
-  "leads:leer": ["administrador", "asesor", "recepcion"],
-  "leads:escribir": ["administrador", "asesor"],
-  "tareas:leer": ["administrador", "asesor"],
-  "tareas:resolver": ["administrador", "asesor"],
-  "conversaciones:leer": ["administrador", "asesor"],
-  "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
-  "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
-  "catalogo:escribir": ["administrador"],
-  "registro_cambios:leer": ["administrador"],
-  "salud:leer": ["administrador", "maestro"],
-  "salud:escribir": ["administrador", "maestro"],
-};
 
 test("la matriz de permisos es exactamente la acordada (cambiarla exige cambiar este test)", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(MATRIZ_DE_PERMISOS)), ACORDADO);
