@@ -19,9 +19,8 @@ export { esCampoProhibidoEnRegistro };
 
 /** Campos que se guardan por entidad. Los nombres son los de la tabla (`tarea_asesor`, no «tarea»). */
 export const CAMPOS_AUDITABLES = {
-  usuario: ["nombre", "rol", "activo", "sucursales"],
+  usuario: ["nombre", "rol", "activo", "sucursales", "chatwoot_agent_id"],
   tarea_asesor: ["estado", "resuelta_en"],
-  usuario_chatwoot: ["chatwoot_agent_id"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type EntidadAuditable = keyof typeof CAMPOS_AUDITABLES;

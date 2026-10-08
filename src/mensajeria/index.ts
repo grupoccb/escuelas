@@ -2,7 +2,9 @@
 // entorno; sin ellas se usa el transporte falso (invariante 11).
 
 import { log } from "../lib/log.ts";
+import { DirectorioAgentesChatwoot } from "./chatwoot/directorio.ts";
 import { TransporteChatwoot } from "./chatwoot/transporte.ts";
+import { DirectorioAgentesFalso, type DirectorioAgentes } from "./directorio.ts";
 import { TransporteFalso } from "./fake.ts";
 import { MessagingProvider } from "./provider.ts";
 
@@ -40,6 +42,8 @@ export {
   type ResultadoBorde,
   type TwilioConfigurado,
 } from "./twilio/index.ts";
+export { DirectorioAgentesFalso, ErrorDirectorio, type AgenteChatwoot, type DirectorioAgentes } from "./directorio.ts";
+export { DirectorioAgentesChatwoot } from "./chatwoot/directorio.ts";
 export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";
 export { AtribucionDesdeChatwoot } from "./chatwoot/atribucion.ts";
 export { EstadosEntregaChatwoot } from "./chatwoot/estados.ts";
@@ -54,9 +58,11 @@ export {
   type ResultadoEstado,
 } from "./estados.ts";
 export {
+  interpretarDesasignacion,
   interpretarEventoChatwoot,
   interpretarTomaDeConversacion,
   verificarWebhookChatwoot,
+  type EventoDesasignacion,
   type EventoEntrante,
   type EventoTomaDeConversacion,
 } from "./chatwoot/webhook.ts";
@@ -93,4 +99,21 @@ export function mensajeriaDesdeEntorno(env: NodeJS.ProcessEnv = process.env): Me
     secretoWebhookChatwoot: secreto,
     transporte: "falso",
   };
+}
+
+/**
+ * Directorio de agentes de Chatwoot: real con `CHATWOOT_URL` + `CHATWOOT_ADMIN_TOKEN` (el token de un
+ * administrador de la cuenta); sin ellos, `null` en producción (vincular agentes responde que no está
+ * configurado) y un directorio falso VACÍO fuera de producción (invariante 11).
+ */
+export function directorioAgentesDesdeEntorno(env: NodeJS.ProcessEnv = process.env): DirectorioAgentes | null {
+  const url = env["CHATWOOT_URL"];
+  const tokenAdmin = env["CHATWOOT_ADMIN_TOKEN"];
+  if (url && tokenAdmin) return new DirectorioAgentesChatwoot({ url, tokenAdmin });
+  if (env["NODE_ENV"] === "production") {
+    log.warn("directorio_agentes_sin_configurar", { motivo: "faltan CHATWOOT_URL o CHATWOOT_ADMIN_TOKEN" });
+    return null;
+  }
+  log.warn("directorio_agentes_falso", { motivo: "faltan CHATWOOT_URL o CHATWOOT_ADMIN_TOKEN" });
+  return new DirectorioAgentesFalso();
 }

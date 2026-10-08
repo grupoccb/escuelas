@@ -6,6 +6,7 @@ import { cabecerasDeSeguridad } from "../api/cabeceras.ts";
 import { crearApiRouter, type ApiDepsEntrada } from "../api/index.ts";
 import { log } from "../lib/log.ts";
 import {
+  interpretarDesasignacion,
   interpretarEventoChatwoot,
   interpretarTomaDeConversacion,
   urlPublicaDe,
@@ -13,6 +14,7 @@ import {
   verificarWebhookTwilio,
   type BordeTwilio,
   type CambioDeEstado,
+  type EventoDesasignacion,
   type EventoEntrante,
   type EventoTomaDeConversacion,
   type FuenteEstadosEntrega,
@@ -38,6 +40,8 @@ export interface AppDeps {
   procesarEntrante(evento: EventoEntrante): Promise<{ resultado: string }>;
   /** Una persona tomó la conversación en Chatwoot (se la asignó o escribió): activa la atención humana. */
   registrarTomaDeConversacion(evento: EventoTomaDeConversacion): Promise<string>;
+  /** La conversación se quedó sin asesor en Chatwoot: se borra la asignación anotada (B5). */
+  registrarDesasignacion?(evento: EventoDesasignacion): Promise<string>;
   /** De dónde salen los estados de entrega (enviado, entregado, leído, fallido). */
   estadosEntrega: FuenteEstadosEntrega;
   registrarEstadoEntrega(cambio: CambioDeEstado): Promise<string>;
@@ -92,6 +96,17 @@ export function crearApp(deps: AppDeps): Express {
           res.json({ ok: true, resultado: await deps.registrarTomaDeConversacion(toma) });
         } catch (e) {
           log.error("webhook_chatwoot_toma_error", { error: (e as Error).message });
+          res.status(500).json({ ok: false });
+        }
+        return;
+      }
+      // ...o que la conversación se quede sin asesor (B5)...
+      const desasignacion = interpretarDesasignacion(payload);
+      if (desasignacion && deps.registrarDesasignacion) {
+        try {
+          res.json({ ok: true, resultado: await deps.registrarDesasignacion(desasignacion) });
+        } catch (e) {
+          log.error("webhook_chatwoot_desasignacion_error", { error: (e as Error).message });
           res.status(500).json({ ok: false });
         }
         return;

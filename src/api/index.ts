@@ -19,7 +19,9 @@ import { origenesPermitidosDesdeEntorno, proteccionCsrf } from "./csrf.ts";
 import { noEncontrado } from "./errores.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeGrupos } from "./rutas/grupos.ts";
+import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
+import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDeRegistroCambios } from "./rutas/registro-cambios.ts";
 import { rutasDeSalud } from "./rutas/salud.ts";
@@ -39,6 +41,8 @@ export interface ApiDepsEntrada {
   origenesPermitidos?: string[];
   /** Cifrado y regla del maestro de los datos de salud. Por omisión: clave del entorno y maestro sin acceso. */
   sensibles?: OpcionesSensibles;
+  /** Agentes de Chatwoot (null = no configurado). Por omisión: ninguno. */
+  directorio?: DirectorioAgentes | null;
 }
 
 export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
@@ -51,6 +55,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     cookieSegura: e.cookieSegura ?? cookieSeguraDesdeEntorno(),
     origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(),
     sensibles: e.sensibles ?? {},
+    directorio: e.directorio ?? null,
   };
 }
 
@@ -68,6 +73,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeGrupos(deps));
   api.use(rutasDeTareas(deps));
   api.use(rutasDeLeads(deps));
+  api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));
   api.use(rutasDeSalud(deps));
 

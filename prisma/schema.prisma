@@ -391,43 +391,49 @@ enum paso_captacion {
 }
 
 model conversacion {
-  id                         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizacion_id            String              @db.Uuid
-  bandeja_chatwoot_id        String              @db.Uuid
-  lead_id                    String              @db.Uuid
+  id                            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id               String              @db.Uuid
+  bandeja_chatwoot_id           String              @db.Uuid
+  lead_id                       String              @db.Uuid
   /// Id visible de la conversación en Chatwoot (display_id, único por cuenta).
-  chatwoot_conversacion_id   Int
+  chatwoot_conversacion_id      Int
   /// en_atencion_humana bloquea toda automatización (invariante 6).
-  estado                     estado_conversacion @default(bot)
-  paso_captacion             paso_captacion      @default(inicio)
-  intentos_fallidos          Int                 @default(0)
+  estado                        estado_conversacion @default(bot)
+  paso_captacion                paso_captacion      @default(inicio)
+  intentos_fallidos             Int                 @default(0)
   /// El backend debe pasar la conversación a un asesor en cuanto termine de despachar.
-  pasar_a_asesor_pendiente   Boolean             @default(false)
-  motivo_pase_asesor         String?
+  pasar_a_asesor_pendiente      Boolean             @default(false)
+  motivo_pase_asesor            String?
   /// A los 30 min sin respuesta a mitad de la captura se avisa a los asesores (nota con los datos
   /// parciales). VISIBLE NO ES ATENDIDO: no cambia `estado`; el bot sigue si el contacto vuelve y
   /// el reenganche puede salir. Es la marca del aviso: lo hace idempotente.
-  visible_a_asesores_en      DateTime?           @db.Timestamptz(6)
+  visible_a_asesores_en         DateTime?           @db.Timestamptz(6)
   /// Cuándo se abrió la conversación en Chatwoot para los asesores. Nulo con `visible_a_asesores_en`
   /// puesto = falta abrirla (se reintenta).
-  abierta_para_asesores_en   DateTime?           @db.Timestamptz(6)
+  abierta_para_asesores_en      DateTime?           @db.Timestamptz(6)
   /// Invariante 5, ventana 1: 24 h desde el último mensaje entrante. Decide si se puede
   /// mandar mensaje libre.
-  ventana_servicio_hasta     DateTime?           @db.Timestamptz(6)
+  ventana_servicio_hasta        DateTime?           @db.Timestamptz(6)
   /// Invariante 5, ventana 2: 72 h desde la entrada por anuncio Click-to-WhatsApp. Solo
   /// afecta el costo; nunca habilita un envío.
-  ventana_gratis_hasta       DateTime?           @db.Timestamptz(6)
-  ultimo_mensaje_entrante_en DateTime?           @db.Timestamptz(6)
-  ultimo_mensaje_saliente_en DateTime?           @db.Timestamptz(6)
+  ventana_gratis_hasta          DateTime?           @db.Timestamptz(6)
+  ultimo_mensaje_entrante_en    DateTime?           @db.Timestamptz(6)
+  ultimo_mensaje_saliente_en    DateTime?           @db.Timestamptz(6)
   /// Control de concurrencia optimista: dos webhooks de la misma conversación no se pisan.
-  version                    Int                 @default(0)
-  creado_en                  DateTime            @default(now()) @db.Timestamptz(6)
-  actualizado_en             DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
-  eliminado_en               DateTime?           @db.Timestamptz(6)
+  version                       Int                 @default(0)
+  /// Agente de Chatwoot al que está asignada la conversación (lo que dice el evento de asignación).
+  asignada_a_agente_chatwoot_id Int?
+  /// El usuario del sistema que corresponde a ese agente (`usuario.chatwoot_agent_id`), si lo hay. Así
+  /// se sabe qué asesor tiene cada conversación. Nulo si nadie la tiene o el agente no está vinculado.
+  asignada_a_usuario_id         String?             @db.Uuid
+  creado_en                     DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en                DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en                  DateTime?           @db.Timestamptz(6)
 
   organizacion     organizacion     @relation(fields: [organizacion_id], references: [id])
   bandeja_chatwoot bandeja_chatwoot @relation(fields: [bandeja_chatwoot_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   lead             lead             @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  asignada_a       usuario?         @relation("conversacion_asignada", fields: [asignada_a_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   mensajes         mensaje[]
   interacciones    interaccion[]
   tareas_asesor    tarea_asesor[]
@@ -903,16 +909,19 @@ model usuario {
   contrasena_hash        String
   activo                 Boolean     @default(true)
   contrasena_cambiada_en DateTime?   @db.Timestamptz(6)
+  /// Id del agente de Chatwoot de esta persona (único entre los usuarios vivos de la organización).
+  chatwoot_agent_id      Int?
   creado_en              DateTime    @default(now()) @db.Timestamptz(6)
   actualizado_en         DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en           DateTime?   @db.Timestamptz(6)
 
-  organizacion          organizacion           @relation(fields: [organizacion_id], references: [id])
-  sucursales            usuario_sucursal[]
-  sesiones              sesion[]
-  instructores          instructor[]
-  cambios               registro_cambio[]
-  accesos_dato_sensible acceso_dato_sensible[]
+  organizacion             organizacion           @relation(fields: [organizacion_id], references: [id])
+  sucursales               usuario_sucursal[]
+  sesiones                 sesion[]
+  instructores             instructor[]
+  cambios                  registro_cambio[]
+  accesos_dato_sensible    acceso_dato_sensible[]
+  conversaciones_asignadas conversacion[]         @relation("conversacion_asignada")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])

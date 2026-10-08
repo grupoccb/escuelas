@@ -18,7 +18,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B2 | HECHO | (ver git log) | Matriz permiso×rol, alcance por sucursal y por grupo del maestro, usuarios/grupos/tareas/leads |
 | B3 | HECHO | (ver git log) | API base: errores, validador, paginación, registro de cambios solo de anexar, cabeceras; docs/API.md |
 | B4 | HECHO | (ver git log) | Datos sensibles: ficha de salud cifrada, registro de accesos, redacción en logs, `check:sensibles` y test de fuga |
-| B5 | PENDIENTE | | Usuario y agente de Chatwoot |
+| B5 | HECHO | (ver git log) | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
 | B6 | PENDIENTE | | Protección de rutas públicas |
 | C1 | PENDIENTE | | Instructores y salones |
 | C2 | PENDIENTE | | Precios versionados |
@@ -575,3 +575,28 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 **Para Eduardo**
 - Decidir quién captura la ficha en la inscripción (hoy solo administrador y maestro pueden escribirla) y cuándo la ve el maestro (la regla «sus grupos» llega con F1/F3).
 - La clave de la demo está en `docker-compose.yml`; en producción va en el gestor de secretos y respaldarla es tan importante como respaldar la base (sin ella los datos no se recuperan).
+
+## B5. Usuario y agente de Chatwoot
+
+**Qué se hizo**
+- **Esquema** (migración `20261010040000_agente_chatwoot`): `usuario.chatwoot_agent_id` (único entre los vivos de la organización, índice parcial); en `conversacion`, `asignada_a_usuario_id` (FK compuesta a `usuario`) y `asignada_a_agente_chatwoot_id` (el agente tal como lo dice Chatwoot).
+- **Adaptador `DirectorioAgentes`** (`src/mensajeria/directorio.ts`, invariante 11): interfaz `listarAgentes(cuenta)`; `DirectorioAgentesFalso` (agentes declarados en la prueba, con falla simulable) y `DirectorioAgentesChatwoot` (`src/mensajeria/chatwoot/directorio.ts`, invariante 4) sobre `GET /api/v1/accounts/:id/agents` con el token de un administrador de la cuenta (`CHATWOOT_ADMIN_TOKEN`), sin seguir redirecciones, con tiempo máximo y tolerante a entradas mal formadas. `directorioAgentesDesdeEntorno()`: real con `CHATWOOT_URL` + token; falso vacío fuera de producción; `null` en producción (vincular responde 409).
+- **Asignación** (`src/captacion/toma.ts`): el evento real de asignación (`conversation_updated` con `assignee_id`, A3) guarda ahora el agente y el usuario vinculado a él — también cuando la conversación ya estaba en manos de una persona (reasignación) —; la organización sale de la bandeja, nunca del id del agente. Nuevo `interpretarDesasignacion` + `registrarDesasignacionDeConversacion` para el payload real de «quitar al asesor» (`assignee_id → null`): borra la asignación anotada y NO cambia el estado de atención (conservador, como A3). El webhook de Chatwoot lo enruta en `app.ts` y `server.ts` lo conecta.
+- **Endpoints**: `POST /api/usuarios/:id/vincular-chatwoot {agente_id?}` (administrador; sin `agente_id` busca por correo; deja `registro_cambio`; 409 si el agente ya es de otro usuario —también en carrera, con el índice como respaldo— o si Chatwoot no responde; 404 sin agente con ese correo; 400 con un `agente_id` que no existe) y `GET /api/conversaciones?asignada_a=yo|nadie|<usuario>&estado=` (permiso `conversaciones:leer`: administrador y asesor; alcance por sucursal del lead). `GET /api/usuarios` ahora devuelve `chatwoot_agent_id`.
+- Vincular completa las conversaciones que ya estaban asignadas a ese agente antes del vínculo (por eso se guarda también el id del agente), y quita al usuario las del agente anterior si se le cambia.
+
+**Verificación**
+- `npm run validar` → exit 0 (`ℹ tests 240 · pass 240`; `check:generico: 198`, `check:capas: 76`, `check:sensibles: 76`). `npm run test:int` → exit 0 · `ℹ tests 324 · pass 324 · fail 0` (antes 314).
+- `chatwoot.itest.ts` (10), con el directorio falso y los payloads REALES `payload-conversacion-asignada.json` / `payload-conversacion-desasignada.json` apuntados a la bandeja de prueba: vincular por correo, por id, errores (400/404/409), carrera de dos vínculos al mismo agente (uno gana), caída del directorio sin filtrar el detalle, otra organización → 404; asignación guarda agente y usuario, reasignación con estado sin cambio, desasignación borra y no devuelve el bot, agente sin usuario y vínculo posterior, mismo id de agente en otra organización no cruza, FK compuesta en la base; `asignada_a=yo|nadie|uuid`, alcance por sucursal, recepción y maestro 403, no-fuga. `directorio.test.ts` (3) contra un servidor HTTP local; `webhook.test.ts` y `app.test.ts` (+1 cada uno) para la desasignación.
+- Mutaciones atrapadas: sin guardar la asignación en la toma, sin completar conversaciones al vincular, sin el filtro de sucursal de las conversaciones. Equivalente: sin la comprobación previa de «agente de otro usuario» (el índice único responde 409 igual).
+
+**Decisiones que tomé**
+- *Se guarda también el id del agente* (`asignada_a_agente_chatwoot_id`) además del usuario pedido: si el asesor se vincula después de que le asignaron conversaciones, sin él no habría cómo recuperarlas. Alternativa descartada: solo `asignada_a_usuario_id` (perdería esas asignaciones).
+- *Desasignar borra la asignación pero no el estado de atención.* Alternativa descartada: devolver el bot (ver A3).
+- *Mensaje de un asesor no cuenta como asignación* (solo el evento de asignación): un asesor que responde sin habérsela asignado no queda como dueño.
+- *Directorio por cuenta, primera cuenta de la organización*: hoy cada organización tiene una cuenta de Chatwoot (EA-21).
+- *El directorio devuelve 409 cuando Chatwoot no responde* y no 502/500, y sin el detalle: el administrador sabe que reintente.
+
+**Para Eduardo**
+- En un ambiente real hace falta `CHATWOOT_ADMIN_TOKEN` (un administrador de la cuenta); la demo ya lo trae en `config/demo-local.env`.
+- Los usuarios deben tener el MISMO correo que su agente de Chatwoot para vincularlos sin escribir el id.

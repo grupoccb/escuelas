@@ -57,7 +57,7 @@ test("registro: crear un usuario deja quién y qué, sin contraseña; modificarl
   const filas = (await registrosDe(id)).reverse(); // del más viejo al más nuevo
   assert.deepEqual(filas.map((f) => f.accion), ["crear", "actualizar", "restablecer_contrasena"]);
   assert.ok(filas.every((f) => f.usuario_id === admin.id && f.entidad_tipo === "usuario"));
-  assert.deepEqual(filas[0]!.despues, { nombre: "Registrada", rol: "recepcion", activo: true, sucursales: [org.sucursales[0]!.id] });
+  assert.deepEqual(filas[0]!.despues, { nombre: "Registrada", rol: "recepcion", activo: true, sucursales: [org.sucursales[0]!.id], chatwoot_agent_id: null });
   assert.equal(filas[0]!.antes, null);
   assert.deepEqual(filas[1]!.antes, { rol: "recepcion" });
   assert.deepEqual(filas[1]!.despues, { rol: "asesor" });

@@ -8,6 +8,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { DepsAcceso } from "../auth/acceso.ts";
 import type { UsuarioDeSesion } from "../auth/sesiones.ts";
 import { normalizarIp } from "../http/ip.ts";
+import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { alcanceDeSucursales, type AlcanceDeSucursales } from "./alcance.ts";
 
@@ -20,6 +21,8 @@ export interface DepsApi {
   origenesPermitidos: string[];
   /** Cifrador y regla del maestro para los datos de salud (los tests inyectan los suyos). */
   sensibles: OpcionesSensibles;
+  /** Agentes de Chatwoot. Nulo = no configurado. */
+  directorio: DirectorioAgentes | null;
 }
 
 export interface ContextoApi {

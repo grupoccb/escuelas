@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { interpretarEventoChatwoot, interpretarTomaDeConversacion, firmarCuerpoChatwoot, verificarWebhookChatwoot } from "./webhook.ts";
+import { interpretarDesasignacion, interpretarEventoChatwoot, interpretarTomaDeConversacion, firmarCuerpoChatwoot, verificarWebhookChatwoot } from "./webhook.ts";
 import { EstadosEntregaChatwoot } from "./estados.ts";
 import { payloadMensajeEntrante } from "./fixtures.ts";
 import { AtribucionDesdeChatwoot } from "./atribucion.ts";
@@ -191,4 +191,19 @@ test("A3: el mensaje del contacto interpretado conserva el estado de Chatwoot, q
   // Los mensajes salientes (bot o asesor) no son mensajes del contacto.
   assert.equal(interpretarEventoChatwoot(fixture("mensaje-bot")), null);
   assert.equal(interpretarEventoChatwoot(fixture("mensaje-asesor")), null);
+});
+
+test("B5: quitar el asesor (assignee_id → null) es una desasignación, con el payload real; asignar, abrir o mensajes no lo son", () => {
+  const d = interpretarDesasignacion(fixture("conversacion-desasignada"));
+  assert.ok(d);
+  assert.deepEqual([d.chatwootAccountId, d.chatwootInboxId, d.chatwootConversacionId], [2, 3, 11]);
+  for (const nombre of ["conversacion-asignada", "conversacion-abierta", "conversacion-bot-suelta", "conversacion-actualizada", "conversacion-resuelta", "mensaje-asesor", "mensaje-bot", "conversacion-vuelve-a-pendiente"]) {
+    assert.equal(interpretarDesasignacion(fixture(nombre)), null, nombre);
+  }
+  assert.equal(interpretarDesasignacion(null), null);
+  assert.equal(interpretarDesasignacion(REAL), null);
+  // null → null no es un cambio.
+  const sinCambio = fixture("conversacion-desasignada");
+  (sinCambio["changed_attributes"] as Record<string, Record<string, unknown>>[])[0]!["assignee_id"]!["previous_value"] = null;
+  assert.equal(interpretarDesasignacion(sinCambio), null);
 });

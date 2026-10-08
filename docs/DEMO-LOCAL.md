@@ -71,6 +71,14 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/yo
 
 (`organizacion` puede omitirse mientras exista una sola organización.)
 
+Vincular al asesor demo con su agente de Chatwoot (mismo correo, `asesor@demo.test`) para saber qué conversaciones tiene:
+
+```bash
+# como administrador (cookie de arriba); el id sale de GET /api/usuarios?rol=asesor
+curl -b /tmp/sesion.txt -X POST -H 'x-requested-with: curl' http://localhost:3000/api/usuarios/<id>/vincular-chatwoot
+curl -b /tmp/sesion-asesor.txt 'http://localhost:3000/api/conversaciones?asignada_a=yo'   # tras asignarte una conversación en Chatwoot
+```
+
 Datos de salud (solo administrador y maestro del grupo): `PUT/GET /api/salud/prospecto/:id` — ver `docs/API.md`.
 La clave de cifrado de la demo (`CLAVE_DATOS_SENSIBLES` en `docker-compose.yml`) es pública a propósito.
 

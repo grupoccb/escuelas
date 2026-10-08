@@ -189,3 +189,27 @@ export function interpretarTomaDeConversacion(payload: unknown): EventoTomaDeCon
 
   return null;
 }
+
+/**
+ * La conversación se quedó sin asesor: `conversation_updated` cuyo `assignee_id` pasó a null
+ * (payload real en `payload-conversacion-desasignada.json`). NO es una toma y no cambia el estado
+ * de atención: solo hace que el sistema deje de creer que la tiene un asesor.
+ */
+export interface EventoDesasignacion {
+  chatwootAccountId: number;
+  chatwootInboxId: number;
+  chatwootConversacionId: number;
+}
+
+export function interpretarDesasignacion(payload: unknown): EventoDesasignacion | null {
+  const p = objeto(payload);
+  if (!p || p["event"] !== "conversation_updated") return null;
+  const cuenta = entero(objeto(p["account"])?.["id"]);
+  const cambio = cambioDe(p["changed_attributes"], "assignee_id");
+  if (cuenta === null || !cambio || !("current_value" in cambio) || cambio["current_value"] !== null) return null;
+  if (entero(cambio["previous_value"]) === null) return null; // null → null no es un cambio
+  const bandeja = entero(p["inbox_id"]);
+  const conversacion = entero(p["id"]);
+  if (bandeja === null || conversacion === null) return null;
+  return { chatwootAccountId: cuenta, chatwootInboxId: bandeja, chatwootConversacionId: conversacion };
+}

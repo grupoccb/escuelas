@@ -197,3 +197,22 @@ test("A3: si registrar la toma falla responde 500 para que Chatwoot reintente", 
   const cuerpo = fixtureJson("conversacion-asignada");
   assert.equal((await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 500);
 });
+
+test("B5: quitar el asesor, firmado, registra la desasignación; sin el manejador (o sin firma) no pasa nada", async () => {
+  const desasignaciones: number[] = [];
+  const d = deps({ registrarDesasignacion: async (e) => { desasignaciones.push(e.chatwootConversacionId); return "desasignada"; } });
+  const cuerpo = fixtureJson("conversacion-desasignada");
+  const r = await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo));
+  assert.deepEqual([r.status, r.body], [200, { ok: true, resultado: "desasignada" }]);
+  assert.deepEqual(desasignaciones, [11]);
+  assert.equal(d.tomas.length, 0, "desasignar no es tomar");
+
+  assert.equal((await pedir(d, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo, undefined, "otro-secreto"))).status, 401);
+  assert.deepEqual(desasignaciones, [11]);
+
+  const sin = deps();
+  assert.deepEqual((await pedir(sin, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).body, { ok: true, resultado: "ignorado" });
+
+  const falla = deps({ registrarDesasignacion: async () => { throw new Error("base caída"); } });
+  assert.equal((await pedir(falla, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 500);
+});

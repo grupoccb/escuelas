@@ -15,6 +15,7 @@ import express from "express";
 import { hashContrasena, problemasDeContrasena } from "../../auth/contrasena.ts";
 import { ROLES } from "../../auth/roles.ts";
 import { revocarSesionesDeUsuario } from "../../auth/sesiones.ts";
+import { ErrorDirectorio } from "../../mensajeria/index.ts";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
@@ -23,7 +24,7 @@ import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
-import { booleano, booleanoDeTexto, correo, enumerado, listaDe, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "../validar.ts";
+import { booleano, booleanoDeTexto, correo, entero, enumerado, listaDe, objeto, opcional, parsear, parsearQuery, texto, textoLiteral, uuid } from "../validar.ts";
 import { autenticar } from "../autenticar.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 
@@ -33,6 +34,7 @@ const SELECCION = {
   nombre: true,
   rol: true,
   activo: true,
+  chatwoot_agent_id: true,
   creado_en: true,
   sucursales: { where: { eliminado_en: null }, select: { sucursal_id: true }, orderBy: { sucursal_id: "asc" } },
 } as const;
@@ -43,21 +45,23 @@ interface FilaUsuario {
   nombre: string;
   rol: string;
   activo: boolean;
+  chatwoot_agent_id: number | null;
   creado_en: Date;
   sucursales: { sucursal_id: string }[];
 }
 
 /** Lo que se audita de un usuario (lista blanca de registro.ts; sin contraseña). */
 function instantaneaDe(u: FilaUsuario): Instantanea {
-  return { nombre: u.nombre, rol: u.rol, activo: u.activo, sucursales: u.sucursales.map((s) => s.sucursal_id) };
+  return { nombre: u.nombre, rol: u.rol, activo: u.activo, sucursales: u.sucursales.map((s) => s.sucursal_id), chatwoot_agent_id: u.chatwoot_agent_id };
 }
 
 export function presentarUsuario(u: FilaUsuario) {
-  return { id: u.id, correo: u.correo, nombre: u.nombre, rol: u.rol, activo: u.activo, creado_en: u.creado_en, sucursales: u.sucursales.map((s) => s.sucursal_id) };
+  return { id: u.id, correo: u.correo, nombre: u.nombre, rol: u.rol, activo: u.activo, chatwoot_agent_id: u.chatwoot_agent_id, creado_en: u.creado_en, sucursales: u.sucursales.map((s) => s.sucursal_id) };
 }
 
 const esquemaListado = objeto({ ...esquemaPaginacion, rol: opcional(enumerado(ROLES)), activo: opcional(booleanoDeTexto()) });
 const esquemaId = objeto({ id: uuid() });
+const esquemaVinculo = objeto({ agente_id: opcional(entero({ min: 1 })) });
 const esquemaAlta = objeto({
   correo: correo(),
   nombre: texto({ max: 120 }),
@@ -195,6 +199,54 @@ export function rutasDeUsuarios(deps: DepsApi): Router {
       return despues;
     });
     res.json(presentarUsuario(actualizado));
+  });
+
+  // Enlaza al usuario con su agente de Chatwoot (B5) para saber qué asesor tiene cada conversación.
+  // Sin `agente_id` se busca el agente cuyo correo coincide con el del usuario.
+  r.post("/usuarios/:id/vincular-chatwoot", ...dentro, json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const { agente_id: agenteId } = parsear(esquemaVinculo, req.body ?? {});
+    const usuario = await ctx.db.usuario.findFirst({ where: { id }, select: { id: true, correo: true } });
+    if (!usuario) throw noEncontrado();
+    if (!deps.directorio) throw conflicto("El directorio de agentes de Chatwoot no está configurado");
+    const cuentas = await ctx.db.bandeja_chatwoot.findMany({
+      where: { chatwoot_account_id: { not: null } },
+      select: { chatwoot_account_id: true },
+      orderBy: [{ chatwoot_account_id: "asc" }],
+      take: 1,
+    });
+    const cuenta = cuentas[0]?.chatwoot_account_id;
+    if (cuenta === null || cuenta === undefined) throw conflicto("La organización no tiene una bandeja de Chatwoot configurada");
+    let agentes;
+    try {
+      agentes = await deps.directorio.listarAgentes(cuenta);
+    } catch (e) {
+      if (e instanceof ErrorDirectorio) throw conflicto("No se pudo consultar a Chatwoot. Inténtalo de nuevo.");
+      throw e;
+    }
+    const agente = agenteId !== undefined ? agentes.find((a) => a.id === agenteId) : agentes.find((a) => a.correo === usuario.correo);
+    if (!agente) {
+      throw agenteId !== undefined ? validacion([{ campo: "agente_id", mensaje: "No existe ese agente en Chatwoot" }]) : noEncontrado("No hay un agente de Chatwoot con el correo de este usuario");
+    }
+    try {
+      const resultado = await ctx.db.$transaction(async (tx) => {
+        const otro = await tx.usuario.findFirst({ where: { chatwoot_agent_id: agente.id, id: { not: id } }, select: { id: true } });
+        if (otro) throw conflicto("Ese agente de Chatwoot ya está vinculado a otro usuario");
+        const antes = await tx.usuario.findFirstOrThrow({ where: { id }, select: { chatwoot_agent_id: true } });
+        await tx.usuario.update({ where: { id }, data: { chatwoot_agent_id: agente.id } });
+        // Las conversaciones que ya estaban asignadas a ese agente pasan a ser de este usuario; las que
+        // tenía por un agente anterior dejan de serlo.
+        await tx.conversacion.updateMany({ where: { asignada_a_usuario_id: id, asignada_a_agente_chatwoot_id: { not: agente.id } }, data: { asignada_a_usuario_id: null } });
+        await tx.conversacion.updateMany({ where: { asignada_a_agente_chatwoot_id: agente.id }, data: { asignada_a_usuario_id: id } });
+        await registrarCambio(tx, ctx, { entidad: "usuario", entidadId: id, accion: "vincular_chatwoot", antes: { chatwoot_agent_id: antes.chatwoot_agent_id }, despues: { chatwoot_agent_id: agente.id } });
+        return tx.usuario.findFirstOrThrow({ where: { id }, select: SELECCION });
+      });
+      res.json(presentarUsuario(resultado));
+    } catch (e) {
+      if (esViolacionUnica(e)) throw conflicto("Ese agente de Chatwoot ya está vinculado a otro usuario");
+      throw e;
+    }
   });
 
   return r;
