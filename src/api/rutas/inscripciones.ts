@@ -91,7 +91,7 @@ export function rutasDeInscripciones(_deps: DepsApi): Router {
       await paginar(
         pag,
         () => ctx.db.inscripcion.count({ where }),
-        async (saltar, tomar) => (await ctx.db.inscripcion.findMany({ where, select: SELECCION_INSCRIPCION, orderBy: [{ creado_en: "desc" }, { id: "desc" }], skip: saltar, take: tomar })).map((f) => presentarInscripcion(f as unknown as FilaDeInscripcion, ahora)),
+        async (saltar, tomar) => (await ctx.db.inscripcion.findMany({ where, select: SELECCION_INSCRIPCION, orderBy: [{ creado_en: "desc" }, { id: "desc" }], skip: saltar, take: tomar })).map((f) => presentarInscripcion(f as unknown as FilaDeInscripcion, ahora, ctx.usuario.rol)),
       ),
     );
   });
@@ -100,7 +100,7 @@ export function rutasDeInscripciones(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const f = await leer(ctx, id);
-    res.json(presentarInscripcion(f, ctx.ahora()));
+    res.json(presentarInscripcion(f, ctx.ahora(), ctx.usuario.rol));
   });
 
   r.post("/inscripciones", requierePermiso("inscripciones:escribir"), json, async (req, res) => {
@@ -128,7 +128,7 @@ export function rutasDeInscripciones(_deps: DepsApi): Router {
     if (!resultado.ok) errorDeInscripcion(resultado);
     // Si la familia esperaba un lugar en este grupo, la entrada de la lista se cierra como inscrita (con su propio candado, ya confirmada la inscripción).
     if (resultado.inscripcion.listaDeEspera) await cerrarEntradaDe(ctx.db, resultado.inscripcion.listaDeEspera.grupoId, resultado.inscripcion.listaDeEspera.prospectoId, "inscrito");
-    res.status(201).json(presentarInscripcion(await leer(ctx, resultado.inscripcion.id), ctx.ahora()));
+    res.status(201).json(presentarInscripcion(await leer(ctx, resultado.inscripcion.id), ctx.ahora(), ctx.usuario.rol));
   });
 
   /**
@@ -144,7 +144,7 @@ export function rutasDeInscripciones(_deps: DepsApi): Router {
     });
     if (!resultado.ok) errorDeCambio(resultado);
     const oferta = resultado.liberaLugarEn ? await ofrecerLugarLiberado(ctx.db, resultado.liberaLugarEn, { ahora: ctx.ahora() }) : null;
-    return { ...presentarInscripcion(await leer(ctx, id), ctx.ahora()), lista_espera: oferta ? { tarea_id: oferta.tareaId, prospecto_id: oferta.entrada.prospectoId, posicion: oferta.entrada.posicion } : null };
+    return { ...presentarInscripcion(await leer(ctx, id), ctx.ahora(), ctx.usuario.rol), lista_espera: oferta ? { tarea_id: oferta.tareaId, prospecto_id: oferta.entrada.prospectoId, posicion: oferta.entrada.posicion } : null };
   }
   const actor = (ctx: ContextoApi) => ({ ahora: ctx.ahora(), usuarioId: ctx.usuario.id });
 
@@ -186,7 +186,7 @@ export function rutasDeInscripciones(_deps: DepsApi): Router {
       orderBy: [{ secuencia: "asc" }],
       select: { id: true, tipo: true, fecha: true, creado_en: true, grupo_anterior: { select: { id: true, nombre: true } }, grupo_nuevo: { select: { id: true, nombre: true } }, motivo_baja: { select: { id: true, codigo: true, nombre: true } }, usuario: { select: { id: true, nombre: true } } },
     });
-    res.json({ datos: filas.map((m) => ({ id: m.id, tipo: m.tipo, fecha: m.fecha.toISOString().slice(0, 10), registrado_en: m.creado_en, grupo_anterior: m.grupo_anterior, grupo_nuevo: m.grupo_nuevo, motivo_baja: m.motivo_baja, usuario: m.usuario })) });
+    res.json({ datos: filas.map((m) => ({ id: m.id, tipo: m.tipo, fecha: m.fecha.toISOString().slice(0, 10), registrado_en: m.creado_en, grupo_anterior: m.grupo_anterior, grupo_nuevo: m.grupo_nuevo, ...(ctx.usuario.rol === "maestro" ? {} : { motivo_baja: m.motivo_baja, usuario: m.usuario }) })) });
   });
 
   return r;

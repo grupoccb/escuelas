@@ -300,6 +300,33 @@ test("la lista de espera se cierra como «inscrito» al inscribir a quien espera
   assert.equal((await prisma.lista_espera.findFirstOrThrow({ where: { grupo_id: g.grupoId, prospecto_id: espera.prospectoId } })).estatus, "inscrito");
 });
 
+test("EF-03: el maestro lee quiénes están inscritos en sus grupos, no lo que pagan ni negociaron — sin importes, descuentos, promociones, corte, cotización ni lead; los demás roles sí lo ven", async () => {
+  const a = await alumno();
+  const i = await inscribir(admin, a.alumnoId, grupo, { meses_pagados_por_adelantado: 2 });
+  assert.equal(i.estado, 201);
+  const prohibidos = ["500.00", "800.00", "precio_", "descuento", "promocion", "cotizacion", "lead_id", "meses_", "dia_corte", "proximo_corte"];
+  for (const ruta of [`/api/inscripciones/${i.cuerpo.id}`, `/api/inscripciones?grupo_id=${grupo}&alumno_id=${a.alumnoId}`]) {
+    const r = await maestro.get(ruta);
+    assert.equal(r.estado, 200, ruta);
+    const texto = JSON.stringify(r.cuerpo);
+    assert.ok(texto.includes(a.alumnoId), "sí ve quién está inscrito");
+    for (const x of prohibidos) assert.ok(!texto.includes(x), `el maestro no debe ver «${x}» en ${ruta}`);
+  }
+  // El historial de movimientos tampoco le dice por qué se dio de baja una familia ni quién lo registró.
+  assert.equal((await admin.post(`/api/inscripciones/${i.cuerpo.id}/baja`, { motivo_baja_id: await sembrarMotivoBaja(prisma, org, "motivo_ef03") })).estado, 200);
+  const mov = await maestro.get<{ datos: Record<string, unknown>[] }>(`/api/inscripciones/${i.cuerpo.id}/movimientos`);
+  assert.equal(mov.estado, 200);
+  assert.equal(mov.cuerpo.datos.length, 1);
+  assert.ok(!("motivo_baja" in mov.cuerpo.datos[0]!) && !("usuario" in mov.cuerpo.datos[0]!), JSON.stringify(mov.cuerpo));
+  const delAdmin = await admin.get<{ datos: Record<string, unknown>[] }>(`/api/inscripciones/${i.cuerpo.id}/movimientos`);
+  assert.ok("motivo_baja" in delAdmin.cuerpo.datos[0]!);
+  // Lo mismo lo ven el administrador, el asesor y recepción.
+  for (const c of [admin, asesorNorte, recepcion]) {
+    const texto = JSON.stringify((await c.get(`/api/inscripciones/${i.cuerpo.id}`)).cuerpo);
+    assert.ok(texto.includes("500.00") && texto.includes("800.00") && texto.includes("dia_corte_pago"));
+  }
+});
+
 test("alcance y permisos: el asesor del sur no inscribe en el norte, el maestro solo lee lo de sus grupos y no escribe, y la salud del alumno se abre al maestro con la inscripción", async () => {
   const g = await nuevoGrupo();
   const a = await alumno();

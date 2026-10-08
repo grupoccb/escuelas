@@ -63,9 +63,13 @@ export interface FilaDeInscripcion {
   [extra: string]: unknown;
 }
 
-export function presentarInscripcion(f: FilaDeInscripcion, ahora: Date) {
+/**
+ * La inscripción hacia afuera. EF-03: el MAESTRO lee quiénes están inscritos en sus grupos y desde cuándo, no lo que cada familia paga ni negoció:
+ * sin importes, descuentos, meses, promociones, día de corte, cotización ni lead de origen.
+ */
+export function presentarInscripcion(f: FilaDeInscripcion, ahora: Date, rol: string = "administrador") {
   const hoy: FechaISO = fechaLocal(ahora, f.grupo.programa.sucursal.zona_horaria);
-  return {
+  const base = {
     id: f.id,
     alumno_id: f.alumno_id,
     alumno: `${f.alumno.nombre} ${f.alumno.apellidos}`,
@@ -75,14 +79,19 @@ export function presentarInscripcion(f: FilaDeInscripcion, ahora: Date) {
     programa: f.grupo.programa.nombre,
     sucursal_id: f.grupo.programa.sucursal_id,
     sucursal: f.grupo.programa.sucursal.nombre,
-    lead_id: f.lead_id,
     prospecto_id: f.prospecto_id,
-    cotizacion_id: f.cotizacion_id,
-    promocion_id: f.promocion_id,
     estatus: f.estatus,
     fecha_inscripcion: deFecha(f.fecha_inscripcion),
     fecha_inicio: deFecha(f.fecha_inicio),
     fecha_baja: f.fecha_baja ? deFecha(f.fecha_baja) : null,
+    creado_en: f.creado_en,
+  };
+  if (rol === "maestro") return base;
+  return {
+    ...base,
+    lead_id: f.lead_id,
+    cotizacion_id: f.cotizacion_id,
+    promocion_id: f.promocion_id,
     precio_inscripcion_aplicado: importeATexto(f.precio_inscripcion_aplicado),
     precio_mensualidad_aplicado: importeATexto(f.precio_mensualidad_aplicado),
     descuento_inscripcion_aplicado: importeATexto(f.descuento_inscripcion_aplicado),
@@ -103,7 +112,6 @@ export function presentarInscripcion(f: FilaDeInscripcion, ahora: Date) {
       descuento: importeATexto(a.descuento),
       meses_gratis: a.meses_gratis,
     })),
-    creado_en: f.creado_en,
   };
 }
 
