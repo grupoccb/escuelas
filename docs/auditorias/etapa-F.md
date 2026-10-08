@@ -215,7 +215,7 @@ prisma migrate diff (E→F con datos / vacía→F)   No difference detected / No
 |---|---|---|
 | EF-01 (ALTA) | corregido | `6c9ef58` |
 | EF-02, EF-03, EF-04 | corregidos | `5ce7801`, `f97d836`, `b7ef6ec` |
-| EF-05 | corregido (15 pruebas nuevas; 4 mutaciones equivalentes) | `bb51a12`, `ce280a1` |
+| EF-05 | corregido (12 pruebas nuevas matan 15 de las 19 mutaciones; 4 son equivalentes) | `bb51a12`, `ce280a1` |
 | EF-08, EF-09, EF-10 | corregidos | `41ae7ed` |
 | EF-16 | corregido | `1a7dab8` |
 | EF-26 | corregido | `ad6835e` |

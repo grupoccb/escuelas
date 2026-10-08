@@ -1797,7 +1797,7 @@ Informe: `docs/auditorias/etapa-F.md` (auditor con contexto nuevo; commit `4cca4
 | EF-02 la bienvenida sale por el canal de otra vertical | MEDIA | **corregido** | `5ce7801`: conversación del tutor responsable en la vertical de la inscripción; si no hay, tarea; mutaciones de los dos filtros mueren |
 | EF-03 el maestro ve importes, descuentos y motivos de baja | MEDIA | **corregido** | `f97d836`: `presentarInscripcion(…, rol)` y movimientos sin motivo/usuario para el maestro |
 | EF-04 precio congelado y «el grupo es del programa» solo en el código | MEDIA | **corregido** | `b7ef6ec`: migración `20261017000000_inscripcion_blindaje` (3 disparadores); 5 mutaciones a la migración mueren |
-| EF-05 19 mutaciones sobrevivían | MEDIA | **corregido** (15 con prueba nueva; 4 equivalentes) | `bb51a12`, `ce280a1`: 15 pruebas nuevas, todas matan su mutación; quedan 4 equivalentes documentadas en el informe (41, 53, 57, 60) |
+| EF-05 19 mutaciones sobrevivían | MEDIA | **corregido** (15 de las 19 mutaciones ahora mueren; 4 son equivalentes) | `bb51a12`, `ce280a1`: 12 pruebas nuevas, cada una mata sus mutaciones al aplicarlas de nuevo; quedan 4 equivalentes documentadas en el informe (41, 53, 57, 60) |
 | EF-06 clase muestra e inscripción no se cuentan entre sí | MEDIA (producto) | **pendiente: decisión de Eduardo** | informe, sección 8 |
 | EF-07 alta por teléfono ajeno devuelve nombre y correo de un tutor de otra sucursal | MEDIA (producto) | **pendiente: decisión de Eduardo** | demostrado en el informe; se prefiere decidir qué se oculta |
 | EF-08 condiciones anidadas sin `eliminado_en` | BAJA | **corregido** | `41ae7ed` (hermanos, cross-sell, alcance de familia) |
