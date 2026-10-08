@@ -11,6 +11,7 @@
 
 import type { Consultas } from "../datos/alcance.ts";
 import { detectarChoques, type OcupacionDeGrupo } from "./choques.ts";
+import { salonesRepetidosPorForma } from "./salones.ts";
 
 export interface ProgramaCatalogo {
   id: string;
@@ -215,4 +216,24 @@ export function choquesDeInstructor(c: Catalogo): ChoqueDeInstructor[] {
     .filter((x) => x.tipo === "instructor")
     .map((x) => ({ instructorId: x.recursoId, dia: x.dia, grupoA: x.grupoNombre, grupoB: x.otroGrupoNombre }))
     .sort((x, y) => x.dia - y.dia || alfabetico(x.grupoA, y.grupoA));
+}
+
+// ── 4. Salones que son «el mismo» con otro nombre (EC-05) ─────────────────────────────────
+
+export interface SalonesParecidos {
+  sucursal: string;
+  nombres: string[];
+}
+
+/**
+ * Salones de una misma sucursal cuyo nombre solo difiere en mayúsculas, acentos o espacios. Son el mismo cuarto
+ * escrito distinto: los choques se calculan por `salon_id`, así que mientras estén separados no se ven. La API ya no
+ * deja crearlos; esto reporta los que vienen de datos heredados (la migración de `grupo.salon` de texto), para que el
+ * administrador los junte.
+ */
+export function salonesConNombreParecido(c: Catalogo): SalonesParecidos[] {
+  const lista = [...c.salones.entries()].map(([id, s]) => ({ id, sucursalId: s.sucursalId, nombre: s.nombre }));
+  return salonesRepetidosPorForma(lista)
+    .map((g) => ({ sucursal: c.sucursales.get(g.sucursalId) ?? g.sucursalId, nombres: g.ids.map((id) => c.salones.get(id)!.nombre).sort(alfabetico) }))
+    .sort((a, b) => alfabetico(a.sucursal, b.sucursal) || alfabetico(a.nombres[0] ?? "", b.nombres[0] ?? ""));
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calcularCupo } from "./cupo.ts";
-import { alternativasPorEdad, choquesDeInstructor, choquesDeSalon, resumenDeCapacidad, traslapesDeEdad, type Catalogo } from "./verificacion.ts";
+import { alternativasPorEdad, choquesDeInstructor, choquesDeSalon, resumenDeCapacidad, salonesConNombreParecido, traslapesDeEdad, type Catalogo } from "./verificacion.ts";
 
 // Nombres neutros a propósito: los reales viven en las tablas (invariante 2).
 const SUC = new Map([["s1", "Norte"], ["s2", "Sur"]]);
@@ -124,4 +124,18 @@ test("choques de instructor: el mismo instructor en dos grupos a la vez, aunque 
   });
   assert.deepEqual(choquesDeInstructor(c), [{ instructorId: "i1", dia: 2, grupoA: "Gg1", grupoB: "Gg3" }]);
   assert.deepEqual(choquesDeSalon(c), [], "los salones son distintos");
+});
+
+test("EC-05: salones de una misma sucursal con nombres que solo difieren en la forma se reportan; los de otra sucursal o distintos no", () => {
+  const salones = new Map([
+    ["a", { nombre: "Salón A", sucursalId: "s1" }],
+    ["b", { nombre: "salón  a", sucursalId: "s1" }],
+    ["c", { nombre: "Salón B", sucursalId: "s1" }],
+    ["d", { nombre: "Salón A", sucursalId: "s2" }],
+  ]);
+  const r = salonesConNombreParecido(catalogo({ salones }));
+  assert.equal(r.length, 1);
+  assert.equal(r[0]!.sucursal, "Norte");
+  assert.deepEqual([...r[0]!.nombres].sort(), ["Salón A", "salón  a"].sort());
+  assert.deepEqual(salonesConNombreParecido(catalogo()), [], "el catálogo de prueba por omisión no tiene repetidos");
 });

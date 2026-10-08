@@ -379,3 +379,36 @@ test("la BASE por sí sola (disparador) impide el choque aun sin la API, y dos t
   assert.match(String(rechazada.reason), /choque_de_ocupacion/);
   assert.equal(await prisma.grupo_horario.count({ where: { grupo_id: { in: [g3.id, g4.id] }, eliminado_en: null } }), 1);
 });
+
+test("EC-05: un salón con el nombre de otro cambiando mayúsculas, acentos o espacios es el MISMO salón: 409 al crear y al renombrar, y el nombre se guarda limpio", async () => {
+  const base = await crearSalon(norte, "Sala Ñandú");
+  for (const variante of ["sala ñandú", "SALA ÑANDÚ", "Sala  Ñandú", "Sala Nandu", " Sala\tÑandú \n"]) {
+    const r = await admin.post<ErrorBody>("/api/salones", { sucursal_id: norte, nombre: variante });
+    assert.equal(r.estado, 409, JSON.stringify(variante));
+    assert.equal(r.cuerpo.error.detalles?.[0]?.campo, "nombre");
+  }
+  // Otra sucursal y otro nombre sí; y se guarda sin espacios de más.
+  const otra = await crearSalon(sur, "Sala Ñandú");
+  assert.notEqual(otra.id, base.id);
+  const limpio = await crearSalon(norte, "  Sala   Dos  ");
+  assert.equal(limpio.nombre, "Sala Dos");
+  // Renombrar a la forma de otro salón vivo también se rechaza; cambiar la forma de sí mismo, no.
+  assert.equal((await admin.patch<ErrorBody>(`/api/salones/${limpio.id}`, { nombre: "sala ñandu" })).estado, 409);
+  assert.equal((await admin.patch<Sal>(`/api/salones/${limpio.id}`, { nombre: "SALA DOS" })).estado, 200, "su propia forma sí cambia");
+  assert.equal((await admin.patch<Sal>(`/api/salones/${base.id}`, { nombre: "sala ñandú" })).estado, 200);
+  // Dar de baja libera el nombre.
+  assert.equal((await admin.delete(`/api/salones/${limpio.id}`)).estado, 204);
+  assert.equal((await admin.post("/api/salones", { sucursal_id: norte, nombre: "Sala dos" })).estado, 201);
+});
+
+test("EC-05: altas simultáneas del mismo salón con nombres equivalentes dejan UNA sola fila (seis rondas de dieciséis)", async () => {
+  // Dieciséis formas distintas del mismo nombre (cada letra de «sala» en mayúscula o minúscula): ninguna choca con otra en el índice único.
+  for (let ronda = 0; ronda < 6; ronda++) {
+    const nombres = Array.from({ length: 16 }, (_, i) => [..."sala"].map((c, j) => ((i >> j) & 1 ? c.toUpperCase() : c)).join("") + ` carrera ${ronda}`);
+    const rs = await Promise.all(nombres.map((n) => admin.post<ErrorBody>("/api/salones", { sucursal_id: sur, nombre: n })));
+    assert.equal(rs.filter((r) => r.estado === 201).length, 1, `ronda ${ronda}: ${JSON.stringify(rs.map((r) => r.estado))}`);
+    assert.ok(rs.every((r) => r.estado === 201 || r.estado === 409));
+    const filas = await prisma.salon.findMany({ where: { organizacion_id: org.organizacionId, sucursal_id: sur, eliminado_en: null, nombre: { in: nombres } } });
+    assert.equal(filas.length, 1, `ronda ${ronda}`);
+  }
+});

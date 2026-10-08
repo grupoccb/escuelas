@@ -13,9 +13,10 @@
 import { Router } from "express";
 import express from "express";
 import { esViolacionUnica } from "../../datos/prisma.ts";
-import { altaConAlcance } from "../../datos/alcance.ts";
+import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
 import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
+import { claveDeSalon, nombreDeSalon } from "../../catalogo/salones.ts";
 import { filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
@@ -35,7 +36,14 @@ const esquemaId = objeto({ id: uuid() });
 const esquemaAlta = objeto({ sucursal_id: uuid(), nombre: texto({ max: 80 }), capacidad: opcional(nulable(entero({ min: 1, max: 1000 }))), activo: opcional(booleano()) });
 const esquemaCambio = objeto({ nombre: opcional(texto({ max: 80 })), capacidad: opcional(nulable(entero({ min: 1, max: 1000 }))), activo: opcional(booleano()) });
 
-const repetido = () => conflicto("Ya existe un salón con ese nombre en la sucursal", [{ campo: "nombre", mensaje: "Ya está en uso en esa sucursal" }]);
+const repetido = () => conflicto("Ya existe un salón con ese nombre en la sucursal", [{ campo: "nombre", mensaje: "Ya está en uso en esa sucursal (se ignoran mayúsculas, acentos y espacios de más)" }]);
+
+/** EC-05: ¿hay en la sucursal otro salón que es «el mismo» salvo por la forma del nombre? */
+async function hayRepetido(tx: Consultas, sucursalId: string, nombre: string, exceptoId?: string): Promise<boolean> {
+  const clave = claveDeSalon(nombre);
+  const vivos = await tx.salon.findMany({ where: { sucursal_id: sucursalId, ...(exceptoId ? { id: { not: exceptoId } } : {}) }, select: { nombre: true } });
+  return vivos.some((v) => claveDeSalon(v.nombre) === clave);
+}
 
 export function rutasDeSalones(_deps: DepsApi): Router {
   const r = Router();
@@ -72,12 +80,13 @@ export function rutasDeSalones(_deps: DepsApi): Router {
   r.post("/salones", requierePermiso("catalogo:escribir"), json, async (req, res) => {
     const ctx = contextoDe(res);
     const e = parsear(esquemaAlta, req.body);
+    const nombre = nombreDeSalon(e.nombre);
     try {
-      const creado = await ctx.db.$transaction(async (tx) => {
+      const creado = await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
         if (!(await tx.sucursal.findFirst({ where: { id: e.sucursal_id }, select: { id: true } }))) throw validacion([{ campo: "sucursal_id", mensaje: "La sucursal no existe" }]);
-        if (await tx.salon.findFirst({ where: { sucursal_id: e.sucursal_id, nombre: e.nombre }, select: { id: true } })) throw repetido();
+        if (await hayRepetido(tx, e.sucursal_id, nombre)) throw repetido();
         const s = await tx.salon.create({
-          data: altaConAlcance({ sucursal_id: e.sucursal_id, nombre: e.nombre, capacidad: e.capacidad ?? null, activo: e.activo ?? true }),
+          data: altaConAlcance({ sucursal_id: e.sucursal_id, nombre, capacidad: e.capacidad ?? null, activo: e.activo ?? true }),
           select: SELECCION,
         });
         await registrarCambio(tx, ctx, { entidad: "salon", entidadId: s.id, accion: "crear", despues: instantanea(s) });
@@ -95,15 +104,16 @@ export function rutasDeSalones(_deps: DepsApi): Router {
     const { id } = parsear(esquemaId, req.params);
     const cambios = parsear(esquemaCambio, req.body);
     if (Object.keys(cambios).length === 0) throw validacion([{ mensaje: "No hay nada que cambiar" }]);
+    const nombre = cambios.nombre !== undefined ? nombreDeSalon(cambios.nombre) : undefined;
     try {
-      const salida = await ctx.db.$transaction(async (tx) => {
+      const salida = await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
         const antes = await tx.salon.findFirst({ where: { id }, select: SELECCION });
         if (!antes) throw noEncontrado();
-        if (cambios.nombre !== undefined && cambios.nombre !== antes.nombre && (await tx.salon.findFirst({ where: { sucursal_id: antes.sucursal_id, nombre: cambios.nombre, id: { not: id } }, select: { id: true } }))) throw repetido();
+        if (nombre !== undefined && nombre !== antes.nombre && (await hayRepetido(tx, antes.sucursal_id, nombre, id))) throw repetido();
         const despues = await tx.salon.update({
           where: { id },
           data: {
-            ...(cambios.nombre !== undefined ? { nombre: cambios.nombre } : {}),
+            ...(nombre !== undefined ? { nombre } : {}),
             ...(cambios.capacidad !== undefined ? { capacidad: cambios.capacidad } : {}),
             ...(cambios.activo !== undefined ? { activo: cambios.activo } : {}),
           },
