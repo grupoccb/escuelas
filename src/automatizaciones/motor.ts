@@ -1,5 +1,6 @@
-// Motor de automatizaciones. Hoy un solo disparador: `lead_sin_respuesta` (reenganche), el lead
-// que dejó de contestar a mitad de la captura.
+// Motor de automatizaciones. Dos tipos de entidad: la `conversacion` del lead que dejó de contestar a mitad de la captura
+// (`lead_sin_respuesta`, el reenganche) y la `clase_muestra` (D3: `clase_muestra_proxima`, el recordatorio de 24 h y de 2 h antes; las
+// ejecuciones de esas las crea el alta de la clase, ver src/clases-muestra/recordatorios.ts, y aquí solo se ejecutan).
 //
 // Dos pasos, los dos idempotentes:
 // 1. programar: por cada conversación que cumple, crea UNA ejecución por (automatización,
@@ -19,6 +20,7 @@
 //    falla; si estaba en `enviando` sin id (envío incierto), falla y se avisa al asesor.
 
 import { PASOS_A_MEDIAS } from "../captacion/maquina.ts";
+import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
@@ -235,13 +237,21 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     log.info("automatizacion_omitida", { ejecucionId: e.id, motivo });
   };
 
-  if (e.entidad_tipo !== "conversacion") return omitir("entidad_no_soportada");
+  if (e.entidad_tipo !== "conversacion" && e.entidad_tipo !== "clase_muestra") return omitir("entidad_no_soportada");
 
-  const conv = await db.conversacion.findFirst({
-    where: { id: e.entidad_id },
-    include: { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } },
-  });
-  if (!conv) return omitir("conversacion_inexistente");
+  // D3: la entidad puede ser una clase muestra; entonces el destinatario es el lead de la clase y se le escribe por SU conversación.
+  const clase = e.entidad_tipo === "clase_muestra" ? await cargarClase(db, e.entidad_id) : null;
+  if (e.entidad_tipo === "clase_muestra" && !clase) return omitir("clase_inexistente");
+  const incluir = { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } } as const;
+  const conv = clase
+    ? await db.conversacion.findFirst({ where: { lead_id: clase.lead_id }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: incluir })
+    : await db.conversacion.findFirst({ where: { id: e.entidad_id }, include: incluir });
+  if (!conv) {
+    await omitir(clase ? "sin_conversacion" : "conversacion_inexistente");
+    // Una clase cuyo lead nunca escribió por WhatsApp (p. ej. entró por la landing): no hay por dónde mandar el recordatorio y una persona decide.
+    if (clase) await asegurarTareaDeClase(db, { leadId: clase.lead_id, claseId: clase.id, descripcion: `El recordatorio «${e.automatizacion.nombre}» de la clase muestra no se mandó: el contacto no tiene una conversación de WhatsApp. Avísale tú de la clase.` });
+    return;
+  }
   // El include no filtra lo borrado: un lead con eliminado_en no recibe nada (F1-05).
   if (conv.lead.eliminado_en) return omitir("lead_eliminado");
 
@@ -257,6 +267,17 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     });
   };
 
+  // D3: el recordatorio solo vale mientras la clase siga agendada y no haya empezado.
+  if (clase) {
+    if (clase.estatus !== "agendada") return omitir("clase_no_vigente");
+    if (clase.fecha_hora.getTime() <= ahora.getTime()) {
+      await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "descartado", motivo_omision: "evento_pasado" } });
+      resumen.descartadas++;
+      log.info("automatizacion_descartada", { ejecucionId: e.id, motivo: "evento_pasado" });
+      return;
+    }
+  }
+
   const plantilla = e.automatizacion.plantilla;
   if (!plantilla) return omitirConTarea("sin_plantilla");
 
@@ -271,7 +292,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const zona = await zonaHorariaDeContacto(db, conv.lead.sucursal_interes_id, conv.bandeja_chatwoot.canal_whatsapp.sucursal_id, conv.lead.vertical_interes_id);
   // Lo programado fuera de rango se recorre; si con eso llegaría después del evento, se descarta.
   const reprogramarODescartar = async (ventana?: VentanaHoraria): Promise<void> => {
-    const siguiente = zona ? recorrerODescartar(ahora, zona, deps.limiteDe?.(e) ?? null, ventana) : null;
+    // Una clase es el evento: llegar a su hora o después ya no sirve (límite exclusivo); el reenganche no tiene evento.
+    const siguiente = zona ? (clase ? recorrerODescartar(ahora, zona, clase.fecha_hora, ventana, true) : recorrerODescartar(ahora, zona, deps.limiteDe?.(e) ?? null, ventana)) : null;
     if (siguiente) {
       await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { programado_para: siguiente, ejecutado_en: null } });
       resumen.reprogramadas++;
@@ -286,7 +308,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const propia: VentanaHoraria = { inicioMin: e.automatizacion.hora_inicio_min, finMin: e.automatizacion.hora_fin_min, dias: e.automatizacion.dias_permitidos };
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
-  const variables = await resolverVariables(db, plantilla.variables, conv);
+  const variables = await resolverVariables(db, plantilla.variables, conv, clase);
   if (typeof variables === "string") return omitirConTarea(variables);
   const cuerpo = (plantilla.cuerpo_referencia ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_, pos: string) => variables[pos] ?? "");
   if (cuerpo.trim() === "") return omitirConTarea("plantilla_sin_cuerpo");
@@ -304,6 +326,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
 
   if (r?.resultado === "enviado") {
     await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "enviado", mensaje_id: mensajeId ?? null } });
+    if (clase) await db.clase_muestra.updateMany({ where: { id: clase.id }, data: { ultimo_recordatorio_en: ahora } });
     resumen.enviadas++;
     return;
   }
@@ -405,6 +428,7 @@ async function resolverVariables(
   db: BaseDatos,
   definidas: unknown,
   conv: { lead: { id: string; nombre_contacto: string | null; sucursal_interes_id: string | null }; bandeja_chatwoot: { canal_whatsapp: { vertical: { nombre: string } } } },
+  clase: ClaseDeEjecucion | null = null,
 ): Promise<Record<string, string> | string> {
   if (!Array.isArray(definidas)) return "variables_invalidas";
   const resultado: Record<string, string> = {};
@@ -421,9 +445,26 @@ async function resolverVariables(
         valor = conv.lead.nombre_contacto;
         break;
       case "nombre_prospecto":
-        valor = (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } }))?.nombre;
+        // De una clase muestra: el alumno de ESA clase (el lead puede tener varios hijos).
+        valor = clase ? clase.prospecto.nombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } }))?.nombre;
+        break;
+      case "nombre_grupo":
+        if (!clase) return "variable_desconocida";
+        valor = clase.grupo.nombre;
+        break;
+      case "fecha_clase":
+        if (!clase) return "variable_desconocida";
+        valor = describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).fecha;
+        break;
+      case "hora_clase":
+        if (!clase) return "variable_desconocida";
+        valor = describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).hora;
         break;
       case "nombre_sucursal":
+        if (clase) {
+          valor = clase.grupo.programa.sucursal.nombre;
+          break;
+        }
         valor = conv.lead.sucursal_interes_id
           ? (await db.sucursal.findFirst({ where: { id: conv.lead.sucursal_interes_id }, select: { nombre: true } }))?.nombre
           : null;
@@ -435,4 +476,29 @@ async function resolverVariables(
     resultado[String(pos)] = valor.trim();
   }
   return resultado;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Clase muestra (D3)
+
+const SELECCION_CLASE = {
+  id: true,
+  lead_id: true,
+  estatus: true,
+  fecha_hora: true,
+  prospecto: { select: { nombre: true } },
+  grupo: { select: { nombre: true, programa: { select: { sucursal: { select: { nombre: true, zona_horaria: true } } } } } },
+} as const;
+
+type ClaseDeEjecucion = NonNullable<Awaited<ReturnType<typeof cargarClase>>>;
+
+async function cargarClase(db: BaseDatos, id: string) {
+  return db.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });
+}
+
+/** Tarea para el asesor ligada a una clase (el lead no tiene conversación a la que atarla). Una pendiente por clase y tipo. */
+async function asegurarTareaDeClase(db: BaseDatos, t: { leadId: string; claseId: string; descripcion: string }): Promise<void> {
+  const pendiente = await db.tarea_asesor.findFirst({ where: { clase_muestra_id: t.claseId, tipo: "automatizacion_omitida", estado: "pendiente" }, select: { id: true } });
+  if (pendiente) return;
+  await db.tarea_asesor.create({ data: altaConAlcance({ lead_id: t.leadId, clase_muestra_id: t.claseId, tipo: "automatizacion_omitida" as const, descripcion: t.descripcion }) });
 }

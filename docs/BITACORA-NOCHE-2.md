@@ -33,7 +33,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C-fix | HECHO (12 pendientes, 7 decisiones) | cd6ba4e…a9690ad | Correcciones de la auditoría de la etapa C (`docs/auditorias/etapa-C.md`): ver la sección «Auditoría y correcciones de la etapa C» |
 | D1 | HECHO | ver `git log` (`D1:`) | Clase muestra: tabla `clase_muestra`, sesiones por zona horaria, lugares de la sesión con candado de cupo, reprogramar atómico, `tipo_sistema` de etapa, API y bot |
 | D2 | HECHO | ver `git log` (`D2:`) | Aviso al maestro: `aviso_maestro` (lista en la aplicación + unidad de envío), `MessagingProvider.avisarAInstructor` con todas las reglas, `conversacion_instructor` y plantillas del seed |
-| D3 | PENDIENTE | | Recordatorios de 24 h y 2 h |
+| D3 | HECHO | ver `git log` (`D3:`) | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
 | D4 | PENDIENTE | | Asistió / no asistió y recuperación |
 | D5 | PENDIENTE | | Registro del maestro |
 | D6 | PENDIENTE | | Reglamento y autorización de imagen |
@@ -1111,7 +1111,7 @@ Mutaciones: quitar el candado (`bloquearCupoDeGrupo` sin `UPDATE`) hace fallar l
 
 **Verificación**
 ```
-$ npm run validar     → exit 0 · tests 428 · pass 428 · fail 0
+$ npm run validar     → exit 0 · tests 432 · pass 432 · fail 0   (428 + 4 del transporte)
 $ npm run test:int    → exit 0 · tests 575 · pass 575 · fail 0
 ```
 Tests nuevos: `avisos.itest.ts` (19: un aviso por clase y tipo, reprogramar con y sin cambio de instructor, envío con plantilla y variables, conversación reutilizada, horario con recorrer, el borde de la hora de la clase —las 09:00 se descartan y las 09:01 salen—, zona de Tokio, ventana de servicio, sin plantilla → tarea, baja, frecuencia, sin teléfono, `en_atencion_humana` no aplica, fallo e incierto, recuperación, cancelar antes de avisar, 2 de concurrencia, no-fuga), `maestro.itest.ts` (8: lista propia, visto idempotente, 404/400/403, clases del día y próximas, el instructor que responde, el ciclo), 4 en `transporte.test.ts` (servidor HTTP local) y 1 en `seed.itest.ts`.
@@ -1131,3 +1131,32 @@ Mutaciones atrapadas: sin reclamo (10 tests), sin candado de la conversación, l
 - **[SUPUESTO]** el texto de las tres plantillas y el tope de frecuencia para instructores. Las plantillas hay que registrarlas y aprobarlas en Twilio/Meta con el mismo `codigo` (`aviso_maestro_agendada`, `…_reprogramada`, `…_cancelada`) y sus variables en el orden del seed.
 - **Para producción:** `CHATWOOT_ADMIN_TOKEN` (ya lo pide el directorio de agentes) también sirve para abrir la conversación con el instructor; sin él, el aviso queda en la aplicación y con tarea. Verificar con Chatwoot real el alta de contacto y conversación (no se hizo).
 - **Decisión de producto:** ¿un maestro sin teléfono debería bloquear el alta de la clase, o basta la tarea? Hoy basta la tarea.
+
+
+## D3. Recordatorios de 24 h y 2 h
+
+**Qué se hizo**
+- **Evento nuevo** `clase_muestra_proxima` (migración `20261014020000_recordatorios_clase_muestra`; más `clase_muestra.ultimo_recordatorio_en`). Las automatizaciones llevan `offset_minutos` NEGATIVO y configurable (`-1440`, `-120`) y su propia ventana horaria y días (el seed permite también el domingo). El seed (`prisma/seed/clase-muestra.sql`) trae la plantilla `recordatorio_clase_muestra` (utility, `[SUPUESTO]`) y las dos automatizaciones (ids 705, 802, 803).
+- **`planearRecordatorios`** (`src/clases-muestra/recordatorios.ts`, PURA): nominal = inicio + offset; si ya pasó al agendar → `descartado`/`ya_paso_el_momento` (sin él no existe); fuera de la ventana horaria → siguiente horario válido de la sucursal; **si ese horario es posterior o IGUAL al inicio de la clase → `descartado`/`evento_pasado`** (`recorrerODescartar` con límite exclusivo). `programarRecordatoriosDeClase` crea las ejecuciones en la transacción de agendar y reprogramar (`createMany` con `skipDuplicates`: idempotente por `(automatizacion_id, entidad_tipo, entidad_id, ocurrencia)`); `cancelarRecordatoriosDeClase` pone las pendientes en `cancelado` al reprogramar o cancelar.
+- **Motor:** `ejecutarUna` entiende `entidad_tipo = clase_muestra`: el destinatario es el lead de la clase, por su conversación más reciente; antes de mandar comprueba que la clase siga `agendada` (si no, `omitido`/`clase_no_vigente`) y que no haya empezado (si no, `descartado`/`evento_pasado`); si el servidor se atrasó y ya es de noche recorre o descarta con la misma regla exclusiva; las variables salen de la clase (`nombre_prospecto` del alumno de ESA clase, `nombre_grupo`, `fecha_clase`, `hora_clase`, `nombre_sucursal`); sin conversación de WhatsApp → `omitido`/`sin_conversacion` y una tarea. Todo lo demás (ventana, plantilla, horario, baja, frecuencia 3/día, atención humana) lo decide `MessagingProvider`, como siempre.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 445 · pass 445 · fail 0
+$ npm run test:int    → exit 0 · tests 592 · pass 592 · fail 0
+```
+Tests nuevos: `recordatorios.test.ts` (13, puros: el domingo, el borde 09:30 / 09:00, el lunes 09:00, días permitidos, menos de 24 h, el momento exacto, offsets configurables, clase al final del día, ventana propia, **el salto de primavera y el retroceso de otoño en Nueva York**, Tokio y Kiritimati, determinismo) y `recordatorios.itest.ts` (16, con el motor real, reloj inyectado y el transporte falso: el flujo completo del domingo hora por hora, el borde en la base, el lunes, menos de 24 h, reprogramar y cancelar, lo enviado se conserva, idempotencia y 4 pasadas simultáneas, atención humana / baja / frecuencia, recordatorio atrasado, clase ya no vigente, lead sin conversación, hermanos, configuración, **horario de verano en Nueva York y Tokio**, no-fuga) + 1 de seed.
+Mutaciones atrapadas: `>=` → `>` en el borde (7 tests), `<` → `<=` en el momento exacto, ignorar los días permitidos, no cancelar las pendientes, ignorar la zona, el límite inclusivo en el motor (atrapada al agregar el caso «lunes 20:30 → martes 09:00»), no revalidar la clase, no descartar la clase pasada.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El borde: posterior o IGUAL al inicio se descarta** (lo pidió el encargo). Un detalle del encargo: su ejemplo «domingo 09:30 → el de 2 h se descarta» no sale de esa regla (07:30 se recorre a las 09:00, media hora ANTES de la clase, y por la regla sale). Seguí la regla, no el ejemplo, y dejé las dos pruebas (09:30 sale a las 09:00; 09:00 se descarta). Si Eduardo quiere un mínimo de antelación (p. ej. no mandar un recordatorio de «2 h antes» a 30 minutos de la clase), es una columna más en la automatización (`antelacion_minima_min`); no se pidió.
+2. **Las ejecuciones se crean al agendar**, no las descubre un barrido: la hora de salida se conoce entonces y queda a la vista (también las descartadas, con su motivo). Alternativa descartada: un paso `programar` del motor que escanee clases (como el reenganche): lo que cae ya fuera de rango nacería tarde y no habría registro del descarte.
+3. **Las que no alcanzan se guardan como `descartado`** en vez de no crear la fila: la unicidad impide que un reintento la «recupere» más tarde y se ve por qué no salió.
+4. **El recordatorio es del LEAD por su conversación más reciente.** Un lead con varias conversaciones (raro: una por vertical, y el lead es por vertical) usa la última creada.
+5. **Reprogramar no toca lo ya enviado.** Y no hay un «recordatorio de reprogramación»: el aviso al lead de un cambio lo da el asesor o el bot; el recordatorio nuevo sale con la fecha nueva.
+6. **Con atención humana el recordatorio NO sale** (invariante 6, sin excepción). Por eso el bot (D1) no pasa la conversación a una persona al agendar; pero en cuanto una persona toma la conversación, los recordatorios dejan de salir. Si Eduardo quiere que un recordatorio salga aunque haya una persona atendiendo, hay que cambiar el invariante, no el código.
+
+**Para Eduardo**
+- **[SUPUESTO]** los textos de la plantilla y los tiempos (24 h y 2 h). Registrar `recordatorio_clase_muestra` en Twilio con las 5 variables en ese orden.
+- Un lead cuya ventana de 24 h sigue abierta recibe la plantilla igual (el motor siempre manda plantilla); no hay texto libre para recordatorios.
+- Pendiente de producto: el aviso a la familia cuando una persona reprograma o cancela su clase (hoy no sale nada por WhatsApp; solo el aviso al maestro).

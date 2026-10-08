@@ -101,3 +101,18 @@ test("D2 seed: las tres plantillas del aviso al maestro quedan aprobadas (utilit
     assert.equal(/alergia|medic|salud|emergencia/i.test(p.cuerpo_referencia ?? ""), false);
   }
 });
+
+test("D3 seed: los recordatorios de 24 h y 2 h quedan como automatizaciones del evento de la clase, con offsets NEGATIVOS, todos los días y una plantilla aprobada; idempotente", async () => {
+  await aplicar("clase-muestra");
+  const autos = await db().automatizacion.findMany({ where: { evento_disparador: "clase_muestra_proxima" }, orderBy: { offset_minutos: "asc" }, include: { plantilla: true } });
+  assert.deepEqual(autos.map((a) => a.offset_minutos), [-1440, -120]);
+  for (const a of autos) {
+    assert.deepEqual([...a.dias_permitidos].sort(), [0, 1, 2, 3, 4, 5, 6], "también el domingo: una clase en domingo se recuerda en domingo");
+    assert.deepEqual([a.hora_inicio_min, a.hora_fin_min, a.activo, a.vertical_id, a.sucursal_id], [540, 1200, true, null, null]);
+    assert.equal(a.plantilla?.estado_aprobacion, "aprobada");
+    assert.equal(a.plantilla?.categoria, "utility");
+  }
+  const vars = (autos[0]!.plantilla!.variables as { nombre: string }[]).map((v) => v.nombre);
+  assert.deepEqual(vars, ["nombre_prospecto", "nombre_grupo", "fecha_clase", "hora_clase", "nombre_sucursal"]);
+  assert.equal(await db().plantilla_mensaje.count({ where: { codigo: "recordatorio_clase_muestra" } }), 1);
+});

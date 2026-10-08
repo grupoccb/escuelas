@@ -44,3 +44,22 @@ INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertica
    'Se canceló la clase muestra de {{1}} en {{2}} del {{3}} a las {{4}} (sucursal {{5}}).',
    'aprobada', true)
 ON CONFLICT DO NOTHING;
+
+-- ── D3: recordatorios de la clase muestra al lead, 24 h y 2 h antes [SUPUESTO] ────────────────────────
+-- Una sola plantilla (utility) y dos automatizaciones del evento `clase_muestra_proxima`; `offset_minutos` es NEGATIVO (-1440 = 24 h antes,
+-- -120 = 2 h antes) y se edita desde administración. TODOS los días permitidos (incluido el domingo): una clase en domingo se recuerda en
+-- domingo. Lo que caiga antes de las 09:00 se recorre a las 09:00 (invariante 14); si con eso llegara a la hora de la clase o después, se descarta.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000705', '00000000-0000-4000-8000-000000000001', 'recordatorio_clase_muestra',
+   'HX00000000000000000000000000000005', NULL, 'utility', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
+   'Te recordamos la clase muestra de {{1}}: {{3}} a las {{4}}, grupo {{2}}, sucursal {{5}}. ¡Los esperamos!',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_id, evento_disparador, offset_minutos, plantilla_id, max_intentos, dias_permitidos) VALUES
+  ('00000000-0000-4000-8000-000000000802', '00000000-0000-4000-8000-000000000001', 'Recordatorio de clase muestra: 24 h antes', NULL, NULL,
+   'clase_muestra_proxima', -1440, '00000000-0000-4000-8000-000000000705', 1, ARRAY[0,1,2,3,4,5,6]),
+  ('00000000-0000-4000-8000-000000000803', '00000000-0000-4000-8000-000000000001', 'Recordatorio de clase muestra: 2 h antes', NULL, NULL,
+   'clase_muestra_proxima', -120, '00000000-0000-4000-8000-000000000705', 1, ARRAY[0,1,2,3,4,5,6])
+ON CONFLICT DO NOTHING;

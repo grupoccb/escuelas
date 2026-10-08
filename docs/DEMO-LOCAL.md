@@ -115,6 +115,7 @@ firmado no se ahoga. Detalle y variables en `docs/API.md`. En la demo local todo
 | Simulador del contacto | `scripts/simular-contacto.ts` |
 | Catálogo de la primera vertical (programas, grupos, horarios, salón «Dojo») | `prisma/seed/catalogo.sql` |
 | Catálogo COMPLETO de las tres verticales del insumo: 14 programas, 18 grupos, 31 horarios, salones, instructores, precios y promociones de ejemplo `[SUPUESTO]` | `prisma/seed/catalogo-completo.sql` (el servicio `demo-preparar` lo corre después de `catalogo.sql`; crea también las bandejas de Ballet y Baile) |
+| Clase muestra (D1 a D4): el papel de cada etapa del embudo (`tipo_sistema`), la clase muestra por WhatsApp encendida, las plantillas del aviso al maestro y del recordatorio, y sus automatizaciones de 24 h y 2 h `[SUPUESTO]` | `prisma/seed/clase-muestra.sql` (el servicio `demo-preparar` lo corre después de `catalogo-completo.sql`) |
 | Reporte de leads por campaña, sucursal y etapa | `npm run reporte:leads` |
 | Segunda vertical, solo con filas (opcional) | `prisma/seed/segunda-vertical.sql` |
 
@@ -132,6 +133,11 @@ demo igual. Las credenciales son de desarrollo y están en `config/demo-local.en
   09:00–20:00 de la sucursal para lo que inicia el sistema, y topes de frecuencia por teléfono
   (3 mensajes automáticos en 24 h y 1 de marketing cada 7 días; cambian por organización en
   `configuracion_organizacion`, que el seed de la demo deja con esos valores).
+- Clase muestra: con el cotizador y la clase muestra encendidos, tras elegir horario el bot propone las próximas fechas con lugar y agenda
+  (la conversación sigue con el bot, que deja una nota y la hace visible, para que los recordatorios salgan). El asesor agenda, reprograma
+  y cancela por `/api/clases-muestra`. El maestro recibe un aviso por plantilla (`aviso_maestro_*`, solo si tiene teléfono y las reglas lo
+  permiten) y en `/api/maestro/avisos`; para abrirle la conversación contra Chatwoot real hace falta `CHATWOOT_ADMIN_TOKEN` (sin él, solo la
+  lista y una tarea). Al lead le llegan los recordatorios de 24 h y 2 h antes (09:00–20:00 de la sucursal; los domingos también).
 - Quien se dio de baja y vuelve a escribir no recibe respuesta: el asesor ve una tarea
   `baja_volvio_a_escribir`. Un mensaje que Twilio reporta como no entregado deja una tarea
   `entrega_fallida` con el código de error (una por mensaje).

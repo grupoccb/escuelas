@@ -687,6 +687,8 @@ model plantilla_mensaje {
 
 enum evento_disparador {
   lead_sin_respuesta
+  /// Antes de una clase muestra agendada (D3). `offset_minutos` es NEGATIVO (-1440 = 24 h antes). La entidad es la `clase_muestra`.
+  clase_muestra_proxima
 }
 
 /// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás
@@ -1624,6 +1626,8 @@ model clase_muestra {
   reprogramada_de_id      String?               @db.Uuid
   motivo_cancelacion      String?
   notas                   String?
+  /// Cuándo salió el último recordatorio de esta clase al lead (D3).
+  ultimo_recordatorio_en  DateTime?             @db.Timestamptz(6)
   creado_en               DateTime              @default(now()) @db.Timestamptz(6)
   actualizado_en          DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en            DateTime?             @db.Timestamptz(6)

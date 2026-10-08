@@ -17,6 +17,7 @@ import { leerConfiguracion } from "../configuracion/index.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
 import { crearAvisoMaestro } from "./avisos.ts";
+import { cancelarRecordatoriosDeClase, programarRecordatoriosDeClase } from "./recordatorios.ts";
 import { problemaDeFecha, sesionesAgendables, type HorarioDeGrupo, type ProblemaDeFecha } from "./sesiones.ts";
 
 export type OrigenDeAgenda = { tipo: "bot"; conversacionId: string } | { tipo: "usuario"; usuarioId: string };
@@ -209,6 +210,7 @@ export async function agendarClaseMuestra(tx: Consultas, c: ContextoDeAgenda, en
   const clase = await crearClase(tx, c, { prospecto, grupo, fechaHora: entrada.fechaHora, notas: entrada.notas ?? null });
   await moverLeadAEtapa(tx, prospecto.lead_id, "muestra_agendada", { motivo: "clase_muestra_agendada" });
   await crearAvisoMaestro(tx, { claseId: clase.id, tipo: "agendada", ahora: c.ahora }); // D2: al instructor del grupo
+  await programarRecordatoriosDeClase(tx, clase.id, c.ahora); // D3: 24 h y 2 h antes, al lead
   return { ok: true, clase };
 }
 
@@ -249,6 +251,9 @@ export async function reprogramarClaseMuestra(tx: Consultas, c: ContextoDeAgenda
   const zonaVieja = grupoViejo?.programa.sucursal.zona_horaria ?? grupo.zona;
   if (grupoViejo?.instructor_id && grupoViejo.instructor_id !== (await instructorDe(tx, grupo.id))) await crearAvisoMaestro(tx, { claseId: vieja.id, tipo: "cancelada", ahora: c.ahora });
   await crearAvisoMaestro(tx, { claseId: clase.id, tipo: "reprogramada", ahora: c.ahora, anterior: { fechaHora: vieja.fecha_hora, zonaHoraria: zonaVieja } });
+  // D3: los recordatorios pendientes de la anterior se cancelan y se programan los de la nueva.
+  await cancelarRecordatoriosDeClase(tx, vieja.id, "clase_reprogramada");
+  await programarRecordatoriosDeClase(tx, clase.id, c.ahora);
   return { ok: true, clase, anterior: { id: vieja.id, grupoId: vieja.grupo_id, fechaHora: vieja.fecha_hora, prospectoId: vieja.prospecto_id, leadId: vieja.lead_id } };
 }
 
@@ -281,5 +286,6 @@ export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motiv
     await moverLeadAEtapa(tx, vieja.lead_id, "contactado", { motivo: "clase_muestra_cancelada", permitirRetroceso: true });
   }
   await crearAvisoMaestro(tx, { claseId: vieja.id, tipo: "cancelada", ahora }); // D2
+  await cancelarRecordatoriosDeClase(tx, vieja.id, "clase_cancelada"); // D3
   return { ok: true, clase: { id: vieja.id, grupoId: vieja.grupo_id, fechaHora: vieja.fecha_hora, prospectoId: vieja.prospecto_id, leadId: vieja.lead_id } };
 }
