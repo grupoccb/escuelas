@@ -21,10 +21,10 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B5 | HECHO | 08fc9eb | Usuario ↔ agente de Chatwoot, qué asesor tiene cada conversación |
 | B6 | HECHO | c73d7b9 | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
 | B-fix | HECHO (6 pendientes, 1 decisión) | 25616f5…6a19fad | Correcciones de la auditoría de la etapa B (`docs/auditorias/etapa-B.md`): ver la sección «Correcciones de la auditoría de la etapa B» |
-| C1 | HECHO | ver sección | Instructores y salones: tabla `salon`, `grupo.salon_id`, choques de salón e instructor (función pura + API 409 + disparadores en la base) |
-| C2 | HECHO | ver sección | Precios versionados por fecha (exclusión btree_gist), `precioVigente`, `src/lib/dinero.ts` en centavos `bigint` y `check:dinero` |
-| C3 | HECHO | ver sección | Promociones: tablas del modelo, resolutor puro (prioridad, acumulación, cupo, montos exactos), consumo de cupo atómico y API CRUD |
-| C4 | HECHO | ver sección | Catálogo completo de las tres verticales del insumo (14 programas, 18 grupos, 31 horarios) con salones, instructores, precios y promociones de ejemplo; las tres verificaciones como tests |
+| C1 | HECHO | 96d241f | Instructores y salones: tabla `salon`, `grupo.salon_id`, choques de salón e instructor (función pura + API 409 + disparadores en la base) |
+| C2 | HECHO | 32c8f41 | Precios versionados por fecha (exclusión btree_gist), `precioVigente`, `src/lib/dinero.ts` en centavos `bigint` y `check:dinero` |
+| C3 | HECHO | d6c38f4 | Promociones: tablas del modelo, resolutor puro (prioridad, acumulación, cupo, montos exactos), consumo de cupo atómico y API CRUD |
+| C4 | HECHO | c4bdc80 | Catálogo completo de las tres verticales del insumo (14 programas, 18 grupos, 31 horarios) con salones, instructores, precios y promociones de ejemplo; las tres verificaciones como tests |
 | C5 | PENDIENTE | | Cotizador determinista |
 | C6 | PENDIENTE | | Varios programas para una edad |
 | C7 | PENDIENTE | | Otra sucursal |
@@ -674,7 +674,7 @@ Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe 
 ### Verificación
 
 - Mutaciones (cada test nuevo falla al quitar su arreglo, una por una; el script y el resultado de cada una están en el historial de la sesión): `autenticar` único, `accesoDeclarado`, quitar un `requierePermiso`, denegación de lectura/escritura registrada, `requierePermisoConRastro`, `esYo && contrasena`, desactivar suelta el agente, `llaveDeIp` en el bloqueo, hash ficticio, IP fija en el login, `trust proxy`, parámetros de scrypt, organización borrada (sesión y slug), NUL, parser 4xx, nombre `__Host-`, `unicaOrganizacion`, redirecciones del directorio, retención (rama de expiradas y llamada del ciclo), cubeta de fallos/techo (dos mutaciones), HSTS, expulsión de cubetas, aviso de `TRUST_PROXY`, `.revelar()` de la guarda. EB-08 se verificó creando una base sin la migración.
-- `npm run validar` → exit 0; `npm run test:int` → exit 0; los conteos del último commit del bloque van en la sección de cierre de la etapa C.
+- `npm run validar` → exit 0; `npm run test:int` → exit 0. Conteos finales de todo lo de esta sesión (B-fix + C1–C4): ver «Cierre de la etapa C (parte 1)».
 
 ### Para Eduardo
 
@@ -783,3 +783,36 @@ Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe 
 - **[SUPUESTO] en `catalogo-completo.sql`** (todo editable desde administración cuando J7 exista): colores de marca de las tres verticales; capacidad de los salones nuevos (30); cupos de los 9 grupos nuevos (los de Ballet y Baile del insumo no estaban marcados, el contexto §12 dice que el cupo real está pendiente); las horas de fin de los horarios que en el insumo solo traían la de inicio (45 o 60 min); los 5 instructores (nombres, teléfonos ficticios y reparto); **los 14 precios**; y las 3 promociones (vigentes hasta 2027-12-31).
 - Las direcciones de las sucursales siguen vacías (`[PENDIENTE]` en el insumo).
 - **Ids de los seeds** para quien construya encima (C5–C9): organización `…001`; verticales Karate `…101`, Ballet `…102`, Baile `…103`; sucursales Águilas `…201`, Centenario `…202`; canal/bandeja `…401` (Karate), `…402` (Ballet), `…403` (Baile); salones `…531`/`…532` (Dojo de cada sucursal), `…533` (Salón 2 de Águilas), `…534` (Salón 1 de Centenario); programas nuevos `…111`–`…118` (los 6 de la primera vertical tienen ids aleatorios: se buscan por sucursal y nombre); grupos nuevos `…131`–`…139`; instructores `…521` (Maestro demo, ligado al usuario maestro) y `…522`–`…526`; promociones `…551`–`…553`, beneficios `…561`–`…563`. Usuarios de la demo `…501`–`…504`.
+
+## Cierre de la etapa C (parte 1: C1 a C4) y de las correcciones de la etapa B
+
+**Estado.** B-fix, C1, C2, C3 y C4 HECHOS. C5 a C9 (cotizador) siguen PENDIENTES: esta parte deja listos sus insumos. No se etiqueta `etapa-C` (falta la mitad de la etapa y la auditoría).
+
+**Verificación del último commit** (`c4bdc80`):
+```
+$ npm run validar          → exit 0 · ℹ tests 319 · pass 319 · fail 0   (lint, typecheck, check:generico 240 archivos, check:capas 92, check:sensibles 92, check:dinero 92)
+$ npm run test:int         → exit 0 · ℹ tests 394 · pass 394 · fail 0   (1.ª corrida)
+$ npm run test:int         → exit 0 · ℹ tests 394 · pass 394 · fail 0   (2.ª corrida seguida)
+$ DATABASE_URL_PRUEBAS=…/vacia_c_pruebas npm run test:int → exit 0 · ℹ tests 394 · pass 394 · fail 0   (base NUEVA, vacía)
+$ docker compose up -d --build --wait   → backend y demo-preparar sanos; Ballet y Baile crean sus bandejas en Chatwoot (7 y 8) la primera vez y
+                                           una segunda corrida de demo-preparar las reutiliza (3 bandejas, sin duplicados); 14 programas, 18 grupos, 31 horarios
+```
+Línea base al empezar: validar 257 tests, test:int 330. Antes de este cierre, en la primera corrida de `test:int` sobre una base nueva falló una vez un login de `chatwoot.itest.ts` (ver la nota de B-fix) y en otra hubo dos pruebas que dependían del orden de `creado_en` de filas casi simultáneas: se volvieron independientes del orden; desde entonces la suite pasó sin fallos en las cinco corridas completas posteriores.
+
+**Para el siguiente implementador (C5 a C9, cotizador)** — helpers y datos que ya existen:
+- `precioVigente(db, programaId, 'AAAA-MM-DD')` → `{ id, programaId, costoInscripcion, costoMensualidad (centavos bigint), moneda, desde, hasta } | null` (`src/catalogo/precios.ts`). Fechas de calendario locales como texto.
+- `promocionesAplicables(db, contexto)` / `resolverPromociones(promociones, contexto)` (`src/promociones/`): contexto `{ fecha, verticalId, sucursalId, programaId, hermanosInscritos, mesesPagadosPorAdelantado, costoInscripcion, costoMensualidad }` → `{ aplicadas, descartadas (con motivo), lineas (por beneficio, ahora/pendiente), inscripcion, mensualidad, mesesGratisAhora, mesesGratisDiferidos }`. Para consumir el cupo al INSCRIBIR (F3), `consumirCupo(db, promocionId)` (atómico) y `liberarCupo`.
+- `cupoPorGrupo(db, grupoId, fuente?)` (`src/catalogo/cupo.ts`): `{ cupoMaximo, ocupados, disponibles, lleno, oferta: lugar | lista_de_espera | sin_lugar }`; la fuente de ocupación es una interfaz (hoy `SinInscripciones`; F4 pone la real).
+- `detectarChoques` / `choquesDe` / `choquesDeGrupo` (`src/catalogo/choques.ts`) y la verificación del catálogo `cargarCatalogo` + `traslapesDeEdad` / `alternativasPorEdad` / `resumenDeCapacidad` / `choquesDeSalon` / `choquesDeInstructor` (`src/catalogo/verificacion.ts`).
+- **Varios programas para una edad (C6):** `alternativasPorEdad(catalogo)` ya lista los pares marcados `programa.permite_traslape`; el cotizador debe devolver todos los programas que aceptan la edad en la vertical y sucursal y, si hay más de uno, preguntar cuál.
+- Dinero: `src/lib/dinero.ts` (`deTexto`, `aTexto`, `deDecimal`, `formatear`, `sumar`, `restar`, `porcentaje`, `repartir`, `cantidadEntera`…) y la guarda `npm run check:dinero` (zona de dinero: `src/cotizador/`, `src/finanzas/`, `src/pagos/`, `src/cobranza/`, `src/promociones/`: ahí no se permite ni `Number()`).
+- Permisos: `catalogo:leer` (todos) / `catalogo:escribir` (administrador). Rutas nuevas declaran su permiso con `requierePermiso(…)` y se agregan a la tabla `LAS_RUTAS` de `src/api/rutas.test.ts`. `ctx.alcanceCatalogo()` da las sucursales cuyo catálogo ve el usuario.
+- Seeds: orden `demo.sql` → `catalogo.sql` → `catalogo-completo.sql` (+ `segunda-vertical.sql` opcional); ids en la sección C4. Los tests los re-prefijan con el patrón `00000000-0000-4000-8000-000000000(\d{3})` (ver `src/catalogo/catalogo-completo.itest.ts`).
+- Migraciones de esta parte: `20261010050000_acceso_causa`, `…060000_truncate_solo_anexar`, `20261011000000_instructores_y_salones`, `…010000_precios` (necesita `btree_gist`), `…020000_promociones`, `…030000_verticales_y_traslape`. La siguiente debe usar `20261012…` o posterior.
+
+**Decisiones de producto abiertas** (todas con valor por defecto razonable ya implementado):
+1. EB-10: el directorio de agentes de Chatwoot y el invariante 4 (arriba).
+2. Si una promoción NO acumulable debe excluir también a las acumulables (hoy no; C3).
+3. Cuánto se conserva el registro de accesos a salud y el de cambios (solo de anexar; EB-19) y si se separan las cuentas de base de datos de migraciones y de aplicación antes de producción (EB-08; documentado en `docs/API.md`).
+4. Reautenticación o 2FA para crear administradores y cambiar roles (EB-02) y un tope de intentos por cuenta independiente de la IP (EB-03).
+5. Todos los `[SUPUESTO]` del seed de C4 (precios, cupos de los grupos nuevos, capacidad de salones, colores, instructores, promociones, horas de fin) y las direcciones de las sucursales.
