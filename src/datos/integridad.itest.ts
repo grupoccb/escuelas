@@ -32,7 +32,7 @@ before(async () => {
   leadA = (await prisma.lead.create({ data: { organizacion_id: A.organizacionId, vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: "+525500001111" } })).id;
   leadB = (await prisma.lead.create({ data: { organizacion_id: B.organizacionId, vertical_interes_id: B.verticalId, etapa_id: B.etapaInicialId, telefono: "+525500002222" } })).id;
   conversacionB = (await prisma.conversacion.create({ data: { organizacion_id: B.organizacionId, bandeja_chatwoot_id: B.bandejaId, lead_id: leadB, chatwoot_conversacion_id: 1 } })).id;
-  plantillaB = (await prisma.plantilla_mensaje.create({ data: { organizacion_id: B.organizacionId, codigo: "p", content_sid: "HX1", categoria: "utility" } })).id;
+  plantillaB = (await prisma.plantilla_mensaje.create({ data: { organizacion_id: B.organizacionId, codigo: "p", content_sid: "HX1", categoria: "utility", clase_mensaje: "servicio" } })).id;
   automatizacionB = (await prisma.automatizacion.create({ data: { organizacion_id: B.organizacionId, nombre: "a", evento_disparador: "lead_sin_respuesta" } })).id;
   campanaB = (await prisma.campana.create({ data: { organizacion_id: B.organizacionId, nombre: "c", origen: "otro" } })).id;
   programaB = (await prisma.programa.create({ data: { organizacion_id: B.organizacionId, vertical_id: B.verticalId, sucursal_id: B.sucursales[0]!.id, nombre: "p", edad_min: 3, edad_max: 5 } })).id;
@@ -66,7 +66,7 @@ test("la base rechaza una referencia a una fila de otra organización (en cada t
       const conv = await prisma.conversacion.create({ data: { organizacion_id: org, bandeja_chatwoot_id: A.bandejaId, lead_id: leadA, chatwoot_conversacion_id: 4 } });
       return prisma.mensaje.create({ data: { organizacion_id: org, conversacion_id: conv.id, plantilla_id: plantillaB, direccion: "saliente", estatus: "pendiente", cuerpo: "x", proveedor: "p" } });
     }],
-    ["plantilla_mensaje → vertical ajena", () => prisma.plantilla_mensaje.create({ data: { organizacion_id: org, codigo: "q", content_sid: "HX2", categoria: "utility", vertical_id: B.verticalId } })],
+    ["plantilla_mensaje → vertical ajena", () => prisma.plantilla_mensaje.create({ data: { organizacion_id: org, codigo: "q", content_sid: "HX2", categoria: "utility", clase_mensaje: "servicio", vertical_id: B.verticalId } })],
     ["automatizacion → plantilla ajena", () => prisma.automatizacion.create({ data: { organizacion_id: org, nombre: "x", evento_disparador: "lead_sin_respuesta", plantilla_id: plantillaB } })],
     ["automatizacion → vertical ajena", () => prisma.automatizacion.create({ data: { organizacion_id: org, nombre: "x", evento_disparador: "lead_sin_respuesta", vertical_id: B.verticalId } })],
     ["automatizacion_ejecucion → automatización ajena", () => prisma.automatizacion_ejecucion.create({ data: { organizacion_id: org, automatizacion_id: automatizacionB, entidad_tipo: "lead", entidad_id: leadA, programado_para: new Date() } })],

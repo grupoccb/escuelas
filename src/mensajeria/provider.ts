@@ -11,7 +11,8 @@
 //    Si una regla bloquea, el mensaje queda "bloqueado" con su motivo. Si el envío falla,
 //    queda "fallido" y la conversación pasa a un asesor.
 // 3. Si la conversación tiene pasar_a_asesor_pendiente, la abre en Chatwoot y la marca
-//    en_atencion_humana. Desde ahí ninguna automatización manda nada.
+//    en_atencion_humana. Desde ahí el bot no contesta y el marketing no sale; solo salen los avisos de SERVICIO sobre algo que la familia
+//    ya acordó (plantillas que declaran `clase_mensaje = servicio`, INV-6). La verificación vive aquí y solo aquí.
 
 import { leerConfiguracion, type ConfiguracionOrganizacion } from "../configuracion/index.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
@@ -370,7 +371,7 @@ export class MessagingProvider {
           ahora,
           edadMs: ahora.getTime() - m.creado_en.getTime(),
           vigenciaMs: this.vigenciaPendienteMs,
-          plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
+          plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria, clase: plantilla.clase } : m.plantilla_id ? { enviable: false, categoria: "servicio", clase: "marketing" } : null,
           zonaHoraria: conv.zonaHoraria,
           automaticosRecientes: iniciadoPorSistema && conteo ? await this.enviadosAlTelefono(tx, conv.lead.telefono, m.id, new Date(ahora.getTime() - DIA_MS)) : 0,
           limiteFrecuencia: conteo?.maxAutomaticosPorDia ?? Number.POSITIVE_INFINITY,
@@ -405,11 +406,11 @@ export class MessagingProvider {
   private async leerPlantilla(db: Consultas, plantillaId: string, verticalId: string) {
     const p = await db.plantilla_mensaje.findFirst({
       where: { id: plantillaId },
-      select: { codigo: true, idioma: true, content_sid: true, categoria: true, estado_aprobacion: true, activo: true, vertical_id: true },
+      select: { codigo: true, idioma: true, content_sid: true, categoria: true, clase_mensaje: true, estado_aprobacion: true, activo: true, vertical_id: true },
     });
     if (!p) return null; // borrada: no es enviable
     const enviable = p.estado_aprobacion === "aprobada" && p.activo && (p.vertical_id === null || p.vertical_id === verticalId);
-    return { ...p, enviable, categoria: p.categoria as PlantillaParaReglas["categoria"] };
+    return { ...p, enviable, categoria: p.categoria as PlantillaParaReglas["categoria"], clase: p.clase_mensaje as PlantillaParaReglas["clase"] };
   }
 
   /**

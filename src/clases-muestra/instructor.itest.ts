@@ -51,6 +51,7 @@ async function mundo(): Promise<Mundo> {
       codigo: "aviso_maestro_agendada",
       content_sid: "HX00000000000000000000000000000002",
       categoria: "utility",
+      clase_mensaje: "servicio",
       variables: [{ pos: 1, nombre: "nombre_alumno" }, { pos: 2, nombre: "nombre_grupo" }] as object,
       cuerpo_referencia: "Nueva clase muestra: {{1}} en {{2}}.",
       estado_aprobacion: "aprobada",

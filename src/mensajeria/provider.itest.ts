@@ -50,6 +50,7 @@ async function escenario(ahora: Date, opc: { ventanaAbiertaHasta?: Date | null }
       codigo: "aviso",
       content_sid: "HX00000000000000000000000000000000",
       categoria: "utility" as const,
+      clase_mensaje: "servicio" as const,
       estado_aprobacion: "aprobada" as const,
       cuerpo_referencia: "Aviso",
     }),

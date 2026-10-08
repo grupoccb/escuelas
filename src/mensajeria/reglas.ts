@@ -2,7 +2,8 @@
 // historial reciente, sin tocar base ni red. Solo MessagingProvider las llama (invariante 4).
 //
 // En orden de precedencia:
-// 1. atención humana (invariante 6), sin excepción, ni siquiera para notas internas;
+// 1. atención humana (invariante 6): bloquea al bot y al marketing, ni siquiera sale una nota interna. Lo único que sale con una persona
+//    atendiendo es un aviso de SERVICIO iniciado por el sistema (plantilla que declara `clase_mensaje = servicio`): sigue sujeto a todo lo demás;
 // 1b. obsoleto: un pendiente que lleva demasiado tiempo esperando ya no es de este momento (EA-09);
 // 2. baja (opt-out) y conversación cerrada;
 // 3. plantilla: lo que lleva plantilla debe ser una aprobada y activa;
@@ -43,10 +44,15 @@ export interface EstadoParaReglas {
   dado_de_baja_marketing?: boolean;
 }
 
+/** Lo que la plantilla DECLARA ser (INV-6), independiente de su categoría ante Meta. */
+export type ClaseMensaje = "servicio" | "marketing";
+
 export interface PlantillaParaReglas {
   /** Aprobada por Meta, activa, no borrada y válida para la vertical de la conversación. */
   enviable: boolean;
   categoria: "marketing" | "utility" | "authentication" | "servicio";
+  /** Servicio o marketing. Cualquier valor distinto de `servicio` se trata como marketing (lo conservador). */
+  clase: ClaseMensaje;
 }
 
 export interface EntradaReglas {
@@ -86,12 +92,26 @@ export function esIniciadoPorSistema(e: { origen: OrigenMensaje; conLaPlantilla:
   return e.conLaPlantilla && !e.ventanaAbierta;
 }
 
+/** true si la plantilla es un aviso de servicio. Solo el valor exacto `servicio` lo es: lo ausente o raro es marketing. */
+export function esDeServicio(plantilla: PlantillaParaReglas | null): boolean {
+  return plantilla !== null && plantilla.clase === "servicio";
+}
+
+/**
+ * INV-6: con `en_atencion_humana` solo sale un aviso de SERVICIO que inicia el sistema: un mensaje (no una nota interna) de origen
+ * `automatizacion` que lleva una plantilla de clase `servicio`. Todo lo demás se bloquea: lo que contesta el bot (`respuesta`,
+ * `confirmacion_baja`), el texto libre automático, las notas internas y cualquier plantilla de marketing.
+ */
+export function pasaConAtencionHumana(e: { tipo: TipoSaliente; origen: OrigenMensaje; plantilla: PlantillaParaReglas | null }): boolean {
+  return e.tipo === "mensaje" && e.origen === "automatizacion" && esDeServicio(e.plantilla);
+}
+
 /** Devuelve el motivo por el que NO se puede mandar, o null si se puede. */
 export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
   const { conv, tipo, origen, ahora, plantilla } = e;
 
-  // Sin excepción: ni siquiera una nota interna automática cuando ya atiende una persona.
-  if (conv.estado === "en_atencion_humana") return "atencion_humana";
+  // INV-6: con una persona atendiendo el sistema no contesta ni hace marketing; el aviso de servicio sí sale (y sigue sujeto a lo demás).
+  if (conv.estado === "en_atencion_humana" && !pasaConAtencionHumana({ tipo, origen, plantilla })) return "atencion_humana";
   // Un pendiente de hace días (el proceso murió entre encolarlo y mandarlo) saldría fuera de
   // contexto y antes de la respuesta nueva. No se manda y no hay tarea: el bot vuelve a preguntar
   // cuando el contacto escriba (EA-09). Aplica también a las notas: un resumen viejo engaña.
@@ -102,7 +122,8 @@ export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
   // mensaje, así que sigue sujeta a la ventana de servicio.
   if (origen !== "confirmacion_baja") {
     if (conv.estado === "opt_out" || conv.dado_de_baja) return "opt_out";
-    if (plantilla?.categoria === "marketing" && conv.dado_de_baja_marketing) return "opt_out";
+    // La baja de marketing no bloquea los avisos de servicio; la baja total (arriba) bloquea todo.
+    if (plantilla && (plantilla.categoria === "marketing" || !esDeServicio(plantilla)) && conv.dado_de_baja_marketing) return "opt_out";
     if (conv.estado === "cerrada") return "conversacion_cerrada";
   }
 

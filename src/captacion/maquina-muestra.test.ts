@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { OpcionHorario } from "../cotizador/cotizacion.ts";
-import { esAgradecimiento, avanzar, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionFechaMuestra } from "./maquina.ts";
+import { avanzar, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionFechaMuestra } from "./maquina.ts";
 
 const NORTE = { id: "s-norte", nombre: "Norte", direccion: null };
 const fecha = (iso: string, texto: string, lugares: number): OpcionFechaMuestra => ({ fechaHora: iso, nombre: texto, lugares });
@@ -14,11 +14,10 @@ const F3 = fecha("2026-11-16T22:00:00.000Z", "lunes 16 de noviembre a las 16:00"
 const HORARIO_A: OpcionHorario = { grupoId: "g-a", nombre: "Grupo A", horarioTexto: "lunes de 16:00 a 17:00", oferta: "lugar", lugares: 3 };
 const HORARIO_LLENO: OpcionHorario = { grupoId: "g-lleno", nombre: "Grupo lleno", horarioTexto: "martes de 16:00 a 17:00", oferta: "lista_de_espera", lugares: 0 };
 
-function ctx(extra: Partial<NonNullable<ContextoCaptacion["claseMuestra"]>> | null, o: { cotizador?: boolean; claseAgendada?: { texto: string } } = {}): ContextoCaptacion {
+function ctx(extra: Partial<NonNullable<ContextoCaptacion["claseMuestra"]>> | null, o: { cotizador?: boolean } = {}): ContextoCaptacion {
   const base: ContextoCaptacion = {
     nombreVertical: "Vertical Uno",
     sucursales: [NORTE],
-    ...(o.claseAgendada ? { claseAgendada: o.claseAgendada } : {}),
   };
   if (o.cotizador === false) return base;
   return {
@@ -71,11 +70,10 @@ test("D1 máquina: sin la clase muestra encendida, o sin fechas con lugar, o con
   assert.equal(lleno.estado.paso, "lista_espera");
 });
 
-test("D1 máquina: elige una fecha con lugar → pide agendarla, confirma y NO pasa a una persona (deja una nota)", () => {
+test("D1 máquina (INV-6): elige una fecha con lugar → pide agendarla, confirma y pasa la conversación a una persona con una nota", () => {
   const r = avanzar(enFecha, "2", ctx({ ofrecida: propuesta }));
   assert.equal(r.estado.paso, "completo");
-  assert.equal(r.pasarAAsesor, null);
-  assert.equal(r.notaAAsesores, "muestra_agendada");
+  assert.equal(r.pasarAAsesor, "muestra_agendada");
   assert.deepEqual(r.efectos, [{ tipo: "agendar_muestra", grupoId: "g-a", fechaHora: F2.fechaHora }]);
   assert.equal(r.respuestas[0], "¡Listo! Agendamos la clase muestra de Luis en Grupo A, sucursal Norte: lunes 9 de noviembre a las 16:00. Te mandamos un recordatorio antes de la clase. Si necesitas cambiar la fecha, escríbenos por aquí.");
   // También por el nombre de la fecha.
@@ -131,27 +129,24 @@ test("D1 máquina: si ya tenía una clase muestra vigente en ese grupo, se lo di
   const r = avanzar(enHorario, "1", ctx({ yaAgendada: { "g-a": ya } }));
   assert.equal(r.respuestas[0], "Luis ya tiene agendada su clase muestra: lunes 9 de noviembre a las 16:00. Si quieres cambiarla, escribe «asesor».");
   assert.equal(r.efectos, undefined);
-  assert.equal(r.pasarAAsesor, null);
+  assert.equal(r.pasarAAsesor, "muestra_agendada");
 });
 
-test("D1 máquina: después de agendar, un agradecimiento no pasa a una persona; cualquier otra cosa sí", () => {
+test("D1 máquina (INV-6): ya no hay una respuesta especial a un «gracias» después de agendar: la conversación pasa a una persona y el bot calla", () => {
+  // La solución provisional («gracias» no pasa a una persona) se quitó: los recordatorios son avisos de servicio y salen aunque una persona
+  // atienda, así que el bot no necesita seguir con la conversación. Si el pase no terminó y el contacto escribe, solo se vuelve a pedir.
   const completo: EstadoCaptacion = { ...enHorario, paso: "completo" };
-  const con = ctx(null, { claseAgendada: { texto: "lunes 9 de noviembre a las 16:00" } });
-  for (const t of ["gracias", "¡Muchas gracias!", "Ok", "perfecto", "ahí estaremos", "OK, gracias."]) {
-    const r = avanzar(completo, t, con);
-    assert.equal(r.pasarAAsesor, null, t);
-    assert.deepEqual(r.respuestas, [textos.deNada("lunes 9 de noviembre a las 16:00")], t);
+  for (const t of ["gracias", "¡Muchas gracias!", "Ok", "¿hay estacionamiento?"]) {
+    const r = avanzar(completo, t, ctx(null));
+    assert.equal(r.pasarAAsesor, "captura_completa", t);
+    assert.deepEqual(r.respuestas, [], t);
   }
-  assert.equal(avanzar(completo, "¿hay estacionamiento?", con).pasarAAsesor, "captura_completa");
-  // Sin clase agendada (el flujo de siempre) un «gracias» sí pasa a una persona.
-  assert.equal(avanzar(completo, "gracias", ctx(null)).pasarAAsesor, "captura_completa");
-  assert.equal(esAgradecimiento("gracias por la información"), true);
-  assert.equal(esAgradecimiento("gracias, pero quiero cambiar la fecha"), false);
 });
 
-test("D1 máquina: la nota para el asesor dice que el bot sigue atendiendo", () => {
+test("D1 máquina (INV-6): la nota para el asesor dice que se le pasa la conversación y que los recordatorios salen solos", () => {
   const nota = textos.resumenAsesor("muestra_agendada", { nombre: "Luis", edad: 8, sucursal: "Norte", telefono: "+5255", cotizacion: ["• Clase muestra: lunes 9 de noviembre a las 16:00 (Grupo A)"] });
   assert.match(nota, /El bot agendó una clase muestra/);
-  assert.match(nota, /el bot sigue atendiendo/);
+  assert.match(nota, /te pasa la conversación/);
+  assert.match(nota, /recordatorios de 24 h y 2 h .* saldrán solos aunque la atiendas tú/);
   assert.match(nota, /Clase muestra: lunes 9 de noviembre a las 16:00 \(Grupo A\)/);
 });

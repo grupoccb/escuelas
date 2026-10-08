@@ -31,19 +31,21 @@ WHERE id IN ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-00
 -- ── D2: plantillas del aviso al maestro [SUPUESTO] ───────────────────────────────────────────────────────
 -- El código de cada una lo busca MessagingProvider (aviso_maestro_<tipo>); la categoría es utility (aviso a alguien que tiene una
 -- relación con la escuela). Nunca llevan datos de salud: solo alumno, grupo, sucursal, fecha y hora. Ficticias y «aprobadas» solo para la demo.
-INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+-- INV-6 [SUPUESTO]: `clase_mensaje` es la declaración de la plantilla (independiente de `categoria`, la de Meta). Los avisos al maestro y el recordatorio de la
+-- clase muestra son de SERVICIO (algo que la familia ya acordó): salen aunque una persona atienda la conversación. La recuperación de quien no llegó es MARKETING.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
   ('00000000-0000-4000-8000-000000000702', '00000000-0000-4000-8000-000000000001', 'aviso_maestro_agendada',
-   'HX00000000000000000000000000000002', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000002', NULL, 'utility', 'servicio', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
    'Nueva clase muestra: {{1}} en {{2}}, el {{3}} a las {{4}} (sucursal {{5}}).',
    'aprobada', true),
   ('00000000-0000-4000-8000-000000000703', '00000000-0000-4000-8000-000000000001', 'aviso_maestro_reprogramada',
-   'HX00000000000000000000000000000003', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000003', NULL, 'utility', 'servicio', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"},{"pos":6,"nombre":"fecha_anterior"}]',
    'Se cambió la clase muestra de {{1}} en {{2}}: era {{6}}, ahora es el {{3}} a las {{4}} (sucursal {{5}}).',
    'aprobada', true),
   ('00000000-0000-4000-8000-000000000704', '00000000-0000-4000-8000-000000000001', 'aviso_maestro_cancelada',
-   'HX00000000000000000000000000000004', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000004', NULL, 'utility', 'servicio', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
    'Se canceló la clase muestra de {{1}} en {{2}} del {{3}} a las {{4}} (sucursal {{5}}).',
    'aprobada', true)
@@ -53,9 +55,11 @@ ON CONFLICT DO NOTHING;
 -- Una sola plantilla (utility) y dos automatizaciones del evento `clase_muestra_proxima`; `offset_minutos` es NEGATIVO (-1440 = 24 h antes,
 -- -120 = 2 h antes) y se edita desde administración. TODOS los días permitidos (incluido el domingo): una clase en domingo se recuerda en
 -- domingo. Lo que caiga antes de las 09:00 se recorre a las 09:00 (invariante 14); si con eso llegara a la hora de la clase o después, se descarta.
-INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+-- INV-6 [SUPUESTO]: `clase_mensaje` es la declaración de la plantilla (independiente de `categoria`, la de Meta). Los avisos al maestro y el recordatorio de la
+-- clase muestra son de SERVICIO (algo que la familia ya acordó): salen aunque una persona atienda la conversación. La recuperación de quien no llegó es MARKETING.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
   ('00000000-0000-4000-8000-000000000705', '00000000-0000-4000-8000-000000000001', 'recordatorio_clase_muestra',
-   'HX00000000000000000000000000000005', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000005', NULL, 'utility', 'servicio', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
    'Te recordamos la clase muestra de {{1}}: {{3}} a las {{4}}, grupo {{2}}, sucursal {{5}}. ¡Los esperamos!',
    'aprobada', true)
@@ -72,9 +76,11 @@ ON CONFLICT DO NOTHING;
 -- Evento `clase_muestra_no_asistio`: nace al MARCAR que no asistió. `offset_minutos` es positivo (120 = 2 h después de marcarlo) y los intentos
 -- siguientes salen cada `espaciado_minutos` (2 días), hasta `max_intentos` (2). Dentro del horario de envío de la sucursal, también el domingo.
 -- Respeta baja, frecuencia y atención humana (MessagingProvider); si la familia contesta, la conversación llega a un asesor, que reagenda.
-INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+-- INV-6 [SUPUESTO]: `clase_mensaje` es la declaración de la plantilla (independiente de `categoria`, la de Meta). Los avisos al maestro y el recordatorio de la
+-- clase muestra son de SERVICIO (algo que la familia ya acordó): salen aunque una persona atienda la conversación. La recuperación de quien no llegó es MARKETING.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
   ('00000000-0000-4000-8000-000000000706', '00000000-0000-4000-8000-000000000001', 'recuperacion_no_asistio',
-   'HX00000000000000000000000000000006', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000006', NULL, 'utility', 'marketing', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"}]',
    'Hola, vimos que {{1}} no pudo asistir a su clase muestra de {{2}} del {{3}}. ¿Te gustaría reagendarla? Responde a este mensaje y te ayudamos.',
    'aprobada', true)

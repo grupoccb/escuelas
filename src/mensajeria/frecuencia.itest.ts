@@ -37,6 +37,7 @@ async function escenario(telefono = telefonoNuevo()) {
         codigo,
         content_sid: "HX00000000000000000000000000000000",
         categoria,
+        clase_mensaje: categoria === "marketing" ? ("marketing" as const) : ("servicio" as const),
         estado_aprobacion: "aprobada" as const,
         cuerpo_referencia: codigo,
       }),

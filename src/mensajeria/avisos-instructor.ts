@@ -143,7 +143,7 @@ export class EnvioAInstructores {
       const plantilla = await tx.plantilla_mensaje.findFirst({
         where: { codigo: PLANTILLA_DE_AVISO[tipo], activo: true, estado_aprobacion: "aprobada", OR: [{ vertical_id: null }, { vertical_id: verticalId }] },
         orderBy: [{ vertical_id: "desc" }, { creado_en: "asc" }],
-        select: { codigo: true, idioma: true, content_sid: true, categoria: true, variables: true, cuerpo_referencia: true },
+        select: { codigo: true, idioma: true, content_sid: true, categoria: true, clase_mensaje: true, variables: true, cuerpo_referencia: true },
       });
       const config = await leerConfiguracion(tx);
       const motivo = evaluarReglas({
@@ -152,7 +152,7 @@ export class EnvioAInstructores {
         tipo: "mensaje",
         origen: "automatizacion",
         ahora,
-        plantilla: plantilla ? { enviable: true, categoria: plantilla.categoria } : null,
+        plantilla: plantilla ? { enviable: true, categoria: plantilla.categoria, clase: plantilla.clase_mensaje } : null,
         zonaHoraria: zona,
         automaticosRecientes: await this.enviadosAlTelefono(tx, telefono, a.id, new Date(ahora.getTime() - DIA_MS)),
         limiteFrecuencia: config.maxAutomaticosPorDia,

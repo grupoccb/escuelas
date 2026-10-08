@@ -165,7 +165,7 @@ test("ED-05 (M33): el aviso al maestro de una clase que ya empezó se descarta (
   const m = await mundo();
   const transporte = new TransporteFalso();
   await prisma.plantilla_mensaje.create({
-    data: { organizacion_id: m.org.organizacionId, codigo: "aviso_maestro_agendada", content_sid: "HX00000000000000000000000000000002", categoria: "utility", variables: [{ pos: 1, nombre: "nombre_alumno" }] as object, cuerpo_referencia: "Nueva clase muestra: {{1}}.", estado_aprobacion: "aprobada" },
+    data: { organizacion_id: m.org.organizacionId, codigo: "aviso_maestro_agendada", content_sid: "HX00000000000000000000000000000002", categoria: "utility", clase_mensaje: "servicio", variables: [{ pos: 1, nombre: "nombre_alumno" }] as object, cuerpo_referencia: "Nueva clase muestra: {{1}}.", estado_aprobacion: "aprobada" },
   });
   await prisma.instructor.updateMany({ where: { usuario_id: m.maestroA }, data: { telefono: "+525512340001" } });
   const f = await sembrarFamilia(prisma, m.org, { sucursalId: m.org.sucursales[0]!.id });

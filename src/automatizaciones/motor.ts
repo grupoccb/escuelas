@@ -284,12 +284,12 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     ? await db.conversacion.findFirst({ where: { lead_id: leadDeLaEntidad }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: incluir })
     : await db.conversacion.findFirst({ where: { id: e.entidad_id }, include: incluir });
 
-  // D8, lead frío: la tarea para el asesor es lo principal; la plantilla de reenganche, si procede. Con una persona atendiendo (invariante 6)
-  // el aviso se omite entero: ella ya tiene el lead (los estancados se ven en GET /api/leads/estancados).
+  // D8, lead frío: la tarea para el asesor es lo principal; la plantilla de reenganche, si procede. El motor NO mira si una persona atiende
+  // (invariante 6, INV-6): la tarea es un aviso interno —y con una persona atendiendo es justo cuando conviene: tomó el lead y se enfrió— y
+  // la plantilla de marketing la frena MessagingProvider (`atencion_humana`) como cualquier otra.
   if (esLeadFrio) {
     const rev = await revalidarLeadFrio(db, e.entidad_id, e.automatizacion, ahora);
     if (!rev.ok) return omitir(rev.motivo);
-    if (conv?.estado === "en_atencion_humana") return omitir("atencion_humana");
     const dias = Math.floor((ahora.getTime() - (rev.lead.ultimaInteraccionEn ?? rev.lead.creadoEn).getTime()) / (24 * 60 * MINUTO_MS));
     await asegurarTareaDeLeadFrio(db, {
       leadId: rev.lead.id,

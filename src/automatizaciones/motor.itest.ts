@@ -34,7 +34,7 @@ interface Opciones {
   ultimoEntrante?: Date;
   offsetMin?: number;
   maxIntentos?: number;
-  plantilla?: { estado?: "aprobada" | "pendiente"; categoria?: "utility" | "marketing"; activo?: boolean; cuerpo?: string | null; variables?: unknown };
+  plantilla?: { estado?: "aprobada" | "pendiente"; categoria?: "utility" | "marketing"; clase?: "servicio" | "marketing"; activo?: boolean; cuerpo?: string | null; variables?: unknown };
   sinPlantilla?: boolean;
   /** Mensajes del contacto antes de quedarse callado. Por defecto solo el saludo ("Hola"). */
   mensajes?: string[];
@@ -50,6 +50,7 @@ async function escenario(opc: Opciones = {}) {
       codigo: "reenganche",
       content_sid: "HX00000000000000000000000000000000",
       categoria: pl.categoria ?? "utility",
+      clase_mensaje: pl.clase ?? "marketing",
       estado_aprobacion: pl.estado ?? "aprobada",
       activo: pl.activo ?? true,
       cuerpo_referencia: pl.cuerpo === undefined ? "Hola, quedó pendiente tu consulta sobre {{1}}. ¿Quieres que la retomemos?" : pl.cuerpo,
@@ -278,7 +279,7 @@ test("baja (opt-out) de la organización: si el teléfono se dio de baja en otra
   assert.equal(e!.motivo_omision, "opt_out");
 });
 
-test("baja solo de marketing: bloquea una plantilla de marketing, no una utilitaria", async () => {
+test("baja solo de marketing (INV-6): bloquea lo que declara marketing, no un aviso de servicio", async () => {
   const baja = (telefono: string, o: OrganizacionDePrueba) =>
     prisma.consentimiento.create({ data: { organizacion_id: o.organizacionId, telefono, estado: "opt_out", alcance: "marketing", origen: "manual" } });
 
@@ -288,7 +289,7 @@ test("baja solo de marketing: bloquea una plantilla de marketing, no una utilita
   assert.equal(marketing.plantillasEnviadas().length, 0);
   assert.equal((await marketing.ejecuciones())[0]!.motivo_omision, "opt_out");
 
-  const utilitaria = await escenario({ plantilla: { categoria: "utility" } });
+  const utilitaria = await escenario({ plantilla: { categoria: "utility", clase: "servicio" } });
   await baja(utilitaria.telefono, utilitaria.o);
   await utilitaria.motor(en(T0, 26));
   assert.equal(utilitaria.plantillasEnviadas().length, 1);

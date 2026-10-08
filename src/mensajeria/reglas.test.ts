@@ -2,9 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   dentroDeHorario,
+  esDeServicio,
   esIniciadoPorSistema,
   evaluarReglas,
   motivoBloqueo,
+  pasaConAtencionHumana,
   recorrerODescartar,
   siguienteHorarioValido,
   ventanaServicioDesde,
@@ -136,7 +138,7 @@ const entrada = (extra: Partial<EntradaReglas> = {}): EntradaReglas => ({
   limiteFrecuencia: 1,
   ...extra,
 });
-const APROBADA = { enviable: true, categoria: "utility" as const };
+const APROBADA = { enviable: true, categoria: "utility" as const, clase: "servicio" as const };
 
 test("automatización en regla: dentro de ventana, de horario y bajo el tope", () => {
   assert.equal(evaluarReglas(entrada()), null);
@@ -149,9 +151,9 @@ test("fuera de la ventana de servicio: con plantilla aprobada se manda; sin plan
 });
 
 test("una plantilla no aprobada, inactiva o de otra vertical no se manda ni dentro de la ventana", () => {
-  assert.equal(evaluarReglas(entrada({ plantilla: { enviable: false, categoria: "utility" } })), "plantilla_no_apta");
+  assert.equal(evaluarReglas(entrada({ plantilla: { enviable: false, categoria: "utility", clase: "servicio" as const } })), "plantilla_no_apta");
   const cerrada = { estado: "bot" as const, ventana_servicio_hasta: VENCIDA };
-  assert.equal(evaluarReglas(entrada({ conv: cerrada, plantilla: { enviable: false, categoria: "utility" } })), "plantilla_no_apta");
+  assert.equal(evaluarReglas(entrada({ conv: cerrada, plantilla: { enviable: false, categoria: "utility", clase: "servicio" as const } })), "plantilla_no_apta");
 });
 
 test("horario: lo automático no sale fuera de 09:00–20:00 hora de la sucursal; una respuesta sí (decisión 5)", () => {
@@ -173,7 +175,7 @@ test("frecuencia: tope de mensajes automáticos por teléfono; no limita las res
 });
 
 test("frecuencia de marketing: tope propio por ventana, solo para plantillas de marketing, además del diario", () => {
-  const MARKETING = { enviable: true, categoria: "marketing" as const };
+  const MARKETING = { enviable: true, categoria: "marketing" as const, clase: "marketing" as const };
   const m = (extra: Partial<EntradaReglas> = {}) => entrada({ plantilla: MARKETING, limiteFrecuencia: 3, limiteMarketing: 1, ...extra });
   assert.equal(evaluarReglas(m({ marketingRecientes: 0 })), null);
   assert.equal(evaluarReglas(m({ marketingRecientes: 1 })), "tope_frecuencia");
@@ -190,13 +192,13 @@ test("frecuencia de marketing: tope propio por ventana, solo para plantillas de 
 
 test("baja de marketing: bloquea plantillas de marketing, no las de servicio", () => {
   const conv = { estado: "bot" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA, dado_de_baja_marketing: true };
-  assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: true, categoria: "marketing" } })), "opt_out");
-  assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: true, categoria: "utility" } })), null);
+  assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: true, categoria: "marketing", clase: "marketing" as const } })), "opt_out");
+  assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: true, categoria: "utility", clase: "servicio" as const } })), null);
 });
 
-test("precedencia: la atención humana gana sobre cualquier otra regla (invariante 6)", () => {
+test("precedencia: la atención humana gana sobre cualquier otra regla para lo que no es un aviso de servicio (invariante 6, INV-6)", () => {
   const conv = { estado: "en_atencion_humana" as const, ventana_servicio_hasta: VENCIDA, dado_de_baja: true };
-  assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: false, categoria: "marketing" }, zonaHoraria: null })), "atencion_humana");
+  assert.equal(evaluarReglas(entrada({ conv, plantilla: { enviable: false, categoria: "marketing", clase: "marketing" as const }, zonaHoraria: null })), "atencion_humana");
   assert.equal(evaluarReglas(entrada({ conv, tipo: "nota_interna" })), "atencion_humana");
 });
 
@@ -268,4 +270,87 @@ test("D3: con límite exclusivo, llegar AL inicio del evento ya se descarta (un 
   assert.equal(recorrerODescartar(programado, MX, nueve, undefined, true), null, "exclusivo: justo al inicio, se descarta");
   assert.equal(recorrerODescartar(programado, MX, new Date(nueve.getTime() + 1), undefined, true)?.toISOString(), nueve.toISOString(), "un instante antes del inicio todavía vale");
   assert.equal(recorrerODescartar(programado, MX, null, undefined, true)?.toISOString(), nueve.toISOString());
+});
+
+// ---------------------------------------------------------------------------------------------
+// INV-6: `en_atencion_humana` bloquea al bot y al marketing; los avisos de SERVICIO sobre algo ya acordado sí salen
+
+const SERVICIO = { enviable: true, categoria: "utility" as const, clase: "servicio" as const };
+/** Categoría Meta `marketing`, clase marketing (lead frío, promoción por vencer). */
+const MARKETING_META = { enviable: true, categoria: "marketing" as const, clase: "marketing" as const };
+/** Categoría Meta `utility` pero que DECLARA marketing (reenganche, recuperación de quien no llegó): la clase manda, no la categoría. */
+const MARKETING_UTILITY = { enviable: true, categoria: "utility" as const, clase: "marketing" as const };
+
+/** Cada tipo de saliente del sistema, tal como lo arma quien lo encola: `[tipo, origen, plantilla]`. */
+const ORIGENES: Record<string, Pick<EntradaReglas, "tipo" | "origen" | "plantilla">> = {
+  "respuesta del bot (texto libre)": { tipo: "mensaje", origen: "respuesta", plantilla: null },
+  "respuesta del bot con plantilla de servicio": { tipo: "mensaje", origen: "respuesta", plantilla: SERVICIO },
+  "confirmación de baja": { tipo: "mensaje", origen: "confirmacion_baja", plantilla: null },
+  "nota interna del bot": { tipo: "nota_interna", origen: "respuesta", plantilla: null },
+  "texto libre automático": { tipo: "mensaje", origen: "automatizacion", plantilla: null },
+  "recordatorio de clase muestra": { tipo: "mensaje", origen: "automatizacion", plantilla: SERVICIO },
+  "bienvenida de inscripción": { tipo: "mensaje", origen: "automatizacion", plantilla: SERVICIO },
+  "recordatorio de pago": { tipo: "mensaje", origen: "automatizacion", plantilla: SERVICIO },
+  "reenganche": { tipo: "mensaje", origen: "automatizacion", plantilla: MARKETING_UTILITY },
+  "recuperación de quien no llegó": { tipo: "mensaje", origen: "automatizacion", plantilla: MARKETING_UTILITY },
+  "lead frío": { tipo: "mensaje", origen: "automatizacion", plantilla: MARKETING_META },
+  "promoción por vencer": { tipo: "mensaje", origen: "automatizacion", plantilla: MARKETING_META },
+};
+/** Los únicos que salen con una persona atendiendo. */
+const SALEN_CON_ATENCION_HUMANA = new Set(["recordatorio de clase muestra", "bienvenida de inscripción", "recordatorio de pago"]);
+
+test("INV-6, matriz: {estado de la conversación} × {origen y clase de plantilla}: con una persona atendiendo solo salen los avisos de servicio", () => {
+  for (const [nombre, o] of Object.entries(ORIGENES)) {
+    // Con el bot a cargo todo sale (ventana abierta, horario y frecuencia en regla): la atención humana no cambia a los demás.
+    const bot = evaluarReglas(entrada({ ...o, conv: { estado: "bot", ventana_servicio_hasta: ABIERTA_AUTOMATICA } }));
+    assert.equal(bot, null, `bot · ${nombre}`);
+    const humana = evaluarReglas(entrada({ ...o, conv: { estado: "en_atencion_humana", ventana_servicio_hasta: ABIERTA_AUTOMATICA } }));
+    assert.equal(humana, SALEN_CON_ATENCION_HUMANA.has(nombre) ? null : "atencion_humana", `en_atencion_humana · ${nombre}`);
+  }
+});
+
+test("INV-6: el aviso de servicio con una persona atendiendo SIGUE sujeto a plantilla, ventana, horario, baja total y frecuencia", () => {
+  const humana = { estado: "en_atencion_humana" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA };
+  const aviso = (extra: Partial<EntradaReglas> = {}) => entrada({ conv: humana, origen: "automatizacion", plantilla: SERVICIO, ...extra });
+  assert.equal(evaluarReglas(aviso()), null);
+  assert.equal(evaluarReglas(aviso({ plantilla: { ...SERVICIO, enviable: false } })), "plantilla_no_apta");
+  // Fuera de la ventana de servicio: sale por ser plantilla aprobada (invariante 5), como siempre.
+  assert.equal(evaluarReglas(aviso({ conv: { ...humana, ventana_servicio_hasta: VENCIDA } })), null);
+  // Horario 09:00–20:00 de la sucursal (invariante 14) y zona obligatoria.
+  assert.equal(evaluarReglas(aviso({ ahora: new Date("2026-10-09T04:00:00Z") })), "fuera_de_horario");
+  assert.equal(evaluarReglas(aviso({ zonaHoraria: null })), "sin_zona_horaria");
+  // Frecuencia diaria.
+  assert.equal(evaluarReglas(aviso({ automaticosRecientes: 1 })), "tope_frecuencia");
+  // La baja TOTAL bloquea todo, también los avisos de servicio; la baja de marketing no.
+  assert.equal(evaluarReglas(aviso({ conv: { ...humana, dado_de_baja: true } })), "opt_out");
+  assert.equal(evaluarReglas(aviso({ conv: { ...humana, dado_de_baja_marketing: true } })), null);
+  // El tope de marketing no frena a un aviso de servicio.
+  assert.equal(evaluarReglas(aviso({ marketingRecientes: 9, limiteMarketing: 1 })), null);
+});
+
+test("INV-6: la baja de marketing bloquea lo que DECLARA marketing aunque su categoría Meta sea utility; la de servicio sigue saliendo", () => {
+  const conv = { estado: "bot" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA, dado_de_baja_marketing: true };
+  assert.equal(evaluarReglas(entrada({ conv, plantilla: MARKETING_UTILITY })), "opt_out");
+  assert.equal(evaluarReglas(entrada({ conv, plantilla: MARKETING_META })), "opt_out");
+  assert.equal(evaluarReglas(entrada({ conv, plantilla: SERVICIO })), null);
+});
+
+test("INV-6, mutación: una plantilla que no declara su clase (ausente o rara) se trata como marketing: con una persona atendiendo NO sale", () => {
+  const humana = { estado: "en_atencion_humana" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA };
+  for (const clase of [undefined, null, "", "Servicio", "utility", "SERVICIO"]) {
+    const sinDeclarar = { enviable: true, categoria: "utility" as const, clase: clase as never };
+    assert.equal(pasaConAtencionHumana({ tipo: "mensaje", origen: "automatizacion", plantilla: sinDeclarar }), false, String(clase));
+    assert.equal(evaluarReglas(entrada({ conv: humana, plantilla: sinDeclarar })), "atencion_humana", String(clase));
+  }
+  // …y con el bot a cargo, la baja de marketing también la frena (lo conservador).
+  const baja = { estado: "bot" as const, ventana_servicio_hasta: ABIERTA_AUTOMATICA, dado_de_baja_marketing: true };
+  assert.equal(evaluarReglas(entrada({ conv: baja, plantilla: { enviable: true, categoria: "utility", clase: undefined as never } })), "opt_out");
+  assert.equal(esDeServicio(null), false);
+});
+
+test("INV-6: la precedencia del resto no cambia (baja antes que ventana, ventana antes que horario…) para un aviso de servicio", () => {
+  const noche = new Date("2026-10-09T04:00:00Z");
+  const base = { ahora: noche, automaticosRecientes: 9, plantilla: SERVICIO };
+  assert.equal(evaluarReglas(entrada({ ...base, conv: { estado: "en_atencion_humana", ventana_servicio_hasta: VENCIDA, dado_de_baja: true } })), "opt_out");
+  assert.equal(evaluarReglas(entrada({ ...base, conv: { estado: "en_atencion_humana", ventana_servicio_hasta: VENCIDA } })), "fuera_de_horario");
 });

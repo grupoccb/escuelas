@@ -68,7 +68,7 @@ test("ningún centinela de salud aparece en logs, notas, mensajes ni tablas, tra
 
   // Reenganche configurado, para que el motor tenga algo que mandar.
   const plantilla = await prisma.plantilla_mensaje.create({
-    data: { organizacion_id: org.organizacionId, codigo: "reenganche", content_sid: "HX00000000000000000000000000000000", categoria: "utility", estado_aprobacion: "aprobada", cuerpo_referencia: "Hola, quedó pendiente tu consulta sobre {{1}}.", variables: [{ pos: 1, nombre: "nombre_vertical" }] as never },
+    data: { organizacion_id: org.organizacionId, codigo: "reenganche", content_sid: "HX00000000000000000000000000000000", categoria: "utility", clase_mensaje: "marketing", estado_aprobacion: "aprobada", cuerpo_referencia: "Hola, quedó pendiente tu consulta sobre {{1}}.", variables: [{ pos: 1, nombre: "nombre_vertical" }] as never },
   });
   await prisma.automatizacion.create({ data: { organizacion_id: org.organizacionId, nombre: "Reenganche", evento_disparador: "lead_sin_respuesta", offset_minutos: 1500, plantilla_id: plantilla.id } });
 
@@ -229,7 +229,7 @@ test("D1-D4: ningún centinela de salud aparece en el aviso al maestro, los reco
       ["recordatorio_clase_muestra", [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_grupo" }, { pos: 3, nombre: "fecha_clase" }], "Recordatorio {{1}} {{2}} {{3}}"],
       ["recuperacion_no_asistio", [{ pos: 1, nombre: "nombre_prospecto" }], "No pudo asistir {{1}}"],
     ] as const) {
-      await prisma.plantilla_mensaje.create({ data: { organizacion_id: e.org.organizacionId, codigo, content_sid: "HX0", categoria: "utility", variables: vars as never, cuerpo_referencia: cuerpo, estado_aprobacion: "aprobada" } });
+      await prisma.plantilla_mensaje.create({ data: { organizacion_id: e.org.organizacionId, codigo, content_sid: "HX0", categoria: "utility", clase_mensaje: codigo === "recuperacion_no_asistio" ? "marketing" : "servicio", variables: vars as never, cuerpo_referencia: cuerpo, estado_aprobacion: "aprobada" } });
     }
     const plantillaR = await prisma.plantilla_mensaje.findFirstOrThrow({ where: { organizacion_id: e.org.organizacionId, codigo: "recordatorio_clase_muestra" } });
     const plantillaN = await prisma.plantilla_mensaje.findFirstOrThrow({ where: { organizacion_id: e.org.organizacionId, codigo: "recuperacion_no_asistio" } });

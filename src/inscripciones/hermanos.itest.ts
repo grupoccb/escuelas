@@ -291,6 +291,7 @@ async function mundoDeBienvenida(o: { sinConversacion?: boolean; offset?: number
       codigo: `bienvenida_inscripcion_${++n}`,
       content_sid: "HX00000000000000000000000000000099",
       categoria: "utility",
+      clase_mensaje: "servicio",
       estado_aprobacion: "aprobada",
       cuerpo_referencia: "¡Bienvenidos! {{1}} quedó inscrito en {{2}}, sucursal {{3}}. Su primera clase es el {{4}}.",
       variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_grupo" }, { pos: 3, nombre: "nombre_sucursal" }, { pos: 4, nombre: "fecha_inicio" }] as never,
@@ -305,6 +306,7 @@ async function mundoDeBienvenida(o: { sinConversacion?: boolean; offset?: number
   return {
     a,
     conv,
+    plantilla,
     automatizacion,
     transporte,
     corre: (ahora: Date) => correrAutomatizaciones({ prisma, mensajeria: new MessagingProvider({ transporte, reloj: () => ahora }), reloj: () => ahora, organizacionId: org.organizacionId }),
@@ -368,7 +370,7 @@ test("bienvenida: va al tutor RESPONSABLE de pago (la conversación del lead con
   }
 });
 
-test("bienvenida: pasa por MessagingProvider con TODAS sus reglas — una baja del teléfono, la atención humana y la inscripción que ya no vale la omiten con su motivo; sin conversación deja una tarea", async () => {
+test("bienvenida: pasa por MessagingProvider con TODAS sus reglas — una baja del teléfono, la atención humana (INV-6: sale si es de servicio) y la inscripción que ya no vale la omiten con su motivo; sin conversación deja una tarea", async () => {
   const m = await mundoDeBienvenida();
   try {
     const g = await programa();
@@ -380,14 +382,26 @@ test("bienvenida: pasa por MessagingProvider con TODAS sus reglas — una baja d
     const e1 = (await m.ejecuciones(i1.cuerpo.id))[0]!;
     assert.equal(e1.estatus, "omitido");
     assert.ok(e1.motivo_omision, "queda el motivo");
-    // Atención humana: hoy bloquea toda automatización (invariante 6 vigente; INV-6 lo reformulará para los avisos de servicio).
+    // Atención humana (INV-6): la bienvenida es un aviso de SERVICIO sobre algo que la familia ya acordó, así que SÍ sale aunque una persona atienda.
+    await m.apagar(); // una sola automatización viva a la vez: cada una crea su propia ejecución por inscripción
     const m2 = await mundoDeBienvenida();
     const i2 = await inscribir(admin, m2.a.alumnoId, (await programa()).grupoId);
     await prisma.conversacion.update({ where: { id: m2.conv!.id }, data: { estado: "en_atencion_humana" } });
     await m2.corre(new Date("2026-11-10T15:00:00Z"));
-    assert.equal(m2.enviados().length, 0);
-    assert.equal((await m2.ejecuciones(i2.cuerpo.id))[0]!.estatus, "omitido");
+    assert.equal(m2.enviados().length, 1);
+    assert.equal((await m2.ejecuciones(i2.cuerpo.id))[0]!.estatus, "enviado");
+    assert.equal((await prisma.conversacion.findUniqueOrThrow({ where: { id: m2.conv!.id } })).estado, "en_atencion_humana");
     await m2.apagar();
+    // Mutación de la clase declarada: la misma plantilla declarada de marketing NO sale con una persona atendiendo (motivo atencion_humana).
+    const m2b = await mundoDeBienvenida();
+    await prisma.plantilla_mensaje.update({ where: { id: m2b.plantilla.id }, data: { clase_mensaje: "marketing" } });
+    const i2b = await inscribir(admin, m2b.a.alumnoId, (await programa()).grupoId);
+    await prisma.conversacion.update({ where: { id: m2b.conv!.id }, data: { estado: "en_atencion_humana" } });
+    await m2b.corre(new Date("2026-11-10T15:00:00Z"));
+    assert.equal(m2b.enviados().length, 0);
+    const e2b = (await m2b.ejecuciones(i2b.cuerpo.id))[0]!;
+    assert.deepEqual([e2b.estatus, e2b.motivo_omision], ["omitido", "atencion_humana"]);
+    await m2b.apagar();
     // La inscripción se dio de baja antes de que saliera: ya no tiene sentido.
     const m3 = await mundoDeBienvenida();
     const i3 = await inscribir(admin, m3.a.alumnoId, (await programa()).grupoId);

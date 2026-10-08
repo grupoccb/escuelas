@@ -229,7 +229,7 @@ test("D2 WhatsApp: el ciclo del minuto también manda los avisos pendientes", as
   const instructor = await prisma.instructor.create({ data: { organizacion_id: org2.organizacionId, nombre: "Maestra Z", telefono: "+525500000077" } });
   const p = await sembrarPrograma(prisma, org2, { sucursalId, nombre: "P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", horarios: [[3, 1080, 1140]] }] });
   await prisma.grupo.update({ where: { id: p.grupos[0]!.id }, data: { instructor_id: instructor.id } });
-  await prisma.plantilla_mensaje.create({ data: { organizacion_id: org2.organizacionId, codigo: "aviso_maestro_agendada", content_sid: "HX0", categoria: "utility", variables: [{ pos: 1, nombre: "nombre_alumno" }], cuerpo_referencia: "Nueva clase: {{1}}", estado_aprobacion: "aprobada" } });
+  await prisma.plantilla_mensaje.create({ data: { organizacion_id: org2.organizacionId, codigo: "aviso_maestro_agendada", content_sid: "HX0", categoria: "utility", clase_mensaje: "servicio", variables: [{ pos: 1, nombre: "nombre_alumno" }], cuerpo_referencia: "Nueva clase: {{1}}", estado_aprobacion: "aprobada" } });
   const u = await prisma.usuario.create({ data: { organizacion_id: org2.organizacionId, correo: `c-${Math.random()}@p.test`, nombre: "A", rol: "asesor", contrasena_hash: "x" } });
   const f = await sembrarFamilia(prisma, org2, { sucursalId });
   const db2 = conAlcance(prisma, org2.organizacionId);

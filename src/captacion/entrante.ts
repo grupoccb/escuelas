@@ -97,7 +97,7 @@ export async function procesarEntrante(
   // Fuera de la transacción: la fuente puede ser externa (otras vías consultan a un tercero).
   const atribucion = await (deps.atribucion ?? new SinAtribucion()).obtener(evento);
 
-  let r: { resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean; bajaDeInstructor?: boolean } | undefined;
+  let r: { resultado: ResultadoEntrante; conversacionId: string; bajaDeInstructor?: boolean } | undefined;
   for (let intento = 1; !r; intento++) {
     try {
       r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion, deps.fuenteOcupacion ?? new InscripcionesActivas()));
@@ -112,9 +112,6 @@ export async function procesarEntrante(
   if (r.resultado !== "ignorado" && r.resultado !== "instructor") await deps.mensajeria.despachar(db, r.conversacionId);
   // ED-01: la baja de un instructor se confirma UNA vez (solo la que acaba de registrarse), por MessagingProvider. Si no sale, la baja ya quedó.
   if (r.bajaDeInstructor) await deps.mensajeria.confirmarBajaDeInstructor(db, r.conversacionId, textos.confirmacionBaja);
-  // D1: el bot agendó una clase muestra y sigue atendiendo; la conversación se hace visible para los asesores (la nota sale
-  // antes). Si Chatwoot no la abre, `visible_a_asesores_en` sin `abierta_para_asesores_en` hace que el barrido de espera lo reintente.
-  if (r.abrirParaAsesores) await deps.mensajeria.abrirParaAsesores(db, r.conversacionId);
   log.info("entrante_procesado", { resultado: r.resultado, conversacionId: r.conversacionId });
   return r;
 }
@@ -127,7 +124,7 @@ async function registrarYAvanzar(
   recibidoEn: Date,
   atribucion: Atribucion | null,
   fuente: FuenteOcupacion,
-): Promise<{ resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean; bajaDeInstructor?: boolean }> {
+): Promise<{ resultado: ResultadoEntrante; conversacionId: string; bajaDeInstructor?: boolean }> {
   const previo = await tx.mensaje.findFirst({
     where: { proveedor: evento.llave.proveedor, id_externo: evento.llave.id },
     select: { conversacion_id: true },
@@ -230,8 +227,6 @@ async function registrarYAvanzar(
     paso_captacion: r.estado.paso,
     intentos_fallidos: r.estado.intentosFallidos,
     ...(r.pasarAAsesor ? { pasar_a_asesor_pendiente: true, motivo_pase_asesor: r.pasarAAsesor } : {}),
-    // D1: visible para los asesores (la apertura la hace procesarEntrante) sin pasarles la conversación.
-    ...(r.notaAAsesores && !conv.visible_a_asesores_en ? { visible_a_asesores_en: recibidoEn } : {}),
   });
   await tx.lead.update({
     where: { id: conv.lead.id },
@@ -262,11 +257,9 @@ async function registrarYAvanzar(
   const salientes: Saliente[] = r.respuestas.map((cuerpo) => respuestaA(entrante.id, cuerpo));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
     salientes.push({ tipo: "nota_interna", origen: "respuesta", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.pasarAAsesor) });
-  } else if (r.notaAAsesores) {
-    salientes.push({ tipo: "nota_interna", origen: "respuesta", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.notaAAsesores) });
   }
   await mensajeria.encolar(tx, conv.id, salientes);
-  return { resultado: "procesado", conversacionId: conv.id, ...(r.notaAAsesores ? { abrirParaAsesores: true } : {}) };
+  return { resultado: "procesado", conversacionId: conv.id };
 }
 
 /**
@@ -566,12 +559,10 @@ async function contextoCaptacion(
   });
   const ordenadas = filas.map((f) => f.sucursal).sort((a, b) => a.nombre.localeCompare(b.nombre, "es-MX"));
   const sucursales: OpcionSucursal[] = ordenadas.map((s) => ({ id: s.id, nombre: s.nombre, direccion: s.direccion }));
-  // Con la clase muestra encendida, un «gracias» después de agendar no pasa la conversación a una persona.
-  const claseAgendada = vertical.clase_muestra_whatsapp_activo && vertical.cotizador_whatsapp_activo && o.paso === "completo" && o.prospectoId ? await claseAgendadaDe(tx, o.prospectoId) : null;
   const deLanding = o.deLanding ? { datosDeLanding: true } : {};
   // Con los datos de la landing ya en mano, desde el primer mensaje el bot necesita el catálogo (sigue con la cotización sin preguntar de nuevo).
   const necesitaCatalogo = PASOS_CON_CATALOGO.includes(o.paso) || (o.deLanding === true && o.paso === "inicio");
-  if (!vertical.cotizador_whatsapp_activo || !necesitaCatalogo) return { nombreVertical: vertical.nombre, sucursales, ...(claseAgendada ? { claseAgendada } : {}), ...deLanding };
+  if (!vertical.cotizador_whatsapp_activo || !necesitaCatalogo) return { nombreVertical: vertical.nombre, sucursales, ...deLanding };
 
   // La fecha de la consulta (precio y promociones vigentes hoy) es la local de la sucursal del contacto; si aún no
   // eligió, la de la primera que ofrece la vertical.
@@ -599,16 +590,6 @@ async function contextoCaptacion(
 const FECHAS_PROPUESTAS = 5;
 
 const aOpcion = (fechaHora: Date, lugares: number, zona: string): OpcionFechaMuestra => ({ fechaHora: fechaHora.toISOString(), nombre: describirSesion(fechaHora, zona).completa, lugares });
-
-/** La clase muestra vigente del prospecto, como texto («lunes 12 de octubre a las 16:00»), o null. */
-async function claseAgendadaDe(tx: Consultas, prospectoId: string): Promise<{ texto: string } | null> {
-  const c = await tx.clase_muestra.findFirst({
-    where: { prospecto_id: prospectoId, estatus: "agendada" },
-    orderBy: { fecha_hora: "asc" },
-    select: { fecha_hora: true, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } },
-  });
-  return c ? { texto: describirSesion(c.fecha_hora, c.grupo.programa.sucursal.zona_horaria).completa } : null;
-}
 
 /**
  * D1: lo que el bot necesita para proponer y agendar la clase muestra. Las próximas sesiones con lugar de cada grupo que se le

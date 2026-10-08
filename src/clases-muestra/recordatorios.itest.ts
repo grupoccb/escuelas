@@ -45,6 +45,7 @@ async function mundo(o: Opciones = {}) {
       codigo: "recordatorio_clase_muestra",
       content_sid: "HX00000000000000000000000000000005",
       categoria: "utility",
+      clase_mensaje: "servicio",
       estado_aprobacion: "aprobada",
       cuerpo_referencia: "Te recordamos la clase muestra de {{1}}: {{3}} a las {{4}}, grupo {{2}}, sucursal {{5}}.",
       variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_grupo" }, { pos: 3, nombre: "fecha_clase" }, { pos: 4, nombre: "hora_clase" }, { pos: 5, nombre: "nombre_sucursal" }] as never,
@@ -223,16 +224,28 @@ test("D3 es idempotente: programar otra vez no duplica y dos pasadas simultánea
   assert.equal(m.enviados().length, 1);
 });
 
-test("D3 el provider decide con TODAS sus reglas: atención humana, baja y tope de frecuencia", async () => {
-  // Atención humana: ni siquiera sale.
+test("D3 el provider decide con TODAS sus reglas: atención humana (INV-6: el aviso de servicio sale), baja y tope de frecuencia", async () => {
+  // Atención humana (INV-6): el recordatorio es un aviso de SERVICIO sobre algo que la familia ya acordó, así que SÍ sale aunque una persona atienda.
   const a = await mundo();
   const fa = await a.familia();
   const ca = await a.agendar(fa.prospectoId, DOMINGO_10, AGENDADA_EL);
   await prisma.conversacion.update({ where: { id: fa.conversacionId }, data: { estado: "en_atencion_humana" } });
   const ra = await a.corre(new Date("2026-10-31T16:00:00Z"));
-  assert.deepEqual([ra.enviadas, ra.omitidas], [0, 1]);
-  assert.deepEqual((await a.ejecuciones(ca))[0]!.motivo_omision, "atencion_humana");
-  assert.equal(a.transporte.envios.length, 0);
+  assert.deepEqual([ra.enviadas, ra.omitidas], [1, 0]);
+  assert.equal((await a.ejecuciones(ca))[0]!.motivo_omision, null);
+  assert.equal(a.enviados().length, 1);
+  assert.equal((await prisma.conversacion.findUniqueOrThrow({ where: { id: fa.conversacionId } })).estado, "en_atencion_humana", "enviar el aviso no devuelve la conversación al bot");
+
+  // Mutación de la clase declarada: la MISMA plantilla declarada de marketing con una persona atendiendo NO sale (motivo atencion_humana).
+  const a2 = await mundo();
+  const fa2 = await a2.familia();
+  const ca2 = await a2.agendar(fa2.prospectoId, DOMINGO_10, AGENDADA_EL);
+  await prisma.plantilla_mensaje.updateMany({ where: { organizacion_id: a2.org.organizacionId }, data: { clase_mensaje: "marketing" } });
+  await prisma.conversacion.update({ where: { id: fa2.conversacionId }, data: { estado: "en_atencion_humana" } });
+  const ra2 = await a2.corre(new Date("2026-10-31T16:00:00Z"));
+  assert.deepEqual([ra2.enviadas, ra2.omitidas], [0, 1]);
+  assert.equal((await a2.ejecuciones(ca2))[0]!.motivo_omision, "atencion_humana");
+  assert.equal(a2.transporte.envios.length, 0);
 
   // Baja del teléfono.
   const b = await mundo();

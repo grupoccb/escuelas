@@ -6,9 +6,9 @@ import { resumenDeCotizacion } from "../cotizador/cotizacion.ts";
 import { deFecha } from "../catalogo/precios.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { entradasVivasDe } from "../lista-espera/lista-espera.ts";
-import { textos, type MotivoDeNota } from "./maquina.ts";
+import { textos, type MotivoPaseAsesor } from "./maquina.ts";
 
-export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: MotivoDeNota): Promise<string> {
+export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: MotivoPaseAsesor): Promise<string> {
   const lead = await tx.lead.findFirstOrThrow({ where: { id: leadId } });
   const prospecto = await tx.prospecto.findFirst({ where: { lead_id: lead.id, origen: "bot" } });
   const sucursal = lead.sucursal_interes_id

@@ -91,8 +91,6 @@ export interface ContextoCaptacion {
   cotizador?: ContextoCotizadorBot;
   /** Presente solo si, además, la vertical tiene encendida la clase muestra por WhatsApp (D1). */
   claseMuestra?: ContextoClaseMuestraBot;
-  /** La clase muestra agendada que el prospecto tiene (D1): con ella, un «gracias» no pasa la conversación a una persona. */
-  claseAgendada?: { texto: string } | null;
   /**
    * E1: el lead llenó el cuestionario de la landing, así que su prospecto ya trae nombre y edad (y la sucursal que eligió). Con esto el bot saluda y
    * sigue desde lo que falta en vez de volver a preguntar (cero recaptura). Solo aplica en el primer mensaje (`inicio`).
@@ -110,10 +108,8 @@ export interface EstadoCaptacion {
   programaId?: string | null;
 }
 
-export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta" | "sin_programa" | "pidio_asesor";
-
-/** Por qué se le deja una nota a los asesores: los motivos de pase y el aviso de una clase muestra agendada por el bot (D1). */
-export type MotivoDeNota = MotivoPaseAsesor | "muestra_agendada";
+/** `muestra_agendada`: el bot agendó una clase muestra y pasa la conversación a una persona (D1; INV-6: los recordatorios de servicio siguen saliendo). */
+export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta" | "sin_programa" | "pidio_asesor" | "muestra_agendada";
 
 /** Lo que la máquina pide hacer en la base; lo ejecuta quien la llama, en su transacción. */
 export type EfectoCaptacion =
@@ -135,12 +131,6 @@ export interface ResultadoCaptacion {
   pasarAAsesor: MotivoPaseAsesor | null;
   /** Solo viene cuando hay algo que hacer. */
   efectos?: EfectoCaptacion[];
-  /**
-   * Nota interna para los asesores SIN pasarles la conversación (D1): el bot agendó una clase muestra y sigue atendiendo
-   * (los recordatorios lo necesitan: con una persona a cargo, ninguna automatización sale — invariante 6). La conversación
-   * se hace visible para los asesores (se abre en Chatwoot) pero no se marca `en_atencion_humana`.
-   */
-  notaAAsesores?: "muestra_agendada";
 }
 
 export const ESTADO_INICIAL: EstadoCaptacion = {
@@ -224,8 +214,6 @@ export const textos = {
     `¡Listo! Agendamos la clase muestra de ${nombre} en ${grupo}${sucursal ? `, sucursal ${sucursal}` : ""}: ${fecha.nombre}. Te mandamos un recordatorio antes de la clase. Si necesitas cambiar la fecha, escríbenos por aquí.`,
   /** D1: ya tenía una clase muestra vigente en ese grupo (la agendó una persona mientras tanto). */
   muestraYaAgendada: (nombre: string, fecha: OpcionFechaMuestra) => `${nombre} ya tiene agendada su clase muestra: ${fecha.nombre}. Si quieres cambiarla, escribe «asesor».`,
-  /** D1: un agradecimiento después de agendar no pasa la conversación a una persona. */
-  deNada: (fecha: string) => `¡Con gusto! Te esperamos en la clase muestra (${fecha}). Si necesitas cambiar la fecha o tienes dudas, escribe «asesor».`,
   /** EC-02 / EC-01: lo que el contacto vio ya no vale; se le manda la cotización de hoy. */
   cotizacionVencida: "Tu cotización anterior ya venció; te mando una actualizada.",
   horarioNoDisponible: "Ese horario ya no está disponible; te mando las opciones actualizadas.",
@@ -248,7 +236,7 @@ export const textos = {
   sinEntender: "Te comunico con un asesor para ayudarte mejor. En unos minutos te escribe por aquí.",
   /** Nota interna para el asesor al pasarle la conversación. */
   resumenAsesor: (
-    motivo: MotivoDeNota,
+    motivo: MotivoPaseAsesor,
     datos: {
       nombre: string | null;
       edad: number | null;
@@ -268,7 +256,7 @@ export const textos = {
       motivo === "captura_completa"
         ? "Datos capturados por el bot:"
         : motivo === "muestra_agendada"
-          ? "El bot agendó una clase muestra. Nadie ha tomado la conversación: el bot sigue atendiendo y los recordatorios saldrán solos hasta que una persona la tome (asígnatela o escríbele). Datos capturados:"
+          ? "El bot agendó una clase muestra y te pasa la conversación. Los recordatorios de 24 h y 2 h de la clase saldrán solos aunque la atiendas tú (son avisos de servicio). Datos capturados:"
         : motivo === "sin_respuesta"
           ? "El contacto dejó de contestar a mitad de la captura. Nadie la ha tomado: el bot sigue atendiendo si vuelve. Asígnatela o escríbele para tomarla. Datos parciales:"
           : motivo === "pidio_asesor"
@@ -474,9 +462,6 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
     }
 
     case "completo":
-      // Ya agendó su clase muestra y solo da las gracias: el bot sigue con la conversación (con una persona a cargo, los
-      // recordatorios no saldrían: invariante 6). Cualquier otra cosa se pasa a una persona.
-      if (ctx.claseAgendada && esAgradecimiento(entrada)) return { estado, respuestas: [textos.deNada(ctx.claseAgendada.texto)], pasarAAsesor: null };
       // Ya se capturó todo. Si llega otro mensaje es porque el pase al asesor no terminó: se
       // vuelve a pedir, sin contestar nada.
       return { estado, respuestas: [], pasarAAsesor: "captura_completa" };
@@ -632,8 +617,8 @@ function reproponerFechas(estado: EstadoCaptacion, grupoId: string, fechas: Opci
 }
 
 /**
- * Quedó (o ya estaba) agendada: se confirma. El bot NO pasa la conversación a una persona —seguiría callado y los
- * recordatorios no saldrían—; deja una nota a los asesores y la hace visible.
+ * Quedó (o ya estaba) agendada: se confirma y la conversación pasa a una persona con una nota. Los recordatorios de la clase
+ * (aviso de SERVICIO) salen aunque una persona la atienda (invariante 6 reformulado, INV-6).
  */
 function agendada(estado: EstadoCaptacion, ctx: ContextoCaptacion, grupoId: string, fecha: OpcionFechaMuestra, nueva: boolean): ResultadoCaptacion {
   const grupo = ctx.claseMuestra?.nombresDeGrupo[grupoId] ?? "";
@@ -641,8 +626,7 @@ function agendada(estado: EstadoCaptacion, ctx: ContextoCaptacion, grupoId: stri
   return {
     estado: { ...estado, paso: "completo", intentosFallidos: 0 },
     respuestas: [nueva ? textos.muestraAgendada(estado.nombre ?? "", grupo, fecha, sucursal) : textos.muestraYaAgendada(estado.nombre ?? "", fecha)],
-    pasarAAsesor: null,
-    notaAAsesores: "muestra_agendada",
+    pasarAAsesor: "muestra_agendada",
     ...(nueva ? { efectos: [{ tipo: "agendar_muestra" as const, grupoId, fechaHora: fecha.fechaHora }] } : {}),
   };
 }
@@ -712,11 +696,6 @@ export function extraerEdad(entrada: string): number | null {
   return edad !== undefined && edad >= 1 && edad <= 99 ? edad : null;
 }
 
-const AGRADECIMIENTOS = new Set(["gracias", "muchas gracias", "mil gracias", "ok gracias", "ok", "okay", "listo", "perfecto", "excelente", "genial", "enterado", "de acuerdo", "vale", "gracias por la informacion", "ok muchas gracias", "ahi estaremos", "ahi nos vemos"]);
-/** Un agradecimiento o un «enterado» (completo, sin acentos ni signos). */
-export function esAgradecimiento(entrada: string): boolean {
-  return AGRADECIMIENTOS.has(normalizar(entrada).replace(/[¡!¿?.,;:"'*_-]+/g, " ").replace(/\s+/g, " ").trim());
-}
 
 const AFIRMATIVAS = new Set(["si", "sip", "claro", "ok", "okay", "dale", "va", "vale", "bueno", "acepto", "quiero", "por favor", "de acuerdo", "esta bien", "si por favor", "si claro", "si quiero", "si me interesa", "me interesa"]);
 const NEGATIVAS = new Set(["no", "nel", "nop", "no gracias", "no quiero"]);

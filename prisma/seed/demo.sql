@@ -52,9 +52,11 @@ ON CONFLICT DO NOTHING;
 -- Reenganche (Fase 1.6). La plantilla es FICTICIA y está "aprobada" solo para la demo local: en un
 -- ambiente real se sincroniza desde Twilio y solo se envía lo que Meta aprobó. El código debe ser
 -- el friendly_name de la plantilla en Twilio (así la encuentra Chatwoot).
-INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+-- INV-6 [SUPUESTO]: `clase_mensaje` es la declaración de la plantilla (independiente de `categoria`, la de Meta). El reenganche de captación es MARKETING: con una
+-- persona atendiendo la conversación no sale. Ante la duda, marketing.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
   ('00000000-0000-4000-8000-000000000701', '00000000-0000-4000-8000-000000000001', 'reenganche_captacion',
-   'HX00000000000000000000000000000000', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000000', NULL, 'utility', 'marketing', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_vertical"}]',
    'Hola, quedó pendiente tu consulta sobre {{1}}. ¿Quieres que la retomemos? Responde a este mensaje y seguimos.',
    'aprobada', true)

@@ -68,7 +68,7 @@ before(async () => {
   await prisma.grupo.update({ where: { id: grupoA }, data: { instructor_id: iA.id } });
   await prisma.grupo.update({ where: { id: grupoB }, data: { instructor_id: iB.id } });
   // La recuperación necesita su automatización y una conversación en cada familia.
-  const plantilla = await prisma.plantilla_mensaje.create({ data: { organizacion_id: org.organizacionId, codigo: "recuperacion_no_asistio", content_sid: "HX0", categoria: "utility", variables: [{ pos: 1, nombre: "nombre_prospecto" }] as never, cuerpo_referencia: "No pudo asistir {{1}}", estado_aprobacion: "aprobada" } });
+  const plantilla = await prisma.plantilla_mensaje.create({ data: { organizacion_id: org.organizacionId, codigo: "recuperacion_no_asistio", content_sid: "HX0", categoria: "utility", clase_mensaje: "marketing", variables: [{ pos: 1, nombre: "nombre_prospecto" }] as never, cuerpo_referencia: "No pudo asistir {{1}}", estado_aprobacion: "aprobada" } });
   await prisma.automatizacion.create({ data: { organizacion_id: org.organizacionId, nombre: "Recuperación", evento_disparador: "clase_muestra_no_asistio", offset_minutos: 120, espaciado_minutos: 2880, plantilla_id: plantilla.id, max_intentos: 2, dias_permitidos: [0, 1, 2, 3, 4, 5, 6] } });
 });
 after(async () => {

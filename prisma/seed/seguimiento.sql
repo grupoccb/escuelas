@@ -43,14 +43,16 @@ ON CONFLICT DO NOTHING;
 --     de reenganche. `offset_minutos` = minutos EXTRA después del umbral (0); `max_intentos` = episodios de frío por lead (3);
 --     `condiciones.max_atraso_dias` = no se persigue lo que se enfrió hace más de 14 días. Lunes a sábado, 09:00–20:00 de la sucursal.
 --   · promocion_por_vencer: un lead con una cotización vigente cuya promoción termina → la plantilla `-offset_minutos` antes (-4320 = 3 días).
-INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+-- INV-6 [SUPUESTO]: `clase_mensaje` es la declaración de la plantilla (independiente de `categoria`, la de Meta). Lead frío y promoción por vencer son MARKETING; la
+-- bienvenida de inscripción es de SERVICIO. Ante la duda, marketing.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
   ('00000000-0000-4000-8000-000000000707', '00000000-0000-4000-8000-000000000001', 'reenganche_lead_frio',
-   'HX00000000000000000000000000000007', NULL, 'marketing', 'text', 'es_MX',
+   'HX00000000000000000000000000000007', NULL, 'marketing', 'marketing', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_vertical"}]',
    'Hola, ¿sigue interesado {{1}} en las clases de {{2}}? Con gusto te ayudamos a resolver tus dudas y a encontrar el horario ideal. Responde a este mensaje.',
    'aprobada', true),
   ('00000000-0000-4000-8000-000000000708', '00000000-0000-4000-8000-000000000001', 'promocion_por_vencer',
-   'HX00000000000000000000000000000008', NULL, 'marketing', 'text', 'es_MX',
+   'HX00000000000000000000000000000008', NULL, 'marketing', 'marketing', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_promocion"},{"pos":3,"nombre":"fecha_vencimiento"}]',
    'La promoción {{2}} que te cotizamos para {{1}} vence el {{3}}. Responde a este mensaje y te ayudamos a aprovecharla.',
    'aprobada', true)
@@ -76,9 +78,11 @@ ON CONFLICT DO NOTHING;
 -- Un aviso de SERVICIO (plantilla `utility`, no marketing) sobre algo que la familia ya acordó: inscribirse. Sale al tutor responsable por
 -- MessagingProvider con todas sus reglas (baja, ventana de servicio / plantilla aprobada, horario 09:00–20:00 de la sucursal, frecuencia). Nunca lleva
 -- datos de salud: solo el nombre del alumno, el grupo, la sucursal y el primer día. Idempotente por inscripción. [SUPUESTO] el texto y que salga de lunes a sábado.
-INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+-- INV-6 [SUPUESTO]: `clase_mensaje` es la declaración de la plantilla (independiente de `categoria`, la de Meta). Lead frío y promoción por vencer son MARKETING; la
+-- bienvenida de inscripción es de SERVICIO. Ante la duda, marketing.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
   ('00000000-0000-4000-8000-000000000709', '00000000-0000-4000-8000-000000000001', 'bienvenida_inscripcion',
-   'HX00000000000000000000000000000009', NULL, 'utility', 'text', 'es_MX',
+   'HX00000000000000000000000000000009', NULL, 'utility', 'servicio', 'text', 'es_MX',
    '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"nombre_sucursal"},{"pos":4,"nombre":"fecha_inicio"}]',
    '¡Bienvenidos! {{1}} quedó inscrito en {{2}}, sucursal {{3}}. Su primera clase es el {{4}}. Cualquier duda, responde a este mensaje.',
    'aprobada', true)

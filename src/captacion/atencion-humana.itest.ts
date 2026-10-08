@@ -80,6 +80,7 @@ async function escenario() {
       codigo: "reenganche",
       content_sid: "HX00000000000000000000000000000000",
       categoria: "utility",
+      clase_mensaje: "marketing",
       estado_aprobacion: "aprobada",
       cuerpo_referencia: "Hola, quedó pendiente tu consulta sobre {{1}}.",
       variables: [{ pos: 1, nombre: "nombre_vertical" }] as never,

@@ -43,10 +43,10 @@ async function mundo(o: Opciones = {}) {
   const sucursalId = org.sucursales[0]!.id;
   const programa = await sembrarPrograma(prisma, org, { sucursalId, nombre: "Programa P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "Grupo A", cupoMaximo: 10, horarios: [[1, 960, 1020]] }] });
   const plantillaFrio = await prisma.plantilla_mensaje.create({
-    data: { organizacion_id: org.organizacionId, codigo: "reenganche_lead_frio", content_sid: "HX00000000000000000000000000000007", categoria: "marketing", estado_aprobacion: "aprobada", cuerpo_referencia: "Hola, ¿sigue interesado {{1}} en las clases de {{2}}?", variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_vertical" }] as never },
+    data: { organizacion_id: org.organizacionId, codigo: "reenganche_lead_frio", content_sid: "HX00000000000000000000000000000007", categoria: "marketing", clase_mensaje: "marketing", estado_aprobacion: "aprobada", cuerpo_referencia: "Hola, ¿sigue interesado {{1}} en las clases de {{2}}?", variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_vertical" }] as never },
   });
   const plantillaPromo = await prisma.plantilla_mensaje.create({
-    data: { organizacion_id: org.organizacionId, codigo: "promocion_por_vencer", content_sid: "HX00000000000000000000000000000008", categoria: "marketing", estado_aprobacion: "aprobada", cuerpo_referencia: "La promoción {{2}} de {{1}} vence el {{3}}.", variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_promocion" }, { pos: 3, nombre: "fecha_vencimiento" }] as never },
+    data: { organizacion_id: org.organizacionId, codigo: "promocion_por_vencer", content_sid: "HX00000000000000000000000000000008", categoria: "marketing", clase_mensaje: "marketing", estado_aprobacion: "aprobada", cuerpo_referencia: "La promoción {{2}} de {{1}} vence el {{3}}.", variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_promocion" }, { pos: 3, nombre: "fecha_vencimiento" }] as never },
   });
   const frio = await prisma.automatizacion.create({
     data: {
@@ -285,7 +285,7 @@ test("D8 lead frío: baja de marketing y baja total — no se manda (opt_out) pe
   for (const x of [marketing, total, libre]) assert.equal((await m.tareas(x.leadId)).length, 1);
 });
 
-test("D8 lead frío: con una persona atendiendo (en_atencion_humana) NO sale nada ni se crea la tarea (invariante 6)", async () => {
+test("D8 lead frío (INV-6): con una persona atendiendo NO sale la plantilla de marketing (la frena el provider, no el motor) y la tarea para el asesor SÍ queda", async () => {
   const m = await mundo();
   const atendido = await m.lead("contactado", hace(5 * DIA), { estado: "en_atencion_humana" });
   const bot = await m.lead("contactado", hace(5 * DIA));
@@ -293,7 +293,8 @@ test("D8 lead frío: con una persona atendiendo (en_atencion_humana) NO sale nad
   const por = new Map((await m.ejecuciones(m.frio.id)).map((e) => [e.entidad_id, [e.estatus, e.motivo_omision]]));
   assert.deepEqual(por.get(atendido.leadId), ["omitido", "atencion_humana"]);
   assert.deepEqual(por.get(bot.leadId), ["enviado", null]);
-  assert.equal((await m.tareas(atendido.leadId)).length, 0);
+  // ED-11 (decisión): el motor ya no mira la atención humana; la tarea de lead frío es un aviso interno y es justo la persona que lo tomó quien debe verla.
+  assert.equal((await m.tareas(atendido.leadId)).length, 1);
   assert.equal(m.enviados().length, 1);
 });
 

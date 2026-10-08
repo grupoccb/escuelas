@@ -706,6 +706,14 @@ enum categoria_plantilla {
   servicio
 }
 
+/// INV-6: lo que una plantilla DECLARA ser, independiente de su categoría ante Meta. `servicio` = aviso sobre algo que la familia ya acordó
+/// (recordatorio de clase muestra, bienvenida de inscripción, recordatorio de pago): sale aunque una persona atienda la conversación.
+/// `marketing` = todo lo demás (reenganche, lead frío, promoción, recuperación): con una persona atendiendo no sale. Ante la duda, `marketing`.
+enum clase_mensaje {
+  servicio
+  marketing
+}
+
 enum estado_aprobacion_plantilla {
   pendiente
   aprobada
@@ -723,6 +731,9 @@ model plantilla_mensaje {
   /// Nulo = sirve para todas las verticales.
   vertical_id       String?                     @db.Uuid
   categoria         categoria_plantilla
+  /// Servicio o marketing (INV-6). NOT NULL y sin valor por omisión: quien da de alta la plantilla la DECLARA. Una `servicio` no puede ser de
+  /// categoría `marketing` (CHECK en la migración).
+  clase_mensaje     clase_mensaje
   /// text / quick-reply / list-picker / call-to-action / media (CHECK en la migración).
   tipo_content      String                      @default("text")
   idioma            String                      @default("es_MX")

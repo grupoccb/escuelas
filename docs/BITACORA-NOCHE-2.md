@@ -31,14 +31,14 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C8 | HECHO | ver sección | Cotización guardada (`cotizacion`, snapshot congelado) y cotizador por WhatsApp por vertical: el bot cotiza, el contacto elige horario, handoff con la cotización; `GET/POST /api/leads/:id/cotizaciones` |
 | C9 | HECHO | ver sección | Lista de espera: tabla `lista_espera` (posición densa y única, alta atómica), el bot la ofrece en un horario lleno, API de asesor (listar, quitar, mover) y `ofrecerLugarLiberado` |
 | C-fix | HECHO (12 pendientes, 7 decisiones) | cd6ba4e…a9690ad | Correcciones de la auditoría de la etapa C (`docs/auditorias/etapa-C.md`): ver la sección «Auditoría y correcciones de la etapa C» |
-| D1 | HECHO (parcial: el bot no pasa a una persona al agendar por una solución provisional del invariante 6; se revisa en INV-6) | e2bfc20 | Clase muestra: tabla `clase_muestra`, sesiones por zona horaria, lugares de la sesión con candado de cupo, reprogramar atómico, `tipo_sistema` de etapa, API y bot |
+| D1 | HECHO | e2bfc20 | Clase muestra: tabla `clase_muestra`, sesiones por zona horaria, lugares de la sesión con candado de cupo, reprogramar atómico, `tipo_sistema` de etapa, API y bot |
 | D2 | HECHO (parcial: `iniciarConversacion` solo probado contra un servidor HTTP local, no contra Chatwoot real; los estados de entrega del aviso no se reflejan) | 576f00e | Aviso al maestro: `aviso_maestro` (lista en la aplicación + unidad de envío), `MessagingProvider.avisarAInstructor` con todas las reglas, `conversacion_instructor` y plantillas del seed |
-| D3 | HECHO (parcial: con una persona atendiendo el recordatorio se omitía, lo que contradice el invariante 6 reformulado; se corrige en INV-6) | 7df6d8d | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
-| D4 | HECHO (parcial: el bot no reagenda solo tras la recuperación, decisión de Eduardo; la recuperación se omitía con atención humana, se revisa en INV-6) | de73e25 | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
+| D3 | HECHO | 7df6d8d | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
+| D4 | HECHO (parcial: el bot no reagenda solo tras la recuperación, decisión de Eduardo) | de73e25 | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
 | D5 | HECHO | ver `git log` (`D5:`) | Registro del maestro por API: `registro_clase_muestra` + `registro_tutor`, salud solo con `guardarSensible()`, borrador → completo → cerrado, permisos por rol, conversión sin recaptura |
 | D6 | HECHO | ver `git log` (`D6:`) | Reglamento y autorización de imagen: `documento_legal` versionado e inmutable, `aceptacion_legal` de solo anexar con evidencia, revocación como fila nueva, el registro no cierra sin reglamento |
 | D7 | HECHO | ver `git log` (`D7:`) | Embudo con historial de solo anexar, motivos de pérdida, perdido/recuperado, matriz de transiciones, tiempo por etapa, leads estancados (consulta) y concurrencia por lead |
-| D8 | HECHO (parcial: la omisión por atención humana estaba en el motor y no en el provider; se corrige en INV-6) | ver `git log` (`D8:`) | Lead frío y promoción por vencer sobre el motor: eventos nuevos, `aviso_promocion` (uno por lead y promoción), plantillas de marketing por el provider con frecuencia, bajas, horario y atención humana |
+| D8 | HECHO | ver `git log` (`D8:`) | Lead frío y promoción por vencer sobre el motor: eventos nuevos, `aviso_promocion` (uno por lead y promoción), plantillas de marketing por el provider con frecuencia, bajas, horario y atención humana |
 | E1 | HECHO (parcial: el envío de la landing solo se probó en Chrome headless; Safari, Firefox y dispositivos reales pendientes; EE-06, EE-07 y EE-13 son decisiones de producto abiertas) | ver `git log` (`E1:`) | Landing pública `/l/:vertical` con cuestionario: lead + prospecto idempotentes, aviso de privacidad con evidencia, consentimiento por formulario, atribución, `wa.me` con código de rastreo, anti-abuso y XSS; el bot no vuelve a preguntar lo capturado |
 | E2 | HECHO (parcial: EE-15, `POST /api/codigos-rastreo` sin validar sucursal/vertical ni campaña activa; la unión de la familia del lead de la landing con el de WhatsApp desde otro teléfono queda sin resolver; probado solo con el bot y atribución simulados) | ver `git log` (`E2:`) | Código de rastreo en el primer mensaje: parser, limpieza del texto del bot, atribución al lead con consumo condicional, primera atribución conservada, CTWA intacto y API de campañas y códigos |
 | E3 | HECHO (parcial: la lectura del QR se probó con un lector de software (jsQR), no con cámaras de celular ni impreso) | ver `git log` (`E3:`) | QR por campaña y sucursal: codificador propio (SVG y PNG), URL de la landing con código de rastreo, descarga para imprimir y pruebas de ida y vuelta con un lector independiente |
@@ -50,8 +50,9 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F4 | HECHO (parcial: EF-06, la inscripción y las clases muestra agendadas no se cuentan entre sí; decisión de Eduardo) | ver `git log` (`F4:`) | Cupo real: `InscripcionesActivas` como fuente única (servidor, API, bot, cotizador, clase muestra, lista de espera); concurrencia con 2 y 10 inscripciones por 1 y 3 lugares |
 | F5 | HECHO | ver `git log` (`F5:`) | Cambio de grupo atómico con historial de solo anexar, congelar/reactivar, baja con motivo de un catálogo editable, lista de espera avisada, concurrencia (último lugar, cruzados, bajas simultáneas) |
 | F6 | HECHO (parcial: EF-12, «listo para cerrar» del segundo hijo con el lead ya «inscrito»; decisión de Eduardo) | ver `git log` (`F6:`) | Los dos modos de cierre por configuración (`modo_cierre`): «listo para cerrar» (etapa, tarea, idempotente) y quién convierte según el modo (el maestro solo en sitio y de sus alumnos) |
-| F7 | HECHO (parcial: EF-11, hermanos que se inscriben a la vez no se ven entre sí; EF-14, bienvenidas duplicadas por hermanos y apagar una automatización no cancela lo programado; la bienvenida se bloqueaba con atención humana, se corrige en INV-6) | ver `git log` (`F7:`) | Hermanos: promoción `min_hermanos` automática (alumnos distintos de la familia), lista de cross-sell y bienvenida de inscripción por el motor (plantilla de servicio, idempotente) |
+| F7 | HECHO (parcial: EF-11, hermanos que se inscriben a la vez no se ven entre sí; EF-14, bienvenidas duplicadas por hermanos y apagar una automatización no cancela lo programado) | ver `git log` (`F7:`) | Hermanos: promoción `min_hermanos` automática (alumnos distintos de la familia), lista de cross-sell y bienvenida de inscripción por el motor (plantilla de servicio, idempotente) |
 | F-fix | HECHO (parcial: EF-06 y EF-07 esperan decisión de Eduardo; EF-17 solo corrige el síntoma, el cruce de puertos entre pruebas paralelas sigue sin diagnóstico; EF-11 a EF-15 y EF-18 a EF-25 pendientes) | 6c9ef58…3ba2ca0 | Correcciones de la auditoría de la etapa F (`docs/auditorias/etapa-F.md`): ver la sección «Auditoría y correcciones de la etapa F» |
+| INV-6 | HECHO | ver `git log` (`INV-6:`) | Invariante 6 reformulado: `plantilla_mensaje.clase_mensaje` (servicio / marketing, declarada), el provider deja pasar solo los avisos de servicio con una persona atendiendo; el bot pasa al asesor tras agendar; el motor ya no mira la atención humana |
 | G1 | PENDIENTE | | Pase de lista |
 | G2 | PENDIENTE | | Derivados de asistencia |
 | G3 | PENDIENTE | | Progresión genérica |
@@ -1833,3 +1834,67 @@ Informe: `docs/auditorias/etapa-F.md` (auditor con contexto nuevo; commit `4cca4
 - Decisiones nuevas (sección 8 del informe): EF-06 (la inscripción no cuenta las clases muestra ya agendadas), EF-07 (qué se devuelve cuando el teléfono ya es de un tutor de otra sucursal), EF-12 (el segundo hijo de un lead ya «inscrito»), EF-13 (meses por adelantado sin pago).
 - La migración `20261017000000_inscripcion_blindaje` solo agrega disparadores; no cambia datos. Tras ella, ningún proceso puede modificar el precio, los descuentos ni las fechas de una inscripción: una corrección es una baja y una inscripción nueva.
 - Hay dos archivos sin seguimiento que no son de esta auditoría (`src/inscripciones/inscribir 2.ts` y `src/inscripciones/inscripcion.itest 2.ts`, copias viejas de las 12:02 y 12:06): no se tocaron ni se incluyeron en ningún commit.
+
+
+## INV-6. Invariante 6 reformulado: `en_atencion_humana` bloquea al bot y al marketing
+
+**Qué se hizo**
+- **Migración `20261018000000_clase_mensaje`:** enum `clase_mensaje` (`servicio` | `marketing`) y columna `plantilla_mensaje.clase_mensaje` **NOT NULL sin valor por omisión** (quien da de alta una plantilla la DECLARA), independiente de `categoria` (la de Meta). CHECK `plantilla_mensaje_servicio_no_marketing_chk`: una `servicio` no puede ser de categoría `marketing`. La migración clasifica las existentes y se probó sobre una base de pruebas con miles de plantillas anteriores (lo no reconocido quedó `marketing`).
+- **`reglas.ts` / `MessagingProvider`** (único lugar): `pasaConAtencionHumana()`: con `en_atencion_humana` solo sale un **mensaje de origen `automatizacion` con plantilla de clase `servicio`**; se bloquea (motivo `atencion_humana`) toda respuesta del bot (`respuesta`, `confirmacion_baja`), todo texto libre automático, toda nota interna y toda plantilla de marketing. Un aviso de servicio sigue sujeto a plantilla aprobada, ventana (invariante 5), horario 09:00–20:00 (14), baja TOTAL, frecuencia diaria e idempotencia. La baja de marketing bloquea lo que declara marketing (aunque su categoría Meta sea `utility`) y no los avisos de servicio. Solo el valor exacto `servicio` cuenta: lo ausente o raro es marketing. El aviso al maestro pasa también `clase` (el instructor no tiene `en_atencion_humana`, sin cambio).
+- **El motor ya no mira el estado:** se quitó la omisión por `atencion_humana` del lead frío (`motor.ts`). Un test estático (`atencion-humana-matriz.itest.ts`) recorre `automatizaciones/`, `clases-muestra/`, `inscripciones/`, `cotizador/`, `lista-espera/`, `familias/`, `conversion/`, `embudo/` y `legal/` y falla si alguno pregunta por `atencion_humana` fuera de comentarios. Los otros usos de `en_atencion_humana` en `src/` son el estado mismo (la toma por una persona, `entrante.ts` que no contesta si ya atiende alguien, el listado de conversaciones y el pase del propio provider).
+- **D1 (el bot ya puede pasar al asesor tras agendar):** se quitó la solución provisional. `agendada()` devuelve `pasarAAsesor: "muestra_agendada"` (nuevo `MotivoPaseAsesor`), el bot confirma y la conversación queda `en_atencion_humana` con una nota interna (que dice que los recordatorios saldrán solos). Desaparecieron `notaAAsesores`, `MotivoDeNota`, `claseAgendada`, `textos.deNada`, `esAgradecimiento` y la apertura "visible sin atender" de ese camino (`abrirParaAsesores` sigue sirviendo al lead a medias, A3).
+- **Seeds:** cada plantilla declara su clase.
+
+**Clasificación que dejé `[SUPUESTO]` (a validar por Eduardo)**
+
+| Plantilla | `categoria` (Meta) | `clase_mensaje` |
+|---|---|---|
+| `recordatorio_clase_muestra` | utility | **servicio** |
+| `bienvenida_inscripcion` | utility | **servicio** |
+| `aviso_maestro_agendada` / `_reprogramada` / `_cancelada` | utility | **servicio** (al instructor; no aplica `en_atencion_humana`) |
+| `reenganche_captacion` | utility | **marketing** |
+| `recuperacion_no_asistio` | utility | **marketing** |
+| `reenganche_lead_frio` | marketing | **marketing** |
+| `promocion_por_vencer` | marketing | **marketing** |
+| recordatorio de pago (etapa H) | utility | **servicio** (debe declararlo H) |
+
+**Aserciones de tests que cambiaron por el diseño de Eduardo (ninguna se borró)**
+
+| Archivo / test | Antes | Ahora | Por qué |
+|---|---|---|---|
+| `clases-muestra/recordatorios.itest.ts` «D3 el provider decide con TODAS sus reglas…» | con atención humana el recordatorio se omitía (`[0,1]`, `atencion_humana`, 0 envíos) | sale (`[1,0]`, 1 envío, la conversación sigue en `en_atencion_humana`); y, mutando la clase de la MISMA plantilla a marketing, se omite con `atencion_humana` | el recordatorio de clase muestra es un aviso de servicio |
+| `inscripciones/hermanos.itest.ts` «bienvenida: pasa por MessagingProvider con TODAS sus reglas…» | con atención humana no salía | sale; con la clase mutada a marketing, `omitido`/`atencion_humana` | la bienvenida es un aviso de servicio |
+| `automatizaciones/seguimiento.itest.ts` «D8 lead frío: con una persona atendiendo…» | `omitido`/`atencion_humana` y **0 tareas** (omisión del motor) | `omitido`/`atencion_humana` (ahora por el provider) y **1 tarea** | el motor no verifica el estado; ver ED-11 |
+| `automatizaciones/motor.itest.ts` «baja solo de marketing…» | una plantilla `utility` pasaba la baja de marketing | pasa la que declara `servicio`; una `utility` declarada marketing se bloquea | la baja de marketing se decide por la clase declarada, no por la categoría Meta |
+| `clases-muestra/bot.itest.ts` «D1 bot: tras elegir horario…» | `estado = bot`, sin pase, conversación «visible» | `estado = en_atencion_humana`, pase con motivo `muestra_agendada` y la nota | se quitó la solución provisional |
+| `clases-muestra/bot.itest.ts` «un “gracias” NO pasa la conversación…» | el bot contestaba «Con gusto» y seguía | reemplazada: con la persona atendiendo el bot calla ante un «gracias» o cualquier mensaje | idem |
+| `captacion/maquina-muestra.test.ts` (4 tests) | `pasarAAsesor: null` + `notaAAsesores`; «gracias» → `deNada`; la nota decía que el bot seguía | `pasarAAsesor: "muestra_agendada"`; «gracias» en `completo` solo vuelve a pedir el pase; la nota dice que se pasa la conversación | idem |
+| `mensajeria/reglas.test.ts` «precedencia: la atención humana gana…» | cualquier plantilla | «para lo que no es un aviso de servicio» (título; la aserción se mantiene con plantilla de marketing) | solo precisión |
+
+Los tests viejos que decían «con atención humana no sale nada» a secas (`reglas.test.ts` línea 1, `atencion-humana.itest.ts`, `lead-a-medias`, `asistencia.itest.ts`) **siguen verdaderos** y pasan sin tocarse: hablan del bot, de texto libre, de notas o de plantillas de marketing.
+
+**Pruebas nuevas**
+- `reglas.test.ts` (+5): matriz pura {estado × origen y clase} (12 orígenes: respuesta del bot libre y con plantilla, confirmación de baja, nota interna, texto libre automático, recordatorio de clase muestra, bienvenida, recordatorio de pago, reenganche, recuperación, lead frío, promoción), el aviso de servicio sujeto a plantilla/ventana/horario/zona/frecuencia/baja total (la de marketing no lo frena), baja de marketing por clase, la mutación «sin clase declarada → se trata como marketing» (`undefined`, `null`, `""`, `"Servicio"`, `"utility"`) y la precedencia.
+- `mensajeria/atencion-humana-matriz.itest.ts` (5, Postgres real y el provider): la misma matriz de punta a punta (con el bot todo sale; con persona solo el aviso de servicio y no cambia el estado de la conversación), horario/baja total/baja de marketing/frecuencia con persona, NOT NULL y CHECK en la base, los seeds declaran la clase acordada, y la guarda estática «ninguna automatización pregunta por el estado».
+- `clases-muestra/bot.itest.ts` (+1): **el loop completo** — el bot agenda, la conversación pasa al asesor y el motor, a las 24 h, manda el recordatorio de servicio y omite (`atencion_humana`) una automatización de marketing sobre la misma clase.
+- Mutaciones atrapadas: `pasaConAtencionHumana` sin la clase (cae la matriz del provider y 4 puras), sin el origen `automatizacion` (cae la matriz del provider y la pura).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 512 · pass 512 · fail 0   (antes 507)
+$ npm run test:int    → exit 0 · tests 859 · pass 859 · fail 0   (antes 853)
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Un aviso de servicio solo sale si lo inicia el sistema (`automatizacion`).** Una `respuesta` del bot con plantilla de servicio sigue bloqueada con una persona atendiendo: contestar es del bot. Alternativa descartada: dejar pasar toda plantilla de servicio sin mirar el origen (el bot podría disfrazar una respuesta con una plantilla).
+2. **La clase manda sobre la categoría para la baja de marketing**, pero **el tope de marketing (1 cada 7 días) sigue contando por categoría Meta `marketing`.** Alternativa descartada: contarlo por clase; el segundo intento de la recuperación de quien no llegó (D4, espaciado 2 días, clase marketing por tu criterio) quedaría bloqueado siempre por el tope. Decisión abierta para Eduardo (abajo).
+3. **ED-11 (avisar a quien tomó la conversación que se omitió algo de marketing):** no se crea una tarea por cada omisión. Con INV-6 los recordatorios (lo que importaba) ya salen. Lo marketing que se frena queda registrado en `automatizacion_ejecucion.motivo_omision = atencion_humana` y en `mensaje.motivo_bloqueo`, visible para quien audite; y el **lead frío conserva su tarea** aunque haya una persona atendiendo (el motor ya no mira el estado y es justo quien lo tomó y lo dejó enfriar quien debe verla). Alternativa descartada: una tarea `automatizacion_omitida` por cada omisión por atención humana (llenaría la bandeja de quien ya atiende).
+4. **CHECK servicio ⇒ no marketing en la categoría Meta**: una incoherencia (Meta cobra y regula como marketing) no puede declararse de servicio por error. Alternativa: dejarlo al criterio de quien da de alta.
+5. **NOT NULL sin default**: la plantilla de un cliente nuevo no puede nacer sin que alguien decida. Costo: todo alta de plantilla (seeds, tests) debe declararlo; se actualizaron los 20 sitios de los tests.
+6. **El recordatorio de pago (H6) debe ser de clase `servicio`** y declararlo en su seed/alta; la guarda estática y la matriz ya lo cubren.
+
+**Para Eduardo**
+- **[SUPUESTO]** la clasificación de la tabla de arriba (sobre todo: la recuperación de quien no llegó y el reenganche de captación como marketing; la bienvenida y los avisos al maestro como servicio).
+- Decisión abierta: ¿el tope de “1 de marketing cada 7 días” debe contar por la clase declarada? Hoy cuenta por categoría Meta; si cuenta por clase, la recuperación (2 intentos en 2 días) y el reenganche necesitan otro tope o excluirse.
+- Decisión abierta (ED-11): ¿alguna omisión por atención humana debe dejar tarea? Hoy solo el lead frío.
+- Para Twilio/Meta: la categoría de `reenganche_captacion` y `recuperacion_no_asistio` se registró como `utility` pero se declara marketing; si Meta la reclasifica a marketing, entran al tope de 7 días.

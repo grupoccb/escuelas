@@ -45,6 +45,7 @@ async function mundo(o: Opciones = {}) {
       codigo: "recuperacion_no_asistio",
       content_sid: "HX00000000000000000000000000000006",
       categoria: "utility",
+      clase_mensaje: "marketing",
       estado_aprobacion: "aprobada",
       cuerpo_referencia: "Hola, vimos que {{1}} no pudo asistir a su clase muestra de {{2}} del {{3}}. ¿Te gustaría reagendarla?",
       variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_grupo" }, { pos: 3, nombre: "fecha_clase" }] as never,

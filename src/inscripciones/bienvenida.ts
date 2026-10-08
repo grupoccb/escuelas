@@ -7,8 +7,8 @@
 // servicio y plantilla aprobada, horario 09:00–20:00 de la sucursal, frecuencia, atención humana). Va al TUTOR RESPONSABLE DE PAGO (su conversación
 // de WhatsApp; si no tiene, la del lead de origen), y NO lleva datos de salud: solo el nombre del alumno, el grupo, la sucursal y el primer día.
 //
-// La plantilla es de SERVICIO (categoría `utility`): es un aviso sobre algo que la familia ya acordó, no marketing. Hoy `en_atencion_humana` bloquea
-// todo envío automático; cuando se reformule la regla (INV-6) este aviso de servicio sí saldrá con una persona atendiendo.
+// La plantilla es de SERVICIO (`clase_mensaje = servicio`, INV-6): es un aviso sobre algo que la familia ya acordó, no marketing. Con una persona
+// atendiendo la conversación (`en_atencion_humana`) SÍ sale: MessagingProvider solo frena el bot y el marketing.
 
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { siguienteHorarioValido } from "../mensajeria/reglas.ts";

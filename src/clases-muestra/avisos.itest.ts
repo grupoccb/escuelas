@@ -71,7 +71,7 @@ async function mundo(o: { conTelefono?: boolean; plantillas?: boolean; zona?: st
       ["aviso_maestro_cancelada", '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"}]', "Se canceló la clase de {{1}} en {{2}} del {{3}} a las {{4}}."],
     ];
     for (const [codigo, variables, cuerpo] of defs) {
-      await prisma.plantilla_mensaje.create({ data: { organizacion_id: org.organizacionId, codigo, content_sid: `HX${codigo.length}0000000000000000000000000000000`.slice(0, 34), categoria: "utility", variables: JSON.parse(variables) as object, cuerpo_referencia: cuerpo, estado_aprobacion: "aprobada" } });
+      await prisma.plantilla_mensaje.create({ data: { organizacion_id: org.organizacionId, codigo, content_sid: `HX${codigo.length}0000000000000000000000000000000`.slice(0, 34), categoria: "utility", clase_mensaje: "servicio", variables: JSON.parse(variables) as object, cuerpo_referencia: cuerpo, estado_aprobacion: "aprobada" } });
     }
   }
   const usuario = await prisma.usuario.create({ data: { organizacion_id: org.organizacionId, correo: `a-${Math.random()}@p.test`, nombre: "Asesor", rol: "asesor", contrasena_hash: "x" } });

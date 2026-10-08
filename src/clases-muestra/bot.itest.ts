@@ -1,6 +1,7 @@
 // D1: el bot de WhatsApp agenda la clase muestra después de que el contacto elige horario en el cotizador (C8): propone las
-// próximas fechas con lugar, agenda con la elección y NO pasa la conversación a una persona (los recordatorios necesitan que
-// siga con el bot: invariante 6). Con la clase muestra apagada, el flujo es el de antes. Postgres real, el loop completo.
+// próximas fechas con lugar, agenda con la elección y pasa la conversación a una persona con una nota (INV-6: el recordatorio de la clase es un
+// aviso de SERVICIO y sale aunque una persona atienda; ya no hace falta que el bot siga a cargo). Con la clase muestra apagada, el flujo es el
+// de antes. Postgres real, el loop completo.
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -8,6 +9,8 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { escenarioBot, type ContactoBot, type EscenarioBot, type OpcionesEscenarioBot } from "../testutil/bot.ts";
 import { OcupacionFija, sembrarFamilia } from "../testutil/semilla.ts";
 import { agendarClaseMuestra } from "./agenda.ts";
+import { correrAutomatizaciones } from "../automatizaciones/motor.ts";
+import { MessagingProvider } from "../mensajeria/index.ts";
 
 let prisma: PrismaPruebas;
 before(() => {
@@ -46,7 +49,7 @@ async function hastaLasFechas(c: ContactoBot): Promise<void> {
 }
 const ultimo = (c: ContactoBot): string => c.mensajes().at(-1) ?? "";
 
-test("D1 bot: tras elegir horario propone las próximas fechas con lugar y agenda con la elección, sin pasar la conversación a una persona", async () => {
+test("D1 bot (INV-6): tras elegir horario propone las próximas fechas con lugar, agenda con la elección y pasa la conversación a una persona", async () => {
   const e = await escenario();
   const c = e.contacto();
   await hastaLasFechas(c);
@@ -62,18 +65,18 @@ test("D1 bot: tras elegir horario propone las próximas fechas con lugar y agend
   await c.escribe("2", AHORA);
   assert.match(ultimo(c), /Agendamos la clase muestra de Luis en Grupo A, sucursal Norte: lunes 9 de noviembre a las 16:00/);
   const conv = await c.conversacion();
-  assert.equal(conv.estado, "bot", "el bot sigue atendiendo: con una persona a cargo no saldrían los recordatorios");
+  assert.equal(conv.estado, "en_atencion_humana", "INV-6: ya puede pasar al asesor; los recordatorios de servicio siguen saliendo");
   assert.equal(conv.paso_captacion, "completo");
   assert.equal(conv.pasar_a_asesor_pendiente, false);
+  assert.deepEqual((await e.db.interaccion.findFirstOrThrow({ where: { lead_id: conv.lead_id, tipo: "pase_a_asesor" } })).datos, { motivo: "muestra_agendada" });
   assert.equal(conv.muestra_ofrecida, null);
   const clases = await e.db.clase_muestra.findMany({ where: { lead_id: conv.lead_id } });
   assert.equal(clases.length, 1);
   assert.deepEqual([clases[0]!.estatus, clases[0]!.agendada_por, clases[0]!.conversacion_id, clases[0]!.fecha_hora.toISOString()], ["agendada", "bot", conv.id, SESION(7).toISOString()]);
   assert.equal((await e.db.lead.findFirstOrThrow({ where: { id: conv.lead_id } })).etapa_id, e.etapas!.muestra_agendada);
-  // El asesor se entera: nota interna con la clase y la conversación visible (abierta) sin estar atendida.
-  assert.ok(c.notas().some((n) => /Clase muestra: lunes 9 de noviembre a las 16:00 \(Grupo A\)/.test(n) && /agendó una clase muestra/.test(n)), c.notas().join("\n"));
+  // El asesor se entera: nota interna con la clase y la conversación abierta en Chatwoot.
+  assert.ok(c.notas().some((n) => /Clase muestra: lunes 9 de noviembre a las 16:00 \(Grupo A\)/.test(n) && /agendó una clase muestra y te pasa la conversación/.test(n)), c.notas().join("\n"));
   assert.ok(c.envios().some((x) => x.tipo === "abrir"));
-  assert.ok(conv.visible_a_asesores_en && conv.abierta_para_asesores_en);
 });
 
 test("D1 bot: el número apunta a lo que el contacto VIO: si la primera fecha se llena, se le dice y se le mandan las que quedan", async () => {
@@ -155,16 +158,56 @@ test("D1 bot: si el grupo no tiene ninguna fecha con lugar, cierra como antes (u
   assert.equal((await c.conversacion()).estado, "en_atencion_humana");
 });
 
-test("D1 bot: después de agendar, un «gracias» NO pasa la conversación a una persona; cualquier otra cosa sí", async () => {
+test("D1 bot (INV-6): después de agendar la conversación está con una persona y el bot calla ante un «gracias» o cualquier otro mensaje", async () => {
   const e = await escenario();
   const c = e.contacto();
   await hastaLasFechas(c);
   await c.escribe("1", AHORA);
-  await c.escribe("¡Muchas gracias!", AHORA);
-  assert.match(ultimo(c), /Con gusto! Te esperamos en la clase muestra \(lunes 2 de noviembre a las 16:00\)/);
-  assert.equal((await c.conversacion()).estado, "bot");
-  await c.escribe("¿Hay estacionamiento?", AHORA);
   assert.equal((await c.conversacion()).estado, "en_atencion_humana");
+  const antes = c.mensajes().length;
+  await c.escribe("¡Muchas gracias!", AHORA);
+  await c.escribe("¿Hay estacionamiento?", AHORA);
+  assert.equal(c.mensajes().length, antes, "con una persona atendiendo el bot no contesta (invariante 6)");
+  assert.equal((await c.conversacion()).estado, "en_atencion_humana");
+});
+
+test("INV-6, loop completo: tras agendar por el bot la conversación pasa al asesor y el recordatorio de 24 h SÍ sale (aviso de servicio); lo de marketing, no", async () => {
+  const e = await escenario();
+  const org = e.org.organizacionId;
+  const plantilla = (codigo: string, clase: "servicio" | "marketing") =>
+    prisma.plantilla_mensaje.create({
+      data: {
+        organizacion_id: org,
+        codigo,
+        content_sid: "HX00000000000000000000000000000005",
+        categoria: "utility",
+        clase_mensaje: clase,
+        estado_aprobacion: "aprobada",
+        cuerpo_referencia: "Te recordamos la clase muestra de {{1}}: {{3}} a las {{4}}, grupo {{2}}, sucursal {{5}}.",
+        variables: [{ pos: 1, nombre: "nombre_prospecto" }, { pos: 2, nombre: "nombre_grupo" }, { pos: 3, nombre: "fecha_clase" }, { pos: 4, nombre: "hora_clase" }, { pos: 5, nombre: "nombre_sucursal" }] as never,
+      },
+    });
+  const recordatorio = await plantilla("recordatorio_clase_muestra", "servicio");
+  const otro = await plantilla("recuperacion_no_asistio", "marketing");
+  const auto = (nombre: string, plantillaId: string, offset: number) =>
+    prisma.automatizacion.create({ data: { organizacion_id: org, nombre, evento_disparador: "clase_muestra_proxima", offset_minutos: offset, plantilla_id: plantillaId, dias_permitidos: [0, 1, 2, 3, 4, 5, 6] } });
+  await auto("Recordatorio 24 h", recordatorio.id, -1440);
+  await auto("Marketing sobre la clase", otro.id, -1440);
+
+  const c = e.contacto();
+  await hastaLasFechas(c);
+  await c.escribe("2", AHORA); // el lunes 9 de noviembre, 16:00 locales (22:00Z)
+  assert.equal((await c.conversacion()).estado, "en_atencion_humana");
+
+  // El domingo 8 de noviembre a las 16:00 locales (24 h antes): el motor corre. Ninguna automatización mira el estado: lo decide el provider.
+  const cuando = new Date("2026-11-08T22:00:00Z");
+  const r = await correrAutomatizaciones({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => cuando }), reloj: () => cuando, organizacionId: org });
+  assert.equal(r.enviadas, 1);
+  assert.equal(r.omitidas, 1);
+  const plantillas = c.envios().filter((x) => x.tipo === "plantilla");
+  assert.deepEqual(plantillas.map((x) => x.plantilla?.codigo), ["recordatorio_clase_muestra"]);
+  const ejec = await e.db.automatizacion_ejecucion.findMany({ where: { entidad_tipo: "clase_muestra" }, select: { estatus: true, motivo_omision: true, automatizacion: { select: { nombre: true } } }, orderBy: { automatizacion: { nombre: "asc" } } });
+  assert.deepEqual(ejec.map((x) => [x.automatizacion.nombre, x.estatus, x.motivo_omision]), [["Marketing sobre la clase", "omitido", "atencion_humana"], ["Recordatorio 24 h", "enviado", null]]);
 });
 
 test("D1 bot: el mismo mensaje entregado dos veces agenda una sola vez (idempotencia)", async () => {
