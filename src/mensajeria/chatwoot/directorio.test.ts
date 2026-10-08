@@ -62,3 +62,18 @@ test("desde el entorno: real con URL y token; sin ellos, falso fuera de producci
   assert.equal(directorioAgentesDesdeEntorno({ NODE_ENV: "production" }), null);
   assert.equal(directorioAgentesDesdeEntorno({ NODE_ENV: "production", CHATWOOT_URL: "http://x" }), null);
 });
+
+test("EB-12 (N24): una redirección NO se sigue: el token de administrador nunca llega al destino ajeno", async () => {
+  const ajeno = await servidor(() => ({ estado: 200, cuerpo: "[]" }));
+  // El servidor consultado redirige a otro lado con `Location`.
+  const redirige = createServer((_req, res) => res.writeHead(302, { location: `${ajeno.url}/robar` }).end());
+  await new Promise<void>((ok) => redirige.listen(0, "127.0.0.1", ok));
+  const url = `http://127.0.0.1:${(redirige.address() as AddressInfo).port}`;
+  try {
+    await assert.rejects(new DirectorioAgentesChatwoot({ url, tokenAdmin: "token-secreto-de-administrador" }).listarAgentes(1), ErrorDirectorio);
+    assert.equal(ajeno.peticiones.length, 0, "el destino de la redirección no recibió nada");
+  } finally {
+    await new Promise<void>((ok) => { redirige.closeAllConnections(); redirige.close(() => ok()); });
+    await ajeno.cerrar();
+  }
+});

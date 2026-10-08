@@ -38,7 +38,16 @@ const P_MAX = 16;
 export const LONGITUD_MINIMA_CONTRASENA = 10;
 export const LONGITUD_MAXIMA_CONTRASENA = 128;
 
+let derivaciones = 0;
+/**
+ * Cuántas derivaciones de scrypt (el trabajo caro) ha hecho el proceso. Sirve a los tests para
+ * comprobar que el login hace el MISMO trabajo exista o no el usuario (EB-12): se mide la diferencia
+ * antes y después de un intento.
+ */
+export const derivacionesHechas = (): number => derivaciones;
+
 function derivar(contrasena: string, sal: Buffer, { N, r, p }: ParametrosScrypt): Promise<Buffer> {
+  derivaciones++;
   return new Promise((resolver, rechazar) => {
     // maxmem: scrypt usa 128·N·r bytes; el tope por defecto de node (32 MiB) no alcanza para N = 2^15.
     scrypt(contrasena.normalize("NFKC"), sal, LONGITUD_HASH, { N, r, p, maxmem: 256 * N * r }, (error, clave) => {

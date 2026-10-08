@@ -58,12 +58,14 @@ export class ClienteApi {
     this.base = base;
   }
 
+  /** La cookie de sesión, se llame `sesion` o `__Host-sesion` (con cookie segura, EB-24). */
   get cookieDeSesion(): string | undefined {
-    return this.cookies.get("sesion");
+    return this.cookies.get("__Host-sesion") ?? this.cookies.get("sesion");
   }
   set cookieDeSesion(valor: string | undefined) {
-    if (valor === undefined) this.cookies.delete("sesion");
-    else this.cookies.set("sesion", valor);
+    const nombre = this.cookies.has("__Host-sesion") ? "__Host-sesion" : "sesion";
+    if (valor === undefined) this.cookies.delete(nombre);
+    else this.cookies.set(nombre, valor);
   }
 
   async pedir<T = unknown>(metodo: string, ruta: string, cuerpo?: unknown, cabeceras: Record<string, string> = {}): Promise<RespuestaApi<T>> {

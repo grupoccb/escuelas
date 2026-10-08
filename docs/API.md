@@ -5,9 +5,13 @@ de esta API: tienen su propia autenticación. Código en `src/api/`.
 
 ## Convenciones
 
-**Sesión.** Cookie `sesion` (`HttpOnly; SameSite=Lax; Path=/`, y `Secure` con `NODE_ENV=production` o `COOKIE_SEGURA=true`).
-Se obtiene con `POST /api/sesion`. Expira a las 12 h absolutas y por inactividad (`SESION_INACTIVIDAD_MIN`, 120 por defecto).
+**Sesión.** Cookie `sesion` (`HttpOnly; SameSite=Lax; Path=/`, y `Secure` con `NODE_ENV=production` o `COOKIE_SEGURA=true`). Con cookie segura el nombre es
+`__Host-sesion`: el navegador exige `Secure`, `Path=/` y sin `Domain`, y no deja que un subdominio hermano ponga otra con ese nombre.
+Se obtiene con `POST /api/sesion`. Expira a las 12 h absolutas y por inactividad (`SESION_INACTIVIDAD_MIN`, 120 por defecto). Una sesión también deja de valer si su
+organización se da de baja. Las sesiones expiradas o revocadas hace más de 30 días y los intentos de acceso de más de 48 h se marcan `eliminado_en` desde el barrido
+(`src/auth/retencion.ts`, a lo más una vez por hora, idempotente); el registro de cambios y el de accesos a salud NO se purgan (solo de anexar; su retención la decide Eduardo).
 No hay tokens en el cuerpo ni en cabeceras de autorización.
+**Bloqueo de login.** 5 intentos fallidos por (correo, IP) en 15 min; la IP es la dirección IPv4 o el /64 de una IPv6 (una dirección distinta por intento no lo esquiva).
 
 **CSRF.** Todo `POST`/`PUT`/`PATCH`/`DELETE` debe llevar `Content-Type: application/json` o `X-Requested-With: <algo>`. Si trae
 `Origin` (o `Referer`) debe ser el de `ORIGEN_PUBLICO` (o, sin configurar, el mismo host). Esta API no concede CORS.

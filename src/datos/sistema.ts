@@ -121,7 +121,8 @@ export interface SesionGuardada {
 /** Sesión por el SHA-256 (hex) de su token. No filtra por organización: es de donde se obtiene. */
 export async function buscarSesionPorHash(raiz: PrismaRaiz, tokenHash: string): Promise<SesionGuardada | null> {
   return clienteSinAlcance(raiz).sesion.findFirst({
-    where: { token_hash: tokenHash, eliminado_en: null },
+    // Una sesión de una organización dada de baja deja de valer en la siguiente petición (EB-13).
+    where: { token_hash: tokenHash, eliminado_en: null, organizacion: { eliminado_en: null } },
     select: { id: true, organizacion_id: true, usuario_id: true, expira_en: true, ultima_actividad_en: true, revocada_en: true },
   });
 }

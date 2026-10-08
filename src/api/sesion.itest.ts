@@ -2,7 +2,7 @@
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { PARAMETROS_PRUEBA } from "../auth/contrasena.ts";
+import { PARAMETROS_POR_DEFECTO, PARAMETROS_PRUEBA, derivacionesHechas, hashFicticio } from "../auth/contrasena.ts";
 import { BLOQUEO_POR_DEFECTO, ErrorBloqueado, ErrorCredenciales, iniciarSesion, type DepsAcceso } from "../auth/acceso.ts";
 import { configSesionDesdeEntorno, hashDeToken, revocarSesion, validarSesion, DURACION_SESION_MS } from "../auth/sesiones.ts";
 import { conAlcance } from "../datos/alcance.ts";
@@ -10,15 +10,19 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada } from "../testutil/api.ts";
 import { conGanchos } from "../testutil/carrera.ts";
+import { llaveDeIp } from "../http/ip.ts";
 
 let prisma: PrismaPruebas;
 let org: OrganizacionDePrueba;
+/** Otra organización viva: garantiza que «hay más de una» sin depender de lo que dejaron otras corridas (EB-11). */
+let segunda: OrganizacionDePrueba;
 let ahora = new Date("2026-10-10T15:00:00Z");
 let api: ApiLevantada;
 
 before(async () => {
   prisma = crearPrismaDePruebas();
   org = await sembrarOrganizacion(prisma, "Sesiones");
+  segunda = await sembrarOrganizacion(prisma, "Sesiones segunda");
   api = levantarApi(prisma, { reloj: () => ahora });
 });
 after(async () => {
@@ -81,7 +85,7 @@ test("no se distingue «no existe» de «contraseña mala»: mismo estado y mism
     () => api.cliente().login(org.slug, "nadie@prueba.test", "contraseña-equivocada"),
     () => api.cliente().login("no-existe-esta-org", u.correo, u.contrasena),
     () => api.cliente().login(org.slug, inactivo.correo, inactivo.contrasena),
-    () => api.cliente().login(undefined, u.correo, u.contrasena), // hay muchas organizaciones: el slug es obligatorio
+    () => api.cliente().login(undefined, u.correo, u.contrasena), // hay (al menos) dos organizaciones vivas, `segunda` y `org`: el slug es obligatorio
   ];
   const respuestas = [];
   for (const i of intentos) respuestas.push(await i());
@@ -358,4 +362,138 @@ test("la tabla de sesiones es invisible entre organizaciones: el token de una no
   assert.equal((await d.login(otra.slug, mio.correo, suyo.contrasena)).estado, 201);
   assert.equal((await d.get<{ usuario: { id: string }; organizacion: { id: string } }>("/api/yo")).cuerpo.organizacion.id, otra.organizacionId);
   assert.equal((await c.get<{ organizacion: { id: string } }>("/api/yo")).cuerpo.organizacion.id, org.organizacionId);
+});
+
+
+// ── Correcciones de la auditoría de la etapa B ───────────────────────────────────────────
+
+test("EB-11: el login sin organización es ambiguo con 2 o más organizaciones vivas, sin importar lo que haya en la base", async () => {
+  // `segunda` y `org` están vivas por construcción; el usuario existe en las dos con la misma contraseña.
+  const correo = `ambiguo-${Math.random().toString(36).slice(2, 10)}@prueba.test`;
+  for (const o of [org, segunda]) await sembrarUsuario(prisma, o.organizacionId, { rol: "asesor", correo });
+  const r = await api.cliente().login(undefined, correo, "contrasena-de-prueba-1");
+  assert.equal(r.estado, 401, "no elige una organización al azar (N04)");
+  assert.equal((await api.cliente().login(org.slug, correo, "contrasena-de-prueba-1")).estado, 201);
+});
+
+test("EB-03: el bloqueo cuenta por /64 en IPv6: 20 direcciones del mismo /64 se bloquean como una, y otro /64 no se afecta", async () => {
+  const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor" });
+  const deps = depsAcceso();
+  const intento = (contrasena: string, ip: string) => iniciarSesion(deps, { organizacion: org.slug, correo: u.correo, contrasena, ip, agente: null });
+  const delPrefijo = (i: number) => `2001:db8:aaaa:bbbb:${i.toString(16)}:${(i * 7).toString(16)}::${(i + 1).toString(16)}`;
+  assert.equal(llaveDeIp(delPrefijo(1)), llaveDeIp(delPrefijo(19)), "mismo /64");
+  let bloqueados = 0;
+  for (let i = 0; i < 20; i++) {
+    await intento("mala-contrasena-1", delPrefijo(i)).catch((e: unknown) => {
+      if (e instanceof ErrorBloqueado) bloqueados++;
+      else assert.ok(e instanceof ErrorCredenciales);
+    });
+  }
+  assert.equal(bloqueados, 15, "5 intentos verificados y el resto bloqueado, aunque cada uno venga de una dirección distinta");
+  await assert.rejects(intento(u.contrasena, delPrefijo(99)), ErrorBloqueado, "ni la contraseña correcta desde otra dirección del /64");
+  assert.equal((await intento(u.contrasena, "2001:db8:cccc:dddd::1")).usuario.id, u.id, "otro /64 sí entra");
+  // IPv4 y la forma mapeada son la misma llave.
+  for (let i = 0; i < 5; i++) await assert.rejects(intento("mala-contrasena-1", "::ffff:198.51.100.4"), ErrorCredenciales);
+  await assert.rejects(intento(u.contrasena, "198.51.100.4"), ErrorBloqueado);
+});
+
+test("EB-12 (M12): si el usuario o la organización no existen se hace el MISMO trabajo de scrypt (hash ficticio) que con una contraseña mala", async () => {
+  const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor" });
+  await hashFicticio(); // calentar: el hash ficticio se crea una vez por proceso
+  const deps = depsAcceso();
+  const entrada = { correo: u.correo, contrasena: "mala-contrasena-1", ip: "10.20.0.1", agente: null };
+  const trabajo = async (e: Parameters<typeof iniciarSesion>[1]): Promise<number> => {
+    const antes = derivacionesHechas();
+    await assert.rejects(iniciarSesion(deps, e), ErrorCredenciales);
+    return derivacionesHechas() - antes;
+  };
+  assert.equal(await trabajo({ ...entrada, organizacion: org.slug }), 1, "contraseña mala de un usuario real");
+  assert.equal(await trabajo({ ...entrada, organizacion: org.slug, correo: "nadie-existe@prueba.test", ip: "10.20.0.2" }), 1, "usuario inexistente");
+  assert.equal(await trabajo({ ...entrada, organizacion: "no-existe-esta-org", ip: "10.20.0.3" }), 1, "organización inexistente");
+  assert.equal(await trabajo({ ...entrada, organizacion: org.slug, correo: "no es correo", ip: "10.20.0.4" }), 1, "correo mal formado");
+  const inactivo = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor", activo: false });
+  assert.equal(await trabajo({ ...entrada, organizacion: org.slug, correo: inactivo.correo, contrasena: inactivo.contrasena, ip: "10.20.0.5" }), 1, "usuario inactivo");
+});
+
+test("EB-12 (M02): los parámetros de scrypt por defecto son los de OWASP (N=2^15, r=8, p=3), no unos más débiles", () => {
+  assert.deepEqual(PARAMETROS_POR_DEFECTO, { N: 32768, r: 8, p: 3 });
+});
+
+test("EB-12 (M70): el bloqueo del login por HTTP usa la IP REAL del cliente (con trust proxy), no una fija: otra IP no se afecta", async () => {
+  const proxy = levantarApi(prisma, {}, { confiarEnProxy: 1 });
+  try {
+    const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor" });
+    const desde = (ip: string) => {
+      const c = proxy.cliente();
+      c.cabecerasExtra = { "x-forwarded-for": ip };
+      return c;
+    };
+    for (let i = 0; i < 5; i++) assert.equal((await desde("203.0.113.50").login(org.slug, u.correo, "mala-contrasena-1")).estado, 401);
+    assert.equal((await desde("203.0.113.50").login(org.slug, u.correo, u.contrasena)).estado, 429, "esa IP quedó bloqueada");
+    assert.equal((await desde("203.0.113.51").login(org.slug, u.correo, u.contrasena)).estado, 201, "otra IP del mismo correo no");
+    const filas = await prisma.intento_acceso.findMany({ where: { organizacion_id: org.organizacionId, correo: u.correo } });
+    assert.ok(filas.every((f) => f.ip === "203.0.113.50" || f.ip === "203.0.113.51"), "se guarda la IP real, no la del proxy");
+  } finally {
+    await proxy.cerrar();
+  }
+});
+
+test("EB-13/N05: una organización dada de baja ya no deja entrar por su slug y sus sesiones abiertas dejan de valer", async () => {
+  const viva = await sembrarOrganizacion(prisma, "Sesiones baja");
+  const u = await sembrarUsuario(prisma, viva.organizacionId, { rol: "administrador" });
+  const c = api.cliente();
+  assert.equal((await c.login(viva.slug, u.correo, u.contrasena)).estado, 201);
+  assert.equal((await c.get("/api/yo")).estado, 200);
+  await prisma.organizacion.update({ where: { id: viva.organizacionId }, data: { eliminado_en: new Date() } });
+  assert.equal((await c.get("/api/yo")).estado, 401, "la sesión abierta no sobrevive a la baja");
+  assert.equal((await c.get("/api/usuarios")).estado, 401);
+  assert.equal((await api.cliente().login(viva.slug, u.correo, u.contrasena)).estado, 401, "ni un login nuevo");
+});
+
+test("EB-14: un NUL o un cuerpo comprimido roto no son un error interno (400/415)", async () => {
+  const c = api.cliente();
+  const nul = await c.post<{ error: { codigo: string } }>("/api/sesion", { organizacion: org.slug, correo: "a\u0000b@prueba.test", contrasena: "x" });
+  assert.equal(nul.estado, 400);
+  assert.equal(nul.cuerpo.error.codigo, "validacion");
+  assert.equal((await c.post("/api/sesion", { organizacion: "a\u0000b", correo: "a@prueba.test", contrasena: "x" })).estado, 400);
+  for (const encoding of ["gzip", "br", "deflate"]) {
+    const r = await c.pedir<{ error: { codigo: string } }>("POST", "/api/sesion", "esto no está comprimido", { "content-encoding": encoding });
+    assert.equal(r.estado, 400, encoding);
+    assert.equal(r.cuerpo.error.codigo, "validacion", encoding);
+  }
+  const compress = await c.pedir<{ error: { codigo: string } }>("POST", "/api/sesion", "{}", { "content-encoding": "compress" });
+  assert.equal(compress.estado, 415);
+  const charset = await c.pedir<{ error: { codigo: string } }>("POST", "/api/sesion", "{}", { "content-type": "application/json; charset=latin1" });
+  assert.equal(charset.estado, 415);
+});
+
+test("EB-24: con cookie segura el nombre lleva __Host- (Secure, Path=/, sin Domain); la cookie `sesion` suelta no sirve y una cookie falsa colocada antes no anula la válida", async () => {
+  const segura = levantarApi(prisma, { cookieSegura: true });
+  try {
+    const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor" });
+    const c = segura.cliente();
+    const r = await c.login(org.slug, u.correo, u.contrasena);
+    const setCookie = r.cabeceras.getSetCookie()[0] ?? "";
+    assert.match(setCookie, /^__Host-sesion=[A-Za-z0-9_-]{43};/);
+    assert.match(setCookie, /; Secure/i);
+    assert.match(setCookie, /; Path=\//);
+    assert.doesNotMatch(setCookie, /Domain=/i);
+    const token = c.cookieDeSesion!;
+    assert.equal((await c.get("/api/yo")).estado, 200);
+    // Alguien (desde un subdominio) planta una cookie `sesion` con un token real: con el prefijo no cuenta.
+    const intruso = segura.cliente();
+    intruso.cabecerasExtra = { cookie: `sesion=${token}` };
+    assert.equal((await intruso.get("/api/yo")).estado, 401);
+    // Y una cookie falsa con el nombre de verdad, colocada ANTES, no puede venir de un subdominio (el navegador la rechaza por el prefijo);
+    // si llegara, la primera gana: lo comprobamos para dejar claro el contrato de lectura.
+    const orden = segura.cliente();
+    orden.cabecerasExtra = { cookie: `sesion=${"a".repeat(43)}; __Host-sesion=${token}` };
+    assert.equal((await orden.get("/api/yo")).estado, 200, "la cookie sin prefijo ni se mira");
+    // Cerrar sesión borra la del nombre correcto.
+    const salir = await c.delete("/api/sesion");
+    assert.equal(salir.estado, 204);
+    assert.match(salir.cabeceras.getSetCookie()[0] ?? "", /^__Host-sesion=;/);
+  } finally {
+    await segura.cerrar();
+  }
 });

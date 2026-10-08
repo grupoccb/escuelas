@@ -40,6 +40,7 @@ export function texto(opciones: { min?: number; max?: number; patron?: RegExp; m
   return {
     leer(valor, ruta, errores) {
       if (typeof valor !== "string") return falla(errores, ruta, "Debe ser un texto");
+      if (valor.includes("\u0000")) return falla(errores, ruta, "Contiene un carácter no permitido"); // la base no guarda NUL (EB-14)
       let t = valor.normalize("NFKC").trim();
       if (opciones.minusculas) t = t.toLowerCase();
       if (t.length < min) return falla(errores, ruta, min <= 1 ? "No puede estar vacío" : `Debe tener al menos ${min} caracteres`);
@@ -56,6 +57,7 @@ export function textoLiteral(opciones: { min?: number; max: number }): Esquema<s
   return {
     leer(valor, ruta, errores) {
       if (typeof valor !== "string") return falla(errores, ruta, "Debe ser un texto");
+      if (valor.includes("\u0000")) return falla(errores, ruta, "Contiene un carácter no permitido");
       if (valor.length < min) return falla(errores, ruta, "No puede estar vacío");
       if (valor.length > opciones.max) return falla(errores, ruta, `Debe tener a lo más ${opciones.max} caracteres`);
       return valor;

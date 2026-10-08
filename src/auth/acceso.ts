@@ -5,7 +5,9 @@
 // - Mismo trabajo en todos los casos: si el usuario no existe se verifica contra un hash ficticio
 //   con los mismos parámetros, así el tiempo de respuesta no delata qué correos hay.
 // - Bloqueo temporal por (correo, IP): tras `maxFallos` intentos en `ventanaMs`, nada se verifica
-//   hasta que el más viejo salga de la ventana. Se cuenta también para correos inexistentes.
+//   hasta que el más viejo salga de la ventana. Se cuenta también para correos inexistentes. La IP
+//   es la LLAVE de `llaveDeIp`: una IPv4 completa o el /64 de una IPv6 (un cliente IPv6 controla un
+//   /64 entero; contar la dirección exacta se esquivaba con una distinta por intento, EB-03).
 // - El cupo de intentos se RESERVA antes de verificar (bajo un candado por correo e IP) y se libera
 //   al acertar: N intentos simultáneos no pueden colarse más allá del tope.
 // - Al acertar se cierra la puerta a lo anterior: los intentos de esa pareja se marcan eliminados.
@@ -14,6 +16,7 @@ import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts"
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { resolverOrganizacionPorSlug, unicaOrganizacion } from "../datos/sistema.ts";
+import { llaveDeIp } from "../http/ip.ts";
 import { log } from "../lib/log.ts";
 import { hashContrasena, problemasDeContrasena, verificarContrasena, verificarContrasenaFicticia, PARAMETROS_POR_DEFECTO, type ParametrosScrypt } from "./contrasena.ts";
 import { crearSesion, revocarSesionesDeUsuario, type ConfigSesion } from "./sesiones.ts";
@@ -132,7 +135,8 @@ export async function iniciarSesion(deps: DepsAcceso, entrada: EntradaLogin): Pr
   }
 
   const db = conAlcance(deps.prisma, organizacion.id);
-  await reservarIntento(db, organizacion.id, correo, entrada.ip, deps);
+  const ip = llaveDeIp(entrada.ip);
+  await reservarIntento(db, organizacion.id, correo, ip, deps);
 
   const usuario = await db.usuario.findFirst({
     where: { correo },
@@ -145,7 +149,7 @@ export async function iniciarSesion(deps: DepsAcceso, entrada: EntradaLogin): Pr
   }
 
   const ahora = deps.reloj();
-  await liberarIntentos(db, correo, entrada.ip, ahora);
+  await liberarIntentos(db, correo, ip, ahora);
   const sesion = await crearSesion(db, usuario.id, { ip: entrada.ip, agente: entrada.agente }, deps.sesion, ahora);
   log.info("login_exitoso", { organizacion: organizacion.id, usuario_id: usuario.id });
   return {
@@ -172,7 +176,8 @@ export async function cambiarContrasena(deps: DepsAcceso, entrada: EntradaCambio
   const usuario = await db.usuario.findFirst({ where: { id: entrada.usuarioId, activo: true }, select: { id: true, correo: true, nombre: true, contrasena_hash: true } });
   if (!usuario) throw new ErrorCredenciales();
 
-  await reservarIntento(db, entrada.organizacionId, usuario.correo, entrada.ip, deps);
+  const ip = llaveDeIp(entrada.ip);
+  await reservarIntento(db, entrada.organizacionId, usuario.correo, ip, deps);
   if (!(await verificarContrasena(entrada.actual, usuario.contrasena_hash))) throw new ErrorCredenciales();
   const problemas = problemasDeContrasena(entrada.nueva, { correo: usuario.correo, nombre: usuario.nombre });
   if (problemas.length > 0) throw new ErrorContrasenaDebil(problemas);
@@ -183,5 +188,5 @@ export async function cambiarContrasena(deps: DepsAcceso, entrada: EntradaCambio
     await tx.usuario.update({ where: { id: usuario.id }, data: { contrasena_hash: hash, contrasena_cambiada_en: ahora } });
     await revocarSesionesDeUsuario(tx, usuario.id, ahora, entrada.sesionActualId);
   });
-  await liberarIntentos(db, usuario.correo, entrada.ip, ahora);
+  await liberarIntentos(db, usuario.correo, ip, ahora);
 }

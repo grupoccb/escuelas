@@ -1,7 +1,7 @@
 // Sesión: iniciar, cerrar, quién soy y cambiar la contraseña.
 //
 //   POST   /api/sesion          { organizacion?, correo, contrasena }   → 201 + cookie
-//   DELETE /api/sesion                                                  → 204 (siempre; borra la cookie)
+//   DELETE /api/sesion                                                  → 204 (borra la cookie; exige el encabezado anti-CSRF como toda escritura)
 //   GET    /api/yo                                                      → el usuario de la sesión
 //   POST   /api/yo/contrasena   { actual, nueva }                       → 204; cierra las demás sesiones
 
@@ -10,7 +10,7 @@ import express from "express";
 import { ErrorBloqueado, ErrorContrasenaDebil, ErrorCredenciales, cambiarContrasena, iniciarSesion } from "../../auth/acceso.ts";
 import { revocarSesion, validarSesion } from "../../auth/sesiones.ts";
 import { conAlcance } from "../../datos/alcance.ts";
-import { borrarCookieSesion, fijarCookieSesion, leerCookie, NOMBRE_COOKIE_SESION } from "../cookies.ts";
+import { borrarCookieSesion, fijarCookieSesion, leerCookie, nombreCookieSesion } from "../cookies.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { ErrorApi, demasiadasPeticiones, validacion } from "../errores.ts";
 import { correo, objeto, opcional, parsear, texto, textoLiteral } from "../validar.ts";
@@ -59,7 +59,7 @@ export function rutasPublicasDeSesion(deps: DepsApi, antesDeLogin: express.Reque
 
   r.delete("/sesion", async (req: Request, res: Response) => {
     // Cerrar sesión nunca falla: sin cookie, o con una vencida, simplemente no hay nada que cerrar.
-    const token = leerCookie(req, NOMBRE_COOKIE_SESION);
+    const token = leerCookie(req, nombreCookieSesion(deps.cookieSegura));
     const sesion = token ? await validarSesion(deps.prisma, token, deps.acceso.sesion, deps.reloj()) : null;
     if (sesion) await revocarSesion(conAlcance(deps.prisma, sesion.usuario.organizacionId), sesion.sesionId, deps.reloj());
     borrarCookieSesion(res, deps.cookieSegura);

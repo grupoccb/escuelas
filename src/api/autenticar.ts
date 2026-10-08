@@ -2,13 +2,13 @@
 
 import type { NextFunction, Request, Response } from "express";
 import { validarSesion } from "../auth/sesiones.ts";
-import { borrarCookieSesion, leerCookie, NOMBRE_COOKIE_SESION } from "./cookies.ts";
+import { borrarCookieSesion, leerCookie, nombreCookieSesion } from "./cookies.ts";
 import { fijarContexto, type DepsApi } from "./contexto.ts";
 import { noAutenticado } from "./errores.ts";
 
 export function autenticar(deps: DepsApi) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const token = leerCookie(req, NOMBRE_COOKIE_SESION);
+    const token = leerCookie(req, nombreCookieSesion(deps.cookieSegura));
     const sesion = token ? await validarSesion(deps.prisma, token, deps.acceso.sesion, deps.reloj()) : null;
     if (!sesion) {
       if (token) borrarCookieSesion(res, deps.cookieSegura);

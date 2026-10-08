@@ -8,6 +8,7 @@
 // ninguna organización. Dentro de cada uno, además, cada organización y cada conversación van
 // aisladas (ver espera.ts y motor.ts).
 
+import { purgarCaducados, type ResumenRetencion } from "./auth/retencion.ts";
 import { correrAutomatizaciones, type ResumenMotor } from "./automatizaciones/motor.ts";
 import { barrerEspera, type ResumenEspera } from "./captacion/espera.ts";
 import type { PrismaRaiz } from "./datos/prisma.ts";
@@ -19,8 +20,17 @@ export interface DepsCiclo {
   mensajeria: MessagingProvider;
   /** El borde de Twilio, si está encendido: su barrido reenvía los eventos que quedaron pendientes (EA-03). */
   twilio?: BordeTwilio;
+  /**
+   * Retención de sesiones e intentos de acceso (EB-19): a lo más una vez cada `cadaMs` (por defecto
+   * una hora) por instancia de base de datos. Apagada si no se pasa (los tests del ciclo no la usan).
+   */
+  retencion?: { cadaMs?: number };
   reloj?: () => Date;
 }
+
+/** Última vez que corrió la retención, por instancia de base de datos. */
+const ultimaRetencion = new WeakMap<object, number>();
+const RETENCION_CADA_MS = 60 * 60 * 1000;
 
 export interface ResumenCiclo {
   /** null si el barrido de espera lanzó antes de poder resumir. */
@@ -29,6 +39,8 @@ export interface ResumenCiclo {
   motor: ResumenMotor | null;
   /** null si no hay borde de Twilio o su barrido lanzó por completo. */
   twilio: ResumenReenvio | null;
+  /** null si la retención está apagada, no le tocaba o lanzó. */
+  retencion: ResumenRetencion | null;
   /** Errores aislados de todo el ciclo (conversaciones, organizaciones y barridos completos). */
   errores: number;
 }
@@ -38,6 +50,7 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
   let espera: ResumenEspera | null = null;
   let motor: ResumenMotor | null = null;
   let twilio: ResumenReenvio | null = null;
+  let retencion: ResumenRetencion | null = null;
   try {
     espera = await barrerEspera(deps);
     errores += espera.errores;
@@ -61,6 +74,20 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
       log.error("ciclo_error", { barrido: "twilio", error: (e as Error).message });
     }
   }
+  if (deps.retencion) {
+    const ahora = (deps.reloj ?? (() => new Date()))().getTime();
+    const ultima = ultimaRetencion.get(deps.prisma);
+    if (ultima === undefined || ahora - ultima >= (deps.retencion.cadaMs ?? RETENCION_CADA_MS)) {
+      ultimaRetencion.set(deps.prisma, ahora);
+      try {
+        retencion = await purgarCaducados(deps);
+        errores += retencion.errores;
+      } catch (e) {
+        errores++;
+        log.error("ciclo_error", { barrido: "retencion", error: (e as Error).message });
+      }
+    }
+  }
   if (errores > 0) log.warn("ciclo_con_errores", { errores });
-  return { espera, motor, twilio, errores };
+  return { espera, motor, twilio, retencion, errores };
 }

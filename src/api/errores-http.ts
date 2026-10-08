@@ -30,8 +30,12 @@ export function manejadorDeErroresApi(err: unknown, req: Request, res: Response,
     const cuerpo = err as ErrorDeCuerpo;
     if (cuerpo?.type === "entity.too.large") error = cuerpoMuyGrande();
     else if (cuerpo?.type === "entity.parse.failed") error = validacion([{ mensaje: "El cuerpo no es JSON válido" }]);
-    else if (typeof cuerpo?.type === "string" && cuerpo.type.startsWith("encoding.") ) error = validacion([{ mensaje: "Codificación no admitida" }]);
-    else {
+    else if (typeof cuerpo?.type === "string" && (cuerpo.type.startsWith("encoding.") || cuerpo.type.startsWith("charset."))) {
+      error = new ErrorApi("validacion", "Codificación no admitida", { estado: 415, detalles: [{ mensaje: "Codificación no admitida" }] });
+    } else if (typeof cuerpo?.status === "number" && cuerpo.status >= 400 && cuerpo.status < 500) {
+      // Un cuerpo que no se pudo leer (compresión rota, petición abortada…): culpa de quien lo mandó, no un error nuestro (EB-14).
+      error = validacion([{ mensaje: "No se pudo leer el cuerpo de la petición" }]);
+    } else {
       log.error("api_error_interno", { metodo: req.method, ruta: req.path, ...describir(err) });
       error = new ErrorApi("interno", "Ocurrió un error. Inténtalo de nuevo.");
     }
