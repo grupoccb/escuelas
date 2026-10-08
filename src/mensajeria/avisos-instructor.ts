@@ -198,6 +198,38 @@ export class EnvioAInstructores {
   }
 
   /**
+   * ED-01: confirma UNA vez la baja que un instructor acaba de pedir. Es la única respuesta que sale a quien se dio de baja: contesta a su
+   * mensaje, así que va dentro de su ventana de servicio de 24 h (recién abierta) y sin restricción de horario; si la ventana no está abierta
+   * o el transporte falla, no se manda (la baja ya quedó registrada y los avisos siguientes se bloquean). Nunca lanza.
+   */
+  async confirmarBaja(db: BaseDatos, conversacionInstructorId: string, texto: string): Promise<"enviado" | "bloqueado" | "fallido"> {
+    const ci = await db.conversacion_instructor.findFirst({
+      where: { id: conversacionInstructorId },
+      select: { ventana_servicio_hasta: true, chatwoot_conversacion_id: true, bandeja_chatwoot: { select: { chatwoot_account_id: true } } },
+    });
+    const cuenta = ci?.bandeja_chatwoot.chatwoot_account_id ?? null;
+    if (!ci || cuenta === null) return "fallido";
+    const motivo = evaluarReglas({
+      conv: { estado: "bot", ventana_servicio_hasta: ci.ventana_servicio_hasta, dado_de_baja: true, dado_de_baja_marketing: false },
+      tipo: "mensaje",
+      origen: "confirmacion_baja",
+      ahora: this.reloj(),
+      plantilla: null,
+      zonaHoraria: null,
+      automaticosRecientes: 0,
+      limiteFrecuencia: 1,
+    });
+    if (motivo) return "bloqueado";
+    try {
+      await this.transporte.enviarMensaje({ chatwootAccountId: cuenta, chatwootConversacionId: ci.chatwoot_conversacion_id }, texto);
+      return "enviado";
+    } catch (e) {
+      log.error("baja_instructor_confirmacion_fallida", { conversacionInstructorId, error: (e as Error).message });
+      return "fallido";
+    }
+  }
+
+  /**
    * Recuperación de avisos que quedaron en `enviando` sin id del proveedor (el proceso murió entre mandar y guardar): pudieron salir o
    * no, así que NUNCA se reenvían; se marcan `fallido` / `envio_incierto` y se deja una tarea. Idempotente. Devuelve cuántos.
    */

@@ -97,7 +97,7 @@ export async function procesarEntrante(
   // Fuera de la transacción: la fuente puede ser externa (otras vías consultan a un tercero).
   const atribucion = await (deps.atribucion ?? new SinAtribucion()).obtener(evento);
 
-  let r: { resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean } | undefined;
+  let r: { resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean; bajaDeInstructor?: boolean } | undefined;
   for (let intento = 1; !r; intento++) {
     try {
       r = await db.$transaction((tx) => registrarYAvanzar(tx, deps.mensajeria, bandeja, evento, recibidoEn, atribucion, deps.fuenteOcupacion ?? new SinInscripciones()));
@@ -110,6 +110,8 @@ export async function procesarEntrante(
   // También en duplicados: si un intento anterior se cortó, termina de despachar lo que quedó.
   // Un lead borrado no recibe nada.
   if (r.resultado !== "ignorado" && r.resultado !== "instructor") await deps.mensajeria.despachar(db, r.conversacionId);
+  // ED-01: la baja de un instructor se confirma UNA vez (solo la que acaba de registrarse), por MessagingProvider. Si no sale, la baja ya quedó.
+  if (r.bajaDeInstructor) await deps.mensajeria.confirmarBajaDeInstructor(db, r.conversacionId, textos.confirmacionBaja);
   // D1: el bot agendó una clase muestra y sigue atendiendo; la conversación se hace visible para los asesores (la nota sale
   // antes). Si Chatwoot no la abre, `visible_a_asesores_en` sin `abierta_para_asesores_en` hace que el barrido de espera lo reintente.
   if (r.abrirParaAsesores) await deps.mensajeria.abrirParaAsesores(db, r.conversacionId);
@@ -125,7 +127,7 @@ async function registrarYAvanzar(
   recibidoEn: Date,
   atribucion: Atribucion | null,
   fuente: FuenteOcupacion,
-): Promise<{ resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean }> {
+): Promise<{ resultado: ResultadoEntrante; conversacionId: string; abrirParaAsesores?: boolean; bajaDeInstructor?: boolean }> {
   const previo = await tx.mensaje.findFirst({
     where: { proveedor: evento.llave.proveedor, id_externo: evento.llave.id },
     select: { conversacion_id: true },
@@ -134,7 +136,7 @@ async function registrarYAvanzar(
 
   // D2: un instructor que responde un aviso (o escribe primero) no es un lead: ni embudo ni bot. Solo abre su ventana de servicio.
   const deInstructor = await entranteDeInstructor(tx, bandeja, evento, recibidoEn);
-  if (deInstructor) return { resultado: "instructor", conversacionId: deInstructor };
+  if (deInstructor) return { resultado: "instructor", conversacionId: deInstructor.id, ...(deInstructor.bajaNueva ? { bajaDeInstructor: true } : {}) };
 
   // E2: el código de rastreo del mensaje (landing, QR): se busca en la organización y se limpia del texto que ve el bot. Sin código, todo sigue como antes.
   const rastreo = await resolverCodigosDeMensaje(tx, evento.contenido, recibidoEn);
@@ -342,10 +344,16 @@ type ConversacionConLead = ConversacionDeLead;
  * si es una conversación nueva cuyo teléfono es el de un instructor activo y que no es de un lead de esta vertical. Registra su
  * respuesta (la ventana de servicio de 24 h, siempre el máximo) y devuelve el id de su conversación; null si no es de un instructor.
  * Alternativa descartada: dejarlo pasar como lead (el bot le contestaría «Hola, gracias por escribir» a un maestro).
+ *
+ * ED-01: una palabra de baja (`BAJA`, `STOP`, `CANCELAR`, `NO MOLESTAR`) registra la baja total del teléfono, igual que la de un contacto
+ * (los avisos siguientes quedan bloqueados por `opt_out`); `bajaNueva` es true solo la primera vez, para confirmarla una sola vez.
+ * ED-02: si el instructor ya tiene su conversación en esa bandeja y escribe desde otra de Chatwoot, se le cambia la conversación en lugar
+ * de crear una segunda (el índice único lo impide): lo que escriba no se pierde y los avisos siguientes salen por la conversación vigente.
  */
-async function entranteDeInstructor(tx: Consultas, bandeja: BandejaResuelta, evento: EventoEntrante, recibidoEn: Date): Promise<string | null> {
+async function entranteDeInstructor(tx: Consultas, bandeja: BandejaResuelta, evento: EventoEntrante, recibidoEn: Date): Promise<{ id: string; bajaNueva: boolean } | null> {
   const llave = { bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId };
-  let ci = await tx.conversacion_instructor.findFirst({ where: llave, select: { id: true, ultimo_mensaje_entrante_en: true } });
+  const seleccion = { id: true, instructor_id: true, ultimo_mensaje_entrante_en: true } as const;
+  let ci = await tx.conversacion_instructor.findFirst({ where: llave, select: seleccion });
   if (!ci) {
     if (await tx.conversacion.findFirst({ where: llave, select: { id: true } })) return null; // ya es la conversación de un lead
     const telefono = evento.contacto.telefono ? normalizarTelefono(evento.contacto.telefono) : null;
@@ -353,15 +361,26 @@ async function entranteDeInstructor(tx: Consultas, bandeja: BandejaResuelta, eve
     const instructor = await tx.instructor.findFirst({ where: { telefono, activo: true }, select: { id: true } });
     if (!instructor) return null;
     if (await tx.lead.findFirst({ where: { telefono, vertical_interes_id: bandeja.vertical_id }, select: { id: true } })) return null; // también es un contacto: se atiende como contacto
-    ci = await tx.conversacion_instructor.create({
-      data: altaConAlcance({ instructor_id: instructor.id, bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId }),
-      select: { id: true, ultimo_mensaje_entrante_en: true },
-    });
+    const propia = await tx.conversacion_instructor.findFirst({ where: { instructor_id: instructor.id, bandeja_chatwoot_id: bandeja.id }, select: seleccion });
+    if (propia) {
+      await tx.conversacion_instructor.updateMany({ where: { id: propia.id }, data: { chatwoot_conversacion_id: evento.chatwootConversacionId } });
+      ci = propia;
+    } else {
+      ci = await tx.conversacion_instructor.create({
+        data: altaConAlcance({ instructor_id: instructor.id, bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId }),
+        select: seleccion,
+      });
+    }
   }
   // Un entrante tardío (reintento de un mensaje anterior) nunca acorta la ventana (F1-13).
   const ultimo = ci.ultimo_mensaje_entrante_en && ci.ultimo_mensaje_entrante_en > recibidoEn ? ci.ultimo_mensaje_entrante_en : recibidoEn;
   await tx.conversacion_instructor.updateMany({ where: { id: ci.id }, data: { ultimo_mensaje_entrante_en: ultimo, ventana_servicio_hasta: ventanaServicioDesde(ultimo) } });
-  return ci.id;
+  let bajaNueva = false;
+  if (esPalabraDeBaja(evento.contenido)) {
+    const telefonoDeBaja = (await tx.instructor.findFirst({ where: { id: ci.instructor_id }, select: { telefono: true } }))?.telefono ?? (evento.contacto.telefono ? normalizarTelefono(evento.contacto.telefono) : null);
+    if (telefonoDeBaja) bajaNueva = await registrarBaja(tx, telefonoDeBaja, "palabra_clave", { mensaje_id: evento.llave.id, palabra: evento.contenido.trim(), destinatario: "instructor" }, recibidoEn);
+  }
+  return { id: ci.id, bajaNueva };
 }
 
 /**

@@ -148,6 +148,11 @@ export class MessagingProvider {
     return this.instructores.avisar(db, avisoId);
   }
 
+  /** Confirma una vez la baja que pidió un instructor (ED-01). Nunca lanza; devuelve qué pasó. */
+  confirmarBajaDeInstructor(db: BaseDatos, conversacionInstructorId: string, texto: string): Promise<"enviado" | "bloqueado" | "fallido"> {
+    return this.instructores.confirmarBaja(db, conversacionInstructorId, texto);
+  }
+
   /** Recupera los avisos a instructores que quedaron a medias (envío incierto). Nunca reenvía. */
   recuperarAvisosInciertos(db: BaseDatos): Promise<number> {
     return this.instructores.recuperarInciertos(db);
