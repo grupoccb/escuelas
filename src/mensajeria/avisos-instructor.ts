@@ -9,7 +9,8 @@
 //   · ventana de servicio: dentro, mensaje libre; fuera, SOLO plantilla aprobada; sin plantilla apta no se manda y se crea tarea;
 //   · horario 09:00–20:00 hora local de la sucursal del grupo: lo programado fuera se recorre al siguiente horario válido, y
 //     si con eso llegaría a la hora de la clase o después, se descarta y se registra;
-//   · frecuencia: el tope de automáticos por día (por teléfono);
+//   · frecuencia: el tope de automáticos por día (por teléfono); un aviso frenado por él se reintenta cada hora mientras falten 2 h o más
+//     para la clase (ED-04), y si ya no hay tiempo queda bloqueado con una tarea para el asesor;
 //   · `en_atencion_humana` NO aplica: no hay una persona atendiendo al instructor.
 // Idempotencia (invariante 8): uno por (clase, tipo) en la base; el envío se reclama con un cambio condicional de
 // `pendiente` a `enviando` bajo el candado del teléfono, así que un reintento no manda dos veces.
@@ -35,11 +36,17 @@ export type TipoDeAviso = keyof typeof PLANTILLA_DE_AVISO;
 export const AVISO_INCIERTO_MS = 5 * 60 * 1000;
 
 const DIA_MS = 24 * 60 * 60 * 1000;
+/**
+ * ED-04: un aviso frenado por el tope diario de mensajes automáticos NO se pierde: se reintenta cada hora (el tope cuenta las últimas 24 h, así que
+ * tarde o temprano hay lugar) mientras falte al menos `MARGEN_MINIMO_MS` para la clase. Si ya no hay tiempo, queda `bloqueado` y una persona decide.
+ */
+export const REINTENTO_POR_TOPE_MS = 60 * 60 * 1000;
+export const MARGEN_MINIMO_MS = 2 * 60 * 60 * 1000;
 const ERROR_INCIERTO = "envio_incierto";
 
 export type ResultadoDeAviso =
   | { resultado: "enviado" }
-  | { resultado: "pendiente"; motivo: "aun_no_es_su_hora" | "fuera_de_horario" }
+  | { resultado: "pendiente"; motivo: "aun_no_es_su_hora" | "fuera_de_horario" | "tope_de_frecuencia" }
   | { resultado: "bloqueado" | "descartado" | "fallido" | "sin_telefono"; motivo: string }
   | { resultado: "ya_procesado" };
 
@@ -157,6 +164,13 @@ export class EnvioAInstructores {
         else await tx.aviso_maestro.updateMany({ where: { id: a.id, entrega: "enviando" }, data: { entrega: "descartado", motivo_entrega: "evento_pasado" } });
         return { estado: "frenado" as const, resultado: siguiente ? ({ resultado: "pendiente", motivo: "fuera_de_horario" } as const) : ({ resultado: "descartado", motivo: "evento_pasado" } as const) };
       }
+      if (motivo === "tope_frecuencia") {
+        const reintento = new Date(ahora.getTime() + REINTENTO_POR_TOPE_MS);
+        if (clase.fecha_hora.getTime() - reintento.getTime() >= MARGEN_MINIMO_MS) {
+          await tx.aviso_maestro.updateMany({ where: { id: a.id, entrega: "enviando" }, data: { entrega: "pendiente", programado_para: reintento } });
+          return { estado: "frenado" as const, resultado: { resultado: "pendiente", motivo: "tope_de_frecuencia" } as const };
+        }
+      }
       if (motivo) {
         await tx.aviso_maestro.updateMany({ where: { id: a.id, entrega: "enviando" }, data: { entrega: "bloqueado", motivo_entrega: motivo } });
         return { estado: "bloqueado" as const, motivo };
@@ -171,6 +185,8 @@ export class EnvioAInstructores {
       // Fuera de la ventana de servicio y sin plantilla apta: no se manda y una persona decide (invariante 5).
       const sinPlantilla: MotivoBloqueo[] = ["fuera_de_ventana", "plantilla_no_apta"];
       if (sinPlantilla.includes(decision.motivo)) await this.tarea(db, { leadId: clase.lead_id, claseId: a.clase_muestra_id, descripcion: sinWhatsApp("no hay una plantilla aprobada que se pueda usar fuera de la ventana de 24 h") });
+      // ED-04: el tope diario ya no dejaba tiempo para reintentar antes de la clase: el maestro no se enteraría por WhatsApp, así que una persona le avisa.
+      if (decision.motivo === "tope_frecuencia") await this.tarea(db, { leadId: clase.lead_id, claseId: a.clase_muestra_id, descripcion: sinWhatsApp("ya se le mandó el máximo de mensajes automáticos del día y la clase está por empezar") });
       return { resultado: "bloqueado", motivo: decision.motivo };
     }
 

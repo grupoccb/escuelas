@@ -296,18 +296,48 @@ test("D2: la baja del teléfono del instructor se respeta (opt-out)", async () =
   assert.equal(await m.db.tarea_asesor.count(), 0, "quien pidió la baja no genera tarea de plantilla");
 });
 
-test("D2: la frecuencia (3 automáticos al día por teléfono, configurable) también frena los avisos a un instructor", async () => {
+test("D2 / ED-04: la frecuencia (3 automáticos al día por teléfono, configurable) frena los avisos a un instructor pero NO los pierde: se reintentan cada hora", async () => {
   const m = await mundo();
   await fijarConfiguracion(prisma, m.org.organizacionId, { max_automaticos_por_dia: 2 });
   for (let i = 0; i < 3; i++) await m.agendar(new Date(MIERCOLES_4.getTime() + i * 7 * 24 * HORA));
   const r = await m.barrer(AHORA);
   assert.equal(r.enviados, 2);
-  assert.equal(r.bloqueados, 1);
-  assert.deepEqual((await m.avisos()).map((x) => x.entrega).sort(), ["bloqueado", "enviado", "enviado"]);
-  assert.ok((await m.avisos()).some((x) => x.motivo_entrega === "tope_frecuencia"));
-  // 25 horas después ya no cuenta lo de ayer: un aviso nuevo sale.
-  await m.agendar(new Date(MIERCOLES_4.getTime() + 21 * 24 * HORA), m.grupoId, new Date(AHORA.getTime() + 25 * HORA));
-  assert.equal((await m.barrer(new Date(AHORA.getTime() + 25 * HORA))).enviados, 1);
+  assert.equal(r.reprogramados, 1, "el tercero no se pierde: se reprograma");
+  assert.equal(r.bloqueados, 0);
+  const despues = await m.avisos();
+  assert.deepEqual(despues.map((x) => x.entrega).sort(), ["enviado", "enviado", "pendiente"]);
+  const pendiente = despues.find((x) => x.entrega === "pendiente")!;
+  assert.equal(pendiente.programado_para.toISOString(), new Date(AHORA.getTime() + HORA).toISOString(), "un reintento dentro de una hora");
+  assert.equal(await m.db.tarea_asesor.count(), 0, "mientras hay tiempo no hace falta una persona");
+  // Una hora después el tope sigue lleno (cuenta 24 h): se vuelve a diferir, sin enviar ni duplicar.
+  const unaHora = new Date(AHORA.getTime() + HORA);
+  assert.deepEqual([(await m.barrer(unaHora)).enviados, (await m.barrer(unaHora)).enviados], [0, 0]);
+  assert.equal(plantillas(m).length + m.transporte.envios.filter((e) => e.tipo === "mensaje").length, 2);
+  // 25 horas después ya no cuenta lo de ayer: el aviso diferido SALE (y uno nuevo también).
+  const manana = new Date(AHORA.getTime() + 25 * HORA);
+  await m.agendar(new Date(MIERCOLES_4.getTime() + 21 * 24 * HORA), m.grupoId, manana);
+  assert.equal((await m.barrer(manana)).enviados, 2);
+  assert.ok((await m.avisos()).every((x) => x.entrega === "enviado"), JSON.stringify(await m.avisos()));
+});
+
+test("ED-04: si el tope diario ya no deja tiempo para reintentar antes de la clase, queda bloqueado y se crea la tarea para el asesor", async () => {
+  const m = await mundo();
+  await fijarConfiguracion(prisma, m.org.organizacionId, { max_automaticos_por_dia: 1 });
+  const c1 = await m.agendar(MIERCOLES_4);
+  const c2 = await m.agendar(MIERCOLES_4, m.grupoId);
+  // El barrido corre 2 h 30 min antes de la clase: el primero sale; el segundo, reintentado una hora después, caería a 1 h 30 min de la clase (< 2 h).
+  const antesDeLaClase = new Date(MIERCOLES_4.getTime() - 150 * 60_000);
+  const r = await m.barrer(antesDeLaClase);
+  assert.deepEqual([r.enviados, r.bloqueados, r.reprogramados], [1, 1, 0]);
+  const avisos = await m.avisos();
+  assert.deepEqual(avisos.map((x) => [x.entrega, x.motivo_entrega]).sort(), [["bloqueado", "tope_frecuencia"], ["enviado", null]]);
+  const bloqueado = avisos.find((x) => x.entrega === "bloqueado")!;
+  const tareas = await m.db.tarea_asesor.findMany({ where: { clase_muestra_id: bloqueado.clase_muestra_id } });
+  assert.equal(tareas.length, 1);
+  assert.equal(tareas[0]!.tipo, "aviso_maestro_no_enviado");
+  assert.match(tareas[0]!.descripcion, /Maestra Ana.*máximo de mensajes automáticos/);
+  assert.ok([c1, c2].includes(bloqueado.clase_muestra_id));
+  assert.equal((await m.barrer(antesDeLaClase)).bloqueados, 0, "no se repite la tarea");
 });
 
 test("D2: sin teléfono solo queda la lista de la aplicación y una tarea para el asesor; el barrido no lo toca", async () => {
