@@ -6,6 +6,7 @@ import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
 import { readFileSync } from "node:fs";
 import { EstadosEntregaChatwoot, type CambioDeEstado, type EventoEntrante, type EventoTomaDeConversacion } from "../mensajeria/index.ts";
 import { payloadMensajeEntrante } from "../mensajeria/chatwoot/fixtures.ts";
+import { escucharSinReuso } from "../testutil/servidor.ts";
 
 const SECRETO = "secreto-de-prueba";
 const AHORA = new Date("2026-10-07T18:00:00Z");
@@ -45,7 +46,7 @@ async function pedir(
   cuerpo?: string,
   encabezados: Record<string, string> = {},
 ): Promise<{ status: number; body: unknown }> {
-  const server = crearApp(d).listen(0);
+  const server = escucharSinReuso(crearApp(d));
   try {
     const { port } = server.address() as AddressInfo;
     const res = await fetch(`http://127.0.0.1:${port}${ruta}`, {
@@ -220,7 +221,7 @@ test("B5: quitar el asesor, firmado, registra la desasignación; sin el manejado
 // ── EB-05: HSTS con la configuración REAL (no con un valor que solo el test pasa a mano) ─────────
 
 async function cabecera(extra: Partial<AppDeps>, nombre: string): Promise<string | null> {
-  const server = crearApp(deps(extra)).listen(0);
+  const server = escucharSinReuso(crearApp(deps(extra)));
   try {
     const { port } = server.address() as AddressInfo;
     const res = await fetch(`http://127.0.0.1:${port}/salud`);

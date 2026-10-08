@@ -19,6 +19,7 @@ import { PERMISOS_ACORDADOS } from "../testutil/permisos-acordados.ts";
 import { MATRIZ_DE_PERMISOS, PERMISOS } from "./permisos.ts";
 import { soloSesion } from "./autorizar.ts";
 import { contextoDe } from "./contexto.ts";
+import { escucharSinReuso } from "../testutil/servidor.ts";
 
 let prisma: PrismaPruebas;
 let api: ApiLevantada;
@@ -154,7 +155,7 @@ test("cada permiso de la matriz × cada rol → 200 si lo tiene y 403 si no, con
   });
   router.use(manejadorDeErroresApi);
   app.use("/api", router);
-  const server = app.listen(0);
+  const server = escucharSinReuso(app);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
     let comprobaciones = 0;
@@ -193,7 +194,7 @@ test("una ruta con sesión pero SIN declarar su acceso responde 500 y no toca la
   });
   router.use(manejadorDeErroresApi);
   app.use("/api", router);
-  const server = app.listen(0);
+  const server = escucharSinReuso(app);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
     const cookie = `sesion=${como("asesor").cookieDeSesion!}`;

@@ -10,6 +10,7 @@ import { crearApp, type AppDeps } from "./app.ts";
 import { limitesDesdeEntorno } from "./config-limites.ts";
 import { LimitadorDeTasa, perfilPorMinuto } from "./limite.ts";
 import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
+import { escucharSinReuso } from "../testutil/servidor.ts";
 
 const TOKEN = "token-de-prueba";
 const BASE = "https://escuela.example.test";
@@ -65,7 +66,7 @@ function montar(o: Opciones = {}) {
       },
     },
   });
-  const server = app.listen(0);
+  const server = escucharSinReuso(app);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const twilio = async (ip: string | null, valida: boolean, ruta = "/webhooks/twilio/entrantes") => {
     const res = await fetch(`${base}${ruta}`, {
@@ -191,7 +192,7 @@ test("sin límites configurados (los demás tests de la app) nada se limita", as
     estadosEntrega: { interpretar: () => null },
     registrarEstadoEntrega: async () => "actualizado",
   });
-  const server = app.listen(0);
+  const server = escucharSinReuso(app);
   try {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     for (let i = 0; i < 40; i++) {

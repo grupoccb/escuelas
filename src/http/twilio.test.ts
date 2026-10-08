@@ -7,6 +7,7 @@ import { createHmac } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { crearApp, type AppDeps } from "./app.ts";
 import type { EntradaBorde, ResultadoBorde } from "../mensajeria/index.ts";
+import { escucharSinReuso } from "../testutil/servidor.ts";
 
 const TOKEN = "token-de-prueba";
 const BASE = "https://escuela.example.test";
@@ -45,7 +46,7 @@ function montar(extra: { resultado?: ResultadoBorde | Error; token?: string | nu
 }
 
 async function post(deps: AppDeps, ruta: string, cuerpo: string, encabezados: Record<string, string> = {}) {
-  const server = crearApp(deps).listen(0);
+  const server = escucharSinReuso(crearApp(deps));
   try {
     const { port } = server.address() as AddressInfo;
     const res = await fetch(`http://127.0.0.1:${port}${ruta}`, {
@@ -152,7 +153,7 @@ test("un cuerpo mayor al límite se rechaza con 413, vacío, sin llegar al borde
 
 test("sólo POST: un GET a la ruta no existe", async () => {
   const { deps } = montar();
-  const server = crearApp(deps).listen(0);
+  const server = escucharSinReuso(crearApp(deps));
   try {
     const { port } = server.address() as AddressInfo;
     const res = await fetch(`http://127.0.0.1:${port}/webhooks/twilio/entrantes`);

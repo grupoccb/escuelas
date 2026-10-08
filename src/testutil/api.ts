@@ -9,6 +9,7 @@ import type { Rol } from "../auth/roles.ts";
 import { crearApp, type AppDeps } from "../http/app.ts";
 import type { ApiDepsEntrada } from "../api/index.ts";
 import type { PrismaPruebas } from "./prisma-pruebas.ts";
+import { escucharSinReuso } from "./servidor.ts";
 
 export const CONTRASENA_DE_PRUEBA = "contrasena-de-prueba-1";
 
@@ -128,7 +129,7 @@ export function levantarApi(prisma: PrismaPruebas, api: Partial<ApiDepsEntrada> 
     landing: { prisma },
     ...deps,
   });
-  const server = app.listen(0);
+  const server = escucharSinReuso(app);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
     base,

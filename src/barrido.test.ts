@@ -4,6 +4,18 @@ import { iniciarBarrido } from "./barrido.ts";
 
 const esperar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * ED-06: espera a que se cumpla una condición, sondeando, en vez de dormir un tiempo fijo y esperar que el temporizador haya disparado. Con la
+ * máquina ocupada un `setInterval` de 3 ms puede tardar decenas de ms; la condición, no el reloj, decide. Tope de 5 s para no colgar si falla.
+ */
+async function esperarHasta(condicion: () => boolean, descripcion: string): Promise<void> {
+  const limite = Date.now() + 5000;
+  while (!condicion()) {
+    if (Date.now() > limite) throw new Error(`no se cumplió a tiempo: ${descripcion}`);
+    await esperar(2);
+  }
+}
+
 /** Una promesa que se resuelve desde fuera. */
 function compuerta() {
   let abrir!: () => void;
@@ -23,7 +35,7 @@ test("detener() espera al barrido en curso y no deja que empiece otro (F1-01: SI
       terminados++;
     },
   });
-  await esperar(30);
+  await esperarHasta(() => iniciados >= 1, "el primer barrido arrancó");
   assert.equal(iniciados, 1, "el barrido arrancó y sigue en curso");
 
   let detenido = false;
@@ -55,7 +67,8 @@ test("dos barridos no se solapan: si el anterior sigue, el tic se salta", async 
       simultaneos--;
     },
   });
-  await esperar(40);
+  await esperarHasta(() => iniciados >= 1, "el primer barrido arrancó");
+  await esperar(40); // varios tics con el barrido en curso: ninguno debe arrancar otro
   assert.equal(iniciados, 1);
   c.abrir();
   await barrido.detener();
@@ -71,7 +84,7 @@ test("un barrido que lanza no mata el intervalo", async () => {
       throw new Error("falla simulada");
     },
   });
-  await esperar(40);
+  await esperarHasta(() => llamadas >= 2, "el barrido volvió a correr después de lanzar");
   await barrido.detener();
   assert.ok(llamadas >= 2, `se reintentó en los tics siguientes (${llamadas})`);
 });

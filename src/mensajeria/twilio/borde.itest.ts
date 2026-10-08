@@ -12,6 +12,7 @@ import { sembrarOrganizacion, type OrganizacionDePrueba } from "../../testutil/s
 import { Barrera, conGanchos, soloOrganizaciones } from "../../testutil/carrera.ts";
 import { MAX_INTENTOS_REENVIO, RECLAMO_TWILIO_VENCE_MS, crearBordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso } from "./reenviador.ts";
+import { escucharSinReuso } from "../../testutil/servidor.ts";
 
 const TOKEN = "token-de-prueba";
 const BASE = "https://escuela.example.test";
@@ -54,7 +55,7 @@ function entorno(opciones: { normalizarFromAlReenviar?: boolean; reenviarSinOrga
     registrarEstadoEntrega: async () => "actualizado",
     twilio: { authToken: TOKEN, publicBaseUrl: BASE, borde },
   });
-  const server = app.listen(0);
+  const server = escucharSinReuso(app);
   const { port } = server.address() as AddressInfo;
   /** POST firmado (o con la firma que se diga) a la ruta; devuelve el estado HTTP. */
   const enviar = async (ruta: string, cuerpo: Buffer, firma: string | null = firmar(`${BASE}${ruta}`, cuerpo)) => {
