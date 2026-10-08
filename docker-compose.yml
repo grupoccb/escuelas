@@ -67,6 +67,9 @@ services:
       # único origen que puede hacer peticiones que cambian algo es el propio backend.
       COOKIE_SEGURA: "false"
       ORIGEN_PUBLICO: http://localhost:3000
+      # Clave de los datos de salud (B4). SOLO DEMO: está en el repositorio. En un ambiente real se genera
+      # con `openssl rand -base64 32` y vive en el gestor de secretos.
+      CLAVE_DATOS_SENSIBLES: "I4YAELLXaPYTGc2hPt5pVkQ8r0G5MpudNuv0u31Zp28="
     ports:
       - "3000:3000"
     # El cierre ordenado del backend (src/cierre.ts) espera hasta LIMITE_CIERRE_MS (30 s) a que termine

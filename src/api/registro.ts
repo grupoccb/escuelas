@@ -12,7 +12,10 @@
 
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import type { ValorJson } from "../datos/tipos.ts";
+import { esCampoProhibidoEnRegistro } from "../sensibles/campos.ts";
 import type { ContextoApi } from "./contexto.ts";
+
+export { esCampoProhibidoEnRegistro };
 
 /** Campos que se guardan por entidad. Los nombres son los de la tabla (`tarea_asesor`, no «tarea»). */
 export const CAMPOS_AUDITABLES = {
@@ -35,11 +38,6 @@ export type AccionDeCambio =
 
 type Valor = string | number | boolean | null | Date | (string | number | boolean | null)[];
 export type Instantanea = Record<string, Valor | undefined>;
-
-/** Campos que jamás se registran: credenciales y secretos (B4 añade los datos de salud). */
-export function esCampoProhibidoEnRegistro(campo: string): boolean {
-  return /contrase|password|token|hash|secret|cookie|authorization/i.test(campo);
-}
 
 // Al cargar el módulo: ninguna lista blanca puede nombrar un campo prohibido (contraseñas, tokens, salud).
 for (const [entidad, campos] of Object.entries(CAMPOS_AUDITABLES)) {

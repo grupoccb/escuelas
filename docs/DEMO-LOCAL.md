@@ -71,6 +71,9 @@ curl -b /tmp/sesion.txt http://localhost:3000/api/yo
 
 (`organizacion` puede omitirse mientras exista una sola organización.)
 
+Datos de salud (solo administrador y maestro del grupo): `PUT/GET /api/salud/prospecto/:id` — ver `docs/API.md`.
+La clave de cifrado de la demo (`CLAVE_DATOS_SENSIBLES` en `docker-compose.yml`) es pública a propósito.
+
 ## Cómo está armada
 
 | Pieza | Dónde |

@@ -211,3 +211,28 @@ test("invariante 9/4: la firma de un webhook (X-Twilio-Signature, X-Chatwoot-Sig
   assert.deepEqual(hallazgos({ "src/http/a.ts": `const f = req.get("X-Chatwoot-Signature");` }), ["src/http/a.ts:4"]);
   assert.deepEqual(hallazgos({ "src/mensajeria/twilio/a.ts": `const f = cabeceras["x-twilio-signature"];` }), []);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Decisión 12 (B4): la ficha de salud solo se toca desde src/sensibles/.
+
+function hallazgosDeSalud(archivos: Record<string, string>): string[] {
+  const raiz = mkdtempSync(join(tmpdir(), "check-capas-"));
+  try {
+    for (const [ruta, contenido] of Object.entries(archivos)) {
+      mkdirSync(join(raiz, ruta, ".."), { recursive: true });
+      writeFileSync(join(raiz, ruta), contenido);
+    }
+    return escanearCapas(raiz)
+      .hallazgos.filter((h) => h.invariante === "decisión 12")
+      .map((h) => `${h.archivo}:${h.linea}`);
+  } finally {
+    rmSync(raiz, { recursive: true, force: true });
+  }
+}
+
+test("decisión 12: la ficha de salud y su registro de accesos solo se nombran dentro de src/sensibles", () => {
+  assert.deepEqual(hallazgosDeSalud({ "src/api/a.ts": `const f = await db.ficha_salud.findMany();` }), ["src/api/a.ts:1"]);
+  assert.deepEqual(hallazgosDeSalud({ "src/captacion/a.ts": `await tx.acceso_dato_sensible.create({ data });` }), ["src/captacion/a.ts:1"]);
+  assert.deepEqual(hallazgosDeSalud({ "src/sensibles/a.ts": `const f = await tx.ficha_salud.findFirst();` }), []);
+  assert.deepEqual(hallazgosDeSalud({ "src/x/a.itest.ts": `await prisma.ficha_salud.create({ data });` }), [], "los tests quedan fuera");
+});

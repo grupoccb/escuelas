@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 const RAIZ_REPO = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 interface Regla {
-  invariante: number;
+  invariante: number | string;
   /** Carpeta (relativa a src/, con "/") donde lo prohibido sí está permitido. */
   permitidoEn: string;
   prohibido: { re: RegExp; que: string }[];
@@ -76,12 +76,19 @@ export const REGLAS: Regla[] = [
       { re: /mensajeria\/(?:chatwoot\/|transporte|fake)/, que: "importa el transporte (usa mensajeria/index.ts)" },
     ],
   },
+  {
+    // Decisión 12: la ficha de salud y su registro de accesos solo se tocan desde src/sensibles/, que
+    // cifra, exige el permiso y registra cada acceso. Cualquier otro lugar leería datos de menores sin rastro.
+    invariante: "decisión 12",
+    permitidoEn: "sensibles/",
+    prohibido: [{ re: /\b(?:ficha_salud|acceso_dato_sensible)\b/, que: "toca la ficha de salud o su registro sin pasar por leerSensible()/guardarSensible()" }],
+  },
 ];
 
 export interface Hallazgo {
   archivo: string;
   linea: number;
-  invariante: number;
+  invariante: number | string;
   que: string;
   texto: string;
 }
@@ -139,7 +146,7 @@ function main(): void {
     return;
   }
   console.error(`\n✗ ${hallazgos.length} violación(es) de capas:\n`);
-  for (const h of hallazgos) console.error(`  ${h.archivo}:${h.linea}  [invariante ${h.invariante}] ${h.que}  → ${h.texto}`);
+  for (const h of hallazgos) console.error(`  ${h.archivo}:${h.linea}  [${typeof h.invariante === "number" ? `invariante ${h.invariante}` : h.invariante}] ${h.que}  → ${h.texto}`);
   console.error("");
   process.exitCode = 1;
 }

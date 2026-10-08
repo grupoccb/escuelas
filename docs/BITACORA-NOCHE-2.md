@@ -17,7 +17,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B1 | HECHO | (ver git log) | Usuarios, roles, sesiones y contraseñas con scrypt; login con bloqueo; CSRF |
 | B2 | HECHO | (ver git log) | Matriz permiso×rol, alcance por sucursal y por grupo del maestro, usuarios/grupos/tareas/leads |
 | B3 | HECHO | (ver git log) | API base: errores, validador, paginación, registro de cambios solo de anexar, cabeceras; docs/API.md |
-| B4 | PENDIENTE | | Datos sensibles |
+| B4 | HECHO | (ver git log) | Datos sensibles: ficha de salud cifrada, registro de accesos, redacción en logs, `check:sensibles` y test de fuga |
 | B5 | PENDIENTE | | Usuario y agente de Chatwoot |
 | B6 | PENDIENTE | | Protección de rutas públicas |
 | C1 | PENDIENTE | | Instructores y salones |
@@ -545,3 +545,33 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 
 **Para Eduardo**
 - Qué entidades se auditan hoy: usuarios, tareas (y el vínculo de Chatwoot en B5). Cada bloque que agregue una escritura debe agregar su entidad a `CAMPOS_AUDITABLES`.
+
+## B4. Datos sensibles (decisión 12)
+
+**Qué se hizo**
+- **Lista central** `src/sensibles/campos.ts`: las columnas de la ficha (`alergias`, `condiciones_medicas`, `medicamentos`, `contacto_emergencia`, `autorizacion_atencion_medica`) y las RAÍCES que delatan un dato de salud en cualquier nombre (snake_case, camelCase, con o sin acento: `alergia`, `medicament`, `tipo_sangre`, `seguro_medico`, `observaciones_medicas`, `ficha_salud`…), más las raíces de secretos (`contrasena`, `token`, `cookie`, `hash`…). Una sola fuente para el log, el registro de cambios y la guarda estática.
+- **Redacción automática en `src/lib/log.ts`**: toda clave sensible o secreta sale como `[REDACTADO]` a cualquier profundidad (también en arreglos), y cualquier valor envuelto en `Sensible` (`src/sensibles/marca.ts`: `toJSON`, `toString`, `util.inspect` y plantillas lo ocultan; solo `revelar()` lo muestra). Maneja ciclos y profundidad.
+- **Tabla `ficha_salud`** (migración `20261010030000_datos_sensibles`): `sujeto_tipo` (`prospecto|alumno`) + `sujeto_id` y una columna por campo con el valor CIFRADO con AES-256-GCM (`src/sensibles/cifrado.ts`; clave `CLAVE_DATOS_SENSIBLES`; datos asociados = organización|sujeto|campo, así que un texto cifrado copiado a otra fila o campo no descifra). Una ficha viva por sujeto (índice parcial). **Nadie la consulta directamente**: `check:capas` tiene una regla nueva («decisión 12») que prohíbe nombrar `ficha_salud` o `acceso_dato_sensible` fuera de `src/sensibles/`.
+- **`leerSensible()` / `guardarSensible()`** (`src/sensibles/ficha.ts`): exigen el permiso (`salud:leer` / `salud:escribir`: solo administrador y maestro), comprueban que el sujeto exista en la organización, y para el maestro además que sea de SUS grupos (`maestroDelSujeto`); registran cada acceso en **`acceso_dato_sensible`** (quién, a quién, qué campos —solo nombres—, motivo, ruta; solo de anexar por disparador; también los intentos denegados) en la MISMA transacción que la lectura; devuelven los valores envueltos en `Sensible`. La escritura se serializa por sujeto con un candado consultivo.
+- **API** `GET/PUT /api/salud/:sujeto_tipo/:sujeto_id` (`src/api/rutas/salud.ts`, la única ruta que revela valores): `motivo` obligatorio, `campos` opcional, teléfono de emergencia por `normalizarTelefono()`, lo ajeno o no permitido para el maestro da 404.
+- **Guarda estática** `npm run check:sensibles` (`scripts/check-sensibles.ts`, ya parte de `validar`): falla si un nombre de campo sensible aparece (1) dentro de una llamada a `log.info|warn|error`, (2) dentro de una llamada que arma un mensaje, una nota o una tarea (`encolar`, `enviarMensaje`, `enviarPlantilla`, `enviarNotaInterna`, `respuestaA`, `resumenParaAsesor`, `asegurarTarea*`…) o (3) en cualquier parte de `src/` fuera de `src/sensibles/` y la ruta de salud. Ignora comentarios y tests. Sus tests siembran cada violación.
+- **Test de fuga** `src/sensibles/fuga.itest.ts`: una organización cuyos menores tienen ficha con valores CENTINELA; se ejecutan la captura completa con handoff (con la ficha ya creada cuando se arma la nota), el aviso de 30 min, el reenganche del motor, la baja y la baja que vuelve a escribir, la entrega fallida, el fallo de la nota y las denegaciones, con `TransporteFalso` y un colector de logs; exige que ningún centinela aparezca en los logs, en los envíos del transporte ni **en ninguna tabla de la organización, fila por fila** (la ficha guarda texto cifrado). Incluye un control que muestra que el detector sí ve una fuga.
+- Seguridad de arranque: `server.ts` construye el cifrador al arrancar, así que con `NODE_ENV=production` sin `CLAVE_DATOS_SENSIBLES` el backend no arranca. En compose la demo trae una clave pública a propósito.
+
+**Verificación**
+- `npm run validar` → exit 0 · `ℹ tests 235 · pass 235` · `check:generico: 192` · `check:capas: 73` · `check:sensibles: 73 archivos`. `npm run test:int` → exit 0 · `ℹ tests 314 · pass 314 · fail 0` (antes 297).
+- Mutaciones atrapadas: sin la redacción por clave en `log` (falla el test de fuga); sin la regla del maestro; sin registrar el acceso de lectura; datos asociados fijos en el cifrado; guardar sin cifrar (9 tests); sin el candado de escritura (con una carrera forzada por barrera). Equivalente que sobrevive: quitar el `if (esSensible)` de `redactar` — un `Sensible` no tiene propiedades enumerables, así que la rama genérica ya lo deja en `{}` (defensa doble).
+
+**Decisiones que tomé**
+- *Cifrar en la aplicación y no solo «no seleccionar por defecto»*: un volcado de la base no revela salud de menores, y ninguna consulta accidental puede mostrarla. Costo: la clave en el entorno y sin rotación (el prefijo `v1` la deja abierta). Alternativa descartada: columnas en claro con un `omit` global (un `SELECT *` o un respaldo las expondría).
+- *Maestro: tiene el permiso pero falla cerrado* hasta que exista la inscripción; la regla se conecta en `maestroDelSujetoPorDefecto` (F1/F3). Alternativa descartada: dejarlo leer cualquier ficha de la organización.
+- *Recepción NO lee ni escribe salud* (ni el asesor): mínimo privilegio; la inscripción por WhatsApp o en mostrador capturará la ficha por la ruta que F1/F3 decidan (ampliar es una fila en la matriz).
+- *`sujeto_id` polimórfico sin llave foránea* (el brief fija `prospecto|alumno`): el servicio comprueba que exista dentro de la organización; F1 agrega la comprobación de `alumno`. Alternativa descartada: dos columnas con FK (no hay tabla `alumno` todavía).
+- *`motivo` obligatorio en la lectura*: deja constancia de por qué se abrió el dato. El cliente (J2) pondrá uno por defecto razonable.
+- *El maestro denegado recibe 404*, no 403 (no confirma que el menor exista); el intento queda registrado.
+- *La redacción es por clave*: un texto libre con el valor sí pasa. Por eso existen la guarda estática y el test de fuga; ninguna de las dos cubre un flujo nuevo hasta que se agregue: **quien agregue un flujo con datos de salud debe sumarlo a `fuga.itest.ts`**.
+- *Se movió `esCampoProhibidoEnRegistro`* de `registro.ts` a `sensibles/campos.ts` (ahora cubre también salud).
+
+**Para Eduardo**
+- Decidir quién captura la ficha en la inscripción (hoy solo administrador y maestro pueden escribirla) y cuándo la ve el maestro (la regla «sus grupos» llega con F1/F3).
+- La clave de la demo está en `docker-compose.yml`; en producción va en el gestor de secretos y respaldarla es tan importante como respaldar la base (sin ella los datos no se recuperan).

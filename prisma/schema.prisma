@@ -66,6 +66,8 @@ model organizacion {
   intentos_acceso            intento_acceso[]
   instructores               instructor[]
   registros_cambio           registro_cambio[]
+  fichas_salud               ficha_salud[]
+  accesos_dato_sensible      acceso_dato_sensible[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -905,11 +907,12 @@ model usuario {
   actualizado_en         DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en           DateTime?   @db.Timestamptz(6)
 
-  organizacion organizacion       @relation(fields: [organizacion_id], references: [id])
-  sucursales   usuario_sucursal[]
-  sesiones     sesion[]
-  instructores instructor[]
-  cambios      registro_cambio[]
+  organizacion          organizacion           @relation(fields: [organizacion_id], references: [id])
+  sucursales            usuario_sucursal[]
+  sesiones              sesion[]
+  instructores          instructor[]
+  cambios               registro_cambio[]
+  accesos_dato_sensible acceso_dato_sensible[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1031,4 +1034,67 @@ model registro_cambio {
   @@index([organizacion_id])
   @@index([organizacion_id, entidad_tipo, entidad_id])
   @@index([organizacion_id, creado_en])
+}
+
+// ── Datos sensibles de salud (B4, decisión 12) ─────────────────────────────────────────
+
+enum sujeto_salud {
+  prospecto
+  alumno
+}
+
+/// Datos de salud de un menor (alergias, condiciones médicas, medicamentos, contacto de emergencia,
+/// autorización de atención médica). SENSIBLES: cada columna guarda el valor CIFRADO (AES-256-GCM,
+/// ligado a su fila y campo) y NADIE las lee con una consulta normal: el único acceso es
+/// `leerSensible()` / `guardarSensible()` de src/sensibles/, que además registra cada acceso.
+/// `check:capas` prohíbe nombrar este modelo fuera de src/sensibles/.
+/// `sujeto_id` apunta a `prospecto` o a `alumno` según `sujeto_tipo` (referencia polimórfica: no puede
+/// ser llave foránea; el servicio comprueba que exista dentro de la organización. La tabla `alumno`
+/// llega con F1, que reutiliza esta ficha).
+model ficha_salud {
+  id                           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id              String       @db.Uuid
+  sujeto_tipo                  sujeto_salud
+  sujeto_id                    String       @db.Uuid
+  alergias                     String?
+  condiciones_medicas          String?
+  medicamentos                 String?
+  contacto_emergencia          String?
+  autorizacion_atencion_medica String?
+  creado_en                    DateTime     @default(now()) @db.Timestamptz(6)
+  actualizado_en               DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en                 DateTime?    @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Cada lectura o escritura de datos sensibles: quién, sobre quién, qué campos (solo los NOMBRES),
+/// cuándo, por qué y desde qué ruta. Solo de anexar (disparador). También las lecturas denegadas.
+model acceso_dato_sensible {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String       @db.Uuid
+  usuario_id      String       @db.Uuid
+  sujeto_tipo     sujeto_salud
+  sujeto_id       String       @db.Uuid
+  /// leer o escribir.
+  accion          String
+  /// permitido o denegado.
+  resultado       String
+  /// Nombres de los campos tocados. Nunca sus valores.
+  campos          String[]
+  motivo          String?
+  ruta            String?
+  creado_en       DateTime     @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?    @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  usuario      usuario      @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([organizacion_id, sujeto_tipo, sujeto_id, creado_en])
 }
