@@ -30,6 +30,7 @@ export const CAMPOS_AUDITABLES = {
   cotizacion: ["lead_id", "prospecto_id", "programa_id", "sucursal_id", "grupo_elegido_id", "origen", "estatus", "fecha", "vigente_hasta", "hermanos_inscritos", "meses_pagados"],
   // `notas` NO se audita: es texto libre y no debe llevar datos de salud (decisión 12).
   clase_muestra: ["lead_id", "prospecto_id", "grupo_id", "fecha_hora", "estatus", "agendada_por", "reprogramada_de_id", "motivo_cancelacion"],
+  aviso_maestro: ["leido_en"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

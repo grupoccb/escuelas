@@ -143,7 +143,7 @@ test("D1: respeta los lugares de LA SESIÓN: cupo − ocupados − clases muestr
   assert.equal(await lugares(m, MIERCOLES_14, m.grupo2Id), 3);
   // Una clase cancelada libera su lugar, una reagendada también.
   const viva = await m.db.clase_muestra.findFirstOrThrow({ where: { prospecto_id: a.prospectoId, estatus: "agendada" } });
-  assert.equal((await m.db.$transaction((tx) => cancelarClaseMuestra(tx, viva.id, "no puede"))).ok, true);
+  assert.equal((await m.db.$transaction((tx) => cancelarClaseMuestra(tx, viva.id, "no puede", AHORA))).ok, true);
   assert.equal(await lugares(m, LUNES_12), 1);
   assert.equal((await agendar(m, c.prospectoId, LUNES_12, m.grupoId)).ok, false, "c ya tiene una vigente en este grupo");
 });
@@ -191,14 +191,14 @@ test("D1: cancelar libera el lugar y devuelve al lead a «contactado» si era su
   const r = await agendar(m, f.prospectoId, LUNES_12);
   assert.ok(r.ok);
   assert.deepEqual(await agendar(m, g.prospectoId, LUNES_12), { ok: false, motivo: "sin_lugar" });
-  const c = await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, "se enfermó"));
+  const c = await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, "se enfermó", AHORA));
   assert.ok(c.ok);
   const fila = await m.db.clase_muestra.findFirstOrThrow({ where: { id: r.clase.id } });
   assert.deepEqual([fila.estatus, fila.motivo_cancelacion], ["cancelada", "se enfermó"]);
   assert.equal(await etapaDe(m, f.leadId), m.etapas.contactado);
   assert.equal((await agendar(m, g.prospectoId, LUNES_12)).ok, true, "el lugar liberado lo toma otra familia");
-  assert.deepEqual(await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, null)), { ok: false, motivo: "clase_no_vigente" });
-  assert.deepEqual(await m.db.$transaction((tx) => cancelarClaseMuestra(tx, "00000000-0000-4000-8000-0000000000ff", null)), { ok: false, motivo: "clase_no_vigente" });
+  assert.deepEqual(await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, null, AHORA)), { ok: false, motivo: "clase_no_vigente" });
+  assert.deepEqual(await m.db.$transaction((tx) => cancelarClaseMuestra(tx, "00000000-0000-4000-8000-0000000000ff", null, AHORA)), { ok: false, motivo: "clase_no_vigente" });
 });
 
 test("D1: con otra clase vigente en el lead, cancelar una no lo regresa de etapa", async () => {
@@ -208,9 +208,9 @@ test("D1: con otra clase vigente en el lead, cancelar una no lo regresa de etapa
   const a = await agendar(m, lead.prospectoId, LUNES_12);
   const b = await agendar(m, hermano.id, LUNES_12);
   assert.ok(a.ok && b.ok);
-  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, a.clase.id, null));
+  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, a.clase.id, null, AHORA));
   assert.equal(await etapaDe(m, lead.leadId), m.etapas.muestra_agendada, "el hermano sigue con su clase");
-  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, b.clase.id, null));
+  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, b.clase.id, null, AHORA));
   assert.equal(await etapaDe(m, lead.leadId), m.etapas.contactado);
 });
 
@@ -357,7 +357,7 @@ test("D1 (concurrencia): cancelar y reprogramar la MISMA clase a la vez: una sol
   const r = await agendar(m, f.prospectoId, LUNES_12);
   assert.ok(r.ok);
   const [c, p] = await Promise.all([
-    m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, null)),
+    m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, null, AHORA)),
     m.db.$transaction((tx) => reprogramarClaseMuestra(tx, m.ctx(), { claseId: r.clase.id, fechaHora: LUNES_19 })),
   ]);
   assert.equal([c.ok, p.ok].filter(Boolean).length, 1);

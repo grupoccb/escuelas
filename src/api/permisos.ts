@@ -30,6 +30,9 @@ export const MATRIZ_DE_PERMISOS = {
   // Clase muestra (D1): agendar, reprogramar y cancelar es del asesor y el administrador; el maestro solo lee las de SUS grupos.
   "clases_muestra:leer": ["administrador", "asesor", "maestro"],
   "clases_muestra:escribir": ["administrador", "asesor"],
+  // Avisos al maestro (D2): los suyos. El administrador los tiene por regla (todos los permisos), pero solo ve los de su propio instructor, si lo es.
+  "avisos_maestro:leer": ["administrador", "maestro"],
+  "avisos_maestro:escribir": ["administrador", "maestro"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],

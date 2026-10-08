@@ -22,9 +22,10 @@ export {
   type SalienteDelSistema,
   type ResumenDespacho,
 } from "./provider.ts";
+export { PLANTILLA_DE_AVISO, textoDeAviso, type DatosDeAviso, type ResultadoDeAviso, type TipoDeAviso } from "./avisos-instructor.ts";
 export { asegurarTareaAsesor, asegurarTareaDeMensaje, asegurarTareaEnTransaccion, resumirTexto, type TareaDeMensaje, type TareaParaAsesor } from "./tareas.ts";
 export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
-export { EnvioIncierto, ErrorTransporte, type TransporteConversaciones } from "./transporte.ts";
+export { EnvioIncierto, ErrorTransporte, type ContactoNuevo, type TransporteConversaciones } from "./transporte.ts";
 export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
 export {
   bordeTwilioDesdeEntorno,
@@ -81,7 +82,7 @@ export function mensajeriaDesdeEntorno(env: NodeJS.ProcessEnv = process.env): Me
 
   if (url && tokenBot) {
     return {
-      provider: new MessagingProvider({ transporte: new TransporteChatwoot({ url, tokenBot }) }),
+      provider: new MessagingProvider({ transporte: new TransporteChatwoot({ url, tokenBot, ...(env["CHATWOOT_ADMIN_TOKEN"] ? { tokenAdmin: env["CHATWOOT_ADMIN_TOKEN"] } : {}) }) }),
       secretoWebhookChatwoot: secreto,
       transporte: "chatwoot",
     };

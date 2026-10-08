@@ -19,6 +19,13 @@ export interface PlantillaAEnviar {
   cuerpo: string;
 }
 
+/** Una persona que no ha escrito primero (un instructor): hace falta abrirle una conversación para avisarle (D2). */
+export interface ContactoNuevo {
+  /** E.164, de `normalizarTelefono()`. */
+  telefono: string;
+  nombre: string;
+}
+
 export interface TransporteConversaciones {
   /** Mensaje al contacto. Devuelve el id del mensaje en el proveedor. */
   enviarMensaje(destino: DestinoConversacion, texto: string): Promise<{ idExterno: string }>;
@@ -28,6 +35,12 @@ export interface TransporteConversaciones {
   enviarNotaInterna(destino: DestinoConversacion, texto: string): Promise<{ idExterno: string }>;
   /** Pasa la conversación a la bandeja de asesores. */
   abrirConversacion(destino: DestinoConversacion): Promise<void>;
+  /**
+   * Abre una conversación NUEVA con alguien que no ha escrito (un instructor, D2) en esa cuenta y bandeja del proveedor y
+   * devuelve su id visible. Es la única operación que crea conversaciones por iniciativa de la escuela; lo que se mande
+   * después sigue las mismas reglas que cualquier saliente (lo decide MessagingProvider).
+   */
+  iniciarConversacion(chatwootAccountId: number, chatwootInboxId: number, contacto: ContactoNuevo): Promise<{ chatwootConversacionId: number }>;
 }
 
 export class ErrorTransporte extends Error {

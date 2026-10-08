@@ -411,6 +411,7 @@ const transporteColgado: TransporteConversaciones = {
   enviarPlantilla: () => new Promise(() => {}),
   enviarNotaInterna: () => new Promise(() => {}),
   abrirConversacion: async () => {},
+  iniciarConversacion: async () => ({ chatwootConversacionId: 0 }),
 };
 
 test("F6a: si despachar lanza DESPUÉS de encolar, el mensaje se cancela y no sale después, mezclado con otra cosa", async () => {

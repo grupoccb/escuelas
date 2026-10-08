@@ -23,6 +23,7 @@ import { barrerEventosEntrega, conciliarEventosPendientes } from "./estados.ts";
 import { zonaHorariaDeContacto } from "./zona-horaria.ts";
 import { esIniciadoPorSistema, evaluarReglas, ventanaServicioAbierta, type MotivoBloqueo, type PlantillaParaReglas, type TipoSaliente } from "./reglas.ts";
 import { asegurarTareaAsesor, resumirTexto } from "./tareas.ts";
+import { EnvioAInstructores, type ResultadoDeAviso } from "./avisos-instructor.ts";
 import { EnvioIncierto, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "./transporte.ts";
 
 const PROVEEDOR = "chatwoot";
@@ -129,11 +130,27 @@ export class MessagingProvider {
   private readonly transporte: TransporteConversaciones;
   private readonly reloj: () => Date;
   private readonly vigenciaPendienteMs: number;
+  private readonly instructores: EnvioAInstructores;
 
   constructor(deps: DepsMessagingProvider) {
     this.transporte = deps.transporte;
     this.reloj = deps.reloj ?? (() => new Date());
     this.vigenciaPendienteMs = deps.vigenciaPendienteMs ?? PENDIENTE_VIGENCIA_MS;
+    this.instructores = new EnvioAInstructores({ transporte: this.transporte, reloj: this.reloj });
+  }
+
+  /**
+   * Avisa por WhatsApp a un INSTRUCTOR de una clase muestra (D2): destinatario que no es un lead. Pasa por las mismas reglas que
+   * cualquier saliente (baja, ventana de servicio, plantilla, horario 09:00–20:00 de la sucursal con recorrer o descartar,
+   * frecuencia); `en_atencion_humana` no aplica. Ver `avisos-instructor.ts`. Idempotente.
+   */
+  avisarAInstructor(db: BaseDatos, avisoId: string): Promise<ResultadoDeAviso> {
+    return this.instructores.avisar(db, avisoId);
+  }
+
+  /** Recupera los avisos a instructores que quedaron a medias (envío incierto). Nunca reenvía. */
+  recuperarAvisosInciertos(db: BaseDatos): Promise<number> {
+    return this.instructores.recuperarInciertos(db);
   }
 
   /** Registra salientes pendientes dentro de la transacción del llamador. Devuelve sus ids, en orden. */

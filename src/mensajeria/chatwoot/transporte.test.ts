@@ -132,3 +132,62 @@ test("clasificarFalloDeRed con códigos MEZCLADOS o ninguno: ante la duda, incie
   // Todos definitivos: sí es definitivo.
   assert.ok(!(clasificarFalloDeRed(Object.assign(new Error("x"), { code: "ENOTFOUND", cause: { code: "ECONNREFUSED" } })) instanceof EnvioIncierto));
 });
+
+// ── D2: abrir una conversación nueva con un instructor (contacto + conversación) ─────────────────────────
+
+const CONTACTO = { telefono: "+525500000011", nombre: "Maestra Ana" };
+const conAdmin = (timeoutMs = 300) => new TransporteChatwoot({ url: `http://127.0.0.1:${puerto}`, tokenBot: "bot", tokenAdmin: "admin", timeoutMs });
+
+function leerCuerpo(req: IncomingMessage): Promise<string> {
+  return new Promise((resolver) => {
+    let t = "";
+    req.on("data", (c) => (t += String(c)));
+    req.on("end", () => resolver(t));
+  });
+}
+
+test("D2: iniciarConversacion crea el contacto y luego la conversación, con el token de agente (no el del bot)", async () => {
+  const llamadas: { metodo: string; ruta: string; token: string; cuerpo: unknown }[] = [];
+  manejador = (req, res) => {
+    void leerCuerpo(req).then((t) => {
+      llamadas.push({ metodo: req.method ?? "", ruta: req.url ?? "", token: String(req.headers["api_access_token"]), cuerpo: t ? JSON.parse(t) : null });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(req.url?.endsWith("/contacts") ? '{"payload":{"contact":{"id":55,"contact_inboxes":[{"source_id":"whatsapp:+525500000011","inbox":{"id":9}}]}}}' : '{"id": 321}');
+    });
+  };
+  assert.deepEqual(await conAdmin().iniciarConversacion(1, 9, CONTACTO), { chatwootConversacionId: 321 });
+  assert.deepEqual(llamadas.map((l) => [l.metodo, l.ruta, l.token]), [["POST", "/api/v1/accounts/1/contacts", "admin"], ["POST", "/api/v1/accounts/1/conversations", "admin"]]);
+  assert.deepEqual(llamadas[0]!.cuerpo, { inbox_id: 9, name: "Maestra Ana", phone_number: "+525500000011" });
+  assert.deepEqual(llamadas[1]!.cuerpo, { source_id: "whatsapp:+525500000011", inbox_id: 9, contact_id: 55 });
+});
+
+test("D2: si el teléfono ya es un contacto (422), lo busca y abre la conversación con ése", async () => {
+  const rutas: string[] = [];
+  manejador = (req, res) => {
+    rutas.push(`${req.method} ${req.url}`);
+    void leerCuerpo(req).then(() => {
+      if (req.method === "POST" && req.url?.endsWith("/contacts")) return responder(422, '{"message":"Phone number has already been taken"}')(req, res);
+      if (req.url?.includes("/contacts/search")) return responder(200, '{"payload":[{"id":7,"contact_inboxes":[{"source_id":"whatsapp:+525500000011","inbox":{"id":9}}]}]}')(req, res);
+      return responder(200, '{"id": 400}')(req, res);
+    });
+  };
+  assert.deepEqual(await conAdmin().iniciarConversacion(1, 9, CONTACTO), { chatwootConversacionId: 400 });
+  assert.ok(rutas.some((r) => r.startsWith("GET /api/v1/accounts/1/contacts/search?q=%2B525500000011")));
+});
+
+test("D2: sin token de agente no abre nada y lo dice claro (el aviso queda solo en la aplicación)", async () => {
+  manejador = () => assert.fail("no debía llamar a Chatwoot");
+  const sinAdmin = new TransporteChatwoot({ url: `http://127.0.0.1:${puerto}`, tokenBot: "bot" });
+  await assert.rejects(sinAdmin.iniciarConversacion(1, 9, CONTACTO), (e) => e instanceof ErrorTransporte && /CHATWOOT_ADMIN_TOKEN/.test(e.message));
+});
+
+test("D2: iniciarConversacion — un error definitivo es ErrorTransporte; el tiempo agotado, EnvioIncierto; una respuesta sin id, error", async () => {
+  manejador = responder(401, '{"error":"x"}');
+  await assert.rejects(conAdmin().iniciarConversacion(1, 9, CONTACTO), (e) => e instanceof ErrorTransporte && !(e instanceof EnvioIncierto) && (e as ErrorTransporte).status === 401);
+  manejador = () => {};
+  await assert.rejects(conAdmin(80).iniciarConversacion(1, 9, CONTACTO), (e) => e instanceof EnvioIncierto);
+  manejador = responder(200, '{"payload":{"contact":{"id":55,"contact_inboxes":[]}}}');
+  await assert.rejects(conAdmin().iniciarConversacion(1, 9, CONTACTO), /no devolvió el contacto/);
+  manejador = (req, res) => (req.url?.endsWith("/contacts") ? responder(200, '{"payload":{"contact":{"id":55,"contact_inboxes":[{"source_id":"s","inbox":{"id":9}}]}}}')(req, res) : responder(200, "{}")(req, res));
+  await assert.rejects(conAdmin().iniciarConversacion(1, 9, CONTACTO), /no devolvió el id de la conversación/);
+});

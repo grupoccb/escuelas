@@ -11,6 +11,7 @@
 import { purgarCaducados, type ResumenRetencion } from "./auth/retencion.ts";
 import { correrAutomatizaciones, type ResumenMotor } from "./automatizaciones/motor.ts";
 import { barrerEspera, type ResumenEspera } from "./captacion/espera.ts";
+import { barrerAvisosMaestro, type ResumenAvisos } from "./clases-muestra/avisos.ts";
 import { vencerCotizacionesDeTodas, type ResumenVencimiento } from "./cotizador/vencer.ts";
 import type { PrismaRaiz } from "./datos/prisma.ts";
 import { log } from "./lib/log.ts";
@@ -45,6 +46,8 @@ export interface ResumenCiclo {
   espera: ResumenEspera | null;
   /** null si el motor lanzó antes de poder resumir. */
   motor: ResumenMotor | null;
+  /** Avisos de clases muestra a los maestros (D2). null si el barrido lanzó por completo. */
+  avisosMaestro: ResumenAvisos | null;
   /** null si no hay borde de Twilio o su barrido lanzó por completo. */
   twilio: ResumenReenvio | null;
   /** null si la retención está apagada, no le tocaba o lanzó. */
@@ -59,6 +62,7 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
   let errores = 0;
   let espera: ResumenEspera | null = null;
   let motor: ResumenMotor | null = null;
+  let avisosMaestro: ResumenAvisos | null = null;
   let twilio: ResumenReenvio | null = null;
   let retencion: ResumenRetencion | null = null;
   let cotizaciones: ResumenVencimiento | null = null;
@@ -75,6 +79,13 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
   } catch (e) {
     errores++;
     log.error("ciclo_error", { barrido: "motor", error: (e as Error).message });
+  }
+  try {
+    avisosMaestro = await barrerAvisosMaestro(deps);
+    errores += avisosMaestro.errores;
+  } catch (e) {
+    errores++;
+    log.error("ciclo_error", { barrido: "avisos_maestro", error: (e as Error).message });
   }
   if (deps.twilio) {
     try {
@@ -114,5 +125,5 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
     }
   }
   if (errores > 0) log.warn("ciclo_con_errores", { errores });
-  return { espera, motor, twilio, retencion, cotizaciones, errores };
+  return { espera, motor, avisosMaestro, twilio, retencion, cotizaciones, errores };
 }

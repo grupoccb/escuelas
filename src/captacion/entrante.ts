@@ -51,6 +51,8 @@ export type ResultadoEntrante =
   | "asesor_tomo_conversacion"
   | "baja"
   | "baja_volvio_a_escribir"
+  /** D2: quien escribió es un instructor, no un lead: solo se registra que respondió (abre su ventana de 24 h). */
+  | "instructor"
   | "procesado";
 
 export interface DepsCaptacion {
@@ -105,7 +107,7 @@ export async function procesarEntrante(
 
   // También en duplicados: si un intento anterior se cortó, termina de despachar lo que quedó.
   // Un lead borrado no recibe nada.
-  if (r.resultado !== "ignorado") await deps.mensajeria.despachar(db, r.conversacionId);
+  if (r.resultado !== "ignorado" && r.resultado !== "instructor") await deps.mensajeria.despachar(db, r.conversacionId);
   // D1: el bot agendó una clase muestra y sigue atendiendo; la conversación se hace visible para los asesores (la nota sale
   // antes). Si Chatwoot no la abre, `visible_a_asesores_en` sin `abierta_para_asesores_en` hace que el barrido de espera lo reintente.
   if (r.abrirParaAsesores) await deps.mensajeria.abrirParaAsesores(db, r.conversacionId);
@@ -127,6 +129,10 @@ async function registrarYAvanzar(
     select: { conversacion_id: true },
   });
   if (previo) return { resultado: "duplicado", conversacionId: previo.conversacion_id };
+
+  // D2: un instructor que responde un aviso (o escribe primero) no es un lead: ni embudo ni bot. Solo abre su ventana de servicio.
+  const deInstructor = await entranteDeInstructor(tx, bandeja, evento, recibidoEn);
+  if (deInstructor) return { resultado: "instructor", conversacionId: deInstructor };
 
   const conv = await obtenerConversacion(tx, bandeja, evento, recibidoEn, atribucion);
   // Un lead borrado (eliminado_en) ya no existe para el sistema: no se registra ni se contesta.
@@ -316,6 +322,33 @@ async function aplicarEfectos(
 }
 
 type ConversacionConLead = Awaited<ReturnType<typeof obtenerConversacion>>;
+
+/**
+ * D2: ¿este mensaje es de un instructor? Lo es si llega por la conversación que se le abrió para avisarle (`conversacion_instructor`) o
+ * si es una conversación nueva cuyo teléfono es el de un instructor activo y que no es de un lead de esta vertical. Registra su
+ * respuesta (la ventana de servicio de 24 h, siempre el máximo) y devuelve el id de su conversación; null si no es de un instructor.
+ * Alternativa descartada: dejarlo pasar como lead (el bot le contestaría «Hola, gracias por escribir» a un maestro).
+ */
+async function entranteDeInstructor(tx: Consultas, bandeja: BandejaResuelta, evento: EventoEntrante, recibidoEn: Date): Promise<string | null> {
+  const llave = { bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId };
+  let ci = await tx.conversacion_instructor.findFirst({ where: llave, select: { id: true, ultimo_mensaje_entrante_en: true } });
+  if (!ci) {
+    if (await tx.conversacion.findFirst({ where: llave, select: { id: true } })) return null; // ya es la conversación de un lead
+    const telefono = evento.contacto.telefono ? normalizarTelefono(evento.contacto.telefono) : null;
+    if (!telefono) return null;
+    const instructor = await tx.instructor.findFirst({ where: { telefono, activo: true }, select: { id: true } });
+    if (!instructor) return null;
+    if (await tx.lead.findFirst({ where: { telefono, vertical_interes_id: bandeja.vertical_id }, select: { id: true } })) return null; // también es un contacto: se atiende como contacto
+    ci = await tx.conversacion_instructor.create({
+      data: altaConAlcance({ instructor_id: instructor.id, bandeja_chatwoot_id: bandeja.id, chatwoot_conversacion_id: evento.chatwootConversacionId }),
+      select: { id: true, ultimo_mensaje_entrante_en: true },
+    });
+  }
+  // Un entrante tardío (reintento de un mensaje anterior) nunca acorta la ventana (F1-13).
+  const ultimo = ci.ultimo_mensaje_entrante_en && ci.ultimo_mensaje_entrante_en > recibidoEn ? ci.ultimo_mensaje_entrante_en : recibidoEn;
+  await tx.conversacion_instructor.updateMany({ where: { id: ci.id }, data: { ultimo_mensaje_entrante_en: ultimo, ventana_servicio_hasta: ventanaServicioDesde(ultimo) } });
+  return ci.id;
+}
 
 /**
  * Quien pidió la baja volvió a escribir (con algo que no es una palabra de baja). Se registra su

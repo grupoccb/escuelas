@@ -85,3 +85,19 @@ test("D1 seed: sobre el catálogo completo de la demo hay sesiones agendables en
   assert.ok(r.ok, JSON.stringify(r));
   assert.equal((await db().lead.findFirstOrThrow({ where: { id: lead.id } })).etapa_id, `${prefijo}-0000-4000-8000-000000000603`, "pasó a «muestra_agendada» por su tipo, no por su nombre");
 });
+
+test("D2 seed: las tres plantillas del aviso al maestro quedan aprobadas (utility) y con las variables que el provider sabe resolver; correr el seed otra vez no duplica", async () => {
+  await aplicar("clase-muestra");
+  const ps = await db().plantilla_mensaje.findMany({ where: { codigo: { startsWith: "aviso_maestro_" } }, orderBy: { codigo: "asc" } });
+  assert.deepEqual(ps.map((p) => p.codigo), ["aviso_maestro_agendada", "aviso_maestro_cancelada", "aviso_maestro_reprogramada"]);
+  assert.ok(ps.every((p) => p.categoria === "utility" && p.estado_aprobacion === "aprobada" && p.activo && p.vertical_id === null));
+  const conocidas = ["nombre_alumno", "nombre_grupo", "nombre_sucursal", "fecha_clase", "hora_clase", "fecha_anterior"];
+  for (const p of ps) {
+    const vars = p.variables as { pos: number; nombre: string }[];
+    assert.ok(vars.every((v) => conocidas.includes(v.nombre)), p.codigo);
+    // Cada {{n}} del cuerpo tiene su variable, y nada de salud.
+    const usados = [...(p.cuerpo_referencia ?? "").matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]));
+    assert.deepEqual([...new Set(usados)].sort(), vars.map((v) => v.pos).sort(), p.codigo);
+    assert.equal(/alergia|medic|salud|emergencia/i.test(p.cuerpo_referencia ?? ""), false);
+  }
+});

@@ -80,6 +80,8 @@ model organizacion {
   cotizaciones               cotizacion[]
   lista_espera               lista_espera[]
   clases_muestra             clase_muestra[]
+  conversaciones_instructor  conversacion_instructor[]
+  avisos_maestro             aviso_maestro[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -266,6 +268,7 @@ model bandeja_chatwoot {
   organizacion   organizacion   @relation(fields: [organizacion_id], references: [id])
   canal_whatsapp canal_whatsapp @relation(fields: [canal_whatsapp_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   conversaciones conversacion[]
+  conversaciones_instructor conversacion_instructor[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -785,6 +788,8 @@ enum tipo_tarea_asesor {
   lista_espera_nueva
   /// Se liberó un lugar y le toca al siguiente de la lista: el asesor se lo ofrece (C9).
   lista_espera_lugar_liberado
+  /// El aviso de una clase muestra al maestro no salió por WhatsApp (sin teléfono, sin plantilla apta, fallo del envío) (D2). El maestro lo ve igual en la aplicación.
+  aviso_maestro_no_enviado
 }
 
 enum estado_tarea_asesor {
@@ -802,6 +807,8 @@ model tarea_asesor {
   conversacion_id String?             @db.Uuid
   /// Mensaje al que se refiere la tarea (entrega fallida). Una tarea por mensaje y tipo.
   mensaje_id      String?             @db.Uuid
+  /// La clase muestra a la que se refiere la tarea (aviso al maestro que no salió, quien no llegó).
+  clase_muestra_id String?            @db.Uuid
   tipo            tipo_tarea_asesor
   estado          estado_tarea_asesor @default(pendiente)
   descripcion     String
@@ -817,6 +824,7 @@ model tarea_asesor {
   lead         lead          @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   conversacion conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   mensaje      mensaje?      @relation(fields: [mensaje_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  clase_muestra clase_muestra? @relation(fields: [clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1336,6 +1344,8 @@ model instructor {
   usuario      usuario?              @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupos       grupo[]
   sucursales   instructor_sucursal[]
+  conversaciones conversacion_instructor[]
+  avisos       aviso_maestro[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1626,10 +1636,93 @@ model clase_muestra {
   conversacion     conversacion?   @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   reprogramada_de  clase_muestra?  @relation("clase_reprogramada", fields: [reprogramada_de_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   reprogramaciones clase_muestra[] @relation("clase_reprogramada")
+  avisos_maestro   aviso_maestro[]
+  tareas_asesor    tarea_asesor[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([grupo_id, fecha_hora])
   @@index([prospecto_id])
   @@index([lead_id])
+}
+
+// ── Aviso al maestro (D2, decisión 13) ─────────────────────────────────────────────────
+
+enum tipo_aviso_maestro {
+  agendada
+  reprogramada
+  cancelada
+}
+
+enum entrega_aviso_maestro {
+  /// El instructor no tiene teléfono: solo la lista de la aplicación (y una tarea para el asesor).
+  sin_telefono
+  /// Esperando su turno: aún no es horario de envío, o el barrido no ha pasado.
+  pendiente
+  /// Reclamado por el barrido; el envío está en curso.
+  enviando
+  enviado
+  /// Una regla del MessagingProvider lo frenó (baja, frecuencia, sin plantilla apta…). Queda el motivo.
+  bloqueado
+  /// Recorrerlo al siguiente horario válido lo dejaba después de la clase (invariante 14).
+  descartado
+  fallido
+}
+
+/// La conversación de WhatsApp de un INSTRUCTOR con la escuela (D2). No es un lead: no entra al embudo ni corre el bot. Existe
+/// para que el MessagingProvider le mande avisos con las mismas reglas que a un contacto (ventana de servicio, plantilla, horario,
+/// baja, frecuencia) y para saber cuándo respondió (abre su ventana de 24 h). `en_atencion_humana` no aplica a instructores.
+model conversacion_instructor {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id            String    @db.Uuid
+  instructor_id              String    @db.Uuid
+  bandeja_chatwoot_id        String    @db.Uuid
+  /// Id visible de la conversación en Chatwoot (display_id, único por cuenta).
+  chatwoot_conversacion_id   Int
+  /// 24 h desde el último mensaje entrante del instructor (invariante 5).
+  ventana_servicio_hasta     DateTime? @db.Timestamptz(6)
+  ultimo_mensaje_entrante_en DateTime? @db.Timestamptz(6)
+  creado_en                  DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en             DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en               DateTime? @db.Timestamptz(6)
+
+  organizacion     organizacion     @relation(fields: [organizacion_id], references: [id])
+  instructor       instructor       @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  bandeja_chatwoot bandeja_chatwoot @relation(fields: [bandeja_chatwoot_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([instructor_id])
+}
+
+/// Lo que se le avisa al maestro de una clase muestra (agendada, reprogramada, cancelada). Es a la vez la LISTA de la
+/// aplicación (`leido_en`) y la unidad de envío por WhatsApp (`entrega`). Uno por (clase, tipo): un reintento no duplica.
+/// `datos` es una foto de lo que se avisó (alumno, grupo, fecha…) y NUNCA lleva datos de salud.
+model aviso_maestro {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id  String                @db.Uuid
+  instructor_id    String                @db.Uuid
+  clase_muestra_id String                @db.Uuid
+  tipo             tipo_aviso_maestro
+  datos            Json
+  entrega          entrega_aviso_maestro @default(pendiente)
+  motivo_entrega   String?
+  /// Desde cuándo puede salir por WhatsApp (se recorre al siguiente horario válido).
+  programado_para  DateTime              @db.Timestamptz(6)
+  enviado_en       DateTime?             @db.Timestamptz(6)
+  id_externo       String?
+  /// Cuándo lo marcó como visto el maestro en la aplicación.
+  leido_en         DateTime?             @db.Timestamptz(6)
+  creado_en        DateTime              @default(now()) @db.Timestamptz(6)
+  actualizado_en   DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en     DateTime?             @db.Timestamptz(6)
+
+  organizacion  organizacion  @relation(fields: [organizacion_id], references: [id])
+  instructor    instructor    @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  clase_muestra clase_muestra @relation(fields: [clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([instructor_id, creado_en])
+  @@index([entrega, programado_para])
 }

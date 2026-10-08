@@ -2,13 +2,15 @@
 // backend cuando no hay credenciales de Chatwoot.
 
 import { randomUUID } from "node:crypto";
-import { EnvioIncierto, ErrorTransporte, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "./transporte.ts";
+import { EnvioIncierto, ErrorTransporte, type ContactoNuevo, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "./transporte.ts";
 
 export interface EnvioRegistrado {
-  tipo: "mensaje" | "plantilla" | "nota_interna" | "abrir";
+  tipo: "mensaje" | "plantilla" | "nota_interna" | "abrir" | "iniciar";
   destino: DestinoConversacion;
   texto?: string;
   plantilla?: PlantillaAEnviar;
+  /** Solo `iniciar`: a quién se le abrió la conversación. */
+  contacto?: ContactoNuevo;
 }
 
 export class TransporteFalso implements TransporteConversaciones {
@@ -42,6 +44,16 @@ export class TransporteFalso implements TransporteConversaciones {
 
   async abrirConversacion(destino: DestinoConversacion): Promise<void> {
     this.registrar({ tipo: "abrir", destino });
+  }
+
+  /** Ids de conversación que reparte `iniciarConversacion`, por encima de los que usan los tests (aleatorios hasta 2 000 millones). */
+  private siguienteConversacion = 2_100_000_000;
+
+  async iniciarConversacion(chatwootAccountId: number, _chatwootInboxId: number, contacto: ContactoNuevo): Promise<{ chatwootConversacionId: number }> {
+    if (this.demoraMs > 0) await new Promise((resolver) => setTimeout(resolver, this.demoraMs));
+    const chatwootConversacionId = this.siguienteConversacion++;
+    this.registrar({ tipo: "iniciar", destino: { chatwootAccountId, chatwootConversacionId }, contacto });
+    return { chatwootConversacionId };
   }
 
   private async enviar(envio: EnvioRegistrado): Promise<{ idExterno: string }> {

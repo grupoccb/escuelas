@@ -23,3 +23,24 @@ UPDATE etapa_pipeline SET tipo_sistema = 'perdido'           WHERE id = '0000000
 UPDATE vertical SET clase_muestra_whatsapp_activo = true
 WHERE id IN ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000103')
   AND NOT clase_muestra_whatsapp_activo AND actualizado_en = creado_en;
+
+-- ── D2: plantillas del aviso al maestro [SUPUESTO] ───────────────────────────────────────────────────────
+-- El código de cada una lo busca MessagingProvider (aviso_maestro_<tipo>); la categoría es utility (aviso a alguien que tiene una
+-- relación con la escuela). Nunca llevan datos de salud: solo alumno, grupo, sucursal, fecha y hora. Ficticias y «aprobadas» solo para la demo.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000702', '00000000-0000-4000-8000-000000000001', 'aviso_maestro_agendada',
+   'HX00000000000000000000000000000002', NULL, 'utility', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
+   'Nueva clase muestra: {{1}} en {{2}}, el {{3}} a las {{4}} (sucursal {{5}}).',
+   'aprobada', true),
+  ('00000000-0000-4000-8000-000000000703', '00000000-0000-4000-8000-000000000001', 'aviso_maestro_reprogramada',
+   'HX00000000000000000000000000000003', NULL, 'utility', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"},{"pos":6,"nombre":"fecha_anterior"}]',
+   'Se cambió la clase muestra de {{1}} en {{2}}: era {{6}}, ahora es el {{3}} a las {{4}} (sucursal {{5}}).',
+   'aprobada', true),
+  ('00000000-0000-4000-8000-000000000704', '00000000-0000-4000-8000-000000000001', 'aviso_maestro_cancelada',
+   'HX00000000000000000000000000000004', NULL, 'utility', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_alumno"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
+   'Se canceló la clase muestra de {{1}} en {{2}} del {{3}} a las {{4}} (sucursal {{5}}).',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;

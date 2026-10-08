@@ -16,6 +16,7 @@ import { bloquearCupoDeGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
+import { crearAvisoMaestro } from "./avisos.ts";
 import { problemaDeFecha, sesionesAgendables, type HorarioDeGrupo, type ProblemaDeFecha } from "./sesiones.ts";
 
 export type OrigenDeAgenda = { tipo: "bot"; conversacionId: string } | { tipo: "usuario"; usuarioId: string };
@@ -207,6 +208,7 @@ export async function agendarClaseMuestra(tx: Consultas, c: ContextoDeAgenda, en
 
   const clase = await crearClase(tx, c, { prospecto, grupo, fechaHora: entrada.fechaHora, notas: entrada.notas ?? null });
   await moverLeadAEtapa(tx, prospecto.lead_id, "muestra_agendada", { motivo: "clase_muestra_agendada" });
+  await crearAvisoMaestro(tx, { claseId: clase.id, tipo: "agendada", ahora: c.ahora }); // D2: al instructor del grupo
   return { ok: true, clase };
 }
 
@@ -242,6 +244,11 @@ export async function reprogramarClaseMuestra(tx: Consultas, c: ContextoDeAgenda
   const cerrada = await tx.clase_muestra.updateMany({ where: { id: vieja.id, estatus: "agendada" }, data: { estatus: "reagendada" } });
   if (cerrada.count !== 1) return { ok: false, motivo: "clase_no_vigente" };
   const clase = await crearClase(tx, c, { prospecto, grupo, fechaHora: entrada.fechaHora, notas: entrada.notas ?? null, reprogramadaDeId: vieja.id });
+  // D2: el instructor del grupo nuevo recibe «reprogramada» (con la fecha anterior); si la clase cambió de instructor, el de antes recibe «cancelada».
+  const grupoViejo = await tx.grupo.findFirst({ where: { id: vieja.grupo_id }, select: { instructor_id: true, programa: { select: { sucursal: { select: { zona_horaria: true } } } } } });
+  const zonaVieja = grupoViejo?.programa.sucursal.zona_horaria ?? grupo.zona;
+  if (grupoViejo?.instructor_id && grupoViejo.instructor_id !== (await instructorDe(tx, grupo.id))) await crearAvisoMaestro(tx, { claseId: vieja.id, tipo: "cancelada", ahora: c.ahora });
+  await crearAvisoMaestro(tx, { claseId: clase.id, tipo: "reprogramada", ahora: c.ahora, anterior: { fechaHora: vieja.fecha_hora, zonaHoraria: zonaVieja } });
   return { ok: true, clase, anterior: { id: vieja.id, grupoId: vieja.grupo_id, fechaHora: vieja.fecha_hora, prospectoId: vieja.prospecto_id, leadId: vieja.lead_id } };
 }
 
@@ -254,13 +261,17 @@ export interface ClaseAnterior {
   leadId: string;
 }
 
+async function instructorDe(tx: Consultas, grupoId: string): Promise<string | null> {
+  return (await tx.grupo.findFirst({ where: { id: grupoId }, select: { instructor_id: true } }))?.instructor_id ?? null;
+}
+
 // ── Cancelar ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
  * Cancela una clase vigente: libera el lugar. Si era la única clase vigente del lead y estaba en la etapa «clase muestra
  * agendada», vuelve a «contactado» (si la organización la tiene configurada).
  */
-export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motivo: string | null): Promise<{ ok: true; clase: ClaseAnterior } | { ok: false; motivo: "clase_no_vigente" }> {
+export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motivo: string | null, ahora: Date): Promise<{ ok: true; clase: ClaseAnterior } | { ok: false; motivo: "clase_no_vigente" }> {
   const vieja = await tx.clase_muestra.findFirst({ where: { id: claseId }, select: { id: true, estatus: true, lead_id: true, prospecto_id: true, grupo_id: true, fecha_hora: true } });
   if (!vieja || vieja.estatus !== "agendada") return { ok: false, motivo: "clase_no_vigente" };
   const cambio = await tx.clase_muestra.updateMany({ where: { id: vieja.id, estatus: "agendada" }, data: { estatus: "cancelada", motivo_cancelacion: motivo } });
@@ -269,5 +280,6 @@ export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motiv
   if (otras === 0 && (await tipoDeEtapaDelLead(tx, vieja.lead_id)) === "muestra_agendada" && (await etapaDeSistema(tx, "contactado"))) {
     await moverLeadAEtapa(tx, vieja.lead_id, "contactado", { motivo: "clase_muestra_cancelada", permitirRetroceso: true });
   }
+  await crearAvisoMaestro(tx, { claseId: vieja.id, tipo: "cancelada", ahora }); // D2
   return { ok: true, clase: { id: vieja.id, grupoId: vieja.grupo_id, fechaHora: vieja.fecha_hora, prospectoId: vieja.prospecto_id, leadId: vieja.lead_id } };
 }

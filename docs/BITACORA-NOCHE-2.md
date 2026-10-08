@@ -32,7 +32,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C9 | HECHO | ver sección | Lista de espera: tabla `lista_espera` (posición densa y única, alta atómica), el bot la ofrece en un horario lleno, API de asesor (listar, quitar, mover) y `ofrecerLugarLiberado` |
 | C-fix | HECHO (12 pendientes, 7 decisiones) | cd6ba4e…a9690ad | Correcciones de la auditoría de la etapa C (`docs/auditorias/etapa-C.md`): ver la sección «Auditoría y correcciones de la etapa C» |
 | D1 | HECHO | ver `git log` (`D1:`) | Clase muestra: tabla `clase_muestra`, sesiones por zona horaria, lugares de la sesión con candado de cupo, reprogramar atómico, `tipo_sistema` de etapa, API y bot |
-| D2 | PENDIENTE | | Aviso al maestro |
+| D2 | HECHO | ver `git log` (`D2:`) | Aviso al maestro: `aviso_maestro` (lista en la aplicación + unidad de envío), `MessagingProvider.avisarAInstructor` con todas las reglas, `conversacion_instructor` y plantillas del seed |
 | D3 | PENDIENTE | | Recordatorios de 24 h y 2 h |
 | D4 | PENDIENTE | | Asistió / no asistió y recuperación |
 | D5 | PENDIENTE | | Registro del maestro |
@@ -1096,3 +1096,38 @@ Mutaciones: quitar el candado (`bloquearCupoDeGrupo` sin `UPDATE`) hace fallar l
 - Decisión de producto: ¿una prueba por grupo (hoy) o por sesión?; ¿el lead que agenda en otra sucursal debe cambiar de sucursal?
 - La respuesta de la familia a «gracias» usa una lista cerrada de agradecimientos; lo demás pasa a una persona.
 - No hay `PATCH` de notas ni de la sucursal de una clase; reprogramar a otro grupo sí existe.
+
+
+## D2. Aviso al maestro (decisión 13)
+
+**Qué se hizo**
+- **Tablas** (migración `20261014010000_aviso_maestro`): `aviso_maestro` (instructor, clase, `tipo` agendada/reprogramada/cancelada, `datos` foto del aviso sin datos de salud, `entrega` sin_telefono/pendiente/enviando/enviado/bloqueado/descartado/fallido, `motivo_entrega`, `programado_para`, `enviado_en`, `id_externo`, `leido_en`; **único por (clase, tipo)**), `conversacion_instructor` (la conversación de WhatsApp del instructor: bandeja, id de Chatwoot, ventana de servicio; únicos parciales por (instructor, bandeja) y por (bandeja, conversación de Chatwoot)), `tarea_asesor.clase_muestra_id` y el tipo de tarea `aviso_maestro_no_enviado`.
+- **Por WhatsApp, a través de `MessagingProvider`** (`avisarAInstructor`; el código vive en `src/mensajeria/avisos-instructor.ts`): destinatario que no es un lead. Reusa `evaluarReglas` con un estado sintético (`estado: bot`): **baja** del teléfono, **ventana de servicio** (la del instructor: dentro, mensaje libre; fuera, solo la plantilla aprobada `aviso_maestro_<tipo>`; sin plantilla apta se bloquea y se crea tarea: invariante 5), **horario 09:00–20:00** de la sucursal del grupo (recorrer al siguiente horario válido; si llega a la hora de la clase **o después**, se descarta con motivo `evento_pasado`: `recorrerODescartar` ganó un parámetro `limiteExclusivo`), **frecuencia** (`maxAutomaticosPorDia` por teléfono, contando avisos y automáticos a contactos) y `en_atencion_humana` no aplica. Reclamo `pendiente → enviando` bajo el candado del teléfono, `fallido` sin reintento automático, envío incierto jamás se reenvía (tarea), recuperación de los `enviando` huérfanos.
+- **Transporte:** `TransporteConversaciones.iniciarConversacion(cuenta, bandeja, contacto)` abre una conversación nueva con quien no escribió primero (falso: id propio; Chatwoot: `POST /contacts` + `POST /conversations` con `CHATWOOT_ADMIN_TOKEN`, reutiliza el contacto si el teléfono ya existe). **No verificado contra un Chatwoot real** (solo contra un servidor HTTP local en `transporte.test.ts`). La apertura corre bajo un candado por instructor: dos avisos a la vez abren UNA conversación.
+- **Lo que responde el instructor:** `procesarEntrante` reconoce la conversación de un instructor (o un teléfono de instructor activo que no sea lead de esa vertical) y solo abre su ventana de 24 h: ni lead, ni embudo, ni bot (resultado `instructor`).
+- **En la aplicación:** `GET /api/maestro/clases-muestra` (las del día y próximas de SUS grupos: de hace 24 h a 14 días), `GET /api/maestro/avisos?leidos=` y `PATCH /api/maestro/avisos/:id {visto}` (idempotente, registra el cambio solo si cambia). Permisos `avisos_maestro:leer` y `:escribir` (maestro; el administrador por regla, pero solo ve los de su propio instructor).
+- **Hooks:** `agendarClaseMuestra`, `reprogramarClaseMuestra` y `cancelarClaseMuestra` crean el aviso en su misma transacción (`crearAvisoMaestro`, `src/clases-muestra/avisos.ts`); `correrCiclo` corre `barrerAvisosMaestro` cada minuto (`resumen.avisosMaestro`).
+- **Seed** (`prisma/seed/clase-muestra.sql`, ids 702-704): las tres plantillas `aviso_maestro_*` `[SUPUESTO]`, utility, «aprobadas» solo para la demo.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 428 · pass 428 · fail 0
+$ npm run test:int    → exit 0 · tests 575 · pass 575 · fail 0
+```
+Tests nuevos: `avisos.itest.ts` (19: un aviso por clase y tipo, reprogramar con y sin cambio de instructor, envío con plantilla y variables, conversación reutilizada, horario con recorrer, el borde de la hora de la clase —las 09:00 se descartan y las 09:01 salen—, zona de Tokio, ventana de servicio, sin plantilla → tarea, baja, frecuencia, sin teléfono, `en_atencion_humana` no aplica, fallo e incierto, recuperación, cancelar antes de avisar, 2 de concurrencia, no-fuga), `maestro.itest.ts` (8: lista propia, visto idempotente, 404/400/403, clases del día y próximas, el instructor que responde, el ciclo), 4 en `transporte.test.ts` (servidor HTTP local) y 1 en `seed.itest.ts`.
+Mutaciones atrapadas: sin reclamo (10 tests), sin candado de la conversación, límite inclusivo (el borde), sin frecuencia, sin baja, zona fija, incierto tratado como definitivo. La del candado de la conversación sobrevivió hasta que el transporte falso demoró también `iniciarConversacion` (el test no solapaba): corregido y atrapada.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El instructor tiene su propia conversación (`conversacion_instructor`) y su propio aviso, y el provider reusa `evaluarReglas`.** Alternativa descartada A: modelarlo como un `lead` (contamina el embudo, las métricas y el bot le contestaría «Hola, gracias por escribir»). B: mandar la plantilla directo con Twilio (rompe el invariante 4). C: generalizar `mensaje` para que `conversacion_id` sea opcional (toca todo el provider y sus 346+ tests de integración por un caso lateral).
+2. **Aviso = lista + unidad de envío en una sola tabla.** La lista de la aplicación existe aunque WhatsApp falle o el instructor no tenga teléfono; el estado de entrega es honesto. Alternativa: tabla de avisos y tabla de mensajes (doble fuente de verdad).
+3. **Frecuencia y baja aplican a instructores** como pide el encargo. Consecuencia: un maestro con más de 3 clases nuevas en un día recibe 3 por WhatsApp y el resto solo en la lista (queda `tope_frecuencia`). Si Eduardo prefiere otro tope para instructores, es una columna más de configuración.
+4. **Un instructor que también es un lead de esa vertical se atiende como lead** (y si el lead se creó después, el teléfono sigue siendo del lead). Es el caso raro; la alternativa (dos personas en un número) no tiene respuesta correcta.
+5. **Cancelar antes de que el instructor se entere no manda nada por WhatsApp** (ni el «agendada» ni el «cancelada»), pero la lista conserva ambos.
+6. **Un grupo sin instructor, o con uno inactivo, no genera aviso** (no hay a quién). Alternativa: tarea al asesor «asigna un instructor»; no se pidió.
+7. **El aviso no lleva el apellido ni datos de la familia, solo el nombre del alumno** que ya pedía el encargo.
+8. **Estados de entrega de Chatwoot/Twilio (entregado, leído) no se reflejan en el aviso:** `registrarEstadoEntrega` busca por `mensaje.id_externo` y el aviso no es un `mensaje`; llegan a `evento_entrega_pendiente` y caducan. Queda `enviado` como estado final.
+
+**Para Eduardo**
+- **[SUPUESTO]** el texto de las tres plantillas y el tope de frecuencia para instructores. Las plantillas hay que registrarlas y aprobarlas en Twilio/Meta con el mismo `codigo` (`aviso_maestro_agendada`, `…_reprogramada`, `…_cancelada`) y sus variables en el orden del seed.
+- **Para producción:** `CHATWOOT_ADMIN_TOKEN` (ya lo pide el directorio de agentes) también sirve para abrir la conversación con el instructor; sin él, el aviso queda en la aplicación y con tarea. Verificar con Chatwoot real el alta de contacto y conversación (no se hizo).
+- **Decisión de producto:** ¿un maestro sin teléfono debería bloquear el alta de la clase, o basta la tarea? Hoy basta la tarea.

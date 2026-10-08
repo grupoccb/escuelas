@@ -27,7 +27,7 @@ import { booleanoDeTexto, enteroDeTexto, enumerado, instanteISO, objeto, opciona
 
 const ESTATUS = ["agendada", "asistio", "no_asistio", "reagendada", "cancelada"] as const;
 
-const SELECCION = {
+export const SELECCION_CLASE = {
   id: true,
   lead_id: true,
   prospecto_id: true,
@@ -45,7 +45,7 @@ const SELECCION = {
   lead: { select: { nombre_contacto: true, telefono: true } },
 } as const;
 
-interface Fila {
+export interface FilaClase {
   id: string;
   lead_id: string;
   prospecto_id: string;
@@ -64,7 +64,7 @@ interface Fila {
 }
 
 /** Lo que ve cada quien. El maestro no ve cómo contactar a la familia: solo al alumno, el grupo y la fecha. */
-export const presentarClase = (f: Fila, rol: string) => {
+export const presentarClase = (f: FilaClase, rol: string) => {
   const zona = f.grupo.programa.sucursal.zona_horaria;
   return {
     id: f.id,
@@ -118,6 +118,13 @@ const esquemaAgendar = objeto({ prospecto_id: uuid(), grupo_id: uuid(), fecha_ho
 const esquemaReprogramar = objeto({ fecha_hora: instanteISO(), grupo_id: opcional(uuid()), notas: opcional(texto({ max: 1000 })) });
 const esquemaCancelar = objeto({ motivo: opcional(texto({ max: 300 })) });
 
+/** Condición de alcance sobre la clase: el maestro, sus grupos; los demás, la sucursal del programa del grupo. */
+export async function alcanceDeClases(ctx: ContextoApi) {
+  if (ctx.usuario.rol === "maestro") return { grupo: { instructor: { usuario_id: ctx.usuario.id, eliminado_en: null } } };
+  const filtro = filtroDeSucursal(await ctx.alcance());
+  return filtro ? { grupo: { programa: { sucursal_id: filtro } } } : {};
+}
+
 /** Convierte un rechazo de las reglas en el error de la convención de la API. */
 export function errorDeRechazo(motivo: MotivoDeRechazo): never {
   switch (motivo) {
@@ -147,18 +154,11 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
   const r = Router();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
-  /** Condición de alcance sobre la clase: el maestro, sus grupos; los demás, la sucursal del programa del grupo. */
-  async function alcanceDeClases(ctx: ContextoApi) {
-    if (ctx.usuario.rol === "maestro") return { grupo: { instructor: { usuario_id: ctx.usuario.id, eliminado_en: null } } };
-    const filtro = filtroDeSucursal(await ctx.alcance());
-    return filtro ? { grupo: { programa: { sucursal_id: filtro } } } : {};
-  }
-
   async function visible(ctx: ContextoApi, id: string) {
     return ctx.db.clase_muestra.findFirst({ where: { id, ...(await alcanceDeClases(ctx)) }, select: { id: true, grupo_id: true } });
   }
 
-  const releer = async (ctx: ContextoApi, id: string) => presentarClase((await ctx.db.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION })) as Fila, ctx.usuario.rol);
+  const releer = async (ctx: ContextoApi, id: string) => presentarClase((await ctx.db.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION_CLASE })) as FilaClase, ctx.usuario.rol);
 
   /** Un asesor solo agenda a leads que ve (los de sus sucursales) en grupos de sus sucursales. */
   async function prospectoVisible(ctx: ContextoApi, prospectoId: string): Promise<boolean> {
@@ -189,7 +189,7 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
         pag,
         () => ctx.db.clase_muestra.count({ where: donde }),
         async (saltar, tomar) =>
-          (await ctx.db.clase_muestra.findMany({ where: donde, select: SELECCION, orderBy: [{ fecha_hora: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentarClase(f as Fila, ctx.usuario.rol)),
+          (await ctx.db.clase_muestra.findMany({ where: donde, select: SELECCION_CLASE, orderBy: [{ fecha_hora: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentarClase(f as FilaClase, ctx.usuario.rol)),
       ),
     );
   });
@@ -224,7 +224,7 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     const resultado = await ctx.db.$transaction(async (tx) => {
       const r = await agendarClaseMuestra(tx, { ahora: ctx.ahora(), fuente: deps.fuenteOcupacion, origen: { tipo: "usuario", usuarioId: ctx.usuario.id } }, { prospectoId: entrada.prospecto_id, grupoId: entrada.grupo_id, fechaHora: entrada.fecha_hora, notas: entrada.notas ?? null });
       if (!r.ok) return r;
-      const fila = await tx.clase_muestra.findFirstOrThrow({ where: { id: r.clase.id }, select: SELECCION });
+      const fila = await tx.clase_muestra.findFirstOrThrow({ where: { id: r.clase.id }, select: SELECCION_CLASE });
       await registrarCambio(tx, ctx, { entidad: "clase_muestra", entidadId: r.clase.id, accion: "crear", despues: instantanea(fila) });
       return r;
     });
@@ -239,11 +239,11 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     if (!(await visible(ctx, id))) throw noEncontrado();
     if (entrada.grupo_id && !(await grupoVisible(ctx, entrada.grupo_id))) throw noEncontrado();
     const resultado = await ctx.db.$transaction(async (tx) => {
-      const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION });
+      const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });
       const r = await reprogramarClaseMuestra(tx, { ahora: ctx.ahora(), fuente: deps.fuenteOcupacion, origen: { tipo: "usuario", usuarioId: ctx.usuario.id } }, { claseId: id, fechaHora: entrada.fecha_hora, ...(entrada.grupo_id ? { grupoId: entrada.grupo_id } : {}), notas: entrada.notas ?? null });
       if (!r.ok || !antes) return r;
-      const nueva = await tx.clase_muestra.findFirstOrThrow({ where: { id: r.clase.id }, select: SELECCION });
-      const vieja = await tx.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION });
+      const nueva = await tx.clase_muestra.findFirstOrThrow({ where: { id: r.clase.id }, select: SELECCION_CLASE });
+      const vieja = await tx.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION_CLASE });
       await registrarCambio(tx, ctx, { entidad: "clase_muestra", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(vieja) });
       await registrarCambio(tx, ctx, { entidad: "clase_muestra", entidadId: r.clase.id, accion: "crear", despues: instantanea(nueva) });
       return r;
@@ -258,10 +258,10 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     const { motivo } = parsear(esquemaCancelar, req.body ?? {});
     if (!(await visible(ctx, id))) throw noEncontrado();
     const resultado = await ctx.db.$transaction(async (tx) => {
-      const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION });
-      const r = await cancelarClaseMuestra(tx, id, motivo ?? null);
+      const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });
+      const r = await cancelarClaseMuestra(tx, id, motivo ?? null, ctx.ahora());
       if (!r.ok || !antes) return r;
-      const despues = await tx.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION });
+      const despues = await tx.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION_CLASE });
       await registrarCambio(tx, ctx, { entidad: "clase_muestra", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(despues) });
       return r;
     });
