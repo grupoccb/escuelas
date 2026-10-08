@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { inflateSync } from "node:zlib";
 import { leerQr } from "../testutil/lector-qr.ts";
-import { QrDemasiadoLargo, VERSION_MAXIMA, bitsSobrantes, capacidadMaximaEnBytes, crearQr, versionMinima, type NivelQr, type Qr } from "./qr.ts";
+import { QrDemasiadoLargo, VERSION_MAXIMA, bitsSobrantes, capacidadMaximaEnBytes, crearQr, penalizacionesPorMascara, versionMinima, type NivelQr, type Qr } from "./qr.ts";
 import { ZONA_DE_SILENCIO, crc32, ladoConSilencio, pixelesDeQr, qrAPng, qrASvg } from "./render.ts";
 
 /** Decodifica un QR como lo haría una cámara: se dibuja con zona de silencio y escala y se le pasa a jsQR. */
@@ -124,7 +124,9 @@ test("lo que no cabe se rechaza con un error claro (no se genera un QR roto); lo
 test("SVG: viewBox con la zona de silencio, tamaño físico en milímetros, título escapado, un solo path y nada ejecutable; se decodifica de vuelta", () => {
   const qr = crearQr(URL_DE_EJEMPLO);
   const svg = qrASvg(qr, { mm: 80, titulo: 'QR "campaña" <A&B>' });
-  const lado = qr.tamano + 2 * ZONA_DE_SILENCIO;
+  // La zona de silencio que pide el estándar es de 4 módulos por lado (EE-09: antes la prueba usaba la propia constante y no atrapaba un valor menor).
+  assert.equal(ZONA_DE_SILENCIO, 4);
+  const lado = qr.tamano + 8;
   assert.match(svg, new RegExp(`viewBox="0 0 ${lado} ${lado}" width="80mm" height="80mm"`));
   assert.match(svg, /<title>QR &quot;campaña&quot; &lt;A&amp;B&gt;<\/title>/);
   assert.ok(!svg.includes("<script") && !svg.includes("onload") && !svg.includes("<A&B>"));
@@ -175,4 +177,20 @@ test("PNG: firma, cabecera, CRC de cada trozo, tamaño (módulos + silencio) × 
   for (let y = 0; y < ZONA_DE_SILENCIO * 8; y++) for (let x = 0; x < ancho; x++) assert.equal(crudo[y * (ancho + 1) + 1 + x], 255);
   assert.ok(qrAPng(qr, { escala: 1 }).length < qrAPng(qr, { escala: 20 }).length);
   assert.equal(crc32(Buffer.from("IEND")), 0xae426082, "el CRC de un trozo IEND vacío es el conocido del estándar PNG");
+});
+
+test("EE-09: la máscara elegida es la de MENOR penalización (reglas N1 a N4); las ocho penalizaciones no son iguales y la elección no es siempre la máscara 0", () => {
+  const textos = [URL_DE_EJEMPLO, "https://escuela.ejemplo.test/l/a?c=ABCD2EFG", "Hola", "https://escuela.ejemplo.test/l/vertical-dos?org=otra-escuela&c=ZZZZ2222&s=22222222-2222-4222-8222-222222222222&utm_source=anuncio", "Año nuevo, ¡clase gratis! 🎉"];
+  const elegidas = new Set<number>();
+  for (const texto of textos) {
+    for (const nivel of ["L", "M", "Q"] as const) {
+      const p = penalizacionesPorMascara(texto, nivel);
+      assert.equal(p.length, 8);
+      assert.ok(new Set(p).size > 1, "las máscaras se penalizan distinto");
+      const qr = crearQr(texto, nivel);
+      assert.equal(qr.mascara, p.indexOf(Math.min(...p)), `${nivel}: ${texto.slice(0, 30)}`);
+      elegidas.add(qr.mascara);
+    }
+  }
+  assert.ok(elegidas.size > 1, "se eligen máscaras distintas según el contenido");
 });

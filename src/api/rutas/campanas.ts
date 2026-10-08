@@ -93,7 +93,8 @@ const esquemaQr = objeto({
   vertical_id: opcional(uuid()),
   formato: opcional(enumerado(["svg", "png", "url"] as const)),
   mm: opcional(enteroDeTexto({ min: 20, max: 300 })),
-  escala: opcional(enteroDeTexto({ min: 1, max: 40 })),
+  // Mínimo 4 píxeles por módulo (EE-14): con menos, el PNG de una URL larga mide ~65 px y las cámaras no lo leen.
+  escala: opcional(enteroDeTexto({ min: 4, max: 40 })),
   descargar: opcional(booleanoDeTexto()),
 });
 
@@ -214,7 +215,8 @@ export function rutasDeCampanas(deps: DepsApi): Router {
     const ahora = ctx.ahora();
     const codigo = await transaccionConBloqueo(ctx.db, ctx.organizacionId, `qr:${campana.id}:${sucursalId ?? "general"}`, async (tx) => {
       const existentes = (await tx.codigo_rastreo.findMany({
-        where: { tipo: "campana", campana_id: campana.id, sucursal_id: sucursalId, activo: true, AND: [{ OR: [{ vigente_desde: null }, { vigente_desde: { lte: ahora } }] }, { OR: [{ vigente_hasta: null }, { vigente_hasta: { gt: ahora } }] }] },
+        // EE-14: solo se reutiliza un código de ESTA vertical: si la campaña cambió de vertical, el de antes no atribuiría (la landing lo descarta) y se hace uno nuevo.
+        where: { tipo: "campana", campana_id: campana.id, sucursal_id: sucursalId, activo: true, vertical_id: vertical.id, AND: [{ OR: [{ vigente_desde: null }, { vigente_desde: { lte: ahora } }] }, { OR: [{ vigente_hasta: null }, { vigente_hasta: { gt: ahora } }] }] },
         select: SELECCION_CODIGO,
         orderBy: [{ creado_en: "asc" }, { id: "asc" }],
       })) as FilaCodigo[];

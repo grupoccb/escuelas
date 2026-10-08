@@ -105,7 +105,7 @@ test("E3: el SVG y el PNG que se descargan, decodificados con un lector independ
   assert.equal(leerQr(pixeles, lado, lado), info.cuerpo.url, "el PNG se decodifica a la URL");
   // El tamaño impreso del SVG y el de píxeles del PNG se controlan.
   assert.match((await descargar(admin, `/api/campanas/${c.id}/qr?sucursal_id=${sucursal}&mm=100`)).cuerpo.toString("utf8"), /width="100mm" height="100mm"/);
-  assert.ok((await descargar(admin, `/api/campanas/${c.id}/qr?sucursal_id=${sucursal}&formato=png&escala=2`)).cuerpo.length < png.cuerpo.length);
+  assert.ok((await descargar(admin, `/api/campanas/${c.id}/qr?sucursal_id=${sucursal}&formato=png&escala=4`)).cuerpo.length < png.cuerpo.length);
 });
 
 test("E3: QR distintos por campaña y por sucursal; el código se crea UNA vez y se reutiliza; hereda sucursal y vertical de la campaña si no se piden", async () => {
@@ -183,6 +183,8 @@ test("E3 validaciones: formato, tamaños, vertical y sucursal que la vertical s�
   const n = org.sucursales[0]!.id;
   assert.equal((await pedir(admin, c.id, "&formato=gif")).estado, 400);
   assert.equal((await admin.get(`/api/campanas/${c.id}/qr?formato=png&escala=0`)).estado, 400);
+  assert.equal((await admin.get(`/api/campanas/${c.id}/qr?formato=png&escala=3`)).estado, 400, "EE-14: menos de 4 px por módulo no se lee");
+  assert.equal((await admin.get(`/api/campanas/${c.id}/qr?formato=png&escala=4&sucursal_id=${org.sucursales[0]!.id}`)).estado, 200);
   assert.equal((await admin.get(`/api/campanas/${c.id}/qr?formato=png&escala=41`)).estado, 400);
   assert.equal((await admin.get(`/api/campanas/${c.id}/qr?mm=19`)).estado, 400);
   assert.equal((await admin.get(`/api/campanas/${c.id}/qr?mm=301`)).estado, 400);
@@ -262,4 +264,18 @@ test("E3: si el slug de la vertical se repite entre organizaciones la URL lleva 
   assert.equal((await cliente.get(`/api/campanas/${camp.id}/qr?formato=url&sucursal_id=${m.sucursales[0]!.id}`)).estado, 409);
   await prisma.vertical.update({ where: { id: ajena.verticalId }, data: { slug: `v-${randomBytes(5).toString("hex")}` } });
   assert.equal(new URL((await cliente.get<{ url: string }>(`/api/campanas/${camp.id}/qr?formato=url&sucursal_id=${m.sucursales[0]!.id}`)).cuerpo.url).searchParams.get("org"), null, "ya único: sin org");
+});
+
+test("EE-14: el QR no reutiliza un código de otra vertical (si la campaña cambió de vertical): hace uno nuevo con la vertical vigente", async () => {
+  const otraVertical = await prisma.vertical.create({ data: { organizacion_id: org.organizacionId, nombre: "Otra", slug: `o-${Math.random().toString(36).slice(2, 8)}` } });
+  const c = await campana("Campaña que cambió de vertical");
+  const n = org.sucursales[0]!.id;
+  const viejo = await prisma.codigo_rastreo.create({ data: { organizacion_id: org.organizacionId, codigo: "VJQRTMK2", tipo: "campana", campana_id: c.id, sucursal_id: n, vertical_id: otraVertical.id } });
+  const r = (await pedir(admin, c.id, `&sucursal_id=${n}`)).cuerpo;
+  assert.notEqual(r.codigo, viejo.codigo, "no se reutiliza el de la otra vertical");
+  const nuevo = await db().codigo_rastreo.findFirstOrThrow({ where: { codigo: r.codigo } });
+  assert.equal(nuevo.vertical_id, org.verticalId);
+  assert.equal(await db().codigo_rastreo.count({ where: { campana_id: c.id, sucursal_id: n } }), 2);
+  // Y con el correcto ya hecho, se reutiliza.
+  assert.equal((await pedir(admin, c.id, `&sucursal_id=${n}`)).cuerpo.codigo, nuevo.codigo);
 });

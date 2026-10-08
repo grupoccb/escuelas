@@ -148,3 +148,13 @@ test("E2 códigos: solo el administrador los ve y escribe; listar con filtros; c
   await prisma.lead.create({ data: { organizacion_id: org.organizacionId, vertical_interes_id: org.verticalId, etapa_id: org.etapaInicialId, campana_id: conLeads.id, telefono: "+525500098765" } });
   assert.equal((await admin.delete(`/api/campanas/${conLeads.id}`)).estado, 409);
 });
+
+test("EE-09 (C02): el código de un lead se usa una sola vez: cambiarle el tope es un 409 (no un 500 de la base); apagarlo sí se puede", async () => {
+  const c = (await crearCampana(admin, { nombre: "Tope del lead", origen: "instagram" })).cuerpo;
+  const familia = await prisma.lead.create({ data: { organizacion_id: org.organizacionId, vertical_interes_id: org.verticalId, etapa_id: org.etapaInicialId, telefono: "+525580000099" } });
+  const codigo = await prisma.codigo_rastreo.create({ data: { organizacion_id: org.organizacionId, codigo: "XDTPQ2K3", tipo: "lead", lead_id: familia.id, campana_id: c.id, max_usos: 1 } });
+  const cambio = await admin.patch<{ error: { codigo: string } }>(`/api/codigos-rastreo/${codigo.id}`, { max_usos: 5 });
+  assert.equal(cambio.estado, 409);
+  assert.equal((await prisma.codigo_rastreo.findFirstOrThrow({ where: { id: codigo.id } })).max_usos, 1);
+  assert.equal((await admin.patch(`/api/codigos-rastreo/${codigo.id}`, { activo: false })).estado, 200);
+});

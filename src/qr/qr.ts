@@ -314,21 +314,34 @@ class Matriz {
  * en la versión 10, lanza `QrDemasiadoLargo`. DETERMINISTA: el mismo texto da siempre la misma matriz.
  */
 export function crearQr(texto: string, nivel: NivelQr = "M"): Qr {
+  const { version, matrices, penalizaciones } = construirTodasLasMascaras(texto, nivel);
+  // La de MENOR penalización; a igualdad, la de número más bajo (el estándar no desempata, pero así es determinista).
+  const mascara = penalizaciones.indexOf(Math.min(...penalizaciones));
+  const elegida = matrices[mascara]!;
+  return { version, nivel, tamano: elegida.tamano, modulos: elegida.modulos, mascara };
+}
+
+/** La penalización (reglas N1 a N4 del estándar) de cada una de las 8 máscaras para ese texto: la elegida por `crearQr` es la de menor valor. Para las pruebas. */
+export function penalizacionesPorMascara(texto: string, nivel: NivelQr = "M"): number[] {
+  return construirTodasLasMascaras(texto, nivel).penalizaciones;
+}
+
+function construirTodasLasMascaras(texto: string, nivel: NivelQr): { version: number; matrices: Matriz[]; penalizaciones: number[] } {
   const bytes = new TextEncoder().encode(texto);
   const version = versionMinima(bytes.length, nivel);
   const palabras = intercalar(palabrasDeDatos(bytes, version, nivel), version, nivel);
-  let mejor: { matriz: Matriz; mascara: number; penalizacion: number } | null = null;
+  const matrices: Matriz[] = [];
+  const penalizaciones: number[] = [];
   for (let mascara = 0; mascara < 8; mascara++) {
     const matriz = new Matriz(version);
     matriz.dibujarPatronesDeFuncion(nivel);
     matriz.dibujarPalabras(palabras);
     matriz.aplicarMascara(mascara);
     matriz.dibujarFormato(nivel, mascara);
-    const penalizacion = matriz.penalizacion();
-    if (mejor === null || penalizacion < mejor.penalizacion) mejor = { matriz, mascara, penalizacion };
+    matrices.push(matriz);
+    penalizaciones.push(matriz.penalizacion());
   }
-  const elegida = mejor!;
-  return { version, nivel, tamano: elegida.matriz.tamano, modulos: elegida.matriz.modulos, mascara: elegida.mascara };
+  return { version, matrices, penalizaciones };
 }
 
 /** Los módulos sobrantes al final del área de datos (0, 3, 4 o 7 según la versión): solo para las pruebas del estándar. */
