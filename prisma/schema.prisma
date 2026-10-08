@@ -1,12 +1,16 @@
-// Esquema de la base. Hoy es el subconjunto que necesita la demo local (SPEC 0.5); el bloque
-// 1.1 lo completa.
+// Esquema de la base: Fase 1 (bloque 1.1).
 //
 // Reglas (CLAUDE.md):
 // - Toda tabla lleva organizacion_id (invariante 1). La tabla organizacion es la raíz: su id
 //   ES el organizacion_id.
 // - Toda tabla lleva eliminado_en; nunca DELETE físico (invariante 3).
-// - Los índices únicos parciales (WHERE eliminado_en IS NULL, teléfono normalizado) no se
-//   pueden expresar aquí: viven como SQL al final de la migración.
+// - Integridad entre organizaciones en la base: toda referencia entre tablas es una llave
+//   foránea COMPUESTA (x_id, organizacion_id) → tabla(id, organizacion_id). Por eso cada tabla
+//   declara @@unique([id, organizacion_id]). Una fila no puede apuntar a otra organización.
+//   Las relaciones opcionales usan onDelete/onUpdate Restrict: SetNull anularía también
+//   organizacion_id, que es obligatoria.
+// - Los índices únicos parciales (WHERE eliminado_en IS NULL, teléfono normalizado) y los CHECK
+//   no se pueden expresar aquí: viven como SQL al final de la migración.
 // - Nombres de tablas y columnas en snake_case, igual que en el modelo de datos.
 
 generator client {
@@ -21,6 +25,8 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Configuración ──────────────────────────────────────────────────────────────────────
+
 model organizacion {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre         String
@@ -31,10 +37,20 @@ model organizacion {
   verticales          vertical[]
   sucursales          sucursal[]
   sucursal_verticales sucursal_vertical[]
+  canales_whatsapp    canal_whatsapp[]
   bandejas_chatwoot   bandeja_chatwoot[]
+  campanas            campana[]
+  etapas_pipeline     etapa_pipeline[]
   leads               lead[]
+  prospectos          prospecto[]
   conversaciones      conversacion[]
   mensajes            mensaje[]
+  interacciones       interaccion[]
+  consentimientos     consentimiento[]
+  plantillas_mensaje  plantilla_mensaje[]
+  automatizaciones    automatizacion[]
+  ejecuciones         automatizacion_ejecucion[]
+  tareas_asesor       tarea_asesor[]
 }
 
 model vertical {
@@ -49,9 +65,14 @@ model vertical {
 
   organizacion        organizacion        @relation(fields: [organizacion_id], references: [id])
   sucursal_verticales sucursal_vertical[]
-  bandejas_chatwoot   bandeja_chatwoot[]
+  canales_whatsapp    canal_whatsapp[]
+  campanas            campana[]
   leads               lead[]
+  prospectos          prospecto[]
+  plantillas_mensaje  plantilla_mensaje[]
+  automatizaciones    automatizacion[]
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
 }
 
@@ -60,6 +81,7 @@ model sucursal {
   organizacion_id String    @db.Uuid
   nombre          String
   direccion       String?
+  /// Zona horaria IANA. Define el horario de envío de esa sucursal (invariante 14).
   zona_horaria    String
   activo          Boolean   @default(true)
   creado_en       DateTime  @default(now()) @db.Timestamptz(6)
@@ -68,8 +90,12 @@ model sucursal {
 
   organizacion        organizacion        @relation(fields: [organizacion_id], references: [id])
   sucursal_verticales sucursal_vertical[]
+  canales_whatsapp    canal_whatsapp[]
+  campanas            campana[]
   leads               lead[]
+  automatizaciones    automatizacion[]
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
 }
 
@@ -85,18 +111,55 @@ model sucursal_vertical {
   eliminado_en    DateTime? @db.Timestamptz(6)
 
   organizacion organizacion @relation(fields: [organizacion_id], references: [id])
-  sucursal     sucursal     @relation(fields: [sucursal_id], references: [id])
-  vertical     vertical     @relation(fields: [vertical_id], references: [id])
+  sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  vertical     vertical     @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
 }
 
-/// Bandeja de Chatwoot de una vertical. Con ella el backend sabe de qué organización y
-/// vertical es cada evento del Agent Bot. Los ids de Chatwoot se llenan al aprovisionar.
+enum calidad_meta {
+  alta
+  media
+  baja
+  desconocida
+}
+
+/// Un número de WhatsApp receptor. Resuelve el mensaje entrante a su vertical (y, si aplica, a
+/// una sucursal). Los campos de Twilio/Meta quedan vacíos mientras no haya cuenta real.
+model canal_whatsapp {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id       String       @db.Uuid
+  vertical_id           String       @db.Uuid
+  /// Nulo = el canal atiende todas las sucursales de la vertical.
+  sucursal_id           String?      @db.Uuid
+  /// Formato de Twilio: "whatsapp:+521…". Nulo en canales sin número (la bandeja API de la demo).
+  numero_whatsapp       String?
+  messaging_service_sid String?
+  sender_sid            String?
+  waba_id               String?
+  nombre_publico        String
+  calidad_meta          calidad_meta @default(desconocida)
+  activo                Boolean      @default(true)
+  creado_en             DateTime     @default(now()) @db.Timestamptz(6)
+  actualizado_en        DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en          DateTime?    @db.Timestamptz(6)
+
+  organizacion      organizacion       @relation(fields: [organizacion_id], references: [id])
+  vertical          vertical           @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal          sucursal?          @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  bandejas_chatwoot bandeja_chatwoot[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// La bandeja de Chatwoot de un canal. Con ella el backend sabe de qué organización y canal es
+/// cada evento del Agent Bot. Los ids de Chatwoot se llenan al aprovisionar.
 model bandeja_chatwoot {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizacion_id     String    @db.Uuid
-  vertical_id         String    @db.Uuid
+  canal_whatsapp_id   String    @db.Uuid
   nombre              String
   chatwoot_account_id Int?
   chatwoot_inbox_id   Int?
@@ -105,34 +168,168 @@ model bandeja_chatwoot {
   eliminado_en        DateTime? @db.Timestamptz(6)
 
   organizacion   organizacion   @relation(fields: [organizacion_id], references: [id])
-  vertical       vertical       @relation(fields: [vertical_id], references: [id])
+  canal_whatsapp canal_whatsapp @relation(fields: [canal_whatsapp_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   conversaciones conversacion[]
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
 }
 
-/// El adulto que pregunta. Guarda estructurados los datos que captura el bot (invariante 13).
+// ── CRM ────────────────────────────────────────────────────────────────────────────────
+
+enum origen_campana {
+  facebook
+  instagram
+  tiktok
+  google
+  referido
+  presencial
+  otro
+}
+
+model campana {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String         @db.Uuid
+  nombre          String
+  origen          origen_campana
+  vertical_id     String?        @db.Uuid
+  sucursal_id     String?        @db.Uuid
+  /// Id del anuncio en Meta (ReferralSourceId). Con él la atribución de un lead encuentra su campaña.
+  anuncio_id      String?
+  presupuesto     Decimal?       @db.Decimal(12, 2)
+  fecha_inicio    DateTime?      @db.Date
+  fecha_fin       DateTime?      @db.Date
+  activo          Boolean        @default(true)
+  creado_en       DateTime       @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?      @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  vertical     vertical?    @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal?    @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  leads        lead[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Etapas del embudo, configurables. Los nombres viven aquí, no en código.
+model etapa_pipeline {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id            String    @db.Uuid
+  nombre                     String
+  orden                      Int
+  es_ganado                  Boolean   @default(false)
+  es_perdido                 Boolean   @default(false)
+  dias_alerta_sin_movimiento Int?
+  creado_en                  DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en             DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en               DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  leads        lead[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// El adulto que escribe (invariante 13). Sus hijos o alumnos potenciales son `prospecto`.
 model lead {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizacion_id     String    @db.Uuid
-  vertical_interes_id String    @db.Uuid
-  sucursal_interes_id String?   @db.Uuid
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id       String    @db.Uuid
+  vertical_interes_id   String    @db.Uuid
+  sucursal_interes_id   String?   @db.Uuid
+  campana_id            String?   @db.Uuid
+  etapa_id              String    @db.Uuid
   /// E.164, siempre de normalizarTelefono() (invariante 7). Nulo si el contacto no trae teléfono.
-  telefono            String?
-  nombre_contacto     String?
-  nombre_prospecto    String?
-  edad_declarada      Int?
-  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
-  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  eliminado_en        DateTime? @db.Timestamptz(6)
+  telefono              String?
+  nombre_contacto       String?
+  /// Atribución Click-to-WhatsApp, tal como la entrega la fuente de atribución.
+  ctwa_clid             String?
+  anuncio_id            String?
+  anuncio_titulo        String?
+  /// El referral completo, sin perder campos que hoy no se usan.
+  atribucion            Json?
+  ultima_interaccion_en DateTime? @db.Timestamptz(6)
+  creado_en             DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en          DateTime? @db.Timestamptz(6)
 
   organizacion     organizacion   @relation(fields: [organizacion_id], references: [id])
-  vertical_interes vertical       @relation(fields: [vertical_interes_id], references: [id])
-  sucursal_interes sucursal?      @relation(fields: [sucursal_interes_id], references: [id])
+  vertical_interes vertical       @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal_interes sucursal?      @relation(fields: [sucursal_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  campana          campana?       @relation(fields: [campana_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  etapa            etapa_pipeline @relation(fields: [etapa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospectos       prospecto[]
   conversaciones   conversacion[]
+  interacciones    interaccion[]
+  tareas_asesor    tarea_asesor[]
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  @@index([etapa_id, ultima_interaccion_en])
 }
+
+enum origen_prospecto {
+  bot
+  asesor
+}
+
+/// Cada niño o alumno potencial de un lead. El bot captura uno; el asesor agrega los demás.
+model prospecto {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String           @db.Uuid
+  lead_id             String           @db.Uuid
+  vertical_interes_id String           @db.Uuid
+  nombre              String?
+  /// Lo que dice el adulto ("como 6"). La fecha de nacimiento se captura en la inscripción.
+  edad_declarada      Int?
+  origen              origen_prospecto @default(bot)
+  creado_en           DateTime         @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime?        @db.Timestamptz(6)
+
+  organizacion     organizacion @relation(fields: [organizacion_id], references: [id])
+  lead             lead         @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  vertical_interes vertical     @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([lead_id])
+}
+
+enum tipo_interaccion {
+  whatsapp
+  llamada
+  nota
+  cambio_etapa
+  pase_a_asesor
+  baja
+  automatizacion
+}
+
+model interaccion {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String           @db.Uuid
+  lead_id         String           @db.Uuid
+  conversacion_id String?          @db.Uuid
+  tipo            tipo_interaccion
+  contenido       String?
+  datos           Json?
+  creado_en       DateTime         @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?        @db.Timestamptz(6)
+
+  organizacion organizacion  @relation(fields: [organizacion_id], references: [id])
+  lead         lead          @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  conversacion conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([lead_id, creado_en])
+}
+
+// ── Mensajería ─────────────────────────────────────────────────────────────────────────
 
 enum estado_conversacion {
   bot
@@ -163,8 +360,12 @@ model conversacion {
   /// El backend debe pasar la conversación a un asesor en cuanto termine de despachar.
   pasar_a_asesor_pendiente   Boolean             @default(false)
   motivo_pase_asesor         String?
-  /// 24 h desde el último mensaje entrante (invariante 5).
+  /// Invariante 5, ventana 1: 24 h desde el último mensaje entrante. Decide si se puede
+  /// mandar mensaje libre.
   ventana_servicio_hasta     DateTime?           @db.Timestamptz(6)
+  /// Invariante 5, ventana 2: 72 h desde la entrada por anuncio Click-to-WhatsApp. Solo
+  /// afecta el costo; nunca habilita un envío.
+  ventana_gratis_hasta       DateTime?           @db.Timestamptz(6)
   ultimo_mensaje_entrante_en DateTime?           @db.Timestamptz(6)
   ultimo_mensaje_saliente_en DateTime?           @db.Timestamptz(6)
   /// Control de concurrencia optimista: dos webhooks de la misma conversación no se pisan.
@@ -174,11 +375,15 @@ model conversacion {
   eliminado_en               DateTime?           @db.Timestamptz(6)
 
   organizacion     organizacion     @relation(fields: [organizacion_id], references: [id])
-  bandeja_chatwoot bandeja_chatwoot @relation(fields: [bandeja_chatwoot_id], references: [id])
-  lead             lead             @relation(fields: [lead_id], references: [id])
+  bandeja_chatwoot bandeja_chatwoot @relation(fields: [bandeja_chatwoot_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead             lead             @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   mensajes         mensaje[]
+  interacciones    interaccion[]
+  tareas_asesor    tarea_asesor[]
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  @@index([lead_id])
 }
 
 enum direccion_mensaje {
@@ -192,34 +397,239 @@ enum estatus_mensaje {
   pendiente
   enviando
   enviado
+  entregado
+  leido
   bloqueado
   fallido
 }
 
 model mensaje {
-  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizacion_id String            @db.Uuid
-  conversacion_id String            @db.Uuid
-  direccion       direccion_mensaje
-  estatus         estatus_mensaje
-  cuerpo          String
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id  String            @db.Uuid
+  conversacion_id  String            @db.Uuid
+  plantilla_id     String?           @db.Uuid
+  direccion        direccion_mensaje
+  estatus          estatus_mensaje
+  cuerpo           String
+  variables_usadas Json?
   /// Proveedor que dio el id externo (hoy solo "chatwoot").
-  proveedor       String
+  proveedor        String
   /// Id del mensaje en el proveedor. Para los entrantes es la llave de idempotencia (invariante 8).
-  id_externo      String?
-  motivo_bloqueo  String?
-  error           String?
+  id_externo       String?
+  motivo_bloqueo   String?
+  error            String?
+  error_codigo     Int?
   /// Orden de registro. creado_en no sirve: now() es igual para todo lo que se inserta en una
   /// misma transacción.
-  secuencia       BigInt            @default(autoincrement())
-  creado_en       DateTime          @default(now()) @db.Timestamptz(6)
-  enviado_en      DateTime?         @db.Timestamptz(6)
-  actualizado_en  DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
-  eliminado_en    DateTime?         @db.Timestamptz(6)
+  secuencia        BigInt            @default(autoincrement())
+  creado_en        DateTime          @default(now()) @db.Timestamptz(6)
+  enviado_en       DateTime?         @db.Timestamptz(6)
+  entregado_en     DateTime?         @db.Timestamptz(6)
+  leido_en         DateTime?         @db.Timestamptz(6)
+  actualizado_en   DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en     DateTime?         @db.Timestamptz(6)
 
-  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
-  conversacion conversacion @relation(fields: [conversacion_id], references: [id])
+  organizacion organizacion               @relation(fields: [organizacion_id], references: [id])
+  conversacion conversacion               @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  plantilla    plantilla_mensaje?         @relation(fields: [plantilla_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  ejecuciones  automatizacion_ejecucion[]
 
+  @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([conversacion_id, secuencia])
+}
+
+enum estado_consentimiento {
+  opt_in
+  opt_out
+}
+
+enum alcance_consentimiento {
+  todo
+  marketing
+}
+
+/// Bitácora de consentimiento por teléfono. El estado vigente es la fila más reciente por
+/// (organizacion_id, telefono, alcance). Una baja aplica a TODA la organización, no a la
+/// vertical que recibió el mensaje.
+model consentimiento {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String                 @db.Uuid
+  /// E.164, de normalizarTelefono() (invariante 7).
+  telefono        String
+  canal           String                 @default("whatsapp")
+  estado          estado_consentimiento
+  alcance         alcance_consentimiento @default(todo)
+  /// ctwa / formulario / manual / palabra_clave
+  origen          String?
+  evidencia       Json?
+  fecha           DateTime               @default(now()) @db.Timestamptz(6)
+  creado_en       DateTime               @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime               @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?              @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id, telefono, alcance, fecha(sort: Desc)])
+}
+
+enum categoria_plantilla {
+  marketing
+  utility
+  authentication
+  servicio
+}
+
+enum estado_aprobacion_plantilla {
+  pendiente
+  aprobada
+  rechazada
+  pausada
+  deshabilitada
+}
+
+/// Plantillas aprobadas (Twilio Content Templates). Solo se envía lo aprobado y activo.
+model plantilla_mensaje {
+  id                String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String                      @db.Uuid
+  codigo            String
+  content_sid       String
+  /// Nulo = sirve para todas las verticales.
+  vertical_id       String?                     @db.Uuid
+  categoria         categoria_plantilla
+  /// text / quick-reply / list-picker / call-to-action / media (CHECK en la migración).
+  tipo_content      String                      @default("text")
+  idioma            String                      @default("es_MX")
+  /// [{"pos":1,"nombre":"nombre_prospecto"}]
+  variables         Json                        @default("[]")
+  cuerpo_referencia String?
+  estado_aprobacion estado_aprobacion_plantilla @default(pendiente)
+  sincronizado_en   DateTime?                   @db.Timestamptz(6)
+  activo            Boolean                     @default(true)
+  creado_en         DateTime                    @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime                    @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime?                   @db.Timestamptz(6)
+
+  organizacion     organizacion     @relation(fields: [organizacion_id], references: [id])
+  vertical         vertical?        @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  mensajes         mensaje[]
+  automatizaciones automatizacion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+enum evento_disparador {
+  lead_sin_respuesta
+}
+
+/// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás
+/// disparadores entran con su fase.
+model automatizacion {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String            @db.Uuid
+  nombre            String
+  vertical_id       String?           @db.Uuid
+  sucursal_id       String?           @db.Uuid
+  evento_disparador evento_disparador
+  /// Minutos desde el evento. Negativo = antes del evento.
+  offset_minutos    Int               @default(0)
+  plantilla_id      String?           @db.Uuid
+  condiciones       Json              @default("{}")
+  max_intentos      Int               @default(1)
+  /// Ventana de envío en minutos desde la medianoche, hora local de la sucursal. Nunca fuera
+  /// de 09:00–20:00 (invariante 14): lo impone un CHECK.
+  hora_inicio_min   Int               @default(540)
+  hora_fin_min      Int               @default(1200)
+  /// 0 = domingo.
+  dias_permitidos   Int[]             @default([1, 2, 3, 4, 5, 6])
+  activo            Boolean           @default(true)
+  creado_en         DateTime          @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime?         @db.Timestamptz(6)
+
+  organizacion organizacion               @relation(fields: [organizacion_id], references: [id])
+  vertical     vertical?                  @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal     sucursal?                  @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  plantilla    plantilla_mensaje?         @relation(fields: [plantilla_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  ejecuciones  automatizacion_ejecucion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+enum estatus_ejecucion {
+  programado
+  enviado
+  omitido
+  /// Recorrerlo al siguiente horario válido lo dejaba después del evento (invariante 14).
+  descartado
+  fallido
+  cancelado
+}
+
+/// Una ejecución por automatización, entidad y ocurrencia. La unicidad es la idempotencia
+/// (invariante 8): un reintento nunca manda dos veces.
+model automatizacion_ejecucion {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String            @db.Uuid
+  automatizacion_id String            @db.Uuid
+  /// lead / conversacion. Sin llave foránea: la entidad depende del tipo.
+  entidad_tipo      String
+  entidad_id        String            @db.Uuid
+  ocurrencia        Int               @default(1)
+  programado_para   DateTime          @db.Timestamptz(6)
+  ejecutado_en      DateTime?         @db.Timestamptz(6)
+  estatus           estatus_ejecucion @default(programado)
+  /// fuera_de_ventana / opt_out / atencion_humana / tope_frecuencia / sin_plantilla / evento_pasado
+  motivo_omision    String?
+  mensaje_id        String?           @db.Uuid
+  creado_en         DateTime          @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime?         @db.Timestamptz(6)
+
+  organizacion   organizacion   @relation(fields: [organizacion_id], references: [id])
+  automatizacion automatizacion @relation(fields: [automatizacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  mensaje        mensaje?       @relation(fields: [mensaje_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@unique([automatizacion_id, entidad_tipo, entidad_id, ocurrencia], map: "automatizacion_ejecucion_idempotencia_key")
+  @@index([organizacion_id])
+}
+
+enum tipo_tarea_asesor {
+  sin_plantilla_apta
+  revision_manual
+}
+
+enum estado_tarea_asesor {
+  pendiente
+  hecha
+  descartada
+}
+
+/// Trabajo que el sistema no puede hacer solo y deja a una persona (p. ej. el contacto está
+/// fuera de la ventana de servicio y no hay plantilla apta).
+model tarea_asesor {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String              @db.Uuid
+  lead_id         String              @db.Uuid
+  conversacion_id String?             @db.Uuid
+  tipo            tipo_tarea_asesor
+  estado          estado_tarea_asesor @default(pendiente)
+  descripcion     String
+  vence_en        DateTime?           @db.Timestamptz(6)
+  resuelta_en     DateTime?           @db.Timestamptz(6)
+  creado_en       DateTime            @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?           @db.Timestamptz(6)
+
+  organizacion organizacion  @relation(fields: [organizacion_id], references: [id])
+  lead         lead          @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  conversacion conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([estado, vence_en])
 }

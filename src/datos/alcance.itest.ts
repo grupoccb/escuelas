@@ -17,10 +17,10 @@ before(async () => {
   A = await sembrarOrganizacion(prisma, "A");
   B = await sembrarOrganizacion(prisma, "B");
   leadA = (await conAlcance(prisma, A.organizacionId).lead.create({
-    data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: "+525511111111" }),
+    data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: "+525511111111" }),
   })).id;
   leadB = (await conAlcance(prisma, B.organizacionId).lead.create({
-    data: altaConAlcance({ vertical_interes_id: B.verticalId, telefono: "+525522222222" }),
+    data: altaConAlcance({ vertical_interes_id: B.verticalId, etapa_id: B.etapaInicialId, telefono: "+525522222222" }),
   })).id;
 });
 
@@ -47,20 +47,20 @@ test("lecturas: ni pidiendo otra organización en el where se cruza", async () =
 
 test("escrituras: A no puede modificar lo de B", async () => {
   const dbA = conAlcance(prisma, A.organizacionId);
-  await assert.rejects(dbA.lead.update({ where: { id: leadB }, data: { nombre_prospecto: "intruso" } }));
+  await assert.rejects(dbA.lead.update({ where: { id: leadB }, data: { ctwa_clid: "intruso" } }));
   const masivo = await dbA.lead.updateMany({ data: { nombre_contacto: "solo A" } });
   assert.equal(masivo.count, 1);
   const enB = await prisma.lead.findUniqueOrThrow({ where: { id: leadB } });
-  assert.equal(enB.nombre_prospecto, null);
+  assert.equal(enB.ctwa_clid, null);
   assert.equal(enB.nombre_contacto, null);
 });
 
 test("altas: el scope pone la organización y rechaza otra", async () => {
   const dbA = conAlcance(prisma, A.organizacionId);
-  const nuevo = await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: "+525533333333" }) });
+  const nuevo = await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: "+525533333333" }) });
   assert.equal(nuevo.organizacion_id, A.organizacionId);
   await assert.rejects(
-    dbA.lead.create({ data: { organizacion_id: B.organizacionId, vertical_interes_id: B.verticalId, telefono: "+525544444444" } }),
+    dbA.lead.create({ data: { organizacion_id: B.organizacionId, vertical_interes_id: B.verticalId, etapa_id: B.etapaInicialId, telefono: "+525544444444" } }),
     ErrorAlcance,
   );
   await assert.rejects(dbA.organizacion.create({ data: { nombre: "nueva" } }), ErrorAlcance);
@@ -77,7 +77,7 @@ test("soft delete: delete y deleteMany están prohibidos y lo borrado no se ve",
   await assert.rejects(dbA.lead.delete({ where: { id: leadA } }), ErrorAlcance);
   await assert.rejects(dbA.lead.deleteMany({}), ErrorAlcance);
 
-  const temporal = await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: "+525555555555" }) });
+  const temporal = await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: "+525555555555" }) });
   await dbA.lead.update({ where: { id: temporal.id }, data: { eliminado_en: new Date() } });
   assert.equal(await dbA.lead.findUnique({ where: { id: temporal.id } }), null);
   // La fila sigue en la base.
@@ -87,15 +87,15 @@ test("soft delete: delete y deleteMany están prohibidos y lo borrado no se ve",
 test("índice parcial: un lead borrado no bloquea dar de alta el mismo teléfono", async () => {
   const dbA = conAlcance(prisma, A.organizacionId);
   const tel = "+525566666666";
-  const primero = await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: tel }) });
-  await assert.rejects(dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: tel }) }));
+  const primero = await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: tel }) });
+  await assert.rejects(dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: tel }) }));
   await dbA.lead.update({ where: { id: primero.id }, data: { eliminado_en: new Date() } });
-  await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: tel }) });
+  await dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: tel }) });
 });
 
 test("la base rechaza un teléfono que no está normalizado", async () => {
   const dbA = conAlcance(prisma, A.organizacionId);
   for (const malo of ["+5215577777777", "5577777777", "whatsapp:+525577777777"]) {
-    await assert.rejects(dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, telefono: malo }) }), malo);
+    await assert.rejects(dbA.lead.create({ data: altaConAlcance({ vertical_interes_id: A.verticalId, etapa_id: A.etapaInicialId, telefono: malo }) }), malo);
   }
 });

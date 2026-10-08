@@ -7,7 +7,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N0 | HECHO | 0c205e6 + bitácora | Preparación |
 | N1 | HECHO | 24f667f | Correcciones a CLAUDE.md (invariantes 13 y 14) |
 | N2 | HECHO | ecb2c01 | Prueba simulada de atribución y transporte |
-| N3 | PENDIENTE | | Esquema de Fase 1 |
+| N3 | HECHO | (ver git log) | Esquema de Fase 1 |
 | N4 | PENDIENTE | | Entrada |
 | N5 | PENDIENTE | | Bot |
 | N6 | PENDIENTE | | Handoff |
@@ -76,3 +76,33 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 - Elegir la vía (propongo A + firma en el borde + idempotencia por `source_id`).
 - G0.3b y los pendientes de P2 requieren Twilio real.
 - Si quieres limpiar la bandeja de prueba: borrarla desde Chatwoot (Ajustes → Bandejas) o `down -v` en otro momento.
+
+## N3. Esquema de Fase 1 (bloque 1.1)
+
+**Qué se hizo**
+- `prisma/schema.prisma` completo: las 16 tablas del plan (nuevas: `canal_whatsapp`, `campana`, `etapa_pipeline`, `prospecto`, `interaccion`, `consentimiento`, `plantilla_mensaje`, `automatizacion`, `automatizacion_ejecucion`, `tarea_asesor`; ajustadas: `lead`, `conversacion`, `mensaje`, `bandeja_chatwoot`). Todas con `organizacion_id` y `eliminado_en`.
+- Decisión 4: **toda** referencia entre tablas es una llave foránea compuesta `(x_id, organizacion_id) → tabla(id, organizacion_id)`; cada tabla declara `@@unique([id, organizacion_id])`.
+- Decisión 3: `consentimiento` lleva `organizacion_id` (la baja aplica a la organización, no a la vertical).
+- Decisión 2: `lead` es el adulto; `prospecto` (nombre, edad, origen bot/asesor). Un prospecto de bot por lead (índice parcial).
+- Invariante 5: `conversacion.ventana_servicio_hasta` y `conversacion.ventana_gratis_hasta`, campos separados.
+- Invariante 14 en la base: CHECK `automatizacion_horario_check` (09:00–20:00).
+- Migración `20261008100000_fase1_esquema`: generada con `prisma migrate diff`, reordenada a mano para migrar los datos de la demo (etapa inicial por organización, un canal por bandeja, prospecto desde `lead.nombre_prospecto/edad_declarada`), con índices únicos parciales y CHECK al final.
+- Código adaptado: `sistema.ts` (vertical vía canal), `entrante.ts` (etapa inicial y prospecto), `semilla.ts`, seed `prisma/seed/demo.sql` (etapas del insumo, canal enlazado a la bandeja).
+- `src/datos/integridad.itest.ts`: 9 tests. El principal recorre 23 referencias cruzadas entre organizaciones y exige que la base rechace cada una (P2003), con un control positivo.
+
+**Verificación**
+- `npm run validar` exit 0 · `npm run test:int` exit 0 (26 tests; antes 18).
+- Migración sobre base con datos viejos de la demo: leads quedan en "Nuevo", prospecto migrado, canal por bandeja. Sobre base vacía + seed: ok. `prisma migrate diff` contra el schema: vacío (sin deriva).
+
+**Decisiones que tomé**
+- `canal_whatsapp` es la fuente de verdad de vertical/sucursal/número; `bandeja_chatwoot` apunta al canal y **pierde** su `vertical_id` (alternativa descartada: duplicar la vertical en ambas y arriesgar inconsistencia).
+- `numero_whatsapp` nulo permitido (la bandeja API de la demo no tiene número). Único global entre filas vivas, porque el mensaje entrante llega por número antes de conocer la organización.
+- `automatizacion.evento_disparador` solo tiene `lead_sin_respuesta` (el insumo lista 12 eventos de fases 2 y 3; alternativa descartada: crearlos "por adelantado", prohibido por CLAUDE.md). Horario como minutos desde medianoche (`hora_inicio_min` / `hora_fin_min`) en vez de `time`, para no pelear con tipos de fecha.
+- `mensaje.automatizacion_ejecucion_id` del insumo no se creó: la relación va en un solo sentido (`automatizacion_ejecucion.mensaje_id`) para evitar FK circular.
+- No creé la vista `v_consentimiento_actual` del insumo (Prisma no maneja vistas); el estado vigente es la fila más reciente por (organización, teléfono, alcance).
+- `ctwa_clid`, `anuncio_id`, `anuncio_titulo` y el JSON completo `atribucion` viven en `lead`, con `campana.anuncio_id` para enlazar el anuncio con una campaña.
+- Instrucción de Eduardo a media sesión: archivos temporales en `.tmp/` dentro del repo (en `.gitignore`). Añadí `.tmp/` a los ignores de ESLint y a `CARPETAS_EXCLUIDAS` de `check:generico` (es una carpeta fuera de git, no código del repo; no se debilita ninguna regla sobre lo versionado).
+
+**Para Eduardo**
+- Revisar que `lead` conserve `sucursal_interes_id` (a nivel adulto) y `prospecto` no tenga sucursal propia; si prefieres sucursal por niño, es un cambio chico.
+- Los nombres de las etapas del seed son los del insumo (sugerencia inicial); cámbialos en la tabla, no en código.

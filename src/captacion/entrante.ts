@@ -108,11 +108,12 @@ async function registrarYAvanzar(
   }
 
   const ctx = await contextoCaptacion(tx, bandeja.vertical_id);
+  const prospecto = await tx.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } });
   const estado: EstadoCaptacion = {
     paso: conv.paso_captacion,
     intentosFallidos: conv.intentos_fallidos,
-    nombre: conv.lead.nombre_prospecto,
-    edad: conv.lead.edad_declarada,
+    nombre: prospecto?.nombre ?? null,
+    edad: prospecto?.edad_declarada ?? null,
     sucursalId: conv.lead.sucursal_interes_id,
   };
   const r = avanzar(estado, evento.contenido, ctx);
@@ -125,12 +126,18 @@ async function registrarYAvanzar(
   });
   await tx.lead.update({
     where: { id: conv.lead.id },
-    data: {
-      nombre_prospecto: r.estado.nombre,
-      edad_declarada: r.estado.edad,
-      sucursal_interes_id: r.estado.sucursalId,
-    },
+    data: { sucursal_interes_id: r.estado.sucursalId, ultima_interaccion_en: recibidoEn },
   });
+  // El bot captura un solo prospecto por lead (índice único parcial); los demás los agrega el asesor.
+  if (r.estado.nombre !== null || r.estado.edad !== null) {
+    const datos = { nombre: r.estado.nombre, edad_declarada: r.estado.edad };
+    if (prospecto) await tx.prospecto.update({ where: { id: prospecto.id }, data: datos });
+    else {
+      await tx.prospecto.create({
+        data: altaConAlcance({ lead_id: conv.lead.id, vertical_interes_id: bandeja.vertical_id, origen: "bot" as const, ...datos }),
+      });
+    }
+  }
 
   const salientes: Saliente[] = r.respuestas.map((cuerpo) => ({ tipo: "mensaje", cuerpo }));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
@@ -161,11 +168,19 @@ async function obtenerConversacion(tx: Consultas, bandeja: BandejaResuelta, even
     log.warn("entrante_telefono_invalido", { telefono: enmascararTelefono(evento.contacto.telefono) });
   }
 
+  const etapaInicial = await tx.etapa_pipeline.findFirst({
+    where: { es_ganado: false, es_perdido: false },
+    orderBy: { orden: "asc" },
+    select: { id: true },
+  });
+  if (!etapaInicial) throw new Error("La organización no tiene etapas de pipeline: falta el seed");
+
   const lead =
     (telefono ? await tx.lead.findFirst({ where: { vertical_interes_id: bandeja.vertical_id, telefono } }) : null) ??
     (await tx.lead.create({
       data: altaConAlcance({
         vertical_interes_id: bandeja.vertical_id,
+        etapa_id: etapaInicial.id,
         telefono,
         nombre_contacto: evento.contacto.nombre,
       }),

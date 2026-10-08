@@ -45,7 +45,7 @@ function nuevoEntorno() {
 async function conversacionDe(chatwootConversacionId: number) {
   return conAlcance(prisma, org.organizacionId).conversacion.findFirstOrThrow({
     where: { bandeja_chatwoot_id: org.bandejaId, chatwoot_conversacion_id: chatwootConversacionId },
-    include: { lead: true, mensajes: { orderBy: { secuencia: "asc" } } },
+    include: { lead: { include: { prospectos: { where: { eliminado_en: null } } } }, mensajes: { orderBy: { secuencia: "asc" } } },
   });
 }
 
@@ -74,8 +74,10 @@ test("loop completo: tres preguntas, lead con los datos, nota al asesor y conver
   const conv = await conversacionDe(conversacion);
   assert.equal(conv.estado, "en_atencion_humana");
   assert.equal(conv.paso_captacion, "completo");
-  assert.equal(conv.lead.nombre_prospecto, "Sofía");
-  assert.equal(conv.lead.edad_declarada, 8);
+  assert.equal(conv.lead.prospectos.length, 1);
+  assert.equal(conv.lead.prospectos[0]!.nombre, "Sofía");
+  assert.equal(conv.lead.prospectos[0]!.edad_declarada, 8);
+  assert.equal(conv.lead.prospectos[0]!.origen, "bot");
   assert.equal(conv.lead.sucursal_interes_id, org.sucursales[1]!.id);
   assert.equal(conv.lead.telefono, "+525512340001");
   assert.equal(conv.lead.nombre_contacto, "Mamá");
@@ -164,7 +166,7 @@ test("tres respuestas sin entender pasan al asesor con datos parciales", async (
   assert.equal(transporte.envios.at(-1)!.tipo, "abrir");
   const conv = await conversacionDe(conversacion);
   assert.equal(conv.motivo_pase_asesor, "sin_entender");
-  assert.equal(conv.lead.nombre_prospecto, "Ana");
+  assert.equal(conv.lead.prospectos[0]!.nombre, "Ana");
 });
 
 test("mensajes simultáneos de una conversación nueva crean una sola conversación", async () => {

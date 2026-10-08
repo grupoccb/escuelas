@@ -29,7 +29,8 @@ const RUTAS_EXCLUIDAS = new Set([
   ARCHIVO_TERMINOS.split(sep).join("/"),
 ]);
 
-const CARPETAS_EXCLUIDAS = new Set(["node_modules", ".git", "coverage", "dist"]);
+// .tmp: borradores locales fuera de git (.gitignore); nunca son código del repo.
+const CARPETAS_EXCLUIDAS = new Set(["node_modules", ".git", "coverage", "dist", ".tmp"]);
 
 const EXTENSIONES = new Set([
   ".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".sql", ".prisma",

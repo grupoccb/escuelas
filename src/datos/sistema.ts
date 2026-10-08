@@ -7,7 +7,11 @@ import type { PrismaClient } from "../generated/prisma/client.ts";
 export interface BandejaResuelta {
   id: string;
   organizacion_id: string;
+  canal_whatsapp_id: string;
+  /** Vertical del canal: lo que el contacto quiere. */
   vertical_id: string;
+  /** Sucursal fija del canal; nulo si el canal atiende todas. */
+  sucursal_id: string | null;
 }
 
 /** Bandeja de Chatwoot de la que viene un evento del Agent Bot. */
@@ -16,15 +20,29 @@ export async function resolverBandejaChatwoot(
   chatwootAccountId: number,
   chatwootInboxId: number,
 ): Promise<BandejaResuelta | null> {
-  return prisma.bandeja_chatwoot.findFirst({
+  const b = await prisma.bandeja_chatwoot.findFirst({
     where: {
       chatwoot_account_id: chatwootAccountId,
       chatwoot_inbox_id: chatwootInboxId,
       eliminado_en: null,
       organizacion: { eliminado_en: null },
+      canal_whatsapp: { eliminado_en: null },
     },
-    select: { id: true, organizacion_id: true, vertical_id: true },
+    select: {
+      id: true,
+      organizacion_id: true,
+      canal_whatsapp_id: true,
+      canal_whatsapp: { select: { vertical_id: true, sucursal_id: true } },
+    },
   });
+  if (!b) return null;
+  return {
+    id: b.id,
+    organizacion_id: b.organizacion_id,
+    canal_whatsapp_id: b.canal_whatsapp_id,
+    vertical_id: b.canal_whatsapp.vertical_id,
+    sucursal_id: b.canal_whatsapp.sucursal_id,
+  };
 }
 
 /** Organizaciones vivas. Lo usa el aprovisionamiento de la demo para recorrerlas una por una. */
