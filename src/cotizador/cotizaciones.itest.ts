@@ -341,3 +341,28 @@ test("EC-09 (Z06): elegirHorario no anota un grupo que no es del programa cotiza
   assert.equal(await intento(null), true, "descartar el horario tentativo");
   assert.equal((await dbo.cotizacion.findFirstOrThrow({ where: { prospecto_id: pro.id } })).grupo_elegido_id, null);
 });
+
+test("EC-15: el ciclo vence las cotizaciones aunque la retención no esté configurada, a lo más una vez por hora", async () => {
+  const o = await sembrarOrganizacion(prisma, "CotizacionesCicloSinRetencion");
+  const p = await sembrarPrograma(prisma, o, { sucursalId: o.sucursales[0]!.id, nombre: "P", edadMin: 3, edadMax: 12 });
+  const lead = await prisma.lead.create({ data: { organizacion_id: o.organizacionId, vertical_interes_id: o.verticalId, etapa_id: o.etapaInicialId } });
+  const hacer = async (hasta: string) => {
+    const pro = await prisma.prospecto.create({ data: { organizacion_id: o.organizacionId, lead_id: lead.id, vertical_interes_id: o.verticalId, nombre: hasta, edad_declarada: 8, origen: "asesor" } });
+    return (await prisma.cotizacion.create({ data: { organizacion_id: o.organizacionId, lead_id: lead.id, prospecto_id: pro.id, programa_id: p.id, sucursal_id: o.sucursales[0]!.id, origen: "asesor", fecha: new Date("2026-09-01T00:00:00Z"), vigente_hasta: new Date(`${hasta}T00:00:00Z`), snapshot: {} } })).id;
+  };
+  const estado = async (id: string) => (await conAlcance(prisma, o.organizacionId).cotizacion.findFirstOrThrow({ where: { id } })).estatus;
+  const raiz = soloOrganizaciones(prisma, [o.organizacionId]);
+  const mensajeria = new MessagingProvider({ transporte: new TransporteFalso() });
+  const primera = await hacer("2026-09-10");
+  const c1 = await correrCiclo({ prisma: raiz, mensajeria, reloj: () => AHORA }); // SIN retencion
+  assert.equal(c1.retencion, null, "la retención sigue apagada");
+  assert.equal(c1.cotizaciones?.vencidas, 1);
+  assert.equal(await estado(primera), "vencida");
+  const segunda = await hacer("2026-09-12");
+  const c2 = await correrCiclo({ prisma: raiz, mensajeria, reloj: () => new Date(AHORA.getTime() + 10 * 60_000) });
+  assert.equal(c2.cotizaciones, null, "a los 10 minutos no le toca");
+  assert.equal(await estado(segunda), "vigente");
+  const c3 = await correrCiclo({ prisma: raiz, mensajeria, reloj: () => new Date(AHORA.getTime() + 61 * 60_000) });
+  assert.equal(c3.cotizaciones?.vencidas, 1);
+  assert.equal(await estado(segunda), "vencida");
+});

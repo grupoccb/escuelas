@@ -379,7 +379,12 @@ export function rutasDePromociones(_deps: DepsApi): Router {
           ...(c.prioridad !== undefined ? { prioridad: c.prioridad } : {}),
           ...(c.activo !== undefined ? { activo: c.activo } : {}),
         };
-        if (Object.keys(datos).length > 0) await tx.promocion.update({ where: { id }, data: datos });
+        if (Object.keys(datos).length > 0) {
+          // EC-14: el tope no puede quedar por debajo de lo usado ni aunque el consumo (un UPDATE atómico, sin candado) gane
+          // la carrera entre la lectura de arriba y esta escritura: la condición va EN el UPDATE, así que no hay 500 del CHECK.
+          const r = await tx.promocion.updateMany({ where: { id, ...(tope !== null ? { cupo_usado: { lte: tope } } : {}) }, data: datos });
+          if (r.count !== 1) throw conflicto("Se usaron lugares de la promoción mientras la editabas: el cupo no puede ser menor que lo usado. Vuelve a intentarlo.", [{ campo: "cupo_maximo", mensaje: "Cambió el cupo usado" }]);
+        }
         await fijarAlcance(tx, id, c, ctx.ahora());
         const despues = await tx.promocion.findFirstOrThrow({ where: { id }, select: SELECCION });
         await registrarCambio(tx, ctx, { entidad: "promocion", entidadId: id, accion: "actualizar", antes: instantaneaDe(antes), despues: instantaneaDe(despues) });

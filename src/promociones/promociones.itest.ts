@@ -395,3 +395,53 @@ test("la BASE valida las combinaciones de beneficio, el valor de la condición, 
   const otraOrg = await sembrarUsuario(prisma, ajena.organizacionId, { rol: "administrador" });
   await assert.rejects(prisma.promocion_aplicacion.update({ where: { id: a.id }, data: { autorizado_por_id: otraOrg.id } }), /Foreign key|foreign key/, "quien autoriza es de la misma organización");
 });
+
+test("EC-14: si un consumo gana la carrera justo antes de que se guarde el cambio de tope, el cambio se rechaza (409) en vez de reventar con el CHECK (500) y cupo_usado nunca pasa del tope", async () => {
+  // Un cliente cuyo UPDATE de promociones deja que, justo antes de escribir, otro consumo suba el contador (lo que en producción pasa por casualidad).
+  const gancho = { promocionId: "", pendiente: false };
+  const alcanzaElConsumo = async (): Promise<void> => {
+    if (!gancho.pendiente) return;
+    gancho.pendiente = false;
+    await prisma.promocion.update({ where: { id: gancho.promocionId }, data: { cupo_usado: { increment: 1 } } });
+  };
+  const conGancho = prisma.$extends({
+    name: "consumo-gana-la-carrera",
+    query: {
+      promocion: {
+        // El cambio de la promoción puede escribirse con update o con updateMany: el gancho cubre las dos formas.
+        async updateMany({ args, query }) {
+          await alcanzaElConsumo();
+          return query(args);
+        },
+        async update({ args, query }) {
+          await alcanzaElConsumo();
+          return query(args);
+        },
+      },
+    },
+  });
+  const apiGancho = levantarApi(conGancho as unknown as PrismaPruebas);
+  try {
+    const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "administrador" });
+    const c = apiGancho.cliente();
+    assert.equal((await c.login(org.slug, u.correo, u.contrasena)).estado, 201);
+    const p = await c.post<Promo & ErrorBody>("/api/promociones", { nombre: "Carrera de cupo", codigo: `CC-${randomUUID().slice(0, 8)}`.toUpperCase(), vigencia_desde: "2026-01-01", cupo_maximo: 5, beneficios: [{ tipo: "descuento_inscripcion", modo: "total" }] });
+    assert.equal(p.estado, 201, JSON.stringify(p.cuerpo));
+    for (let i = 0; i < 4; i++) assert.equal(await consumirCupo(conAlcance(prisma, org.organizacionId), p.cuerpo.id), true);
+    // Cuatro de cinco usados: bajar el tope a 4 es válido al leerlo, pero el consumo sube a 5 antes de que se escriba.
+    gancho.promocionId = p.cuerpo.id;
+    gancho.pendiente = true;
+    const r = await c.patch<ErrorBody>(`/api/promociones/${p.cuerpo.id}`, { cupo_maximo: 4, nombre: "Otro nombre" });
+    assert.equal(gancho.pendiente, false, "el gancho corrió");
+    assert.equal(r.estado, 409, JSON.stringify(r.cuerpo));
+    assert.equal(r.cuerpo.error.codigo, "conflicto");
+    assert.equal(r.cuerpo.error.detalles?.[0]?.campo, "cupo_maximo");
+    const fila = await conAlcance(prisma, org.organizacionId).promocion.findFirstOrThrow({ where: { id: p.cuerpo.id }, select: { nombre: true, cupo_maximo: true, cupo_usado: true } });
+    assert.deepEqual([fila.cupo_maximo, fila.cupo_usado], [5, 5], "nada cambió salvo el consumo");
+    assert.notEqual(fila.nombre, "Otro nombre", "ni los demás campos del mismo PATCH");
+    // Sin carrera, el mismo cambio sí procede cuando el tope no es menor que lo usado.
+    assert.equal((await c.patch<Promo>(`/api/promociones/${p.cuerpo.id}`, { cupo_maximo: 5, nombre: "Otro nombre" })).estado, 200);
+  } finally {
+    await apiGancho.cerrar();
+  }
+});

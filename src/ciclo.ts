@@ -26,11 +26,18 @@ export interface DepsCiclo {
    * una hora) por instancia de base de datos. Apagada si no se pasa (los tests del ciclo no la usan).
    */
   retencion?: { cadaMs?: number };
+  /**
+   * Vencimiento de las cotizaciones (C8): a lo más una vez cada `cadaMs` (por defecto una hora) por instancia de base de datos.
+   * Corre SIEMPRE, con o sin retención (EC-15): sin él el bot seguiría reutilizando cotizaciones de cualquier edad.
+   */
+  cotizaciones?: { cadaMs?: number };
   reloj?: () => Date;
 }
 
 /** Última vez que corrió la retención, por instancia de base de datos. */
 const ultimaRetencion = new WeakMap<object, number>();
+/** Última vez que corrió el vencimiento de cotizaciones, por instancia de base de datos. */
+const ultimoVencimiento = new WeakMap<object, number>();
 const RETENCION_CADA_MS = 60 * 60 * 1000;
 
 export interface ResumenCiclo {
@@ -42,7 +49,7 @@ export interface ResumenCiclo {
   twilio: ResumenReenvio | null;
   /** null si la retención está apagada, no le tocaba o lanzó. */
   retencion: ResumenRetencion | null;
-  /** Cotizaciones que pasaron a `vencida` (mismo mantenimiento horario que la retención). null si no le tocaba o lanzó. */
+  /** Cotizaciones que pasaron a `vencida` (mantenimiento horario, independiente de la retención). null si no le tocaba o lanzó. */
   cotizaciones: ResumenVencimiento | null;
   /** Errores aislados de todo el ciclo (conversaciones, organizaciones y barridos completos). */
   errores: number;
@@ -90,6 +97,13 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
         errores++;
         log.error("ciclo_error", { barrido: "retencion", error: (e as Error).message });
       }
+    }
+  }
+  {
+    const ahora = (deps.reloj ?? (() => new Date()))().getTime();
+    const ultima = ultimoVencimiento.get(deps.prisma);
+    if (ultima === undefined || ahora - ultima >= (deps.cotizaciones?.cadaMs ?? RETENCION_CADA_MS)) {
+      ultimoVencimiento.set(deps.prisma, ahora);
       try {
         cotizaciones = await vencerCotizacionesDeTodas(deps);
         errores += cotizaciones.errores;
