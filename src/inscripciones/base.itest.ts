@@ -4,7 +4,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { sembrarAlumno, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { sembrarAlumno, sembrarMotivoBaja, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 
 let prisma: PrismaPruebas;
 let org: OrganizacionDePrueba;
@@ -27,7 +27,13 @@ const datos = (alumnoId: string, g: { programaId: string; grupoId: string }, ext
   fecha_inscripcion: new Date("2026-10-20"), fecha_inicio: new Date("2026-10-20"), precio_inscripcion_aplicado: "100.00", precio_mensualidad_aplicado: "200.00", dia_corte_pago: 20, ...extra,
 });
 const alumno = () => sembrarAlumno(prisma, org, {});
-const inscribirDirecto = async (g: { programaId: string; grupoId: string }, extra: Record<string, unknown> = {}) => prisma.inscripcion.create({ data: datos((await alumno()).alumnoId, g, extra) as never });
+/** Los campos que la base exige según el estatus (baja: motivo y fecha; congelada: desde cuándo). */
+const conEstatus = async (extra: Record<string, unknown>): Promise<Record<string, unknown>> => ({
+  ...(extra["estatus"] === "baja" ? { motivo_baja_id: await sembrarMotivoBaja(prisma, org), fecha_baja: new Date("2026-10-21") } : {}),
+  ...(extra["estatus"] === "congelada" ? { congelada_desde: new Date("2026-10-21") } : {}),
+  ...extra,
+});
+const inscribirDirecto = async (g: { programaId: string; grupoId: string }, extra: Record<string, unknown> = {}) => prisma.inscripcion.create({ data: datos((await alumno()).alumnoId, g, await conEstatus(extra)) as never });
 
 test("SQL directo: más inscripciones activas que el cupo del grupo → la base lo rechaza (y las congeladas, bajas y borradas no cuentan)", async () => {
   const g = await grupoNuevo(2);
@@ -80,8 +86,8 @@ test("el mismo alumno no puede tener dos inscripciones ACTIVAS en el grupo, aunq
   const a = await alumno();
   const rs = await Promise.allSettled([1, 2, 3, 4].map(() => prisma.inscripcion.create({ data: datos(a.alumnoId, g) as never })));
   assert.equal(rs.filter((r) => r.status === "fulfilled").length, 1);
-  await prisma.inscripcion.create({ data: datos(a.alumnoId, g, { estatus: "baja", fecha_baja: new Date("2026-10-25") }) as never });
-  await prisma.inscripcion.create({ data: datos(a.alumnoId, g, { estatus: "congelada" }) as never });
+  await prisma.inscripcion.create({ data: datos(a.alumnoId, g, await conEstatus({ estatus: "baja", fecha_baja: new Date("2026-10-25") })) as never });
+  await prisma.inscripcion.create({ data: datos(a.alumnoId, g, await conEstatus({ estatus: "congelada" })) as never });
 });
 
 test("el dinero de la inscripción: importes negativos, descuentos mayores que el precio, día de corte fuera de 1–31 y baja sin fecha los rechaza la base", async () => {
@@ -96,9 +102,14 @@ test("el dinero de la inscripción: importes negativos, descuentos mayores que e
   await assert.rejects(crear({ dia_corte_pago: 0 }), /inscripcion_dia_corte_check/);
   await assert.rejects(crear({ dia_corte_pago: 32 }), /inscripcion_dia_corte_check/);
   await assert.rejects(crear({ meses_gratis_aplicados: -1 }), /inscripcion_meses_check/);
-  await assert.rejects(crear({ estatus: "baja" }), /inscripcion_baja_check/);
+  const motivo = await sembrarMotivoBaja(prisma, org);
+  await assert.rejects(crear({ estatus: "baja", motivo_baja_id: motivo }), /inscripcion_baja_check/);
+  await assert.rejects(crear({ estatus: "baja", fecha_baja: new Date("2026-10-25") }), /inscripcion_motivo_baja_check/, "una baja sin motivo no existe");
+  await assert.rejects(crear({ motivo_baja_id: motivo }), /inscripcion_motivo_baja_check/, "el motivo solo existe en una baja");
+  await assert.rejects(crear({ estatus: "congelada" }), /inscripcion_congelada_check/);
+  await assert.rejects(crear({ congelada_desde: new Date("2026-10-25") }), /inscripcion_congelada_check/);
   await assert.rejects(crear({ fecha_baja: new Date("2026-10-25") }), /inscripcion_baja_check/);
-  await assert.rejects(crear({ estatus: "baja", fecha_baja: new Date("2026-10-01") }), /inscripcion_baja_check/);
+  await assert.rejects(crear({ estatus: "baja", fecha_baja: new Date("2026-10-01"), motivo_baja_id: motivo }), /inscripcion_baja_check/);
   await crear({ descuento_inscripcion_aplicado: "100.00", descuento_mensualidad_aplicado: "200.00", dia_corte_pago: 31 });
 });
 

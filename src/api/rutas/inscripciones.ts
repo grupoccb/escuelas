@@ -7,13 +7,21 @@
 // Inscribir congela el precio vigente, aplica las promociones que corresponden (con los hermanos ya inscritos), exige el reglamento vigente
 // aceptado y toma un lugar del cupo del grupo de forma atómica. Ver `src/inscripciones/inscribir.ts`. Rechazos de negocio → 409 con
 // `detalles: [{ campo: "motivo", mensaje: <código> }, …]` (`grupo_lleno`, `sin_precio`, `reglamento`, `fuera_de_edad`, `ya_inscrito`).
-// Los cambios de una inscripción existente (cambio de grupo, congelar, reactivar, baja) están en `inscripciones-cambios.ts` (F5).
+//
+// F5 — lo que le pasa a una inscripción después (`src/inscripciones/cambios.ts`), todo con permiso `inscripciones:escribir`:
+//   POST /api/inscripciones/:id/cambiar-grupo { grupo_id }     otro grupo del MISMO programa; atómico (si no hay lugar, nada cambia)
+//   POST /api/inscripciones/:id/congelar                       libera el lugar
+//   POST /api/inscripciones/:id/reactivar                      necesita lugar (409 `grupo_lleno` si se llenó)
+//   POST /api/inscripciones/:id/baja { motivo_baja_id }        libera el lugar; el motivo es del catálogo editable
+//   GET  /api/inscripciones/:id/movimientos                    historial (de solo anexar): cambios de grupo, congelaciones, reactivaciones, baja
+// Soltar un lugar activo (cambio de grupo, congelar, baja) avisa a la lista de espera del grupo con `ofrecerLugarLiberado` (tarea para el asesor).
 
 import { Router } from "express";
 import express from "express";
-import { cerrarEntradaDe } from "../../lista-espera/lista-espera.ts";
+import { cerrarEntradaDe, ofrecerLugarLiberado } from "../../lista-espera/lista-espera.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
 import { dondeInscripcionVisible } from "../../inscripciones/alcance.ts";
+import { cambiarDeGrupo, congelarInscripcion, darDeBaja, reactivarInscripcion, type ResultadoDeCambio } from "../../inscripciones/cambios.ts";
 import { inscribirAlumno, type MotivoDeRechazoDeInscripcion, type ResultadoDeInscripcion } from "../../inscripciones/inscribir.ts";
 import { instantaneaDeCreada, presentarInscripcion, SELECCION_INSCRIPCION, type FilaDeInscripcion } from "../../inscripciones/presentar.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -21,7 +29,8 @@ import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { ErrorApi, conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
-import { registrarCambio } from "../registro.ts";
+import { registrarCambio, type Instantanea } from "../registro.ts";
+import type { Consultas } from "../../datos/alcance.ts";
 import { booleano, entero, enumerado, fechaISO, objeto, opcional, parsear, parsearQuery, uuid } from "../validar.ts";
 
 const ESTATUS = ["activa", "congelada", "baja"] as const;
@@ -44,6 +53,17 @@ export function errorDeInscripcion(r: Extract<ResultadoDeInscripcion, { ok: fals
   if (motivo === "fecha_invalida" || motivo === "dia_de_corte_invalido" || motivo === "cotizacion_invalida") throw validacion(r.detalles ?? [{ mensaje: r.mensaje }], r.mensaje);
   throw conflicto(r.mensaje, [{ campo: "motivo", mensaje: motivo }, ...(r.detalles ?? []), ...(r.inscripcionId ? [{ campo: "inscripcion_id", mensaje: r.inscripcionId }] : [])]);
 }
+
+const esquemaCambiarGrupo = objeto({ grupo_id: uuid() });
+const esquemaBaja = objeto({ motivo_baja_id: uuid() });
+
+/** Un rechazo de `cambios.ts` en el error de la convención. */
+function errorDeCambio(r: Extract<ResultadoDeCambio, { ok: false }>): never {
+  if (r.motivo === "inscripcion_inexistente" || r.motivo === "grupo_inexistente") throw noEncontrado(r.mensaje);
+  if (r.motivo === "motivo_inexistente") throw validacion([{ campo: "motivo_baja_id", mensaje: r.mensaje }], r.mensaje);
+  throw conflicto(r.mensaje, [{ campo: "motivo", mensaje: r.motivo }]);
+}
+const delCambio = (a: { estatus: string; grupoId: string; fechaBaja: string | null; motivoBajaId: string | null }): Instantanea => ({ estatus: a.estatus, grupo_id: a.grupoId, fecha_baja: a.fechaBaja, motivo_baja_id: a.motivoBajaId });
 
 export function rutasDeInscripciones(_deps: DepsApi): Router {
   const r = Router();
@@ -109,6 +129,64 @@ export function rutasDeInscripciones(_deps: DepsApi): Router {
     // Si la familia esperaba un lugar en este grupo, la entrada de la lista se cierra como inscrita (con su propio candado, ya confirmada la inscripción).
     if (resultado.inscripcion.listaDeEspera) await cerrarEntradaDe(ctx.db, resultado.inscripcion.listaDeEspera.grupoId, resultado.inscripcion.listaDeEspera.prospectoId, "inscrito");
     res.status(201).json(presentarInscripcion(await leer(ctx, resultado.inscripcion.id), ctx.ahora()));
+  });
+
+  /**
+   * Corre un cambio de F5 en UNA transacción con su registro de cambios; ya confirmado, si soltó un lugar activo avisa a la lista de espera
+   * (su propia transacción con candado). Devuelve la inscripción como queda y, si hubo, la tarea de «se liberó un lugar».
+   */
+  async function cambiar(ctx: ContextoApi, id: string, hacer: (tx: Consultas) => Promise<ResultadoDeCambio>) {
+    await leer(ctx, id); // alcance: lo ajeno es 404
+    const resultado = await ctx.db.$transaction(async (tx) => {
+      const r = await hacer(tx);
+      if (r.ok) await registrarCambio(tx, ctx, { entidad: "inscripcion", entidadId: id, accion: "actualizar", antes: delCambio(r.antes), despues: delCambio(r.despues) });
+      return r;
+    });
+    if (!resultado.ok) errorDeCambio(resultado);
+    const oferta = resultado.liberaLugarEn ? await ofrecerLugarLiberado(ctx.db, resultado.liberaLugarEn, { ahora: ctx.ahora() }) : null;
+    return { ...presentarInscripcion(await leer(ctx, id), ctx.ahora()), lista_espera: oferta ? { tarea_id: oferta.tareaId, prospecto_id: oferta.entrada.prospectoId, posicion: oferta.entrada.posicion } : null };
+  }
+  const actor = (ctx: ContextoApi) => ({ ahora: ctx.ahora(), usuarioId: ctx.usuario.id });
+
+  r.post("/inscripciones/:id/cambiar-grupo", requierePermiso("inscripciones:escribir"), json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const { grupo_id } = parsear(esquemaCambiarGrupo, req.body);
+    // El grupo nuevo tiene que estar a la vista de quien lo cambia.
+    const filtroGrupo = (await dondeInscripcionVisible(ctx))["grupo"];
+    if (!(await ctx.db.grupo.findFirst({ where: { id: grupo_id, ...(filtroGrupo ? (filtroGrupo as Record<string, unknown>) : {}) }, select: { id: true } }))) throw noEncontrado("No se encontró el grupo");
+    res.json(await cambiar(ctx, id, (tx) => cambiarDeGrupo(tx, actor(ctx), { inscripcionId: id, grupoNuevoId: grupo_id })));
+  });
+
+  r.post("/inscripciones/:id/congelar", requierePermiso("inscripciones:escribir"), json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    res.json(await cambiar(ctx, id, (tx) => congelarInscripcion(tx, actor(ctx), { inscripcionId: id })));
+  });
+
+  r.post("/inscripciones/:id/reactivar", requierePermiso("inscripciones:escribir"), json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    res.json(await cambiar(ctx, id, (tx) => reactivarInscripcion(tx, actor(ctx), { inscripcionId: id })));
+  });
+
+  r.post("/inscripciones/:id/baja", requierePermiso("inscripciones:escribir"), json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const { motivo_baja_id } = parsear(esquemaBaja, req.body);
+    res.json(await cambiar(ctx, id, (tx) => darDeBaja(tx, actor(ctx), { inscripcionId: id, motivoBajaId: motivo_baja_id })));
+  });
+
+  r.get("/inscripciones/:id/movimientos", requierePermiso("inscripciones:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    await leer(ctx, id);
+    const filas = await ctx.db.inscripcion_movimiento.findMany({
+      where: { inscripcion_id: id },
+      orderBy: [{ secuencia: "asc" }],
+      select: { id: true, tipo: true, fecha: true, creado_en: true, grupo_anterior: { select: { id: true, nombre: true } }, grupo_nuevo: { select: { id: true, nombre: true } }, motivo_baja: { select: { id: true, codigo: true, nombre: true } }, usuario: { select: { id: true, nombre: true } } },
+    });
+    res.json({ datos: filas.map((m) => ({ id: m.id, tipo: m.tipo, fecha: m.fecha.toISOString().slice(0, 10), registrado_en: m.creado_en, grupo_anterior: m.grupo_anterior, grupo_nuevo: m.grupo_nuevo, motivo_baja: m.motivo_baja, usuario: m.usuario })) });
   });
 
   return r;

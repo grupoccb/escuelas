@@ -62,3 +62,12 @@ INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_i
   ('00000000-0000-4000-8000-000000000806', '00000000-0000-4000-8000-000000000001', 'Promoción por vencer: aviso 3 días antes', NULL, NULL,
    'promocion_por_vencer', -4320, '00000000-0000-4000-8000-000000000708', 1, '{}', ARRAY[1,2,3,4,5,6])
 ON CONFLICT DO NOTHING;
+
+-- ── Motivos de baja de una inscripción (F5) ── [SUPUESTO]: la escuela los edita desde administración (GET|POST|PATCH|DELETE /api/motivos-baja).
+INSERT INTO motivo_baja (id, organizacion_id, codigo, nombre, orden) VALUES
+  ('00000000-0000-4000-8000-000000000931', '00000000-0000-4000-8000-000000000001', 'economico',          'Económico',              1),
+  ('00000000-0000-4000-8000-000000000932', '00000000-0000-4000-8000-000000000001', 'cambio_de_domicilio', 'Cambio de domicilio',    2),
+  ('00000000-0000-4000-8000-000000000933', '00000000-0000-4000-8000-000000000001', 'horario',            'Horario',                3),
+  ('00000000-0000-4000-8000-000000000934', '00000000-0000-4000-8000-000000000001', 'insatisfaccion',     'Insatisfacción',         4),
+  ('00000000-0000-4000-8000-000000000935', '00000000-0000-4000-8000-000000000001', 'otro',               'Otro',                   9)
+ON CONFLICT DO NOTHING;

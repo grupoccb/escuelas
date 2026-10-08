@@ -302,3 +302,10 @@ export async function sembrarAlumno(
   }
   return { alumnoId: alumno.id, tutorId: tutor.id, leadId: fam.leadId, prospectoId: fam.prospectoId, telefono };
 }
+
+/** Un motivo de baja de la organización (F5); devuelve su id. */
+export async function sembrarMotivoBaja(prisma: PrismaPruebas, org: OrganizacionDePrueba, codigo = "motivo_de_prueba"): Promise<string> {
+  const previo = await prisma.motivo_baja.findFirst({ where: { organizacion_id: org.organizacionId, codigo, eliminado_en: null } });
+  if (previo) return previo.id;
+  return (await prisma.motivo_baja.create({ data: { organizacion_id: org.organizacionId, codigo, nombre: "Motivo de prueba" } })).id;
+}

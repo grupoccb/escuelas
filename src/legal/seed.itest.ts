@@ -61,6 +61,14 @@ test("D7 seed: los motivos de pérdida de ejemplo y los umbrales de días sin mo
   assert.equal(await db().motivo_perdida.count(), 6, "volver a correr el seed no duplica");
 });
 
+test("F5 seed: los motivos de baja de ejemplo [SUPUESTO] de la escuela; idempotente", async () => {
+  const motivos = await db().motivo_baja.findMany({ orderBy: { orden: "asc" }, select: { codigo: true, activo: true } });
+  assert.deepEqual(motivos.map((m) => m.codigo), ["economico", "cambio_de_domicilio", "horario", "insatisfaccion", "otro"]);
+  assert.ok(motivos.every((m) => m.activo));
+  await aplicar("seguimiento");
+  assert.equal(await db().motivo_baja.count(), 5, "volver a correr el seed no duplica");
+});
+
 test("D8 seed: plantillas de marketing y las dos automatizaciones (lead frío y promoción por vencer) con los tiempos de ejemplo; idempotente", async () => {
   const plantillas = await db().plantilla_mensaje.findMany({ where: { codigo: { in: ["reenganche_lead_frio", "promocion_por_vencer"] } }, select: { codigo: true, categoria: true, estado_aprobacion: true, variables: true, cuerpo_referencia: true } });
   assert.equal(plantillas.length, 2);

@@ -95,6 +95,8 @@ model organizacion {
   alumnos                    alumno[]
   tutores_alumnos            tutor_alumno[]
   inscripciones              inscripcion[]
+  motivos_baja               motivo_baja[]
+  inscripciones_movimientos  inscripcion_movimiento[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -1075,6 +1077,8 @@ model grupo {
   clases_muestra        clase_muestra[]
   registros_recomendado registro_clase_muestra[]
   inscripciones         inscripcion[]
+  movimientos_desde     inscripcion_movimiento[] @relation("movimiento_grupo_anterior")
+  movimientos_hacia     inscripcion_movimiento[] @relation("movimiento_grupo_nuevo")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1333,6 +1337,7 @@ model usuario {
   aceptaciones_capturadas  aceptacion_legal[]      @relation("aceptacion_capturada_por")
   cambios_de_etapa         lead_etapa_historial[]  @relation("historial_usuario")
   inscripciones_creadas    inscripcion[]           @relation("inscripcion_creada_por")
+  inscripciones_movidas    inscripcion_movimiento[] @relation("movimiento_usuario")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2356,6 +2361,10 @@ model inscripcion {
   descuento_mensualidad_aplicado Decimal             @default(0) @db.Decimal(12, 2)
   meses_gratis_aplicados         Int                 @default(0)
   meses_pagados_por_adelantado   Int                 @default(0)
+  /// Por qué se dio de baja (catálogo editable por organización, F5). Solo con `estatus = baja`.
+  motivo_baja_id                 String?             @db.Uuid
+  /// Desde cuándo está congelada (F5). Solo con `estatus = congelada`.
+  congelada_desde                DateTime?           @db.Date
   /// Día del mes en que corta el pago (1 a 31). En un mes más corto vale su último día (`src/inscripciones/corte.ts`).
   dia_corte_pago                 Int
   creado_por_usuario_id          String?             @db.Uuid
@@ -2372,11 +2381,74 @@ model inscripcion {
   cotizacion    cotizacion?           @relation(fields: [cotizacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   promocion     promocion?            @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   creado_por    usuario?              @relation("inscripcion_creada_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  motivo_baja   motivo_baja?          @relation(fields: [motivo_baja_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   aplicaciones  promocion_aplicacion[]
+  movimientos   inscripcion_movimiento[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([alumno_id])
   @@index([grupo_id])
   @@index([lead_id])
+}
+
+// ── Cambio de grupo, congelar y baja (F5) ──────────────────────────────────────────────────────
+
+/// Catálogo editable de motivos de baja de una inscripción, por organización (como `motivo_perdida`). El código nunca decide nada: solo se reporta.
+model motivo_baja {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  /// Identificador estable en minúsculas. Único entre los vivos de la organización.
+  codigo          String
+  nombre          String
+  orden           Int       @default(0)
+  activo          Boolean   @default(true)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion              @relation(fields: [organizacion_id], references: [id])
+  inscripciones inscripcion[]
+  movimientos  inscripcion_movimiento[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+enum tipo_movimiento_inscripcion {
+  cambio_grupo
+  congelacion
+  reactivacion
+  baja
+}
+
+/// Lo que le pasó a una inscripción después de nacer: de SOLO ANEXAR (disparador). Corregir un movimiento es otro movimiento. De aquí sale el
+/// «historial de cambios de grupo» del expediente.
+model inscripcion_movimiento {
+  id                String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String                      @db.Uuid
+  inscripcion_id    String                      @db.Uuid
+  tipo              tipo_movimiento_inscripcion
+  grupo_anterior_id String?                     @db.Uuid
+  grupo_nuevo_id    String?                     @db.Uuid
+  motivo_baja_id    String?                     @db.Uuid
+  /// El día (calendario local de la sucursal) en que surte efecto.
+  fecha             DateTime                    @db.Date
+  usuario_id        String?                     @db.Uuid
+  /// Orden de registro (`creado_en` puede repetirse).
+  secuencia         BigInt                      @default(autoincrement())
+  creado_en         DateTime                    @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime                    @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime?                   @db.Timestamptz(6)
+
+  organizacion    organizacion @relation(fields: [organizacion_id], references: [id])
+  inscripcion     inscripcion  @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupo_anterior  grupo?       @relation("movimiento_grupo_anterior", fields: [grupo_anterior_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupo_nuevo     grupo?       @relation("movimiento_grupo_nuevo", fields: [grupo_nuevo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  motivo_baja     motivo_baja? @relation(fields: [motivo_baja_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  usuario         usuario?     @relation("movimiento_usuario", fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([inscripcion_id, secuencia])
 }

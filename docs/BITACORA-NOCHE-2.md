@@ -48,7 +48,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F2 | HECHO | ver `git log` (`F2:`) | Conversión del lead en tutor(es), alumno(s) e inscripción(es) en una transacción: cero recaptura (vista previa solo con lo que falta), salud trasladada al alumno, idempotente, atómica y con candado por lead |
 | F3 | HECHO | ver `git log` (`F3:`) | Inscripción: precio congelado, promociones (inmediatas y diferidas) con cupo atómico, reglamento vigente aceptado, cotización aceptada, lead a «inscrito», día de corte con regla de fin de mes |
 | F4 | HECHO | ver `git log` (`F4:`) | Cupo real: `InscripcionesActivas` como fuente única (servidor, API, bot, cotizador, clase muestra, lista de espera); concurrencia con 2 y 10 inscripciones por 1 y 3 lugares |
-| F5 | PENDIENTE | | Cambio de grupo, congelar y baja |
+| F5 | HECHO | ver `git log` (`F5:`) | Cambio de grupo atómico con historial de solo anexar, congelar/reactivar, baja con motivo de un catálogo editable, lista de espera avisada, concurrencia (último lugar, cruzados, bajas simultáneas) |
 | F6 | PENDIENTE | | Quién cierra la inscripción |
 | F7 | PENDIENTE | | Hermanos |
 | G1 | PENDIENTE | | Pase de lista |
@@ -1667,3 +1667,31 @@ $ npm run test:int    → exit 0 · tests 803 · pass 803 · fail 0
 **Para Eduardo**
 - Decisión abierta: si el asesor debe elegir entre el horario cotizado y el recomendado por el maestro cuando difieren (hoy gana el cotizado).
 - La conversión no genera cargos (llegan con H1) ni pide el pago: el cobro es registro manual (H2).
+
+
+## F5. Cambio de grupo con historial, congelar y baja con motivo
+
+**Qué se hizo**
+- **Migración `20261016030000_cambios_de_inscripcion`:** `motivo_baja` (catálogo por organización, código único entre los vivos), `inscripcion_movimiento` (**de SOLO ANEXAR** por disparadores: tipo `cambio_grupo|congelacion|reactivacion|baja`, grupos, motivo, fecha local, quién y `secuencia`), y en `inscripcion`: `motivo_baja_id` y `congelada_desde`. CHECK: baja ⇔ motivo, congelada ⇔ «desde cuándo» (`NOT VALID`: las filas de prueba anteriores a F5 no los traen; toda fila nueva o modificada sí), movimiento coherente (cambio de grupo con sus dos grupos distintos, baja con motivo).
+- **`src/inscripciones/cambios.ts`:** `cambiarDeGrupo`, `congelarInscripcion`, `reactivarInscripcion`, `darDeBaja`, `recalcularEstatusDelAlumno`. API `POST /api/inscripciones/:id/{cambiar-grupo,congelar,reactivar,baja}`, `GET …/movimientos` y `GET|POST|PATCH|DELETE /api/motivos-baja`; seed `[SUPUESTO]` de los 5 motivos. Lo que suelta un lugar activo llama a `ofrecerLugarLiberado` (C9) ya confirmada la transacción.
+- Detalle y reglas en `docs/API.md` («Cambio de grupo, congelar, reactivar y baja (F5)»).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 504 · pass 504 · fail 0
+$ npm run test:int    → exit 0 · tests 817 · pass 817 · fail 0
+```
+`cambios.itest.ts` (12): catálogo de motivos (código derivado, duplicado, permisos, baja lógica, otra organización); cambio de grupo con historial y precio intacto, y el historial no admite UPDATE, DELETE ni TRUNCATE; todos los rechazos (**y nada cambia cuando el grupo nuevo está lleno**); congelar libera, reactivar sin lugar 409, cambiar de grupo congelada; baja (motivo obligatorio, activo, fecha, congelada también, antes de empezar); estatus del alumno con varias inscripciones; lista de espera (tarea al primero, por baja, congelar); permisos y alcance; **concurrencia real**: un cambio de grupo y una inscripción por el último lugar del destino (3 rondas, con barrera sobre el candado: gana una, nunca se pasa del cupo), **10 cambios hacia un grupo con 3 lugares → entran 3 y los 7 restantes siguen en su grupo (nadie se queda sin lugar)**, cambios cruzados A→B y B→A (con lugar entran los dos, llenos reciben `grupo_lleno`, sin interbloqueo), reactivar vs. inscripción por el último lugar, dos bajas simultáneas (una surte efecto); y las defensas de la base. **Mutación atrapada:** tomar los dos candados sin ordenar hace fallar la prueba de los cambios cruzados.
+
+**Decisiones que tomé**
+1. **El cambio de grupo es solo dentro del mismo programa.** El precio congelado, las promociones y el rango de edad son del programa; cambiar de programa es una baja y una inscripción nueva. Alternativa descartada: permitirlo y recalcular precio (se perdería lo congelado).
+2. **Atómico con UN UPDATE y los dos candados en orden de id** en vez de «soltar y luego tomar»: el lugar nunca queda a medias y dos cambios cruzados no se interbloquean.
+3. **Una congelada se puede cambiar de grupo sin lugar** (no ocupa); el lugar se pide al reactivar. Alternativa descartada: exigir lugar para cambiarla (bloquearía mover a una familia que volverá en meses).
+4. **La baja no devuelve el cupo de las promociones ni entrega los beneficios pendientes** (H4 los ignora si la inscripción está en baja). Alternativa descartada: marcar los pendientes como cancelados (`promocion_aplicacion` solo tiene `pendiente|entregado`; agregar un estado es decisión de H4).
+5. **`fecha_baja` = hoy (o el día de inicio si aún no empezaba)**, porque la base exige `fecha_baja >= fecha_inicio`.
+6. **Las filas de baja y congelada anteriores a F5 no se validan** (`NOT VALID`): solo existen en bases de prueba.
+7. **El estatus del alumno es derivado y se recalcula en cada cambio.** Alternativa descartada: columna editable (se desincroniza).
+
+**Para Eduardo**
+- **[SUPUESTO]** los cinco motivos de baja y que cualquier rol con escritura (incluida recepción) pueda dar de baja o congelar.
+- Decisión de producto: qué pasa con los beneficios diferidos de quien se da de baja antes de pagar y con el cupo de la promoción que ya usó.

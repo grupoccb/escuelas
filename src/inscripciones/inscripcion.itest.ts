@@ -7,7 +7,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { conAlcance } from "../datos/alcance.ts";
 import { crearCifrador } from "../sensibles/cifrado.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { sembrarAlumno, sembrarDocumentosLegales, sembrarEmbudo, sembrarOrganizacion, sembrarPrograma, type DocumentosLegalesSembrados, type OrganizacionDePrueba, type TipoDeEtapa } from "../testutil/semilla.ts";
+import { sembrarAlumno, sembrarMotivoBaja, sembrarDocumentosLegales, sembrarEmbudo, sembrarOrganizacion, sembrarPrograma, type DocumentosLegalesSembrados, type OrganizacionDePrueba, type TipoDeEtapa } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { altaConCandado } from "../lista-espera/lista-espera.ts";
@@ -295,7 +295,7 @@ test("la lista de espera se cierra como «inscrito» al inscribir a quien espera
   assert.equal(motivo(await inscribir(admin, espera.alumnoId, g.grupoId)), "grupo_lleno");
   assert.equal((await prisma.lista_espera.findFirstOrThrow({ where: { grupo_id: g.grupoId, prospecto_id: espera.prospectoId } })).estatus, "esperando");
   // Se libera el lugar (la baja llega con F5; aquí se simula) y entra quien esperaba.
-  await prisma.inscripcion.updateMany({ where: { alumno_id: ocupante.alumnoId }, data: { estatus: "baja", fecha_baja: new Date("2026-10-21") } });
+  await prisma.inscripcion.updateMany({ where: { alumno_id: ocupante.alumnoId }, data: { estatus: "baja", fecha_baja: new Date("2026-10-21"), motivo_baja_id: await sembrarMotivoBaja(prisma, org) } });
   assert.equal((await inscribir(admin, espera.alumnoId, g.grupoId)).estado, 201);
   assert.equal((await prisma.lista_espera.findFirstOrThrow({ where: { grupo_id: g.grupoId, prospecto_id: espera.prospectoId } })).estatus, "inscrito");
 });

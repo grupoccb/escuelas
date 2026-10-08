@@ -10,7 +10,7 @@ import { conAlcance } from "../datos/alcance.ts";
 import { altaConCandado } from "../lista-espera/lista-espera.ts";
 import { crearCifrador } from "../sensibles/cifrado.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { sembrarAlumno, sembrarDocumentosLegales, sembrarEmbudo, sembrarOrganizacion, sembrarPrograma, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { sembrarAlumno, sembrarMotivoBaja, sembrarDocumentosLegales, sembrarEmbudo, sembrarOrganizacion, sembrarPrograma, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { escenarioBot } from "../testutil/bot.ts";
@@ -37,7 +37,8 @@ async function inscripcionDirecta(o: OrganizacionDePrueba, alumnoId: string, pro
     data: {
       organizacion_id: o.organizacionId, alumno_id: alumnoId, programa_id: programaId, grupo_id: grupoId, estatus,
       fecha_inscripcion: new Date("2026-10-01"), fecha_inicio: new Date("2026-10-01"), precio_inscripcion_aplicado: "100.00", precio_mensualidad_aplicado: "200.00", dia_corte_pago: 1,
-      ...(estatus === "baja" ? { fecha_baja: new Date("2026-10-10") } : {}),
+      ...(estatus === "baja" ? { fecha_baja: new Date("2026-10-10"), motivo_baja_id: await sembrarMotivoBaja(prisma, o) } : {}),
+      ...(estatus === "congelada" ? { congelada_desde: new Date("2026-10-10") } : {}),
     },
   });
 }
@@ -87,7 +88,7 @@ test("un grupo se llena inscribiendo y se vuelve a abrir al congelar o dar de ba
   const lleno = await inscribir(admin, c.alumnoId, g.grupoId);
   assert.equal(lleno.estado, 409);
   assert.ok(esLleno(lleno));
-  await prisma.inscripcion.update({ where: { id: ultimo.cuerpo.id! }, data: { estatus: "congelada" } });
+  await prisma.inscripcion.update({ where: { id: ultimo.cuerpo.id! }, data: { estatus: "congelada", congelada_desde: new Date("2026-10-21") } });
   assert.equal((await inscribir(admin, c.alumnoId, g.grupoId)).estado, 201, "la congelada soltó su lugar");
 });
 
