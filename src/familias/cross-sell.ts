@@ -32,7 +32,7 @@ export async function familiasConUnHijo(db: BaseDatos, f: FiltroDeCrossSell): Pr
   const verticales = await db.vertical.findMany({ where: { activo: true }, select: { id: true, nombre: true }, orderBy: [{ nombre: "asc" }, { id: "asc" }] });
   const ofrecidas = await db.sucursal_vertical.findMany({ where: { activo: true }, select: { sucursal_id: true, vertical_id: true } });
   const tutores = await db.tutor.findMany({
-    where: { AND: [f.visible, ...(f.sucursalId ? [{ sucursal_id: f.sucursalId }] : []), { alumnos: { some: { eliminado_en: null, alumno: { eliminado_en: null, inscripciones: { some: { estatus: "activa" } } } } } }] },
+    where: { AND: [f.visible, ...(f.sucursalId ? [{ sucursal_id: f.sucursalId }] : []), { alumnos: { some: { eliminado_en: null, alumno: { eliminado_en: null, inscripciones: { some: { estatus: "activa", eliminado_en: null } } } } } }] },
     select: {
       id: true,
       nombre: true,
@@ -41,7 +41,7 @@ export async function familiasConUnHijo(db: BaseDatos, f: FiltroDeCrossSell): Pr
       sucursal_id: true,
       alumnos: {
         where: { eliminado_en: null, alumno: { eliminado_en: null } },
-        select: { alumno: { select: { id: true, nombre: true, apellidos: true, fecha_nacimiento: true, inscripciones: { where: { estatus: "activa" }, select: { programa: { select: { vertical_id: true, sucursal_id: true } } } } } } },
+        select: { alumno: { select: { id: true, nombre: true, apellidos: true, fecha_nacimiento: true, inscripciones: { where: { estatus: "activa", eliminado_en: null }, select: { programa: { select: { vertical_id: true, sucursal_id: true } } } } } } },
       },
     },
     orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }],

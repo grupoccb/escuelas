@@ -129,6 +129,25 @@ test("EF-05: un alumno no es hermano de sí mismo — su segunda inscripción (o
   }
 });
 
+test("EF-08: una inscripción con baja lógica no cuenta como hermano inscrito ni como hijo inscrito en la lista de cross-sell (las condiciones anidadas no pasan por el alcance)", async () => {
+  const promo = await promoHermanos(2);
+  try {
+    const mayor = await alumno();
+    const menor = await alumno({ conTutor: mayor.tutorId });
+    const i1 = await inscribir(admin, mayor.alumnoId, (await programa()).grupoId);
+    assert.equal(i1.estado, 201);
+    const enLista = async () => (await admin.get<Lista>("/api/familias/un-solo-hijo?limite=100")).cuerpo.datos.some((f) => f.tutor_id === mayor.tutorId);
+    assert.equal(await enLista(), true, "control: con su inscripción viva, la familia tiene un solo hijo inscrito");
+    await prisma.inscripcion.update({ where: { id: i1.cuerpo.id }, data: { eliminado_en: new Date() } });
+    assert.equal(await enLista(), false, "borrada: ya no hay ningún hijo inscrito");
+    const i2 = await inscribir(admin, menor.alumnoId, (await programa()).grupoId);
+    assert.equal(i2.estado, 201);
+    assert.equal(i2.cuerpo.descuento_mensualidad_aplicado, "0.00", "el hermano con la inscripción borrada no cuenta para la promoción");
+  } finally {
+    await apagar(promo);
+  }
+});
+
 test("dos tutores del mismo niño (mamá y abuela) NO cuentan dos veces: con una promoción de 3 hermanos, el segundo hijo todavía no la recibe", async () => {
   const promo = await promoHermanos(3);
   try {

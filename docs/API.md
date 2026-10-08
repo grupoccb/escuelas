@@ -370,7 +370,7 @@ borra la asignación (no devuelve el bot). El directorio de agentes (`Directorio
 
 ## Roles de base de datos (producción)
 
-Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_sensible`, `documento_legal`, `aceptacion_legal` y `lead_etapa_historial` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
+Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_sensible`, `documento_legal`, `aceptacion_legal`, `lead_etapa_historial` e `inscripcion_movimiento` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
 (`ALTER TABLE … DISABLE TRIGGER`). La garantía completa exige dos cuentas distintas (EB-08):
 
 - **Migraciones** (`prisma migrate deploy`): una cuenta dueña de las tablas (p. ej. `inscripciones_migrador`), que solo corre en el despliegue.
@@ -380,7 +380,7 @@ Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_
 CREATE ROLE inscripciones_app LOGIN PASSWORD '…';
 GRANT USAGE ON SCHEMA public TO inscripciones_app;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO inscripciones_app;   -- sin DELETE: el borrado es lógico (invariante 3)
-REVOKE UPDATE ON registro_cambio, acceso_dato_sensible, documento_legal, aceptacion_legal, lead_etapa_historial FROM inscripciones_app;       -- solo de anexar
+REVOKE UPDATE ON registro_cambio, acceso_dato_sensible, documento_legal, aceptacion_legal, lead_etapa_historial, inscripcion_movimiento FROM inscripciones_app;       -- solo de anexar
 ALTER DEFAULT PRIVILEGES FOR ROLE inscripciones_migrador IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO inscripciones_app;
 -- Sin TRUNCATE, ALTER ni TRIGGER: no se otorgan. Las tablas de la demo local (docker compose) usan una sola cuenta, a propósito.
 ```

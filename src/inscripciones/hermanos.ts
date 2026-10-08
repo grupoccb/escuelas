@@ -12,7 +12,8 @@ export async function hermanosInscritos(tx: Consultas, alumnoId: string): Promis
     where: {
       id: { not: alumnoId },
       tutores: { some: { eliminado_en: null, tutor_id: { in: mios.map((m) => m.tutor_id) } } },
-      inscripciones: { some: { estatus: "activa" } },
+      // EF-08: las condiciones anidadas no pasan por el alcance (conAlcance solo filtra el modelo de la consulta): una inscripción borrada no cuenta.
+      inscripciones: { some: { estatus: "activa", eliminado_en: null } },
     },
     select: { id: true },
     orderBy: { id: "asc" },

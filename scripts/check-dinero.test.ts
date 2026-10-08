@@ -46,6 +46,13 @@ test("Number(), parseInt, toFixed y Math.round sobre una línea de dinero fallan
   assert.deepEqual(hallazgos({ "src/x/a.ts": `// Number(precio) estaba mal\nconst ok = 1;` }), [], "los comentarios no cuentan");
 });
 
+test("EF-09: la inscripción y la conversión mueven dinero: también son zonas estrictas", () => {
+  assert.deepEqual(hallazgos({ "src/inscripciones/a.ts": `const x = Number(fila.v);` }), ["src/inscripciones/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/conversion/a.ts": `const x = Number(fila.v);` }), ["src/conversion/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/inscripciones/a.ts": `const d = importe * 0.15;` }), ["src/inscripciones/a.ts:1"]);
+  assert.deepEqual(hallazgos({ "src/familias/a.ts": `const x = Number(fila.v);` }), [], "fuera de las zonas y sin palabras de dinero, no se mira (límite documentado)");
+});
+
 test("en una zona de dinero cualquier llamada a flotantes falla, sin mirar los nombres", () => {
   assert.deepEqual(hallazgos({ "src/promociones/a.ts": `const x = Number(fila.v);` }), ["src/promociones/a.ts:1"]);
   assert.deepEqual(hallazgos({ "src/cotizador/a.ts": `const x = Math.round(a * 3);` }), ["src/cotizador/a.ts:1"]);
