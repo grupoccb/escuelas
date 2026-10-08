@@ -34,26 +34,27 @@ model organizacion {
   actualizado_en DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en   DateTime? @db.Timestamptz(6)
 
-  verticales          vertical[]
-  sucursales          sucursal[]
-  sucursal_verticales sucursal_vertical[]
-  canales_whatsapp    canal_whatsapp[]
-  bandejas_chatwoot   bandeja_chatwoot[]
-  campanas            campana[]
-  etapas_pipeline     etapa_pipeline[]
-  leads               lead[]
-  prospectos          prospecto[]
-  conversaciones      conversacion[]
-  mensajes            mensaje[]
-  interacciones       interaccion[]
-  consentimientos     consentimiento[]
-  plantillas_mensaje  plantilla_mensaje[]
-  automatizaciones    automatizacion[]
-  ejecuciones         automatizacion_ejecucion[]
-  tareas_asesor       tarea_asesor[]
-  programas           programa[]
-  grupos              grupo[]
-  grupo_horarios      grupo_horario[]
+  verticales                 vertical[]
+  sucursales                 sucursal[]
+  sucursal_verticales        sucursal_vertical[]
+  canales_whatsapp           canal_whatsapp[]
+  bandejas_chatwoot          bandeja_chatwoot[]
+  campanas                   campana[]
+  etapas_pipeline            etapa_pipeline[]
+  leads                      lead[]
+  prospectos                 prospecto[]
+  conversaciones             conversacion[]
+  mensajes                   mensaje[]
+  interacciones              interaccion[]
+  consentimientos            consentimiento[]
+  plantillas_mensaje         plantilla_mensaje[]
+  automatizaciones           automatizacion[]
+  ejecuciones                automatizacion_ejecucion[]
+  tareas_asesor              tarea_asesor[]
+  eventos_entrega_pendientes evento_entrega_pendiente[]
+  programas                  programa[]
+  grupos                     grupo[]
+  grupo_horarios             grupo_horario[]
 }
 
 model vertical {
@@ -454,10 +455,11 @@ model mensaje {
   actualizado_en   DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en     DateTime?         @db.Timestamptz(6)
 
-  organizacion organizacion               @relation(fields: [organizacion_id], references: [id])
-  conversacion conversacion               @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  plantilla    plantilla_mensaje?         @relation(fields: [plantilla_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
-  ejecuciones  automatizacion_ejecucion[]
+  organizacion  organizacion               @relation(fields: [organizacion_id], references: [id])
+  conversacion  conversacion               @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  plantilla     plantilla_mensaje?         @relation(fields: [plantilla_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  ejecuciones   automatizacion_ejecucion[]
+  tareas_asesor tarea_asesor[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -628,6 +630,8 @@ enum tipo_tarea_asesor {
   revision_manual
   /// Alguien dado de baja volvió a escribir. El sistema no contesta; una persona decide (A4).
   baja_volvio_a_escribir
+  /// Un evento de entrega marcó un mensaje como fallido (A5). Una por mensaje, con el código de error.
+  entrega_fallida
 }
 
 enum estado_tarea_asesor {
@@ -643,9 +647,13 @@ model tarea_asesor {
   organizacion_id String              @db.Uuid
   lead_id         String              @db.Uuid
   conversacion_id String?             @db.Uuid
+  /// Mensaje al que se refiere la tarea (entrega fallida). Una tarea por mensaje y tipo.
+  mensaje_id      String?             @db.Uuid
   tipo            tipo_tarea_asesor
   estado          estado_tarea_asesor @default(pendiente)
   descripcion     String
+  /// Código de error del proveedor (p. ej. 63016 de Twilio), cuando la tarea nace de un fallo de entrega.
+  codigo_error    Int?
   vence_en        DateTime?           @db.Timestamptz(6)
   resuelta_en     DateTime?           @db.Timestamptz(6)
   creado_en       DateTime            @default(now()) @db.Timestamptz(6)
@@ -655,10 +663,44 @@ model tarea_asesor {
   organizacion organizacion  @relation(fields: [organizacion_id], references: [id])
   lead         lead          @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   conversacion conversacion? @relation(fields: [conversacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  mensaje      mensaje?      @relation(fields: [mensaje_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([estado, vence_en])
+}
+
+enum estado_evento_entrega {
+  enviado
+  entregado
+  leido
+  fallido
+}
+
+/// Estado de entrega que llegó ANTES de que MessagingProvider guardara el id del mensaje (F1-03).
+/// No se pierde: se guarda aquí y se concilia cuando el provider guarda el id. Los que nunca
+/// encuentran mensaje (p. ej. los de un mensaje de un asesor) se descartan por antigüedad con
+/// eliminado_en. Único por (organizacion, proveedor, id_externo, estado): repetir el evento no duplica.
+model evento_entrega_pendiente {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String                @db.Uuid
+  proveedor       String
+  id_externo      String
+  id_proveedor    String?
+  estado          estado_evento_entrega
+  /// Cuándo ocurrió según la fuente; nulo si no lo dice (entonces cuenta la hora de recepción: creado_en).
+  ocurrio_en      DateTime?             @db.Timestamptz(6)
+  error_codigo    Int?
+  error_texto     String?
+  conciliado_en   DateTime?             @db.Timestamptz(6)
+  creado_en       DateTime              @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?             @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id, proveedor, id_externo])
 }
 
 // ── Catálogo (Fase 2, solo lo que pide N11: sin precios, promociones ni cotizador) ───────

@@ -273,6 +273,25 @@ test("frecuencia: un solo mensaje automático por teléfono cada 24 h; la segund
   assert.deepEqual(motivos.filter((m) => m[1] === "omitido"), [[motivos.find((m) => m[1] === "omitido")![0], "omitido", "tope_frecuencia"]]);
 });
 
+test("A5: el envío con tiempo agotado es incierto: la ejecución queda fallida/envio_incierto, hay tarea y NUNCA se reenvía", async () => {
+  const s = await escenario();
+  s.transporte.inciertoSi = (e) => e.tipo === "plantilla";
+  const r = await s.motor(en(T0, 26));
+  assert.equal(r.fallidas, 1);
+  assert.equal(s.plantillasEnviadas().length, 1, "salió una sola vez");
+  const [e] = await s.ejecuciones();
+  assert.deepEqual([e!.estatus, e!.motivo_omision], ["fallido", ENVIO_INCIERTO]);
+  const m = await s.db.mensaje.findUniqueOrThrow({ where: { id: e!.mensaje_id! } });
+  assert.deepEqual([m.estatus, m.error], ["fallido", ENVIO_INCIERTO]);
+  assert.equal(await s.db.tarea_asesor.count({ where: { conversacion_id: s.conversacionId, tipo: "revision_manual", estado: "pendiente" } }), 1);
+
+  // Ni otra corrida ni la recuperación lo vuelven a mandar o a contar.
+  s.transporte.inciertoSi = undefined;
+  const otra = await s.motor(en(T0, 40));
+  assert.equal(otra.enviadas, 0);
+  assert.equal(s.plantillasEnviadas().length, 1);
+});
+
 test("plantilla sin aprobar, inactiva o de otra vertical: no sale y queda tarea para el asesor (invariante 5)", async () => {
   for (const plantilla of [{ estado: "pendiente" as const }, { activo: false }]) {
     const s = await escenario({ plantilla });

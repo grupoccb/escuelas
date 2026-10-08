@@ -17,10 +17,11 @@ import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance
 import type { OrigenMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
 import { estaDadoDeBaja } from "./consentimiento.ts";
+import { barrerEventosEntrega, conciliarEventosPendientes } from "./estados.ts";
 import { zonaHorariaDeContacto } from "./zona-horaria.ts";
 import { esIniciadoPorSistema, evaluarReglas, ventanaServicioAbierta, type MotivoBloqueo, type PlantillaParaReglas, type TipoSaliente } from "./reglas.ts";
 import { asegurarTareaAsesor, resumirTexto } from "./tareas.ts";
-import type { DestinoConversacion, PlantillaAEnviar, TransporteConversaciones } from "./transporte.ts";
+import { EnvioIncierto, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "./transporte.ts";
 
 const PROVEEDOR = "chatwoot";
 /** Valor de `mensaje.error` cuando no se sabe si el envío salió. */
@@ -49,7 +50,7 @@ export interface Saliente {
 export interface ResultadoSaliente {
   mensajeId: string;
   resultado: "enviado" | "bloqueado" | "fallido";
-  motivo?: MotivoBloqueo | "envio_previo_fallido";
+  motivo?: MotivoBloqueo | "envio_previo_fallido" | typeof ENVIO_INCIERTO;
 }
 
 export interface ResumenDespacho {
@@ -170,8 +171,22 @@ export class MessagingProvider {
               ? await this.transporte.enviarPlantilla(conv.destino, this.plantillaAEnviar(plantilla, m.variables_usadas, m.cuerpo))
               : await this.transporte.enviarMensaje(conv.destino, m.cuerpo));
       } catch (e) {
-        // No se reintenta: el proveedor pudo haberlo recibido y un reintento duplicaría.
-        // Una persona retoma la conversación.
+        if (e instanceof EnvioIncierto) {
+          // Se acabó el tiempo o la respuesta no se pudo leer: el mensaje pudo haber salido (F1-03).
+          // NO se marca como un fallo simple ni se reenvía; queda como envío incierto con una tarea
+          // para que una persona lo revise, y la conversación pasa a un asesor.
+          await this.marcarEnvioIncierto(db, { id: m.id, direccion: m.direccion, cuerpo: m.cuerpo, conversacionId, leadId: conv.lead_id });
+          await db.conversacion.updateMany({
+            where: { id: conversacionId, estado: "bot" },
+            data: { pasar_a_asesor_pendiente: true, motivo_pase_asesor: "falla_envio" },
+          });
+          resumen.fallidos++;
+          resumen.resultados.push({ mensajeId: m.id, resultado: "fallido", motivo: ENVIO_INCIERTO });
+          falloPrevio = true;
+          continue;
+        }
+        // Fallo definitivo (no se pudo contactar al proveedor, o este respondió con un error): no
+        // salió. No se reintenta sola; una persona retoma la conversación.
         await db.mensaje.update({ where: { id: m.id }, data: { estatus: "fallido", error: (e as Error).message } });
         await db.conversacion.updateMany({
           where: { id: conversacionId, estado: "bot" },
@@ -191,6 +206,11 @@ export class MessagingProvider {
         data: { estatus: "enviado", id_externo: idExterno, enviado_en: ahora },
       });
       if (marcado.count === 0) await db.mensaje.update({ where: { id: m.id }, data: { id_externo: idExterno, enviado_en: ahora } });
+      // Un estado de entrega pudo llegar antes de que se guardara el id (F1-03): ahora se aplica.
+      // Si esto falla, el barrido de eventos lo repite; no puede romper un envío que ya salió.
+      await conciliarEventosPendientes(db, { proveedor: PROVEEDOR, idExterno, ahora }).catch((err: unknown) =>
+        log.error("conciliar_eventos_fallido", { conversacionId, mensajeId: m.id, error: (err as Error).message }),
+      );
       if (tipo === "mensaje") {
         await db.conversacion.updateMany({ where: { id: conversacionId }, data: { ultimo_mensaje_saliente_en: ahora } });
       }
@@ -268,28 +288,54 @@ export class MessagingProvider {
     db: BaseDatos,
     { desde = new Date(this.reloj().getTime() - ENVIO_INCIERTO_MS), mensajeId }: { desde?: Date; mensajeId?: string } = {},
   ): Promise<number> {
+    // Aprovecha el barrido: eventos de entrega que quedaron sin conciliar y los que ya caducaron (F1-03).
+    if (!mensajeId) {
+      await barrerEventosEntrega(db, this.reloj()).catch((err: unknown) =>
+        log.error("barrer_eventos_entrega_fallido", { error: (err as Error).message }),
+      );
+    }
     const inciertos = await db.mensaje.findMany({
       where: { estatus: "enviando", id_externo: null, actualizado_en: { lt: desde }, ...(mensajeId ? { id: mensajeId } : {}) },
       select: { id: true, direccion: true, cuerpo: true, conversacion: { select: { id: true, lead_id: true } } },
     });
     let recuperados = 0;
     for (const m of inciertos) {
-      const marcado = await db.mensaje.updateMany({
-        where: { id: m.id, estatus: "enviando", id_externo: null },
-        data: { estatus: "fallido", error: ENVIO_INCIERTO },
-      });
-      if (marcado.count !== 1) continue; // otro proceso lo resolvió
-      recuperados++;
-      log.warn("envio_incierto", { conversacionId: m.conversacion.id, mensajeId: m.id });
-      if (m.direccion !== "saliente") continue; // una nota interna perdida no llega al contacto
-      await asegurarTareaAsesor(db, {
-        leadId: m.conversacion.lead_id,
+      const marcado = await this.marcarEnvioIncierto(db, {
+        id: m.id,
+        direccion: m.direccion,
+        cuerpo: m.cuerpo,
         conversacionId: m.conversacion.id,
-        tipo: "revision_manual",
-        descripcion: `Un mensaje al contacto quedó a medias y no se sabe si salió. No se reenvió para no duplicarlo: revisa la conversación y, si hace falta, escríbele tú. Mensaje: «${resumirTexto(m.cuerpo)}»`,
+        leadId: m.conversacion.lead_id,
       });
+      if (marcado) recuperados++;
     }
     return recuperados;
+  }
+
+  /**
+   * Un mensaje reclamado cuyo resultado se ignora: lo marca `fallido` con error `envio_incierto`
+   * (solo si sigue en `enviando` sin id: idempotente) y, si era para el contacto, deja una tarea
+   * `revision_manual`. Lo comparten la recuperación de procesos muertos y el envío con tiempo
+   * agotado. NUNCA reenvía. Devuelve true si lo marcó él.
+   */
+  private async marcarEnvioIncierto(
+    db: BaseDatos,
+    m: { id: string; direccion: string; cuerpo: string; conversacionId: string; leadId: string },
+  ): Promise<boolean> {
+    const marcado = await db.mensaje.updateMany({
+      where: { id: m.id, estatus: "enviando", id_externo: null },
+      data: { estatus: "fallido", error: ENVIO_INCIERTO },
+    });
+    if (marcado.count !== 1) return false; // otro proceso lo resolvió
+    log.warn("envio_incierto", { conversacionId: m.conversacionId, mensajeId: m.id });
+    if (m.direccion !== "saliente") return true; // una nota interna perdida no llega al contacto
+    await asegurarTareaAsesor(db, {
+      leadId: m.leadId,
+      conversacionId: m.conversacionId,
+      tipo: "revision_manual",
+      descripcion: `Un mensaje al contacto quedó a medias y no se sabe si salió. No se reenvió para no duplicarlo: revisa la conversación y, si hace falta, escríbele tú. Mensaje: «${resumirTexto(m.cuerpo)}»`,
+    });
+    return true;
   }
 
   /**

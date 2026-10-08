@@ -2,7 +2,7 @@
 // Chatwoot solo deja al bot crear mensajes y cambiar el estado de la conversación, que es
 // justo lo que se usa aquí.
 
-import { ErrorTransporte, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "../transporte.ts";
+import { EnvioIncierto, ErrorTransporte, type DestinoConversacion, type PlantillaAEnviar, type TransporteConversaciones } from "../transporte.ts";
 
 export interface ConfigChatwoot {
   url: string;
@@ -57,8 +57,9 @@ export class TransporteChatwoot implements TransporteConversaciones {
       message_type: "outgoing",
       private: privado,
       ...(plantilla ? { template_params: plantilla } : {}),
-    })) as { id?: unknown };
-    if (r.id === undefined || r.id === null) throw new ErrorTransporte("Chatwoot no devolvió id de mensaje");
+    })) as { id?: unknown } | null;
+    // Respondió bien pero sin id: el mensaje se creó y no sabemos cuál es. No se reintenta.
+    if (r?.id === undefined || r.id === null) throw new EnvioIncierto("Chatwoot no devolvió id de mensaje");
     return { idExterno: String(r.id) };
   }
 
@@ -76,9 +77,49 @@ export class TransporteChatwoot implements TransporteConversaciones {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (e) {
-      throw new ErrorTransporte(`Chatwoot no respondió: ${(e as Error).message}`);
+      throw clasificarFalloDeRed(e);
     }
-    if (!res.ok) throw new ErrorTransporte(`Chatwoot respondió ${res.status}: ${await res.text()}`, res.status);
-    return res.json();
+    if (!res.ok) {
+      const detalle = await res.text().catch(() => "");
+      const mensaje = `Chatwoot respondió ${res.status}: ${detalle}`;
+      // Un 408/502/504 es "se acabó el tiempo en el camino": el mensaje pudo haberse creado.
+      // Cualquier otro error HTTP es una respuesta de Chatwoot de que NO lo hizo.
+      throw ESTADOS_HTTP_INCIERTOS.has(res.status) ? new EnvioIncierto(mensaje, res.status) : new ErrorTransporte(mensaje, res.status);
+    }
+    try {
+      return await res.json();
+    } catch {
+      // Respondió 2xx pero no se pudo leer: el mensaje se creó y no sabemos con qué id.
+      throw new EnvioIncierto("Chatwoot respondió bien pero la respuesta no se pudo leer", res.status);
+    }
   }
+}
+
+/** Respuestas HTTP que no dicen si el mensaje se creó. */
+const ESTADOS_HTTP_INCIERTOS = new Set([408, 502, 504]);
+
+/** Errores de red que garantizan que la petición nunca llegó a Chatwoot. */
+const CODIGOS_SIN_CONTACTO = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH"]);
+
+function codigosDe(e: unknown): string[] {
+  if (typeof e !== "object" || e === null) return [];
+  const o = e as { code?: unknown; cause?: unknown; errors?: unknown };
+  const propios = typeof o.code === "string" ? [o.code] : [];
+  const deLaCausa = codigosDe(o.cause);
+  const deLosAgregados = Array.isArray(o.errors) ? o.errors.flatMap(codigosDe) : [];
+  return [...propios, ...deLaCausa, ...deLosAgregados];
+}
+
+/**
+ * Separa "no se pudo contactar a Chatwoot" (nunca salió: ErrorTransporte) de "no sabemos si salió"
+ * (EnvioIncierto): el tiempo de espera agotado, una conexión cortada a media petición o cualquier
+ * error que no podamos probar que ocurrió antes de enviar. Ante la duda, incierto: no se reenvía.
+ */
+export function clasificarFalloDeRed(e: unknown): ErrorTransporte {
+  const motivo = e instanceof Error ? e.message : String(e);
+  const codigos = codigosDe(e);
+  if (codigos.length > 0 && codigos.every((c) => CODIGOS_SIN_CONTACTO.has(c))) {
+    return new ErrorTransporte(`No se pudo contactar a Chatwoot: ${motivo}`);
+  }
+  return new EnvioIncierto(`Chatwoot no respondió y no se sabe si recibió el mensaje: ${motivo}`);
 }

@@ -273,7 +273,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     resumen.omitidas++;
     return;
   }
-  await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "fallido", motivo_omision: r ? "envio_fallido" : "sin_resultado", mensaje_id: mensajeId ?? null } });
+  const motivoFallo = r ? (r.motivo === ENVIO_INCIERTO ? ENVIO_INCIERTO : "envio_fallido") : "sin_resultado";
+  await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "fallido", motivo_omision: motivoFallo, mensaje_id: mensajeId ?? null } });
   resumen.fallidas++;
 }
 

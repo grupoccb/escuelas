@@ -7,13 +7,16 @@ import { TransporteFalso } from "./fake.ts";
 import { MessagingProvider } from "./provider.ts";
 
 export { MessagingProvider, ENVIO_INCIERTO, ENVIO_INCIERTO_MS, type Saliente, type ResumenDespacho } from "./provider.ts";
-export { asegurarTareaAsesor, asegurarTareaEnTransaccion, resumirTexto, type TareaParaAsesor } from "./tareas.ts";
+export { asegurarTareaAsesor, asegurarTareaDeMensaje, asegurarTareaEnTransaccion, resumirTexto, type TareaDeMensaje, type TareaParaAsesor } from "./tareas.ts";
 export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
+export { EnvioIncierto, ErrorTransporte, type TransporteConversaciones } from "./transporte.ts";
 export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
 export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";
 export { AtribucionDesdeChatwoot } from "./chatwoot/atribucion.ts";
 export { EstadosEntregaChatwoot } from "./chatwoot/estados.ts";
 export {
+  barrerEventosEntrega,
+  conciliarEventosPendientes,
   registrarEstadoEntrega,
   siguienteEstatus,
   type CambioDeEstado,

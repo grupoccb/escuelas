@@ -38,3 +38,11 @@ export class ErrorTransporte extends Error {
     this.status = status;
   }
 }
+
+/**
+ * El envío pudo haber salido o no: se acabó el tiempo, la conexión se cortó a medias, o Chatwoot
+ * respondió bien pero sin un id utilizable. A diferencia de ErrorTransporte (no se pudo contactar
+ * al proveedor o respondió con un error definitivo), aquí NO se sabe. MessagingProvider no lo
+ * reenvía (a lo sumo una vez, invariante 8) y deja una tarea al asesor.
+ */
+export class EnvioIncierto extends ErrorTransporte {}

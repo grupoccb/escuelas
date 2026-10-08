@@ -37,6 +37,39 @@ export async function asegurarTareaAsesor(db: Consultas, t: TareaParaAsesor): Pr
   }
 }
 
+export interface TareaDeMensaje extends TareaParaAsesor {
+  mensajeId: string;
+  /** Código de error del proveedor, si lo hay (p. ej. 63016). */
+  codigoError: number | null;
+}
+
+/**
+ * Tarea ligada a UN mensaje (entrega fallida). Una por mensaje y tipo, sin importar su estado: un
+ * fallo posterior del mismo mensaje, o el mismo evento repetido, no crea otra aunque la primera
+ * ya se haya resuelto. Distinta de las tareas "una pendiente por conversación". Devuelve true si
+ * la creó. Fuera de una transacción (atrapa el choque del índice único).
+ */
+export async function asegurarTareaDeMensaje(db: Consultas, t: TareaDeMensaje): Promise<boolean> {
+  const existente = await db.tarea_asesor.findFirst({ where: { mensaje_id: t.mensajeId, tipo: t.tipo }, select: { id: true } });
+  if (existente) return false;
+  try {
+    await db.tarea_asesor.create({
+      data: altaConAlcance({
+        lead_id: t.leadId,
+        conversacion_id: t.conversacionId,
+        mensaje_id: t.mensajeId,
+        tipo: t.tipo,
+        descripcion: t.descripcion,
+        codigo_error: t.codigoError,
+      }),
+    });
+    return true;
+  } catch (e) {
+    if (!esViolacionUnica(e)) throw e;
+    return false;
+  }
+}
+
 /**
  * Variante para usar DENTRO de una transacción: consulta y crea, pero no atrapa el choque del
  * índice único (en Postgres un error aborta la transacción y atraparlo no sirve de nada). Si dos

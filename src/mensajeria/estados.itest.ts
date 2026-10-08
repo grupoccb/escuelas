@@ -137,8 +137,8 @@ test("otra fuente puede encontrar el mensaje por el id del proveedor (MessageSid
   assert.equal((await releer(m.id)).estatus, "entregado");
 });
 
-test("mensaje o bandeja desconocidos no lanzan", async () => {
-  assert.equal(await registrar(cambio({ id_externo: "999999999" }, "entregado")), "mensaje_desconocido");
+test("mensaje o bandeja desconocidos no lanzan (el evento se guarda para conciliarlo, F1-03)", async () => {
+  assert.equal(await registrar(cambio({ id_externo: "999999999" }, "entregado")), "guardado_para_conciliar");
   assert.equal(await registrar(cambio({ id_externo: "1" }, "entregado", { bandeja: { chatwootAccountId: 1, chatwootInboxId: 1 } })), "bandeja_desconocida");
   assert.equal(await registrar(cambio({ id_externo: "1" }, "entregado", { bandeja: null })), "bandeja_desconocida");
 });
@@ -146,6 +146,11 @@ test("mensaje o bandeja desconocidos no lanzan", async () => {
 test("aislamiento: un evento de la bandeja de otra organización no toca mensajes de esta", async () => {
   const m = await mensajeEnviado();
   const deOtra = cambio(m, "leido", { bandeja: { chatwootAccountId: otra.chatwootAccountId, chatwootInboxId: otra.chatwootInboxId } });
-  assert.equal(await registrar(deOtra), "mensaje_desconocido");
+  assert.equal(await registrar(deOtra), "guardado_para_conciliar");
   assert.equal((await releer(m.id)).estatus, "enviado");
+  // El evento quedó guardado en la organización dueña de la bandeja, no en la del mensaje.
+  const guardados = (o: OrganizacionDePrueba) =>
+    conAlcance(prisma, o.organizacionId).evento_entrega_pendiente.count({ where: { id_externo: m.id_externo! } });
+  assert.equal(await guardados(otra), 1);
+  assert.equal(await guardados(org), 0);
 });

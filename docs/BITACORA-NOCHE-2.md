@@ -9,7 +9,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A2 | HECHO | dae9e9d | Correcciones de A1: las 2 ALTA (F1-02 cierra con A3) y 11 de los demás hallazgos |
 | A3 | HECHO | 8f607f2 | Lead a medias: visible a los 30 min sin marcar atención humana; una persona la toma por asignación o primer mensaje |
 | A4 | HECHO | ver sección | Baja que vuelve a escribir: tarea `baja_volvio_a_escribir` (una pendiente por conversación), el sistema calla |
-| A5 | PENDIENTE | | Entrega fallida |
+| A5 | HECHO | ver sección | Entrega fallida: tarea con el código de error, una por mensaje; cierra F1-03 (evento adelantado y tiempo agotado) |
 | A6 | PENDIENTE | | Frecuencia |
 | A7 | PENDIENTE | | Firma en el borde |
 | A8 | PENDIENTE | | SPEC.md al día |
@@ -140,7 +140,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 |---|---|---|
 | F1-01 ALTA | corregido | ver arriba |
 | F1-02 ALTA | corregido en A3 | el test que lo reproduce está en A3 (`atencion-humana.itest.ts`) |
-| F1-03 | pendiente (A5) | se deja para A5 por indicación |
+| F1-03 | corregido en A5 | evento de entrega adelantado y tiempo agotado del transporte |
 | F1-04 | corregido | |
 | F1-05 | corregido | borrar un lead no cierra su conversación; ver "Para Eduardo" |
 | F1-06 | corregido | |
@@ -250,3 +250,30 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 **Para Eduardo**
 - Qué hace la tarea: solo avisa. Para levantar la baja hace falta un `opt_in` explícito (no hay palabra de alta; sigue abierto en la lista de decisiones de la auditoría).
 - La tarea cita el mensaje del contacto (recortado a 160 caracteres) en la descripción.
+
+## A5. Entrega fallida y F1-03
+
+**Qué se hizo**
+- **Tarea por entrega fallida.** Cuando un evento de entrega marca un mensaje `fallido`, `registrarEstadoEntrega` deja una tarea `entrega_fallida` para el asesor con el **código de error** en la descripción y en un campo estructurado (`tarea_asesor.codigo_error`), ligada al mensaje (`tarea_asesor.mensaje_id`). **Una por mensaje**: índice único `(mensaje_id, tipo)` sin importar el estado, así que el mismo evento repetido (también concurrente) y un fallo posterior del mismo mensaje, incluso con la tarea ya resuelta, no crean otra. El índice viejo "una pendiente por conversación y tipo" ahora solo vale para tareas sin mensaje (dos mensajes fallidos en la misma conversación = dos tareas). Migración `20261009020000_entrega_fallida` (enum, columnas, FK compuesta, tabla nueva, y los dos índices recreados/creados con SQL a mano).
+- **F1-03 (a) Estado de entrega adelantado.** Si el evento llega antes de que `despachar` guarde el `id_externo`, ya no se pierde: se guarda en la tabla nueva `evento_entrega_pendiente` (con `organizacion_id`; único por `(organizacion, proveedor, id_externo, estado)`) y `registrarEstadoEntrega` responde `guardado_para_conciliar` (HTTP 200, el webhook no cambia). `despachar` concilia en cuanto guarda el id (`conciliarEventosPendientes`: aplica los eventos en orden de ocurrencia; idempotente; escritura condicional al estatus leído para que evento y conciliación simultáneos no retrocedan un estado). Para la carrera "el provider guardó el id justo entre mi búsqueda y mi guardado", el manejador del evento vuelve a buscar el mensaje tras guardar y, si ya existe, concilia él. `barrerEventosEntrega` (dentro de `recuperarEnviosInciertos`, o sea en el barrido de 60 s) concilia lo que se cortó y descarta con `eliminado_en` los eventos sin mensaje tras 1 h (los de mensajes de asesores, por ejemplo). Los eventos conciliados no se borran.
+- **F1-03 (b) Tiempo agotado.** Nueva clase `EnvioIncierto` (subclase de `ErrorTransporte`). `TransporteChatwoot` distingue: *definitivo* = conexión rechazada/host no encontrado/red inalcanzable (`ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, `EHOSTUNREACH`, `ENETUNREACH`) y cualquier HTTP de error salvo 408/502/504; *incierto* = tiempo agotado, conexión cortada, 408/502/504, 2xx sin id o con cuerpo ilegible, y **cualquier error de red que no podamos probar que ocurrió antes de enviar**. En el provider, un `EnvioIncierto` marca el mensaje `fallido` con error `envio_incierto` (el mismo estado final que deja la recuperación de A2, reutilizando su código: `marcarEnvioIncierto`), crea la tarea `revision_manual` (una pendiente por conversación), pasa la conversación a un asesor y **no reenvía**; los siguientes del lote no salen. El motor lo refleja como ejecución `fallido`/`envio_incierto`.
+- **Fake configurable** (`TransporteFalso`): `demoraMs`, `fallarSi` (definitivo, ya existía), `inciertoSi` (el envío SÍ sale y el transporte lanza `EnvioIncierto`) y `alEnviar(envio, idExterno)` (momento exacto para que llegue un evento de entrega antes de devolver el id).
+
+**Verificación**
+- `src/mensajeria/entrega-fallida.itest.ts` (16 tests): tarea con código (campo y descripción); evento repetido/concurrente y fallo posterior = una sola (aun con la primera resuelta); dos mensajes = dos tareas; sin código; entregado/leído/fallo ignorado no crean; aislamiento por organización; el `fallido 63016` durante el envío se concilia y deja su tarea; estados fuera de orden durante el envío y evento repetido sin duplicar; carrera evento vs. guardado del id × 25 vueltas; evento ajeno guardado y descartado solo al caducar (soft delete); el barrido concilia lo que se cortó; aislamiento de eventos guardados; incierto = fallido/`envio_incierto` + tarea + sin reenvío (ni al redespachar ni en la recuperación); fallo definitivo no es incierto; lote con incierto; flujo completo desde el bot.
+- `src/mensajeria/chatwoot/transporte.test.ts` (9 tests) contra un servidor HTTP local: tiempo agotado, conexión cortada, 2xx sin id/ilegible/`null`, 401/404/422/500 definitivos, 408/502/504 inciertos, conexión rechazada definitiva, nota y apertura, clasificación pura.
+- `motor.itest.ts` (+1): envío incierto en el motor = ejecución `fallido/envio_incierto`, una sola salida, una tarea.
+- `npm run validar` → exit 0 · `ℹ tests 147 · pass 147 · fail 0`. `npm run test:int` → exit 0 · `ℹ tests 159 · pass 159 · fail 0` (antes 142).
+
+**Decisiones que tomé**
+- *Envío incierto = `fallido`/`envio_incierto` de inmediato*, no quedarse en `enviando` hasta que pasen 5 min. Alternativa descartada: dejarlo `enviando` y que el recuperador de A2 lo resuelva después; el contacto tardaría 5+ min en tener tarea y un asesor sin tarea no sabría por qué la conversación está parada. Mismo estado final que el recuperador, mismo código.
+- *Ante la duda, incierto.* Solo los códigos de red que prueban que la petición nunca llegó son definitivos. Costo: un Chatwoot apagado "con timeout" (no rechazo) se trata como incierto y genera tarea de revisión en lugar de un fallo simple. Es el lado seguro (a lo sumo una vez).
+- *500 de Chatwoot = definitivo, 502/504/408 = incierto.* Un 500 puede, en teoría, haber creado el mensaje antes de fallar; no hay forma de saberlo. Alternativa descartada: todo 5xx incierto (llenaría de tareas por fallos reales de la aplicación).
+- *Una tabla de eventos pendientes* y no devolver 5xx para que Chatwoot reintente: Chatwoot no reintenta eventos del Agent Bot de forma confiable y el reintento no aseguraría que el id ya esté guardado. Alternativa descartada: 202/500 mientras el mensaje esté `enviando`.
+- *Descarte a 1 h* (`EVENTO_ENTREGA_VIGENCIA_MS`): un envío normal guarda su id en segundos y el peor caso (proceso muerto) lo resuelve el recuperador a los 5 min.
+- *Tests existentes cambiados porque cambió la regla:* en `estados.itest.ts` el resultado `mensaje_desconocido` pasa a `guardado_para_conciliar` (dos aserciones), y el test de aislamiento comprueba además dónde queda guardado el evento. Los demás no se tocaron.
+- El tope de frecuencia aún no cuenta los envíos inciertos que sí salieron; lo trata A6.
+
+**Para Eduardo**
+- Con Twilio real conviene medir si un mensaje de un asesor genera muchos eventos huérfanos (se descartan a la hora, no hacen daño).
+- `entrega_fallida` y `revision_manual` aparecen como tareas distintas: cuando exista la bandeja de tareas (J3) habrá que decidir si se agrupan por conversación.
