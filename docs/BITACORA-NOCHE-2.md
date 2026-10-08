@@ -31,10 +31,10 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C8 | HECHO | ver sección | Cotización guardada (`cotizacion`, snapshot congelado) y cotizador por WhatsApp por vertical: el bot cotiza, el contacto elige horario, handoff con la cotización; `GET/POST /api/leads/:id/cotizaciones` |
 | C9 | HECHO | ver sección | Lista de espera: tabla `lista_espera` (posición densa y única, alta atómica), el bot la ofrece en un horario lleno, API de asesor (listar, quitar, mover) y `ofrecerLugarLiberado` |
 | C-fix | HECHO (12 pendientes, 7 decisiones) | cd6ba4e…a9690ad | Correcciones de la auditoría de la etapa C (`docs/auditorias/etapa-C.md`): ver la sección «Auditoría y correcciones de la etapa C» |
-| D1 | HECHO | ver `git log` (`D1:`) | Clase muestra: tabla `clase_muestra`, sesiones por zona horaria, lugares de la sesión con candado de cupo, reprogramar atómico, `tipo_sistema` de etapa, API y bot |
-| D2 | HECHO | ver `git log` (`D2:`) | Aviso al maestro: `aviso_maestro` (lista en la aplicación + unidad de envío), `MessagingProvider.avisarAInstructor` con todas las reglas, `conversacion_instructor` y plantillas del seed |
-| D3 | HECHO | ver `git log` (`D3:`) | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
-| D4 | HECHO | ver `git log` (`D4:`) | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
+| D1 | HECHO | e2bfc20 | Clase muestra: tabla `clase_muestra`, sesiones por zona horaria, lugares de la sesión con candado de cupo, reprogramar atómico, `tipo_sistema` de etapa, API y bot |
+| D2 | HECHO | 576f00e | Aviso al maestro: `aviso_maestro` (lista en la aplicación + unidad de envío), `MessagingProvider.avisarAInstructor` con todas las reglas, `conversacion_instructor` y plantillas del seed |
+| D3 | HECHO | 7df6d8d | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
+| D4 | HECHO | de73e25 | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
 | D5 | PENDIENTE | | Registro del maestro |
 | D6 | PENDIENTE | | Reglamento y autorización de imagen |
 | D7 | PENDIENTE | | Embudo con historial |
@@ -1177,7 +1177,7 @@ Mutaciones atrapadas: `>=` → `>` en el borde (7 tests), `<` → `<=` en el mom
 **Verificación**
 ```
 $ npm run validar     → exit 0 · tests 449 · pass 449 · fail 0
-$ npm run test:int    → exit 0 (ver «Cierre de la etapa D» abajo para los conteos del último commit)
+$ npm run test:int    → exit 0 · tests 622 · pass 622 · fail 0
 ```
 Tests nuevos: `recuperacion.test.ts` (4, puros: offsets, espaciado, tope, horario de noche, domingo, Nueva York), `asistencia.itest.ts` (22: la hora exacta, idempotencia, etapa que solo avanza, recuperación y tarea, las dos correcciones, la ventana, volver a agendar, el flujo con el motor —primer y segundo intento, tope, horario, contesta, el anterior no salió, baja / frecuencia / atención humana, revalidación, sin conversación, atraso del servidor, Nueva York—, 3 de concurrencia, no-fuga), `asistencia-api.itest.ts` (6: permisos y alcance, hora, estados, validación, corrección, 6 PATCH simultáneos) y los de seed y `fuga.itest.ts` (**un flujo nuevo que recorre D1 a D4 con fichas de salud centinela y exige que no aparezcan en logs, notas, mensajes ni en ninguna tabla**).
 Mutaciones atrapadas: `<` → `<=` y sin la regla de «no antes de la hora», ventana `>=` y sin ventana, sin el cambio condicional (2 tests), asistió que no cancela la recuperación ni cierra la tarea, corregir que no regresa la etapa, idempotencia rota, motor sin `contacto_respondio`, sin `intento_anterior_no_salio`, sin `ya_reagendo`, y la recuperación con límite de clase (atrapada al agregar «el servidor estuvo caído y el intento se atrasó hasta la noche»). **Sobrevive (equivalente):** quitar la revisión «ya hay una tarea pendiente» en `tareaDeLlamar`, porque la tarea solo se crea en la transición condicional de estatus y no hay otro camino que la repita; queda como defensa.
@@ -1198,7 +1198,15 @@ Mutaciones atrapadas: `<` → `<=` y sin la regla de «no antes de la hora», ve
 
 ## Cierre de la etapa D (D1 a D4) — para quien siga (D5 a D8)
 
-**Estado.** D1 a D4 HECHOS (commits `D1:` … `D4:`). D5 a D8 no se tocaron. Etapa D sin auditar ni etiquetar (lo hace quien coordina).
+**Estado.** D1 a D4 HECHOS (commits `e2bfc20`, `576f00e`, `7df6d8d`, `de73e25`). D5 a D8 no se tocaron. Etapa D sin auditar ni etiquetar (lo hace quien coordina).
+
+**Verificación del último commit de código (`de73e25`; árbol limpio)**
+```
+$ npm run validar                      → exit 0 · tests 449 · pass 449 · fail 0   (línea base de la etapa: 409; tres corridas seguidas)
+$ npm run test:int                     → exit 0 · tests 622 · pass 622 · fail 0   (línea base: 500; 1.ª, 2.ª y 3.ª corrida seguidas)
+$ DATABASE_URL_PRUEBAS=…/vacia_d_pruebas npm run test:int → exit 0 · tests 622 · pass 622 · fail 0   (base NUEVA y vacía; luego se borró)
+```
+Las migraciones también se aplicaron sobre una copia con datos de la base de la demo (`pg_dump`, luego borrada): sin diferencias con el schema. Una vez, en una corrida de `validar`, `src/barrido.test.ts` («un barrido que lanza no mata el intervalo») falló por tiempos con la máquina ocupada; no se tocó ese archivo ni `barrido.ts` y pasó en las tres corridas siguientes. Es una intermitencia previa (el test depende de temporizadores de decenas de milisegundos); conviene vigilarla.
 
 **Qué hay para enchufar lo que sigue**
 - **Embudo por tipo (D7).** `etapa_pipeline.tipo_sistema` (enum `nuevo, contactado, muestra_agendada, muestra_asistida, negociacion, inscrito, perdido`; a lo más una viva por tipo y organización). `src/embudo/etapas.ts`: `etapaDeSistema(tx, tipo)`, `moverLeadAEtapa(tx, leadId, tipo, {motivo, permitirRetroceso?})` (solo avanza, salvo lead perdido; no mueve a un ganado; deja una `interaccion` `cambio_etapa` con `desde_etapa_id`, `hacia_etapa_id`, `tipo_sistema` y `motivo`) y `tipoDeEtapaDelLead`. D7 puede reemplazar esa interacción por su historial sin cambiar quién llama. El código nunca busca etapas por nombre. Backfill de la demo: `prisma/seed/clase-muestra.sql` (ids 601 a 607).
