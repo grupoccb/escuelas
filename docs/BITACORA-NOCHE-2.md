@@ -1785,3 +1785,50 @@ Una intermitencia vista una vez en `validar` (`src/http/twilio.test.ts`, «respu
 - **Productos (H5).** `promocion_beneficio.producto_id` sigue siendo un uuid sin FK hasta que exista `producto`.
 - **Expediente (G5).** Trayectoria: `inscripcion` + `inscripcion_movimiento`; comercial: `inscripcion.lead_id/cotizacion_id`, `lead_etapa_historial`, hermanos (`src/inscripciones/hermanos.ts`), motivo de baja; la salud va aparte con `leerSensible` (sujeto `alumno`).
 - **Defensas en la base** que H debe seguir: cupo (`inscripcion_cupo_maximo`), importes con CHECK, únicos parciales; el dinero solo con `src/lib/dinero.ts`.
+
+
+## Auditoría y correcciones de la etapa F
+
+Informe: `docs/auditorias/etapa-F.md` (auditor con contexto nuevo; commit `4cca49a`). **1 ALTA, 8 MEDIA, 17 BAJA**; 64 mutaciones al código y 6 a las migraciones (19 + 1 sobrevivían); verificación independiente de las 20 correcciones de C, D y E (ninguna falla del todo; dos quedaban incompletas: EC-04 → EF-16 y ED-06 → EF-17). Las correcciones van en commits `F-fix: EF-xx …`, cada una con su test verificado por mutación; `validar` y `test:int` salieron con exit 0 en cada commit de código (ver la tabla de cifras).
+
+| Hallazgo | Gravedad | Estado | Commit / nota |
+|---|---|---|---|
+| EF-01 la conversión no respeta el alcance de sucursales del grupo (asesor del sur inscribe en el norte) | ALTA | **corregido** | `6c9ef58`: filtro de grupos en `planear` (grupo mandado → 404, deducido → falta de datos); mutaciones: sin filtro en `planear` y sin chequeo en la ruta mueren |
+| EF-02 la bienvenida sale por el canal de otra vertical | MEDIA | **corregido** | `5ce7801`: conversación del tutor responsable en la vertical de la inscripción; si no hay, tarea; mutaciones de los dos filtros mueren |
+| EF-03 el maestro ve importes, descuentos y motivos de baja | MEDIA | **corregido** | `f97d836`: `presentarInscripcion(…, rol)` y movimientos sin motivo/usuario para el maestro |
+| EF-04 precio congelado y «el grupo es del programa» solo en el código | MEDIA | **corregido** | `b7ef6ec`: migración `20261017000000_inscripcion_blindaje` (3 disparadores); 5 mutaciones a la migración mueren |
+| EF-05 19 mutaciones sobrevivían | MEDIA | **corregido** (15 con prueba nueva; 4 equivalentes) | `bb51a12`, `ce280a1`: 15 pruebas nuevas, todas matan su mutación; quedan 4 equivalentes documentadas en el informe (41, 53, 57, 60) |
+| EF-06 clase muestra e inscripción no se cuentan entre sí | MEDIA (producto) | **pendiente: decisión de Eduardo** | informe, sección 8 |
+| EF-07 alta por teléfono ajeno devuelve nombre y correo de un tutor de otra sucursal | MEDIA (producto) | **pendiente: decisión de Eduardo** | demostrado en el informe; se prefiere decidir qué se oculta |
+| EF-08 condiciones anidadas sin `eliminado_en` | BAJA | **corregido** | `41ae7ed` (hermanos, cross-sell, alcance de familia) |
+| EF-09 `check:dinero` sin `inscripciones/` ni `conversion/` | BAJA | **corregido** | `41ae7ed` (prueba unitaria nueva) |
+| EF-10 `REVOKE UPDATE` sin `inscripcion_movimiento` | BAJA | **corregido** | `41ae7ed` (API.md) |
+| EF-11 hermanos simultáneos no se ven | BAJA | pendiente (limitación documentada) | exigiría un candado por familia |
+| EF-12 «listo para cerrar» del 2.º hijo con el lead ya «inscrito» | BAJA (producto) | pendiente: decisión de Eduardo | |
+| EF-13 meses por adelantado declarados sin pago | BAJA (producto) | pendiente (H2/H4) | |
+| EF-14 bienvenidas duplicadas por hermanos / apagar no cancela | BAJA | pendiente (heredado, ya anotado en F7) | |
+| EF-15 la aplicación de la demo es superusuaria (puede apagar disparadores) | BAJA | pendiente (K6: dos cuentas, ya documentado en API.md) | |
+| EF-16 el bot dice «Anotamos a…» en un horario que se llenó (con lista de espera) | MEDIA | **corregido** | `1a7dab8` |
+| EF-17 ED-06 sin resolver de raíz (pruebas paralelas se cruzan) | MEDIA | **HECHO (parcial)**: solo se corrigió el síntoma medible | ver abajo |
+| EF-18 a EF-25 (invisibles en salones, NUL en referral, evasiones de `check:dinero`, filtro de salud, etapa inicial del bot, honeypot, Hangul, `Origin: null`) | BAJA | pendientes | informe, sección 3 |
+| EF-26 `timeoutMs = 300` por omisión en las pruebas del transporte de Chatwoot | BAJA | **corregido** | `ad6835e` |
+
+**EF-17, con salvedades.** Se intentó la causa que propuso el verificador (servidores en el comodín frente a otros en `127.0.0.1`): unificarlos no la quitó. Con 8 procesos paralelos (6 archivos, 2 rondas) el estado anterior fallaba 7 de 16 corridas y, con todo en el comodín, 4 de 16, y los fallos que quedaron son peticiones a `127.0.0.1:P` contestadas por **otra aplicación** (un 404 `<!DOCTYPE html>` de Express) en `transporte.test.ts` y `reenviador.test.ts`. La unificación se revirtió (no mejoraba nada medible). Lo único que sí desapareció fue la mitad de los fallos, los de tiempo agotado (EF-26). La causa del cruce de puertos sigue sin diagnosticarse; con las pruebas en serie (`test:int`, `--test-concurrency=1`) no se ha reproducido y las dos corridas completas salieron en verde.
+
+**Cifras por commit de código** (copia limpia con su propia base; `validar` exit 0 y `test:int` exit 0 en todos):
+
+| Commit | `validar` | `test:int` |
+|---|---|---|
+| `6c9ef58` EF-01 | 506 | 836 |
+| `5ce7801` EF-02 | 506 | 837 |
+| `f97d836` EF-03 | 506 | 838 |
+| `b7ef6ec` EF-04 | 506 | 839 |
+| `1a7dab8` EF-16 | 506 | 840 |
+| `bb51a12` EF-05 (1/2) | 506 | 848 |
+| `ce280a1` EF-05 (2/2) | 506 | 852 |
+| `41ae7ed` EF-08/09/10 | 507 | 853 |
+
+**Para Eduardo**
+- Decisiones nuevas (sección 8 del informe): EF-06 (la inscripción no cuenta las clases muestra ya agendadas), EF-07 (qué se devuelve cuando el teléfono ya es de un tutor de otra sucursal), EF-12 (el segundo hijo de un lead ya «inscrito»), EF-13 (meses por adelantado sin pago).
+- La migración `20261017000000_inscripcion_blindaje` solo agrega disparadores; no cambia datos. Tras ella, ningún proceso puede modificar el precio, los descuentos ni las fechas de una inscripción: una corrección es una baja y una inscripción nueva.
+- Hay dos archivos sin seguimiento que no son de esta auditoría (`src/inscripciones/inscribir 2.ts` y `src/inscripciones/inscripcion.itest 2.ts`, copias viejas de las 12:02 y 12:06): no se tocaron ni se incluyeron en ningún commit.

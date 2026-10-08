@@ -207,3 +207,20 @@ prisma migrate diff (E→F con datos / vacía→F)   No difference detected / No
 3. **EF-12.** ¿«Listo para cerrar» y el seguimiento deben seguir funcionando para el segundo hijo de un lead ya «inscrito»? Hoy no: 409.
 4. **EF-13.** ¿Los meses por adelantado pueden declararse sin pago? La promoción de pago anticipado se da en la inscripción.
 5. **Pendientes de F ya anotados** (siguen abiertos): alumno de mostrador sin prospecto no puede inscribirse (no hay dónde aceptar el reglamento), inscripciones con fecha pasada, beneficios diferidos y cupo de promoción de quien se da de baja, modo de cierre de la escuela, bienvenida al segundo tutor.
+
+
+## 9. Estado tras las correcciones (fase 2)
+
+| ID | Estado | Commit |
+|---|---|---|
+| EF-01 (ALTA) | corregido | `6c9ef58` |
+| EF-02, EF-03, EF-04 | corregidos | `5ce7801`, `f97d836`, `b7ef6ec` |
+| EF-05 | corregido (15 pruebas nuevas; 4 mutaciones equivalentes) | `bb51a12`, `ce280a1` |
+| EF-08, EF-09, EF-10 | corregidos | `41ae7ed` |
+| EF-16 | corregido | `1a7dab8` |
+| EF-26 | corregido | `ad6835e` |
+| EF-17 | HECHO (parcial): no se diagnosticó la causa del cruce de puertos | — |
+| EF-06, EF-07, EF-12, EF-13 | pendientes: decisión de producto | — |
+| EF-11, EF-14, EF-15, EF-18 a EF-25 | pendientes (BAJA) | — |
+
+Cada corrección lleva un test que falla con la mutación contraria (la lista, en la bitácora de noche 2, «Auditoría y correcciones de la etapa F»). `validar` (506/507) y `test:int` (836 a 853) salieron con exit 0 en cada commit de código.
