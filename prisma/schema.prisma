@@ -91,6 +91,9 @@ model organizacion {
   transiciones_etapa         transicion_etapa[]
   avisos_promocion           aviso_promocion[]
   codigos_rastreo            codigo_rastreo[]
+  tutores                    tutor[]
+  alumnos                    alumno[]
+  tutores_alumnos            tutor_alumno[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -206,6 +209,8 @@ model sucursal {
   promociones         promocion_sucursal[]
   cotizaciones        cotizacion[]
   codigos_rastreo     codigo_rastreo[]
+  tutores             tutor[]
+  alumnos             alumno[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -387,11 +392,14 @@ model lead {
   motivo_perdida_id     String?   @db.Uuid
   /// Cuántas veces se recuperó después de darse por perdido (D7).
   recuperaciones        Int       @default(0)
+  /// El tutor en que se convirtió el adulto que escribió. Nulo hasta la conversión (F2).
+  tutor_id              String?   @db.Uuid
   creado_en             DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en          DateTime? @db.Timestamptz(6)
 
   organizacion     organizacion   @relation(fields: [organizacion_id], references: [id])
+  tutor            tutor?         @relation(fields: [tutor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   motivo_perdida   motivo_perdida? @relation(fields: [motivo_perdida_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   historial_etapas lead_etapa_historial[]
   avisos_promocion aviso_promocion[]
@@ -434,6 +442,8 @@ model prospecto {
   /// El programa que le corresponde o que eligió en el bot cuando hay varios para su edad (C6). Es una sugerencia,
   /// no una inscripción.
   programa_sugerido_id String?          @db.Uuid
+  /// El alumno en que se convirtió este prospecto. Nulo hasta la conversión (F2); a lo más uno vivo por alumno.
+  alumno_id            String?          @db.Uuid
   origen               origen_prospecto @default(bot)
   creado_en            DateTime         @default(now()) @db.Timestamptz(6)
   actualizado_en       DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
@@ -443,6 +453,7 @@ model prospecto {
   lead              lead           @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   vertical_interes  vertical       @relation(fields: [vertical_interes_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   programa_sugerido programa?      @relation(fields: [programa_sugerido_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  alumno            alumno?        @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   cotizaciones      cotizacion[]
   lista_espera      lista_espera[]
   clases_muestra    clase_muestra[]
@@ -2191,4 +2202,106 @@ model codigo_rastreo {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([lead_id])
+}
+
+// ── Familia: tutor, alumno y su relación M:N (F1, invariante 13) ───────────────────────────────
+
+enum estatus_alumno {
+  activo
+  baja
+  congelado
+}
+
+/// Un adulto responsable de uno o más alumnos. UN tutor por teléfono normalizado dentro de la organización (índice único parcial
+/// en la migración): el mismo teléfono es la misma familia. `telefono` siempre de normalizarTelefono() (invariante 7).
+model tutor {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id  String    @db.Uuid
+  nombre           String
+  apellidos        String?
+  /// E.164 (CHECK en la migración: sin el «1» de móvil de +521).
+  telefono         String
+  correo           String?
+  direccion        String?
+  como_nos_conocio String?
+  /// Sucursal donde se dio de alta la familia (define quién la ve: asesor y recepción solo las de sus sucursales).
+  sucursal_id      String?   @db.Uuid
+  creado_en        DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en     DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion   @relation(fields: [organizacion_id], references: [id])
+  sucursal     sucursal?      @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  alumnos      tutor_alumno[]
+  leads        lead[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Quien toma las clases. SIN campos de salud (alergias, condiciones, medicamentos, contacto de emergencia): viven cifrados en
+/// `ficha_salud` con sujeto `alumno` (src/sensibles/). `autoriza_uso_imagen` no es una columna: se deriva de la última aceptación
+/// de la autorización de imagen (D6) de su prospecto de origen. NUNCA un campo tipo `telefono_mama` (invariante 13): los adultos
+/// son filas de `tutor` ligadas por `tutor_alumno`.
+model alumno {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id      String                @db.Uuid
+  nombre               String
+  apellidos            String
+  /// Del acta (no la edad que dijo el papá).
+  fecha_nacimiento     DateTime              @db.Date
+  sexo                 sexo_persona?
+  estatus              estatus_alumno        @default(activo)
+  /// Sucursal donde se dio de alta (ver `tutor.sucursal_id`).
+  sucursal_id          String?               @db.Uuid
+  escuela_nombre       String?
+  escuela_turno        turno_escolar?
+  talla_uniforme       String?
+  /// Antecedentes que capturó el maestro en la clase muestra (no son salud).
+  practico_antes       Boolean?
+  practico_donde       String?
+  practico_nivel       String?
+  motivo_clase         motivo_clase_muestra?
+  motivo_clase_detalle String?
+  creado_en            DateTime              @default(now()) @db.Timestamptz(6)
+  actualizado_en       DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en         DateTime?             @db.Timestamptz(6)
+
+  organizacion organizacion   @relation(fields: [organizacion_id], references: [id])
+  sucursal     sucursal?      @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  tutores      tutor_alumno[]
+  prospectos   prospecto[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+}
+
+/// Puente M:N: un alumno puede tener mamá, papá y abuela; un tutor, varios hijos en varias verticales. Una fila viva por
+/// (tutor, alumno) y a lo más un responsable de pago por alumno (índices únicos parciales en la migración).
+model tutor_alumno {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String    @db.Uuid
+  tutor_id            String    @db.Uuid
+  alumno_id           String    @db.Uuid
+  /// Texto libre: «madre», «abuela»…
+  parentesco          String
+  es_responsable_pago Boolean   @default(false)
+  /// El adulto al que se llama en una urgencia. Es la bandera `es_contacto_emergencia` del modelo de datos; se llama distinto porque
+  /// ese nombre es una raíz de dato de salud para `check:sensibles` (el contacto de emergencia con sus datos vive CIFRADO en `ficha_salud`).
+  es_contacto_urgencia Boolean  @default(false)
+  puede_recoger       Boolean   @default(false)
+  /// Quien lo lleva a la clase.
+  lo_lleva            Boolean   @default(false)
+  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  tutor        tutor        @relation(fields: [tutor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  alumno       alumno       @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([tutor_id])
+  @@index([alumno_id])
 }

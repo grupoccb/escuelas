@@ -42,6 +42,11 @@ export const MATRIZ_DE_PERMISOS = {
   // Avisos al maestro (D2): los suyos. El administrador los tiene por regla (todos los permisos), pero solo ve los de su propio instructor, si lo es.
   "avisos_maestro:leer": ["administrador", "maestro"],
   "avisos_maestro:escribir": ["administrador", "maestro"],
+  // Familia (F1): tutores y alumnos. El maestro lee a SUS alumnos (sin datos de contacto de la familia y sin salud: esa es `salud:leer`); nunca los tutores.
+  "tutores:leer": ["administrador", "asesor", "recepcion"],
+  "tutores:escribir": ["administrador", "asesor", "recepcion"],
+  "alumnos:leer": ["administrador", "asesor", "recepcion", "maestro"],
+  "alumnos:escribir": ["administrador", "asesor", "recepcion"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],

@@ -183,3 +183,32 @@ export async function problemasDeReglamento(tx: Consultas | BaseDatos, prospecto
   if (ultima.resultado !== "aceptada") return [{ campo: "reglamento", mensaje: "La familia no aceptó el reglamento" }];
   return [];
 }
+
+/**
+ * ¿La familia de este alumno autorizó el uso de su imagen? Se DERIVA de la última respuesta (por `secuencia`) a la autorización
+ * de imagen de su prospecto de origen (D6): verdadero solo si lo último fue «aceptada»; revocada, rechazada o sin respuesta es
+ * falso. Un alumno que no vino de un prospecto (alta directa) no tiene respuesta registrada: falso.
+ */
+export async function autorizaUsoDeImagen(tx: Consultas | BaseDatos, alumnoId: string): Promise<boolean> {
+  const prospectos = await tx.prospecto.findMany({ where: { alumno_id: alumnoId }, select: { id: true } });
+  let ultima: FilaDeAceptacion | null = null;
+  for (const p of prospectos) {
+    const a = await ultimaAceptacion(tx, p.id, "uso_imagen");
+    if (a && (!ultima || a.aceptadoEn > ultima.aceptadoEn)) ultima = a;
+  }
+  return ultima?.resultado === "aceptada";
+}
+
+/**
+ * Lo que impide inscribir (F3): hace falta que el reglamento VIGENTE esté aceptado —la versión que rige hoy, no una anterior—.
+ * Sin reglamento configurado, sin respuesta, rechazado o aceptado en una versión anterior: no se inscribe. Vacío = en orden.
+ */
+export async function problemasDeReglamentoVigente(tx: Consultas | BaseDatos, prospectoId: string, verticalId: string | null, ahora: Date): Promise<{ campo: string; mensaje: string }[]> {
+  const vigente = await documentoVigente(tx, "reglamento", verticalId, ahora);
+  if (!vigente) return [{ campo: "reglamento", mensaje: "No hay un reglamento vigente configurado: pídele al administrador que lo publique" }];
+  const ultima = await ultimaAceptacion(tx, prospectoId, "reglamento");
+  if (!ultima) return [{ campo: "reglamento", mensaje: "Falta que la familia acepte el reglamento" }];
+  if (ultima.resultado !== "aceptada") return [{ campo: "reglamento", mensaje: "La familia no aceptó el reglamento" }];
+  if (ultima.documentoId !== vigente.id) return [{ campo: "reglamento", mensaje: `La familia aceptó una versión anterior del reglamento: debe aceptar la versión vigente (v${vigente.version})` }];
+  return [];
+}

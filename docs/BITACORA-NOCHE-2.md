@@ -43,7 +43,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | E2 | HECHO | ver `git log` (`E2:`) | Código de rastreo en el primer mensaje: parser, limpieza del texto del bot, atribución al lead con consumo condicional, primera atribución conservada, CTWA intacto y API de campañas y códigos |
 | E3 | HECHO | ver `git log` (`E3:`) | QR por campaña y sucursal: codificador propio (SVG y PNG), URL de la landing con código de rastreo, descarga para imprimir y pruebas de ida y vuelta con un lector independiente |
 | DE-fix | HECHO (10 pendientes, 8 decisiones) | 4d1faf6…4bf427b | Auditoría y correcciones de las etapas D y E (`docs/auditorias/etapa-D.md` y `etapa-E.md`): 2 ALTA corregidas (ED-01, EE-01), MEDIA corregidas y pendientes en la sección «Auditoría y correcciones de las etapas D y E» |
-| F1 | PENDIENTE | | Tutor, alumno y relación M:N |
+| F1 | HECHO | ver `git log` (`F1:`) | Tutor (único por teléfono normalizado), alumno sin atajos ni salud, `tutor_alumno` M:N con banderas, API con alcance por rol y sucursal, detección de familia y registro de cambios sin datos identificables |
 | F2 | PENDIENTE | | Conversión en una transacción |
 | F3 | PENDIENTE | | Inscripción |
 | F4 | PENDIENTE | | Cupo real |
@@ -1536,3 +1536,34 @@ Un `test:int` intermedio falló una vez en `sesion.itest.ts` («CSRF: con ORIGEN
 - Verificación personal en `cb5db79`: `npm run validar` exit 0 (500 tests); `npm run test:int` exit 0 (746 tests).
 - **Incidente a reportar:** para verificar EE-01 (la redirección de la landing a WhatsApp) el auditor-corrector abrió Chrome headless y siguió la redirección hasta `wa.me` / `api.whatsapp.com` con un número falso. Eso es tráfico (una petición GET de navegador) hacia servidores públicos de Meta, que el plan prohíbe ("nada contra Twilio, Meta ni AWS"). No envió ningún mensaje ni usó credenciales. Se anota aquí y no se repite.
 - Efecto lateral en el entorno: el auditor borró con `--rmi local` la etiqueta de imagen `inscripciones-backend:local`; el siguiente `docker compose up` la reconstruye.
+
+
+## F1. Tutor, alumno y su relación M:N (invariante 13)
+
+**Qué se hizo**
+- **Migración `20261016000000_familia`:** `tutor` (nombre, apellidos, teléfono E.164, correo, dirección, `como_nos_conocio`, `sucursal_id` de alta), `alumno` (nombre, apellidos, fecha de nacimiento del acta, sexo, `estatus` `activo|baja|congelado`, `sucursal_id`, escuela, turno, talla, y los antecedentes de la clase muestra: `practico_*`, `motivo_clase*`) y `tutor_alumno` (M:N con `parentesco`, `es_responsable_pago`, `es_contacto_urgencia`, `puede_recoger`, `lo_lleva`); además `lead.tutor_id` y `prospecto.alumno_id` (para F2). En la base: **un tutor vivo por (organización, teléfono)** (índice único parcial) y CHECK de E.164 sin el «1» de `+521`; una fila viva por (tutor, alumno); **a lo más un responsable de pago por alumno**; a lo más un alumno por prospecto; fecha de nacimiento ≥ 1900; antecedentes coherentes.
+- **`src/familias/familia.ts`:** `encontrarOCrearTutor` (seguro bajo concurrencia: `INSERT … ON CONFLICT DO NOTHING` y volver a buscar, sin abortar la transacción de quien llama), `crearTutorNuevo`, `crearAlumno`, `vincularTutor` (idempotente por el par; rechaza un segundo responsable de pago). **`src/familias/alcance.ts`:** quién ve qué.
+- **API** (`src/api/rutas/familias.ts`, documentada en `docs/API.md`): CRUD de tutores (`GET` con búsqueda por teléfono en cualquier formato y por nombre; `POST` 409 si el teléfono ya es de un tutor; `PATCH` 409 si el nuevo ya es de otro; `DELETE` lógico), CRUD de alumnos (alta con al menos un tutor en UNA transacción; el tutor puede ser uno existente o uno nuevo que se **detecta por teléfono**), alta del segundo tutor o la abuela (`POST /api/alumnos/:id/tutores`), cambio de banderas y desvinculación (no se queda sin tutor). Permisos nuevos `tutores:leer|escribir` (administrador, asesor, recepción) y `alumnos:leer` (también el maestro) / `alumnos:escribir`.
+- **Salud:** `existeSujeto` de la ficha acepta ya `alumno`; la API de la familia nunca devuelve campos de salud (un test lo comprueba con centinelas). `autoriza_uso_imagen` no es columna: `autorizaUsoDeImagen()` (`src/legal/aceptaciones.ts`) lo deriva de la última respuesta de D6 del prospecto de origen. Se agregó también `problemasDeReglamentoVigente()` (F3 lo usará).
+- **Registro de cambios** de `tutor`, `alumno` y `tutor_alumno`: del tutor y el alumno solo `sucursal_id`, `estatus` y la lista `campos` (qué campos se tocaron), nunca sus valores (decisión de D5).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 500 · pass 500 · fail 0
+$ npm run test:int    → exit 0 · tests 762 · pass 762 · fail 0
+```
+`familias.itest.ts` (16): alta con +521, +521/+52/10 dígitos/`whatsapp:` = el mismo tutor y 409 al duplicar, la base rechaza teléfonos sin normalizar y repetidos (y la baja lógica libera el teléfono), detección de familia (el segundo hijo se liga al mismo tutor y no se le pisan los datos), segundo tutor/abuela/responsable de pago/no quedarse sin tutor, ninguna columna de contacto ni salud en `alumno`, validación (fecha futura o absurda, antecedentes, campos desconocidos, sin tutores, dos responsables, sucursal ajena), **concurrencia real** (8 altas simultáneas del mismo tutor en formatos distintos → 1 gana y 7 reciben 409, ningún 500; 6 altas de hermanos con el mismo tutor nuevo → 1 tutor y 6 vínculos; ambas con barrera forzando el solape, y se comprobó que sin `skipDuplicates` fallan), alcance por sucursal y por rol (404 para lo ajeno, lo sin sucursal solo para el administrador), permisos (el maestro no ve tutores, no busca por teléfono; sin sesión 401), aislamiento entre organizaciones (mismo teléfono = tutor distinto; FK compuesta), registro de cambios sin valores identificables, salud solo cifrada y fuera de las respuestas, `autoriza_uso_imagen` derivado y no editable.
+
+**Decisiones que tomé**
+1. **La bandera `es_contacto_emergencia` se llama `es_contacto_urgencia`.** `check:sensibles` trata `contacto_emergencia` como raíz de dato de salud y prohíbe el nombre en cualquier parte de `src/` fuera de `sensibles/`; no se debilita la guarda. Alternativa descartada: exceptuar ese identificador en la guarda (el brief prohíbe debilitarla). Revisar si Eduardo prefiere otro nombre.
+2. **Sucursal de alta en tutor y alumno** (`sucursal_id`): el alcance de asesor y recepción necesita saber de dónde es una familia que todavía no tiene inscripción. Se amplía en F3 con las inscripciones en sus sucursales. Sin sucursal, solo el administrador la ve (igual que un lead sin sucursal). Alternativa descartada: derivar el alcance solo de las inscripciones (una familia recién dada de alta sería invisible).
+3. **El maestro ve a sus alumnos sin teléfono ni correo de la familia** (como en la clase muestra) y no ve tutores; por ahora (sin inscripciones) no ve alumnos: falla cerrado hasta F3.
+4. **Si nadie se marca como responsable de pago, lo es el primer tutor** (un alumno sin responsable no tiene a quién cobrarle). Alternativa descartada: exigirlo siempre (fricción en el alta de un solo adulto).
+5. **El registro de cambios no guarda valores** de tutor ni alumno. Alternativa descartada: guardar antes y después (es de solo anexar y nunca se purga: dejaría nombres y teléfonos para siempre).
+6. **`PATCH` del alumno no cambia el `estatus`**: lo mueven la inscripción y la baja (F3/F5).
+7. **Antecedentes del alumno** (`practico_*`, `motivo_clase`) en el propio alumno: no son salud y F2 los traslada del registro de la clase muestra sin recapturar.
+
+**Para Eduardo**
+- Renombre `es_contacto_urgencia` (decisión 1).
+- Decisión de producto: si un alumno puede tener dos responsables de pago (hoy a lo más uno: el estado de cuenta de H se arma sobre él).
+- El alta directa de un alumno sin pasar por un lead (mostrador) crea la familia, pero no puede registrar la aceptación del reglamento (esa evidencia cuelga de un prospecto, D6): F3 pedirá esa aceptación al inscribir (ver F3).

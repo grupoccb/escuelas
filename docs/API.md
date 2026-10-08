@@ -214,6 +214,18 @@ el tope no baja de los usos; la baja libera el código; los de lead los crea el 
 - Los booleanos de la query son `true` o `false`. Los QR usan corrección M; si la URL no cabe en la versión 10 (213 bytes) responde 400.
 - La fuente `presencial` queda en la campaña (`campana.origen`) para los reportes I1/I2: el lead que entra por el QR hereda `campana_id` y la sucursal.
 
+## Familia: tutores, alumnos y su relación (F1, invariante 13)
+
+La familia es la entidad central. `tutor` (el adulto), `alumno` (quien toma las clases) y `tutor_alumno` (M:N con `parentesco` y las banderas `es_responsable_pago`, `es_contacto_urgencia`, `puede_recoger`, `lo_lleva`).
+**Un tutor por teléfono normalizado** dentro de la organización (índice único parcial vivo + CHECK de E.164 sin el «1» de `+521`): el mismo teléfono, con cualquier formato (`+521…`, `+52…`, 10 dígitos, `whatsapp:…`), es la misma familia. Dar de alta a un alumno con un `tutor` nuevo cuyo teléfono ya existe lo LIGA al que hay
+(sin pisarle los datos); `POST /api/tutores` con un teléfono que ya existe es 409 y dice cuál es (si el usuario lo ve). Un alumno tiene al menos un tutor, a lo más un responsable de pago (si nadie se marca, el primero) y a lo más uno que lo lleva. No hay campos de contacto en `alumno` (`telefono_mama` no existe y no debe existir).
+`es_contacto_urgencia` es la bandera `es_contacto_emergencia` del modelo de datos; se llama distinto porque ese nombre es una raíz de dato de salud para `check:sensibles` (el contacto de emergencia con sus datos vive CIFRADO en `ficha_salud`).
+**Salud: nada aquí.** Alergias, condiciones, medicamentos y contacto de emergencia del alumno van en `ficha_salud` con sujeto `alumno` (`PUT|GET /api/salud/alumno/:id`, permiso, motivo y constancia). `autoriza_uso_imagen` no se edita: se deriva de la última respuesta (por `secuencia`) a la autorización de imagen (D6) del prospecto del que viene (`autorizaUsoDeImagen`, `src/legal/aceptaciones.ts`).
+`estatus` del alumno (`activo` | `baja` | `congelado`) lo mueven la inscripción y la baja (F3/F5), no el `PATCH`.
+**Quién ve qué** (`src/familias/alcance.ts`): administrador todo; asesor y recepción, la familia dada de alta en SUS sucursales (`sucursal_id` del tutor y del alumno) o con una inscripción en un grupo de ellas; el maestro lee a los alumnos inscritos en SUS grupos, **sin teléfono ni correo de la familia y sin salud**, y no ve tutores. Una fila sin sucursal solo la ve el administrador. Lo ajeno es 404.
+Quien da de alta con una sola sucursal la usa sin decirla; con varias debe elegir una de las suyas. Cada cambio queda en `registro_cambio` con SOLO qué campos se tocaron (`campos`), nunca sus valores (no hay nombres, teléfonos ni direcciones en un registro que no se purga).
+Código: `src/familias/familia.ts` (`encontrarOCrearTutor` —seguro bajo concurrencia: `INSERT … ON CONFLICT DO NOTHING` y volver a buscar—, `crearAlumno`, `vincularTutor`), `src/familias/alcance.ts`, `src/api/rutas/familias.ts`.
+
 ## Rutas
 
 | Método y ruta | Permiso | Descripción |
@@ -279,9 +291,14 @@ el tope no baja de los usos; la baja libera el código; los de lead los crea el 
 | `POST /api/motivos-perdida` `{nombre, codigo?, orden?}` · `PATCH`/`DELETE /api/motivos-perdida/:id` | `catalogo:escribir` | Alta (409 si el código existe), cambio y baja lógica |
 | `GET /api/leads?etapa_id=&sucursal_id=&telefono=` | `leads:leer` | Lista (el teléfono se normaliza) |
 | `GET /api/leads/:id` | `leads:leer` | Detalle con prospectos |
+| `GET /api/tutores?telefono=&nombre=&sucursal_id=` · `GET /api/tutores/:id` | `tutores:leer` (administrador, asesor, recepción) | Tutores con sus alumnos y banderas; `telefono` en cualquier formato; `nombre` busca cada palabra en nombre y apellidos |
+| `POST /api/tutores` `{nombre, apellidos?, telefono, correo?, direccion?, como_nos_conocio?, sucursal_id?}` · `PATCH`/`DELETE /api/tutores/:id` | `tutores:escribir` | Alta (409 si el teléfono ya es de un tutor), cambio (409 si el nuevo teléfono ya es de otro) y baja lógica (409 con alumnos o con un lead convertido) |
+| `GET /api/alumnos?nombre=&telefono=&tutor_id=&estatus=&sucursal_id=` · `GET /api/alumnos/:id` | `alumnos:leer` (también el maestro, solo SUS alumnos) | Alumnos con sus tutores; `telefono` busca por el teléfono de algún adulto de la familia (no para el maestro); el detalle trae `edad` y `autoriza_uso_imagen` derivado |
+| `POST /api/alumnos` `{nombre, apellidos, fecha_nacimiento, sexo?, sucursal_id?, escuela_nombre?, escuela_turno?, talla_uniforme?, practico_*?, motivo_clase?, tutores: [{tutor_id \| tutor: {…}, parentesco, es_responsable_pago?, es_contacto_urgencia?, puede_recoger?, lo_lleva?}]}` · `PATCH /api/alumnos/:id` | `alumnos:escribir` (administrador, asesor, recepción) | Alta con al menos un tutor (existente por `tutor_id` o nuevo/detectado por teléfono) en UNA transacción; cambio de datos (sin salud ni `estatus`) |
+| `POST /api/alumnos/:id/tutores` · `PATCH`/`DELETE /api/alumnos/:id/tutores/:tutor_id` | `alumnos:escribir` | Segundo tutor, la abuela…: liga por `tutor_id` o `tutor` nuevo; cambia parentesco y banderas (409 si pediría un segundo responsable de pago); quita el vínculo (409 si es el único) |
 | `GET /api/registro-cambios?entidad_tipo=&entidad_id=&usuario_id=` | `registro_cambios:leer` | Auditoría |
 
-| `GET /api/salud/:sujeto_tipo/:sujeto_id?motivo=&campos=` | `salud:leer` | Ficha de salud de un menor (`prospecto`; `alumno` llega con F1). `motivo` obligatorio. Se registra el acceso, y también todo intento denegado (sin permiso, sujeto inexistente o ajeno, maestro fuera de su grupo) |
+| `GET /api/salud/:sujeto_tipo/:sujeto_id?motivo=&campos=` | `salud:leer` | Ficha de salud de un menor (`prospecto` o `alumno`). `motivo` obligatorio. Se registra el acceso, y también todo intento denegado (sin permiso, sujeto inexistente o ajeno, maestro fuera de su grupo) |
 | `PUT /api/salud/:sujeto_tipo/:sujeto_id` `{motivo, alergias?, condiciones_medicas?, medicamentos?, contacto_emergencia?, autorizacion_atencion_medica?}` | `salud:escribir` | Guarda (cifrado). `null` borra un campo |
 
 | `GET /api/salud-accesos?sujeto_id=&usuario_id=&resultado=` | `registro_cambios:leer` | Quién vio (o intentó ver) la ficha de quién: usuario, sujeto, acción, resultado, causa de la denegación, campos (solo nombres), motivo, ruta. Nunca valores. Más reciente primero |

@@ -44,6 +44,11 @@ export const CAMPOS_AUDITABLES = {
   documento_legal: ["tipo", "vertical_id", "version", "titulo", "vigente_desde"],
   aceptacion_legal: ["tipo", "version_aceptada", "resultado", "canal", "documento_id"],
   registro_clase_muestra: ["estatus", "motivo_clase", "practico_antes", "interes_percibido", "grupo_recomendado_id", "salud_completa", "secciones"],
+  // F1: la familia. Como en el registro de la clase muestra, NADA identificable: el registro de cambios es de solo anexar y no se purga.
+  // `campos` dice QUÉ campos se tocaron (nunca sus valores). Los vínculos sí guardan sus banderas y los ids (no son datos personales).
+  tutor: ["sucursal_id", "campos"],
+  alumno: ["estatus", "sucursal_id", "campos"],
+  tutor_alumno: ["tutor_id", "alumno_id", "parentesco", "es_responsable_pago", "es_contacto_urgencia", "puede_recoger", "lo_lleva"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

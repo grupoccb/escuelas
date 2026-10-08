@@ -76,8 +76,7 @@ export interface Peticion {
 
 async function existeSujeto(tx: Consultas, tipo: SujetoSalud, id: string): Promise<boolean> {
   if (tipo === "prospecto") return (await tx.prospecto.count({ where: { id } })) > 0;
-  // `alumno` llega con F1: hasta entonces no hay a quién pertenezca una ficha de alumno.
-  return false;
+  return (await tx.alumno.count({ where: { id } })) > 0;
 }
 
 async function registrarAcceso(

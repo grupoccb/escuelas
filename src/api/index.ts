@@ -35,6 +35,7 @@ import { rutasDeClasesMuestra } from "./rutas/clases-muestra.ts";
 import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
 import { rutasDeEmbudo } from "./rutas/embudo.ts";
+import { rutasDeFamilias } from "./rutas/familias.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDeLegal } from "./rutas/legal.ts";
@@ -121,6 +122,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeRegistroMuestra(deps));
   api.use(rutasDeLegal(deps));
   api.use(rutasDelMaestro(deps));
+  api.use(rutasDeFamilias(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));
   api.use(rutasDeSalud(deps));
