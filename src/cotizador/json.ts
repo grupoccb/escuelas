@@ -68,6 +68,7 @@ export function programaAJson(p: ProgramaCotizado) {
       oferta: g.cupo.oferta,
     })),
     promociones: p.promociones ? promociones(p.promociones) : null,
+    vence_el: p.venceEl,
   };
 }
 

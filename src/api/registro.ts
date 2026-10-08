@@ -26,6 +26,7 @@ export const CAMPOS_AUDITABLES = {
   precio: ["programa_id", "costo_inscripcion", "costo_mensualidad", "moneda", "vigencia_desde", "vigencia_hasta"],
   promocion: ["nombre", "codigo", "vigencia_desde", "vigencia_hasta", "condicion_tipo", "condicion_valor", "cupo_maximo", "acumulable", "prioridad", "activo", "verticales", "sucursales", "programas"],
   promocion_beneficio: ["promocion_id", "tipo", "modo", "valor", "producto_id", "descripcion", "momento_disparo"],
+  cotizacion: ["lead_id", "prospecto_id", "programa_id", "sucursal_id", "grupo_elegido_id", "origen", "estatus", "fecha", "vigente_hasta"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

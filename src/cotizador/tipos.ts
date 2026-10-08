@@ -108,6 +108,11 @@ export interface ProgramaCotizado {
   grupos: GrupoCotizado[];
   /** null si no hay precio (sin importes no hay qué descontar). */
   promociones: ResultadoPromociones | null;
+  /**
+   * El último día en que lo cotizado sigue valiendo tal cual: el menor entre el fin del precio vigente y el fin de
+   * cada promoción aplicada. null = nada de lo cotizado tiene fecha de fin.
+   */
+  venceEl: FechaISO | null;
 }
 
 export interface Cotizacion {

@@ -8,6 +8,8 @@
 import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
+import { snapshotDeCotizacion } from "../cotizador/cotizacion.ts";
+import { elegirHorario, guardarCotizacion, horariosCotizadosAlContacto } from "../cotizador/guardar.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
@@ -31,7 +33,7 @@ import {
   type Saliente,
 } from "../mensajeria/index.ts";
 import { resumenParaAsesor } from "./resumen.ts";
-import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
+import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EfectoCaptacion, type EstadoCaptacion, type OpcionSucursal } from "./maquina.ts";
 
 const MAX_REINTENTOS = 3;
 
@@ -164,8 +166,15 @@ async function registrarYAvanzar(
     return { resultado: "asesor_tomo_conversacion", conversacionId: conv.id };
   }
 
-  const ctx = await contextoCaptacion(tx, bandeja.vertical_id, { paso: conv.paso_captacion, sucursalDelLead: conv.lead.sucursal_interes_id, fuente, ahora: recibidoEn });
   const prospecto = await tx.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } });
+  const ctx = await contextoCaptacion(tx, bandeja.vertical_id, {
+    paso: conv.paso_captacion,
+    sucursalDelLead: conv.lead.sucursal_interes_id,
+    fuente,
+    ahora: recibidoEn,
+    conversacionId: conv.id,
+    prospectoId: prospecto?.id ?? null,
+  });
   const estado: EstadoCaptacion = {
     paso: conv.paso_captacion,
     intentosFallidos: conv.intentos_fallidos,
@@ -187,6 +196,7 @@ async function registrarYAvanzar(
     data: { sucursal_interes_id: r.estado.sucursalId, ultima_interaccion_en: recibidoEn },
   });
   // El bot captura un solo prospecto por lead (índice único parcial); los demás los agrega el asesor.
+  let prospectoId = prospecto?.id ?? null;
   if (r.estado.nombre !== null || r.estado.edad !== null) {
     const datos = {
       nombre: r.estado.nombre,
@@ -196,11 +206,16 @@ async function registrarYAvanzar(
     };
     if (prospecto) await tx.prospecto.update({ where: { id: prospecto.id }, data: datos });
     else {
-      await tx.prospecto.create({
-        data: altaConAlcance({ lead_id: conv.lead.id, vertical_interes_id: bandeja.vertical_id, origen: "bot" as const, ...datos }),
-      });
+      prospectoId = (
+        await tx.prospecto.create({
+          data: altaConAlcance({ lead_id: conv.lead.id, vertical_interes_id: bandeja.vertical_id, origen: "bot" as const, ...datos }),
+          select: { id: true },
+        })
+      ).id;
     }
   }
+  // Lo que la máquina pidió guardar (la cotización que mandó, el horario que eligió el contacto).
+  if (prospectoId) await aplicarEfectos(tx, r.efectos ?? [], { leadId: conv.lead.id, conversacionId: conv.id, prospectoId, sucursalId: r.estado.sucursalId });
 
   const salientes: Saliente[] = r.respuestas.map((cuerpo) => respuestaA(entrante.id, cuerpo));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
@@ -208,6 +223,33 @@ async function registrarYAvanzar(
   }
   await mensajeria.encolar(tx, conv.id, salientes);
   return { resultado: "procesado", conversacionId: conv.id };
+}
+
+/** Ejecuta, en la transacción del mensaje, los efectos que pidió la máquina de captación. */
+async function aplicarEfectos(
+  tx: Consultas,
+  efectos: readonly EfectoCaptacion[],
+  c: { leadId: string; conversacionId: string; prospectoId: string; sucursalId: string | null },
+): Promise<void> {
+  for (const e of efectos) {
+    if (e.tipo === "guardar_cotizacion") {
+      if (!c.sucursalId) throw new Error("No se puede guardar una cotización sin sucursal");
+      await guardarCotizacion(tx, {
+        leadId: c.leadId,
+        prospectoId: c.prospectoId,
+        programaId: e.programaId,
+        sucursalId: c.sucursalId,
+        origen: "bot",
+        conversacionId: c.conversacionId,
+        fecha: e.fecha,
+        vigenteHasta: e.vigenteHasta,
+        snapshot: snapshotDeCotizacion(e.cotizado, e.fecha),
+      });
+    } else if (e.tipo === "elegir_grupo") {
+      await elegirHorario(tx, { conversacionId: c.conversacionId, prospectoId: c.prospectoId, grupoId: e.grupoId });
+    }
+    // `programa_sugerido` ya viajó en el estado y se guardó con el prospecto.
+  }
 }
 
 type ConversacionConLead = Awaited<ReturnType<typeof obtenerConversacion>>;
@@ -368,12 +410,12 @@ async function obtenerConversacion(
 }
 
 /** Pasos en los que el bot consulta el catálogo: solo ahí se carga (cuesta unas cuantas consultas). */
-const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal"];
+const PASOS_CON_CATALOGO: readonly EstadoCaptacion["paso"][] = ["edad", "sucursal", "programa", "otra_sucursal", "horario"];
 
 async function contextoCaptacion(
   tx: Consultas,
   verticalId: string,
-  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date },
+  o: { paso: EstadoCaptacion["paso"]; sucursalDelLead: string | null; fuente: FuenteOcupacion; ahora: Date; conversacionId: string; prospectoId: string | null },
 ): Promise<ContextoCaptacion> {
   const vertical = await tx.vertical.findUniqueOrThrow({ where: { id: verticalId }, select: { nombre: true, cotizador_whatsapp_activo: true } });
   const filas = await tx.sucursal_vertical.findMany({
@@ -389,6 +431,12 @@ async function contextoCaptacion(
   const zona = (ordenadas.find((s) => s.id === o.sucursalDelLead) ?? ordenadas[0])?.zona_horaria;
   if (!zona) return { nombreVertical: vertical.nombre, sucursales };
   const catalogo = await cargarCatalogoCotizable(tx, { verticalId, fecha: fechaLocal(o.ahora, zona), fuente: o.fuente });
-  const { sucursalSinPrograma } = await leerConfiguracion(tx);
-  return { nombreVertical: vertical.nombre, sucursales, cotizador: { verticalId, catalogo, sucursalSinPrograma } };
+  const { sucursalSinPrograma, cotizacionVigenciaDias } = await leerConfiguracion(tx);
+  // En el paso del horario, los que se le numeraron al contacto: los de la cotización guardada, no los de hoy.
+  const opciones = o.paso === "horario" && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId) : null;
+  return {
+    nombreVertical: vertical.nombre,
+    sucursales,
+    cotizador: { verticalId, catalogo, sucursalSinPrograma, vigenciaDias: cotizacionVigenciaDias, cotizacionGuardada: opciones && opciones.length > 0 ? { opciones } : null },
+  };
 }

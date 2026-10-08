@@ -28,7 +28,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C5 | HECHO | ver sección | Cotizador determinista: `src/cotizador/` (puro + capa de consulta), `programa.fecha_corte_edad`, `edadCumplida`, horarios en español, `GET /api/cotizador` |
 | C6 | HECHO | ver sección | Varios programas para una edad: el bot (máquina pura) pregunta cuál, lo guarda en `prospecto.programa_sugerido_id`; `vertical.cotizador_whatsapp_activo` |
 | C7 | HECHO | ver sección | Otra sucursal: política `configuracion_organizacion.sucursal_sin_programa` (`ofrecer_otra` por defecto | `avisar_asesor`), paso `otra_sucursal` |
-| C8 | PENDIENTE | | Cotización guardada y cotizador por WhatsApp |
+| C8 | HECHO | ver sección | Cotización guardada (`cotizacion`, snapshot congelado) y cotizador por WhatsApp por vertical: el bot cotiza, el contacto elige horario, handoff con la cotización; `GET/POST /api/leads/:id/cotizaciones` |
 | C9 | PENDIENTE | | Lista de espera |
 | D1 | PENDIENTE | | Clase muestra: agendar, reprogramar, cancelar |
 | D2 | PENDIENTE | | Aviso al maestro |
@@ -897,3 +897,35 @@ Mutaciones atrapadas: aceptar un «sí» con varias opciones, que «no» no pase
 - **[SUPUESTO]** los textos de las ofertas y de «sin programa» (genéricos, en `src/captacion/maquina.ts`): revisar el tono.
 - No hay API ni pantalla para cambiar la política todavía (J8, administración de mensajería). Hoy se cambia con SQL: `UPDATE configuracion_organizacion SET sucursal_sin_programa = 'avisar_asesor'`.
 - Las direcciones de las sucursales de la demo siguen vacías: la oferta sale sin dirección hasta que la escuela las dé.
+
+## C8. Cotización guardada y cotizador por WhatsApp (decisión 15)
+
+**Qué se hizo**
+- **Tabla `cotizacion`** (migración `20261012030000_cotizacion`; `organizacion_id`, `eliminado_en` y FK compuestas como el resto): `lead_id`, `prospecto_id`, `programa_id`, `sucursal_id`, `origen` (`bot` | `asesor`), `conversacion_id` (solo el bot), `creado_por_usuario_id` (solo el asesor), `grupo_elegido_id`, `fecha`, `vigente_hasta`, `estatus` (`vigente` | `aceptada` | `vencida`) y **`snapshot` JSON**: programa, grupos con lugares y horarios, precio y promociones de ese día, importes como texto. En la base: **una vigente por (prospecto, programa)** (índice único parcial), `vigente_hasta ≥ fecha`, origen coherente (el bot dentro de una conversación y sin asesor; el asesor sin conversación) y snapshot objeto. `configuracion_organizacion.cotizacion_vigencia_dias` (7 por defecto, entre 1 y 365). Enum `paso_captacion` + `horario`.
+- **El bot cotiza** (con `vertical.cotizador_whatsapp_activo`): después de las tres preguntas (y de C6/C7) manda **una cotización**: programa, horarios numerados con su lugar («10 lugares», «1 lugar», «lista de espera»), inscripción y mensualidad (con la promoción vigente: «$500.00 → $450.00» y «Promoción vigente: nombre: $50.00 menos en la inscripción») y «responde con el número del horario… o escribe «asesor»». **Registra lo cotizado** (efecto `guardar_cotizacion`: reemplaza a la vigente anterior del mismo prospecto y programa). Al **elegir horario** guarda `cotizacion.grupo_elegido_id` (efecto `elegir_grupo`) y hace el **handoff** al asesor con la nota (programa, cotización con precio y vigencia, promociones y horario elegido). «asesor» → motivo `pidio_asesor` con la cotización en la nota. Sin lugar en ningún grupo: la cotización sale igual y pasa al asesor. Sin precio vigente: «el costo te lo confirma un asesor». Respuestas inválidas: reintento y a la tercera, `sin_entender`. Todo por `MessagingProvider` (`respuestaA`); se interrumpe en `horario` → aviso de 30 min (`PASOS_A_MEDIAS`).
+- **Con el cotizador apagado la captura NO cambia** (tres preguntas, cierre, pase y sin filas en `cotizacion`): hay un test. El interruptor es por vertical (otro test).
+- **Vigencia:** `vigente_hasta = min(fecha + días de la configuración, fin del precio vigente, fin de cada promoción cotizada)`. `vencida` la pone `vencerCotizaciones` en el mantenimiento horario del ciclo (con un día de margen sobre la fecha UTC; nunca vence una antes de tiempo) y la API ya la muestra vencida aunque el barrido no haya corrido.
+- **Los números apuntan a lo que vio:** los horarios que se le numeran al contacto salen del **snapshot guardado**, no del catálogo de hoy (si el grupo A se llena entre la cotización y la respuesta, su «1» sigue siendo A). Test.
+- **Precios congelados:** cambiar el precio después no toca el snapshot (test) y la nota dice lo que se cotizó.
+- **API** (`docs/API.md`): `GET /api/leads/:id/cotizaciones` (`leads:leer`) y `POST /api/leads/:id/cotizaciones` (`leads:escribir`: administrador y asesor) —el asesor cotiza a mano—: el servidor cotiza con el cotizador (nada de precios del cliente), guarda congelado, reemplaza la vigente, registra el cambio (`registro_cambio`: crear + actualizar de la reemplazada) bajo un candado por (prospecto, programa). Alcance por sucursal del lead (404) y del programa.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 389 · pass 389 · fail 0
+$ npm run test:int    → exit 0 · tests 448 · pass 448 · fail 0   (base de pruebas recreada VACÍA para este bloque: todas las migraciones aplican desde cero)
+```
+Tests nuevos: `cotizacion.test.ts` (8: vigencia con tope de precio/promoción y año nuevo, `venceEl`, opciones elegibles, snapshot ida y vuelta, JSON ajeno, descripción de promociones —15 % de $500 = $75—, resumen para la nota, `estatusEfectivo`), 10 en `maquina-cotizador.test.ts` (cotización con singular/plural/lista de espera, promoción, vigencia, sin precio, sin lugar, elegir horario por número y nombre, el snapshot manda, «asesor», lista de espera en el cierre, la nota), 12 en `cotizador-bot.itest.ts` (cotizar y guardar congelado, elegir horario y nota, «asesor», cotizador apagado, interruptor por vertical, precios congelados, numeración estable, sin precio, sin lugar, webhook repetido, dos respuestas simultáneas, aviso de 30 min, vigencia por configuración, sin datos de salud) y `cotizaciones.itest.ts` (12: cotizar a mano, vigencia y promoción que acorta, reemplazo + registro de cambios, **6 cotizaciones simultáneas → 1 vigente y 5 vencidas**, 409 por edad y 10 validaciones, permisos por rol, alcance, no-fuga, paginación y estatus derivado, `vencerCotizaciones` con sus márgenes, barrido y ciclo, y las garantías de la base). Los tests de C6 y C7 que esperaban el cierre con programa ahora esperan la cotización y el paso `horario`: cambió **por diseño** (C8 reemplaza el cierre provisional de C6) y está dicho aquí; ninguna aserción se debilitó.
+Mutaciones atrapadas: usar los horarios de hoy en vez de los guardados, ignorar el tope de vigencia, ofrecer grupos llenos sin lista, que «asesor» no pase a una persona, no cargar el snapshot, no reemplazar la vigente anterior, no anotar el horario, permitir cotizar a recepción, y sin el margen de `estatusEfectivo`.
+
+**Decisiones que tomé**
+- *Elegir horario NO marca `aceptada`:* aceptar es inscribirse (F3). La cotización queda `vigente` con `grupo_elegido_id`; F3 la pasa a `aceptada`. Alternativa descartada: `aceptada` al elegir (pierde la diferencia entre «le interesa este horario» y «se inscribió»).
+- *Un solo mensaje con toda la cotización* (programa, horarios, precio, promoción y la pregunta) en vez de varios: menos mensajes automáticos al día (límite de frecuencia de A6) y el contacto ve todo junto.
+- *Una vigente por (prospecto, programa) y la nueva vence a la anterior* (en vez de acumular vigentes): lo último que se dijo es lo que vale; las anteriores quedan como historial (`vencida`).
+- *`snapshot` incluye `descartadas` de promociones y todos los grupos (también los llenos sin lista):* es el registro completo de lo que el cotizador calculó; el contacto solo ve lo elegible.
+- *Sin `PATCH` para elegir horario a mano:* no se pidió; el asesor cotiza de nuevo o lo atiende por Chatwoot.
+- *El `POST` toma la edad del prospecto (`edad_declarada`):* no la recibe del cliente, para que lo cotizado coincida con lo capturado.
+
+**Para Eduardo**
+- **[SUPUESTO]** vigencia de 7 días de una cotización y todos los textos del mensaje de cotización (genéricos, en `src/captacion/maquina.ts`): revisar tono y si quiere más datos (dirección de la sucursal, duración de la clase).
+- Con el cotizador encendido, **el contacto recibe la cotización sin que un asesor la revise**: precios y promociones salen de las tablas, así que lo cargado en el catálogo (todo `[SUPUESTO]` hoy) es lo que se le dice al cliente. Antes de encender una vertical con clientes reales hay que confirmar precios, cupos y promociones.
+- Los programas con fecha de corte de edad no se pueden cotizar por fecha de nacimiento desde WhatsApp (el bot solo captura la edad); ver C5.

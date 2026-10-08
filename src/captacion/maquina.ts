@@ -12,8 +12,10 @@
 // quien la llama dentro de su transacción.
 
 import type { PoliticaSucursalSinPrograma } from "../configuracion/index.ts";
+import { descripcionDePromociones, opcionesDeHorario, vigenteHasta, type OpcionHorario } from "../cotizador/cotizacion.ts";
 import { cotizar, sucursalesConPrograma } from "../cotizador/cotizar.ts";
-import type { CatalogoCotizable } from "../cotizador/tipos.ts";
+import type { CatalogoCotizable, ProgramaCotizado } from "../cotizador/tipos.ts";
+import { formatear } from "../lib/dinero.ts";
 import type { PasoCaptacion } from "../datos/tipos.ts";
 
 export const MAX_INTENTOS = 3;
@@ -23,7 +25,7 @@ export const MAX_INTENTOS = 3;
  * 30 min se avisa a los asesores (`espera.ts`) y el reenganche de 25 h puede salir (`motor.ts`). Un solo lugar:
  * un paso nuevo que espera respuesta se agrega aquí.
  */
-export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal"];
+export const PASOS_A_MEDIAS: readonly PasoCaptacion[] = ["nombre", "edad", "sucursal", "programa", "otra_sucursal", "horario"];
 
 export interface OpcionSucursal {
   id: string;
@@ -45,6 +47,13 @@ export interface ContextoCotizadorBot {
   catalogo: CatalogoCotizable;
   /** Qué hacer si la sucursal elegida no tiene programa para la edad (configuración de la organización; C7). */
   sucursalSinPrograma: PoliticaSucursalSinPrograma;
+  /** Días que vale una cotización (configuración de la organización; C8). */
+  vigenciaDias: number;
+  /**
+   * La cotización que el bot ya le mandó a este contacto (la guardada), con los horarios TAL COMO se los numeró:
+   * el número que responda apunta a lo que vio, aunque los lugares hayan cambiado después. Nula si no hay.
+   */
+  cotizacionGuardada: { opciones: OpcionHorario[] } | null;
 }
 
 export interface ContextoCaptacion {
@@ -65,10 +74,15 @@ export interface EstadoCaptacion {
   programaId?: string | null;
 }
 
-export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta" | "sin_programa";
+export type MotivoPaseAsesor = "captura_completa" | "sin_entender" | "sin_respuesta" | "sin_programa" | "pidio_asesor";
 
 /** Lo que la máquina pide hacer en la base; lo ejecuta quien la llama, en su transacción. */
-export type EfectoCaptacion = { tipo: "programa_sugerido"; programaId: string };
+export type EfectoCaptacion =
+  | { tipo: "programa_sugerido"; programaId: string }
+  /** Guardar lo cotizado (programa, horarios con lugar, precios y promociones de hoy) para el prospecto. */
+  | { tipo: "guardar_cotizacion"; programaId: string; cotizado: ProgramaCotizado; fecha: string; vigenteHasta: string }
+  /** El contacto eligió este horario (grupo) de la cotización guardada. */
+  | { tipo: "elegir_grupo"; grupoId: string };
 
 export interface ResultadoCaptacion {
   estado: EstadoCaptacion;
@@ -117,6 +131,34 @@ export const textos = {
   /** C7: sin programa para su edad y nada que ofrecer (o prefiere a una persona): pasa al asesor. */
   sinPrograma: (nombre: string, edad: number, sucursal: string) =>
     `Por ahora no encontré un programa para ${nombre} (${edad} años) en la sucursal ${sucursal}. Te comunico con un asesor para revisar opciones; te escribe por aquí en unos minutos.`,
+  /** C8: la cotización completa. Todo sale de las tablas (programa, grupos, precios, promociones). */
+  cotizacion: (nombre: string, edad: number, sucursal: string, p: ProgramaCotizado, opciones: OpcionHorario[]): string => {
+    const moneda = p.precio?.moneda ?? "MXN";
+    const lineas: string[] = [`Para ${nombre} (${edad} años) en la sucursal ${sucursal} te recomiendo ${p.nombre}.${p.descripcionPublica ? ` ${p.descripcionPublica}` : ""}`];
+    if (opciones.length > 0) {
+      lineas.push("", "Horarios disponibles:");
+      opciones.forEach((o, i) => lineas.push(`${i + 1}. ${o.nombre}: ${o.horarioTexto} · ${o.oferta === "lugar" ? (o.lugares === 1 ? "1 lugar" : `${o.lugares} lugares`) : "lista de espera"}`));
+    } else {
+      lineas.push("", "Por ahora no hay lugares en los grupos de este programa.");
+    }
+    lineas.push("");
+    if (p.precio) {
+      const pr = p.promociones;
+      const insc = pr && pr.inscripcion.descuentoAhora > 0n ? `${formatear(pr.inscripcion.original, moneda)} → ${formatear(pr.inscripcion.finalAhora, moneda)}` : formatear(p.precio.costoInscripcion, moneda);
+      const mens = pr && pr.mensualidad.descuentoAhora > 0n ? `${formatear(pr.mensualidad.original, moneda)} → ${formatear(pr.mensualidad.finalAhora, moneda)}` : formatear(p.precio.costoMensualidad, moneda);
+      lineas.push(`Inscripción: ${insc}`, `Mensualidad: ${mens}`);
+      for (const promo of descripcionDePromociones(p)) lineas.push(`Promoción vigente: ${promo}`);
+    } else {
+      lineas.push("El costo te lo confirma un asesor.");
+    }
+    lineas.push("", opciones.length > 0 ? "Responde con el número del horario que prefieras, o escribe «asesor» para hablar con una persona." : "Un asesor te escribe por aquí en unos minutos.");
+    return lineas.join("\n");
+  },
+  reintentoHorario: (opciones: OpcionHorario[]) =>
+    `Responde con el número del horario, o escribe «asesor» para hablar con una persona:\n${opciones.map((o, i) => `${i + 1}. ${o.nombre}: ${o.horarioTexto}`).join("\n")}`,
+  cierreConHorario: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
+    `¡Listo! Anotamos a ${nombre} en ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}${o.oferta === "lista_de_espera" ? ", en lista de espera" : ""}. Un asesor te escribe por aquí en unos minutos para confirmar y resolver tus dudas.`,
+  pidioAsesor: "Claro, te comunico con un asesor. Te escribe por aquí en unos minutos.",
   cierreConPrograma: (nombre: string, programa: string, sucursal: string | null) =>
     `¡Gracias! Ya tengo los datos de ${nombre} para ${programa}${sucursal ? ` en la sucursal ${sucursal}` : ""}. Un asesor te escribe por aquí en unos minutos con horarios y costos.`,
   /** Única respuesta a una baja: sale una sola vez y es lo último que el sistema le manda. */
@@ -132,6 +174,8 @@ export const textos = {
       telefono: string | null;
       /** El programa elegido o único para su edad; se omite (undefined) si el cotizador no lo anotó. */
       programa?: string | null;
+      /** Líneas con lo cotizado y el horario elegido (C8); se omite si no se cotizó. */
+      cotizacion?: string[];
       /** El adulto que escribe. */
       contacto?: string | null;
       /** Anuncio y campaña de origen; null = entró directo, sin anuncio. */
@@ -143,13 +187,16 @@ export const textos = {
         ? "Datos capturados por el bot:"
         : motivo === "sin_respuesta"
           ? "El contacto dejó de contestar a mitad de la captura. Nadie la ha tomado: el bot sigue atendiendo si vuelve. Asígnatela o escríbele para tomarla. Datos parciales:"
-          : motivo === "sin_programa"
+          : motivo === "pidio_asesor"
+            ? "El contacto pidió hablar con una persona. Datos capturados:"
+            : motivo === "sin_programa"
             ? "La sucursal elegida no tiene programa para la edad y el contacto no pasó a otra sucursal (no hay otra con programa, no quiso, o la política de la organización es avisar al asesor). Datos capturados:"
             : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
       `• Nombre: ${datos.nombre ?? "—"}`,
       `• Edad: ${datos.edad ?? "—"}`,
       `• Sucursal: ${datos.sucursal ?? "—"}`,
       ...(datos.programa !== undefined ? [`• Programa: ${datos.programa ?? "—"}`] : []),
+      ...(datos.cotizacion ?? []),
       `• Teléfono: ${datos.telefono ?? "—"}`,
       ...(datos.contacto !== undefined ? [`• Contacto: ${datos.contacto ?? "—"}`] : []),
       ...(datos.origen !== undefined ? [`• Origen: ${datos.origen ?? "directo, sin anuncio"}`] : []),
@@ -210,6 +257,21 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       const sucursal = elegirSucursal(entrada, ctx.sucursales);
       if (!sucursal) return fallo(estado, textos.reintentoSucursal(ctx.sucursales));
       return conSucursal({ ...estado, sucursalId: sucursal.id, intentosFallidos: 0 }, ctx);
+    }
+
+    case "horario": {
+      const opciones = opcionesVigentes(estado, ctx);
+      if (esNegativa(entrada)) return pidioAsesor(estado);
+      const elegida = opciones.length > 0 ? elegirOpcion(entrada, opciones) : null;
+      if (!elegida) return fallo(estado, textos.reintentoHorario(opciones));
+      const programa = ctx.cotizador?.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
+      const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
+      return {
+        estado: { ...estado, paso: "completo", intentosFallidos: 0 },
+        respuestas: [textos.cierreConHorario(estado.nombre ?? "", elegida, programa, sucursal)],
+        pasarAAsesor: "captura_completa",
+        efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
+      };
     }
 
     case "otra_sucursal": {
@@ -300,11 +362,39 @@ function sinPrograma(estado: EstadoCaptacion, ctx: ContextoCaptacion): Resultado
   };
 }
 
-/** Ya hay un programa: se anota en el prospecto y se cierra. */
+/**
+ * Ya hay un programa: se anota en el prospecto y se le manda la cotización (C8): programa, horarios con lugar, precio
+ * y promoción de hoy, y se queda esperando que elija horario. Lo cotizado se guarda con `guardar_cotizacion`.
+ */
 function conPrograma(estado: EstadoCaptacion, programaId: string, ctx: ContextoCaptacion): ResultadoCaptacion {
   const programa = programasDeLaEdad(estado, ctx).find((p) => p.id === programaId);
-  if (!programa) return completar(estado, ctx);
-  return completar({ ...estado, programaId }, ctx, programa);
+  if (!programa || !ctx.cotizador || estado.sucursalId === null || estado.edad === null) return completar(estado, ctx);
+  const cotizado = cotizar(ctx.cotizador.catalogo, { verticalId: ctx.cotizador.verticalId, sucursalId: estado.sucursalId, edadDeclarada: estado.edad }).programas.find((p) => p.programaId === programaId);
+  if (!cotizado) return completar({ ...estado, programaId }, ctx, programa);
+
+  const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? "";
+  const opciones = opcionesDeHorario(cotizado);
+  const fecha = ctx.cotizador.catalogo.fecha;
+  const efectos: EfectoCaptacion[] = [
+    { tipo: "programa_sugerido", programaId },
+    { tipo: "guardar_cotizacion", programaId, cotizado, fecha, vigenteHasta: vigenteHasta(cotizado, fecha, ctx.cotizador.vigenciaDias) },
+  ];
+  const mensaje = textos.cotizacion(estado.nombre ?? "", estado.edad, sucursal, cotizado, opciones);
+  // Sin horarios que ofrecer, la cotización se manda igual y una persona sigue desde ahí.
+  if (opciones.length === 0) return { estado: { ...estado, programaId, paso: "completo" }, respuestas: [mensaje], pasarAAsesor: "captura_completa", efectos };
+  return { estado: { ...estado, programaId, paso: "horario", intentosFallidos: 0 }, respuestas: [mensaje], pasarAAsesor: null, efectos };
+}
+
+/** Los horarios que se le numeraron: los de la cotización guardada, o (si no hay) los que hoy ofrece el programa. */
+function opcionesVigentes(estado: EstadoCaptacion, ctx: ContextoCaptacion): OpcionHorario[] {
+  if (ctx.cotizador?.cotizacionGuardada) return ctx.cotizador.cotizacionGuardada.opciones;
+  if (!ctx.cotizador || estado.sucursalId === null || estado.edad === null || !estado.programaId) return [];
+  const p = cotizar(ctx.cotizador.catalogo, { verticalId: ctx.cotizador.verticalId, sucursalId: estado.sucursalId, edadDeclarada: estado.edad }).programas.find((x) => x.programaId === estado.programaId);
+  return p ? opcionesDeHorario(p) : [];
+}
+
+function pidioAsesor(estado: EstadoCaptacion): ResultadoCaptacion {
+  return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [textos.pidioAsesor], pasarAAsesor: "pidio_asesor" };
 }
 
 function fallo(estado: EstadoCaptacion, reintento: string): ResultadoCaptacion {

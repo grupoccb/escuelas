@@ -27,7 +27,7 @@ export interface ContactoBot {
   telefono: string;
   chatwootConversacionId: number;
   /** El contacto escribe; devuelve el resultado de procesarlo. */
-  escribe(contenido: string, cuando?: Date): ReturnType<typeof procesarEntrante>;
+  escribe(contenido: string, cuando?: Date, idMensaje?: string): ReturnType<typeof procesarEntrante>;
   /** El contacto escribe varios mensajes seguidos. */
   conversa(...contenidos: string[]): Promise<void>;
   conversacion(): Promise<Awaited<ReturnType<BaseDatos["conversacion"]["findFirstOrThrow"]>> & { lead: Awaited<ReturnType<BaseDatos["lead"]["findFirstOrThrow"]>> }>;
@@ -68,8 +68,8 @@ export async function escenarioBot(prisma: PrismaPruebas, o: OpcionesEscenarioBo
   const contacto = (nombre = "Mamá"): ContactoBot => {
     const chatwootConversacionId = randomInt(1, 2_000_000_000);
     const telefono = `+5255${randomInt(10_000_000, 99_999_999)}`;
-    const evento = (contenido: string): EventoEntrante => {
-      const id = String(siguienteMensaje++);
+    const evento = (contenido: string, idMensaje?: string): EventoEntrante => {
+      const id = idMensaje ?? String(siguienteMensaje++);
       return {
         chatwootAccountId: org.chatwootAccountId,
         chatwootInboxId: org.chatwootInboxId,
@@ -84,7 +84,7 @@ export async function escenarioBot(prisma: PrismaPruebas, o: OpcionesEscenarioBo
         crudo: null,
       };
     };
-    const escribe = (contenido: string, cuando?: Date) => procesarEntrante(deps(cuando), evento(contenido));
+    const escribe = (contenido: string, cuando?: Date, idMensaje?: string) => procesarEntrante(deps(cuando), evento(contenido, idMensaje));
     const delContacto = (e: EnvioRegistrado): boolean => e.destino.chatwootConversacionId === chatwootConversacionId;
     return {
       telefono,

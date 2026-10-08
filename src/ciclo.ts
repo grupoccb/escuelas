@@ -11,6 +11,7 @@
 import { purgarCaducados, type ResumenRetencion } from "./auth/retencion.ts";
 import { correrAutomatizaciones, type ResumenMotor } from "./automatizaciones/motor.ts";
 import { barrerEspera, type ResumenEspera } from "./captacion/espera.ts";
+import { vencerCotizacionesDeTodas, type ResumenVencimiento } from "./cotizador/vencer.ts";
 import type { PrismaRaiz } from "./datos/prisma.ts";
 import { log } from "./lib/log.ts";
 import type { BordeTwilio, MessagingProvider, ResumenReenvio } from "./mensajeria/index.ts";
@@ -41,6 +42,8 @@ export interface ResumenCiclo {
   twilio: ResumenReenvio | null;
   /** null si la retención está apagada, no le tocaba o lanzó. */
   retencion: ResumenRetencion | null;
+  /** Cotizaciones que pasaron a `vencida` (mismo mantenimiento horario que la retención). null si no le tocaba o lanzó. */
+  cotizaciones: ResumenVencimiento | null;
   /** Errores aislados de todo el ciclo (conversaciones, organizaciones y barridos completos). */
   errores: number;
 }
@@ -51,6 +54,7 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
   let motor: ResumenMotor | null = null;
   let twilio: ResumenReenvio | null = null;
   let retencion: ResumenRetencion | null = null;
+  let cotizaciones: ResumenVencimiento | null = null;
   try {
     espera = await barrerEspera(deps);
     errores += espera.errores;
@@ -86,8 +90,15 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
         errores++;
         log.error("ciclo_error", { barrido: "retencion", error: (e as Error).message });
       }
+      try {
+        cotizaciones = await vencerCotizacionesDeTodas(deps);
+        errores += cotizaciones.errores;
+      } catch (e) {
+        errores++;
+        log.error("ciclo_error", { barrido: "cotizaciones", error: (e as Error).message });
+      }
     }
   }
   if (errores > 0) log.warn("ciclo_con_errores", { errores });
-  return { espera, motor, twilio, retencion, errores };
+  return { espera, motor, twilio, retencion, cotizaciones, errores };
 }

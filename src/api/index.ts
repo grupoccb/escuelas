@@ -30,6 +30,7 @@ import { rutasDeSalones } from "./rutas/salones.ts";
 import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
+import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
@@ -104,6 +105,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeCotizador(deps));
   api.use(rutasDeTareas(deps));
   api.use(rutasDeLeads(deps));
+  api.use(rutasDeCotizaciones(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));
   api.use(rutasDeSalud(deps));

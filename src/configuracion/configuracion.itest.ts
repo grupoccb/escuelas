@@ -23,7 +23,7 @@ after(async () => {
 test("sin fila: los valores por defecto (3 automáticos por día, 1 de marketing cada 7 días)", async () => {
   const o = await sembrarOrganizacion(prisma, "ConfigVacia");
   const c = await leerConfiguracion(conAlcance(prisma, o.organizacionId));
-  assert.deepEqual(c, { maxAutomaticosPorDia: 3, maxMarketingPorVentana: 1, ventanaMarketingDias: 7, sucursalSinPrograma: "ofrecer_otra" });
+  assert.deepEqual(c, { maxAutomaticosPorDia: 3, maxMarketingPorVentana: 1, ventanaMarketingDias: 7, sucursalSinPrograma: "ofrecer_otra", cotizacionVigenciaDias: 7 });
   assert.deepEqual(c, CONFIGURACION_POR_DEFECTO);
   // El objeto devuelto es una copia: modificarlo no cambia los defaults.
   c.maxAutomaticosPorDia = 99;
@@ -34,14 +34,14 @@ test("los defaults del código coinciden con los de las columnas de la base", as
   const o = await sembrarOrganizacion(prisma, "ConfigColumnas");
   const fila = await prisma.configuracion_organizacion.create({ data: { organizacion_id: o.organizacionId } });
   assert.deepEqual(await leerConfiguracion(conAlcance(prisma, o.organizacionId)), CONFIGURACION_POR_DEFECTO);
-  assert.deepEqual([fila.max_automaticos_por_dia, fila.max_marketing_por_ventana, fila.ventana_marketing_dias, fila.sucursal_sin_programa], [3, 1, 7, "ofrecer_otra"]);
+  assert.deepEqual([fila.max_automaticos_por_dia, fila.max_marketing_por_ventana, fila.ventana_marketing_dias, fila.sucursal_sin_programa, fila.cotizacion_vigencia_dias], [3, 1, 7, "ofrecer_otra", 7]);
 });
 
 test("lee lo que la organización fijó, y un cambio surte efecto en la siguiente lectura", async () => {
   const o = await sembrarOrganizacion(prisma, "ConfigFijada");
   const db = conAlcance(prisma, o.organizacionId);
   await fijarConfiguracion(prisma, o.organizacionId, { max_automaticos_por_dia: 5, max_marketing_por_ventana: 2, ventana_marketing_dias: 14 });
-  assert.deepEqual(await leerConfiguracion(db), { maxAutomaticosPorDia: 5, maxMarketingPorVentana: 2, ventanaMarketingDias: 14, sucursalSinPrograma: "ofrecer_otra" });
+  assert.deepEqual(await leerConfiguracion(db), { maxAutomaticosPorDia: 5, maxMarketingPorVentana: 2, ventanaMarketingDias: 14, sucursalSinPrograma: "ofrecer_otra", cotizacionVigenciaDias: 7 });
   await fijarConfiguracion(prisma, o.organizacionId, { sucursal_sin_programa: "avisar_asesor" });
   assert.equal((await leerConfiguracion(db)).sucursalSinPrograma, "avisar_asesor");
   await fijarConfiguracion(prisma, o.organizacionId, { max_automaticos_por_dia: 1 });

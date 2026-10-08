@@ -3,12 +3,13 @@
 // de espera (C9). Los nombres de programas y grupos son neutros (invariante 2).
 
 import { after, before, test } from "node:test";
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { escenarioBot, type OpcionesEscenarioBot } from "../testutil/bot.ts";
 import { barrerTiemposDeEspera } from "./espera.ts";
 import { MessagingProvider } from "../mensajeria/index.ts";
-import { fijarConfiguracion } from "../testutil/semilla.ts";
+import { fijarConfiguracion, OcupacionFija } from "../testutil/semilla.ts";
 import { textos } from "./maquina.ts";
 
 let prisma: PrismaPruebas;
@@ -49,23 +50,28 @@ test("C6: con varios programas para la edad el bot pregunta cuál, guarda la ele
 
   await c.escribe("2");
   conv = await c.conversacion();
-  assert.equal(conv.paso_captacion, "completo");
-  assert.equal(conv.estado, "en_atencion_humana", "pasó al asesor");
+  assert.equal(conv.paso_captacion, "horario", "con el programa elegido, el bot cotiza y espera el horario (C8)");
+  assert.equal(conv.estado, "bot");
   const prospecto = await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
   assert.equal(prospecto.programa_sugerido_id, (await e.db.programa.findFirstOrThrow({ where: { nombre: "Estilo Beta" } })).id);
-  assert.equal(c.mensajes().at(-1), textos.cierreConPrograma("Luis", "Estilo Beta", "Norte"));
+  assert.match(c.mensajes().at(-1)!, /^Para Luis \(20 años\) en la sucursal Norte te recomiendo Estilo Beta\. Ritmo intenso\n/);
+
+  await c.escribe("1");
+  conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "completo");
+  assert.equal(conv.estado, "en_atencion_humana", "pasó al asesor");
   assert.match(c.notas().at(-1)!, /• Programa: Estilo Beta/);
 });
 
-test("C6: con un solo programa para la edad no pregunta: lo anota y cierra", async () => {
+test("C6: con un solo programa para la edad no pregunta cuál: lo anota y sigue con la cotización", async () => {
   const e = await escenarioBot(prisma, catalogoBase());
   const c = e.contacto();
   await c.conversa("Hola", "Ana", "8", "1");
   const conv = await c.conversacion();
-  assert.equal(conv.paso_captacion, "completo");
+  assert.equal(conv.paso_captacion, "horario");
   const prospecto = await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
   assert.equal(prospecto.programa_sugerido_id, (await e.db.programa.findFirstOrThrow({ where: { nombre: "Programa niños" } })).id);
-  assert.equal(c.mensajes().at(-1), textos.cierreConPrograma("Ana", "Programa niños", "Norte"));
+  assert.match(c.mensajes().at(-1)!, /^Para Ana \(8 años\) en la sucursal Norte te recomiendo Programa niños\./);
 });
 
 test("C6: respuestas inválidas reintentan y a la tercera pasa al asesor con la nota de datos parciales", async () => {
@@ -140,12 +146,15 @@ test("C7: por defecto ofrece la otra sucursal; si el contacto acepta, recotiza a
 
   await c.escribe("sí");
   conv = await c.conversacion();
-  assert.equal(conv.paso_captacion, "completo");
-  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.paso_captacion, "horario", "cotiza en la otra sucursal y espera el horario");
   assert.equal(conv.lead.sucursal_interes_id, e.org.sucursales[1]!.id, "ahora es Sur");
   const prospecto = await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
   assert.equal(prospecto.programa_sugerido_id, (await e.db.programa.findFirstOrThrow({ where: { nombre: "Programa sur" } })).id);
-  assert.equal(c.mensajes().at(-1), textos.cierreConPrograma("Marta", "Programa sur", "Sur"));
+  assert.match(c.mensajes().at(-1)!, /^Para Marta \(14 años\) en la sucursal Sur te recomiendo Programa sur\./);
+
+  await c.escribe("1");
+  conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
   assert.match(c.notas().at(-1)!, /• Sucursal: Sur\n• Programa: Programa sur/);
 });
 
@@ -224,4 +233,221 @@ test("C7: se interrumpe en la oferta de otra sucursal → a los 30 min se avisa 
   const avisadas = await barrerTiemposDeEspera({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => despues }), organizacionId: e.org.organizacionId, reloj: () => despues });
   assert.equal(avisadas, 1);
   assert.equal((await c.conversacion()).estado, "bot");
+});
+
+// ── C8: la cotización por WhatsApp y la elección del horario (decisión 15) ───────────────────────────
+
+test("C8: tras las tres preguntas el bot cotiza (programa, horarios con lugar, precio) y GUARDA lo cotizado congelado", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const texto = c.mensajes().at(-1)!;
+  assert.equal(
+    texto,
+    [
+      "Para Ana (8 años) en la sucursal Norte te recomiendo Programa niños.",
+      "",
+      "Horarios disponibles:",
+      "1. Niños tarde: lunes de 16:00 a 17:00 · 10 lugares",
+      "",
+      "Inscripción: $500.00",
+      "Mensualidad: $800.00",
+      "",
+      "Responde con el número del horario que prefieras, o escribe «asesor» para hablar con una persona.",
+    ].join("\n"),
+  );
+  const conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "horario");
+  assert.equal(conv.estado, "bot", "todavía no hay asesor: espera el horario");
+
+  const cot = await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
+  const prospecto = await e.db.prospecto.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
+  assert.deepEqual(
+    [cot.prospecto_id, cot.programa_id, cot.sucursal_id, cot.origen, cot.conversacion_id, cot.creado_por_usuario_id, cot.estatus, cot.grupo_elegido_id],
+    [prospecto.id, e.programas[0]!.id, e.org.sucursales[0]!.id, "bot", conv.id, null, "vigente", null],
+  );
+  assert.equal(cot.fecha.toISOString().slice(0, 10) < cot.vigente_hasta.toISOString().slice(0, 10), true);
+  const dias = (cot.vigente_hasta.getTime() - cot.fecha.getTime()) / 86_400_000;
+  assert.equal(dias, 7, "la vigencia por defecto de la configuración");
+  const snap = cot.snapshot as { version: number; programa: { nombre: string; precio: { costo_inscripcion: string; costo_mensualidad: string }; grupos: { grupo_id: string; horario_texto: string; lugares_disponibles: number }[] } };
+  assert.equal(snap.version, 1);
+  assert.deepEqual([snap.programa.nombre, snap.programa.precio.costo_inscripcion, snap.programa.precio.costo_mensualidad], ["Programa niños", "500.00", "800.00"]);
+  assert.deepEqual(snap.programa.grupos.map((g) => [g.grupo_id, g.horario_texto, g.lugares_disponibles]), [[e.programas[0]!.grupos[0]!.id, "lunes de 16:00 a 17:00", 10]]);
+});
+
+test("C8: al elegir horario se guarda cotizacion.grupo_elegido y el handoff lleva la cotización y el horario en la nota", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "1");
+  const conv = await c.conversacion();
+  assert.equal(conv.paso_captacion, "completo");
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.motivo_pase_asesor, "captura_completa");
+  const cot = await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } });
+  assert.equal(cot.grupo_elegido_id, e.programas[0]!.grupos[0]!.id);
+  assert.equal(cot.estatus, "vigente", "elegir horario no es inscribirse: la inscripción (F3) la marca aceptada");
+  assert.equal(c.mensajes().at(-1), "¡Listo! Anotamos a Ana en Niños tarde (lunes de 16:00 a 17:00) de Programa niños, sucursal Norte. Un asesor te escribe por aquí en unos minutos para confirmar y resolver tus dudas.");
+  const nota = c.notas().at(-1)!;
+  assert.match(nota, /• Programa: Programa niños\n• Cotización \(vale hasta \d{4}-\d{2}-\d{2}\): inscripción \$500\.00, mensualidad \$800\.00\n• Horario elegido: Niños tarde — lunes de 16:00 a 17:00\n• Teléfono/);
+});
+
+test("C8: «asesor» en lugar del horario pasa a una persona con la cotización en la nota, sin horario elegido", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "asesor");
+  const conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(conv.motivo_pase_asesor, "pidio_asesor");
+  assert.equal(c.mensajes().at(-1), textos.pidioAsesor);
+  assert.match(c.notas().at(-1)!, /pidió hablar con una persona/);
+  assert.match(c.notas().at(-1)!, /• Cotización \(vale hasta[^\n]*\n• Horario elegido: todavía no eligió/);
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, null);
+});
+
+test("C8: con el cotizador de la vertical APAGADO no se cotiza ni se guarda nada: la captura de tres preguntas y el handoff de siempre", async () => {
+  const e = await escenarioBot(prisma, { ...catalogoBase(), cotizador: false });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const conv = await c.conversacion();
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(c.mensajes().at(-1), textos.cierre("Ana", "Norte"));
+  assert.equal(await e.db.cotizacion.count(), 0);
+  assert.ok(!c.notas().at(-1)!.includes("Cotización"));
+});
+
+test("C8: el interruptor es POR VERTICAL: encender una no enciende la otra", async () => {
+  const e = await escenarioBot(prisma, { ...catalogoBase(), cotizador: false });
+  const otra = await prisma.vertical.create({ data: { organizacion_id: e.org.organizacionId, nombre: "Otra vertical", slug: "otra-vertical", cotizador_whatsapp_activo: true } });
+  assert.equal((await e.db.vertical.findFirstOrThrow({ where: { id: e.org.verticalId } })).cotizador_whatsapp_activo, false);
+  assert.equal((await e.db.vertical.findFirstOrThrow({ where: { id: otra.id } })).cotizador_whatsapp_activo, true);
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  assert.equal((await c.conversacion()).paso_captacion, "completo", "la vertical del canal sigue apagada");
+});
+
+test("C8: los precios quedan CONGELADOS: un cambio de precio posterior no toca la cotización guardada", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const antes = await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: (await c.conversacion()).lead_id } });
+  // El precio sube mañana mismo en el catálogo.
+  await prisma.precio.updateMany({ where: { programa_id: e.programas[0]!.id }, data: { costo_mensualidad: "999.00" } });
+  await c.escribe("1");
+  const despues = await e.db.cotizacion.findFirstOrThrow({ where: { id: antes.id } });
+  assert.deepEqual(despues.snapshot, antes.snapshot);
+  assert.equal((despues.snapshot as { programa: { precio: { costo_mensualidad: string } } }).programa.precio.costo_mensualidad, "800.00");
+  assert.match(c.notas().at(-1)!, /mensualidad \$800\.00/, "la nota dice lo que se le cotizó, no lo de hoy");
+});
+
+test("C8: el número que responde apunta a los horarios QUE VIO aunque los lugares cambien entre la cotización y su respuesta", async () => {
+  const ocupacion = new OcupacionFija();
+  const e = await escenarioBot(prisma, {
+    fuente: ocupacion,
+    programas: [
+      {
+        sucursal: 0,
+        nombre: "Programa dos horarios",
+        edadMin: 3,
+        edadMax: 12,
+        grupos: [
+          { nombre: "Horario A", cupoMaximo: 10, horarios: [H(1)] },
+          { nombre: "Horario B", cupoMaximo: 6, horarios: [H(2)] },
+        ],
+        precio: PRECIO,
+      },
+    ],
+  });
+  const a = e.programas[0]!.grupos[0]!;
+  const b = e.programas[0]!.grupos[1]!;
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  assert.match(c.mensajes().at(-1)!, /1\. Horario A: lunes de 16:00 a 17:00 · 10 lugares\n2\. Horario B: martes de 16:00 a 17:00 · 6 lugares/);
+  // Entre tanto el horario A se llena: hoy el catálogo lo mostraría al final (o no), pero el contacto vio A como el 1.
+  ocupacion.fijar(a.id, 10);
+  await c.escribe("1");
+  const cot = await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: (await c.conversacion()).lead_id } });
+  assert.equal(cot.grupo_elegido_id, a.id, "el 1 de lo que vio es A");
+  assert.notEqual(cot.grupo_elegido_id, b.id);
+});
+
+test("C8: un programa sin precio vigente se cotiza igual y el costo lo confirma un asesor", async () => {
+  const e = await escenarioBot(prisma, { programas: [{ sucursal: 0, nombre: "Programa sin precio", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", horarios: [H(1)] }] }] });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  assert.match(c.mensajes().at(-1)!, /El costo te lo confirma un asesor\./);
+  await c.escribe("1");
+  assert.match(c.notas().at(-1)!, /sin precio vigente/);
+});
+
+test("C8: sin lugar en ningún grupo la cotización sale igual y pasa al asesor; el programa queda anotado", async () => {
+  const ocupacion = new OcupacionFija();
+  const e = await escenarioBot(prisma, { fuente: ocupacion, programas: [{ sucursal: 0, nombre: "Programa lleno", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", cupoMaximo: 3, horarios: [H(1)] }], precio: PRECIO }] });
+  ocupacion.fijar(e.programas[0]!.grupos[0]!.id, 3);
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const conv = await c.conversacion();
+  assert.match(c.mensajes().at(-1)!, /Por ahora no hay lugares en los grupos de este programa\./);
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(await e.db.cotizacion.count({ where: { lead_id: conv.lead_id } }), 1);
+});
+
+test("C8: un webhook repetido del horario (mismo id de mensaje) no duplica ni cambia lo elegido (invariante 8)", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const id = `repetido-${randomUUID()}`;
+  const primero = await c.escribe("1", undefined, id);
+  assert.equal(primero.resultado, "procesado");
+  const conv = await c.conversacion();
+  const enviados = e.transporte.envios.length;
+  const repetido = await c.escribe("1", undefined, id);
+  assert.equal(repetido.resultado, "duplicado");
+  assert.equal(e.transporte.envios.length, enviados, "no se vuelve a mandar nada");
+  assert.equal(await e.db.cotizacion.count({ where: { lead_id: conv.lead_id } }), 1);
+  assert.equal((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: conv.lead_id } })).grupo_elegido_id, e.programas[0]!.grupos[0]!.id);
+});
+
+test("C8: dos respuestas de horario simultáneas dejan UN solo horario elegido y un solo handoff", async () => {
+  const e = await escenarioBot(prisma, {
+    programas: [{ sucursal: 0, nombre: "Programa dos horarios", edadMin: 3, edadMax: 12, grupos: [{ nombre: "Horario A", horarios: [H(1)] }, { nombre: "Horario B", cupoMaximo: 5, horarios: [H(2)] }], precio: PRECIO }],
+  });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  await Promise.all([c.escribe("1"), c.escribe("2")]);
+  const conv = await c.conversacion();
+  const cots = await e.db.cotizacion.findMany({ where: { lead_id: conv.lead_id } });
+  assert.equal(cots.length, 1);
+  assert.ok(cots[0]!.grupo_elegido_id, "quedó un horario elegido");
+  assert.equal(conv.estado, "en_atencion_humana");
+  assert.equal(c.mensajes().filter((m) => m.startsWith("¡Listo!")).length, 1, "un solo cierre");
+});
+
+test("C8: se interrumpe en la elección del horario → a los 30 min se avisa a los asesores", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  const t0 = new Date("2026-10-08T16:00:00Z");
+  for (const t of ["Hola", "Ana", "8", "1"]) await c.escribe(t, t0);
+  assert.equal((await c.conversacion()).paso_captacion, "horario");
+  const despues = new Date(t0.getTime() + 31 * 60 * 1000);
+  const avisadas = await barrerTiemposDeEspera({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => despues }), organizacionId: e.org.organizacionId, reloj: () => despues });
+  assert.equal(avisadas, 1);
+  assert.match(c.notas().at(-1)!, /dejó de contestar/);
+  assert.match(c.notas().at(-1)!, /• Cotización/);
+});
+
+test("C8: la vigencia de la cotización sale de la configuración de la organización", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  await fijarConfiguracion(prisma, e.org.organizacionId, { cotizacion_vigencia_dias: 3 });
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1");
+  const cot = await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: (await c.conversacion()).lead_id } });
+  assert.equal((cot.vigente_hasta.getTime() - cot.fecha.getTime()) / 86_400_000, 3);
+});
+
+test("C8: nada de la cotización ni de la nota incluye datos de salud (no hay) ni el teléfono sin enmascarar en los logs", async () => {
+  const e = await escenarioBot(prisma, catalogoBase());
+  const c = e.contacto();
+  await c.conversa("Hola", "Ana", "8", "1", "1");
+  const todo = [...c.mensajes(), ...c.notas(), JSON.stringify((await e.db.cotizacion.findFirstOrThrow({ where: { lead_id: (await c.conversacion()).lead_id } })).snapshot)].join("\n");
+  assert.ok(!/alergia|medicamento|condici[oó]n m[eé]dica|emergencia/i.test(todo));
 });

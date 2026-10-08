@@ -90,6 +90,26 @@ function cotizarPrograma(p: ProgramaCotizable, e: EdadDePrograma, entrada: Entra
   const precio = p.precio
     ? { precioId: p.precio.id, costoInscripcion: p.precio.costoInscripcion, costoMensualidad: p.precio.costoMensualidad, moneda: p.precio.moneda, vigenteDesde: p.precio.desde, vigenteHasta: p.precio.hasta }
     : null;
+  const promociones = precio
+    ? resolverPromociones(cat.promociones, {
+        fecha: cat.fecha,
+        verticalId: p.verticalId,
+        sucursalId: p.sucursalId,
+        programaId: p.id,
+        hermanosInscritos: entrada.hermanosInscritos ?? 0,
+        mesesPagadosPorAdelantado: entrada.mesesPagadosPorAdelantado ?? 0,
+        costoInscripcion: precio.costoInscripcion,
+        costoMensualidad: precio.costoMensualidad,
+      })
+    : null;
+  // Cuándo deja de valer lo cotizado: el fin del precio y el de cada promoción que se aplicó.
+  const fines: string[] = [];
+  if (precio?.vigenteHasta) fines.push(precio.vigenteHasta);
+  for (const a of promociones?.aplicadas ?? []) {
+    const fin = cat.promociones.find((x) => x.id === a.promocionId)?.vigenciaHasta;
+    if (fin) fines.push(fin);
+  }
+  fines.sort();
   return {
     programaId: p.id,
     nombre: p.nombre,
@@ -103,18 +123,8 @@ function cotizarPrograma(p: ProgramaCotizable, e: EdadDePrograma, entrada: Entra
     fechaCorteEdad: p.fechaCorteEdad,
     precio,
     grupos: gruposCotizados(p),
-    promociones: precio
-      ? resolverPromociones(cat.promociones, {
-          fecha: cat.fecha,
-          verticalId: p.verticalId,
-          sucursalId: p.sucursalId,
-          programaId: p.id,
-          hermanosInscritos: entrada.hermanosInscritos ?? 0,
-          mesesPagadosPorAdelantado: entrada.mesesPagadosPorAdelantado ?? 0,
-          costoInscripcion: precio.costoInscripcion,
-          costoMensualidad: precio.costoMensualidad,
-        })
-      : null,
+    promociones,
+    venceEl: fines[0] ?? null,
   };
 }
 
