@@ -134,3 +134,18 @@ test("estatusEfectivo: una vigente se muestra vencida solo cuando su último dí
   assert.equal(estatusEfectivo("aceptada", "2026-01-01", ahora), "aceptada");
   assert.equal(estatusEfectivo("vencida", "2027-01-01", ahora), "vencida");
 });
+
+test("EC-08: el snapshot guarda los supuestos del asesor (hermanos, meses por adelantado) solo cuando alguno es distinto de cero, y la nota los dice", () => {
+  const p = cotizado();
+  assert.equal("supuestos" in snapshotDeCotizacion(p, "2026-10-08"), false, "sin supuestos (el bot) el snapshot no cambia");
+  assert.equal("supuestos" in snapshotDeCotizacion(p, "2026-10-08", { hermanosInscritos: 0, mesesPagadosPorAdelantado: 0 }), false);
+  assert.deepEqual(snapshotDeCotizacion(p, "2026-10-08", { hermanosInscritos: 2, mesesPagadosPorAdelantado: 0 }).supuestos, { hermanos_inscritos: 2, meses_pagados: 0 });
+  assert.deepEqual(snapshotDeCotizacion(p, "2026-10-08", { hermanosInscritos: 0, mesesPagadosPorAdelantado: 3 }).supuestos, { hermanos_inscritos: 0, meses_pagados: 3 });
+  const viaJson = (h: number, m: number) => JSON.parse(JSON.stringify(snapshotDeCotizacion(p, "2026-10-08", { hermanosInscritos: h, mesesPagadosPorAdelantado: m }))) as unknown;
+  const nota = (h: number, m: number) => resumenDeCotizacion({ snapshot: viaJson(h, m), vigenteHasta: "2026-10-15", grupoElegidoId: null }).filter((l) => l.includes("suponiendo"));
+  assert.deepEqual(nota(2, 0), ["• Cotizado suponiendo: 2 hermanos ya inscritos (lo capturó el asesor)"]);
+  assert.deepEqual(nota(1, 0), ["• Cotizado suponiendo: 1 hermano ya inscrito (lo capturó el asesor)"]);
+  assert.deepEqual(nota(0, 1), ["• Cotizado suponiendo: 1 mes pagado por adelantado (lo capturó el asesor)"]);
+  assert.deepEqual(nota(3, 6), ["• Cotizado suponiendo: 3 hermanos ya inscritos y 6 meses pagados por adelantado (lo capturó el asesor)"]);
+  assert.deepEqual(nota(0, 0), []);
+});

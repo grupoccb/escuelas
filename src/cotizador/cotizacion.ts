@@ -43,14 +43,31 @@ export function opcionesDeHorario(p: Pick<ProgramaCotizado, "grupos">): OpcionHo
   return opciones;
 }
 
+/**
+ * Lo que el asesor SUPUSO al cotizar y que habilita promociones (EC-08): `min_hermanos` mira los hermanos ya inscritos y
+ * `pago_anticipado` los meses que pagaría por adelantado. Sin esto, nadie sabría después por qué esa familia tuvo un
+ * descuento. El bot siempre cotiza con 0 y 0, y entonces el snapshot no lleva el campo.
+ */
+export interface SupuestosDeCotizacion {
+  hermanosInscritos: number;
+  mesesPagadosPorAdelantado: number;
+}
+
 export interface SnapshotDeCotizacion {
   version: number;
   fecha: FechaISO;
   programa: ReturnType<typeof programaAJson>;
+  supuestos?: { hermanos_inscritos: number; meses_pagados: number };
 }
 
-export function snapshotDeCotizacion(p: ProgramaCotizado, fecha: FechaISO): SnapshotDeCotizacion {
-  return { version: VERSION_DE_SNAPSHOT, fecha, programa: programaAJson(p) };
+export function snapshotDeCotizacion(p: ProgramaCotizado, fecha: FechaISO, supuestos?: SupuestosDeCotizacion): SnapshotDeCotizacion {
+  const hay = supuestos !== undefined && (supuestos.hermanosInscritos > 0 || supuestos.mesesPagadosPorAdelantado > 0);
+  return {
+    version: VERSION_DE_SNAPSHOT,
+    fecha,
+    programa: programaAJson(p),
+    ...(hay ? { supuestos: { hermanos_inscritos: supuestos.hermanosInscritos, meses_pagados: supuestos.mesesPagadosPorAdelantado } } : {}),
+  };
 }
 
 const esObjeto = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -127,6 +144,15 @@ export function resumenDeCotizacion(c: { snapshot: unknown; vigenteHasta: FechaI
   }
   const aplicadas = Array.isArray(promos?.["aplicadas"]) ? (promos["aplicadas"] as unknown[]).filter(esObjeto).map((a) => texto(a["nombre"])).filter((n): n is string => n !== null) : [];
   if (aplicadas.length > 0) lineas.push(`• Promociones cotizadas: ${aplicadas.join("; ")}`);
+  const supuestos = esObjeto(c.snapshot) && esObjeto(c.snapshot["supuestos"]) ? c.snapshot["supuestos"] : null;
+  if (supuestos) {
+    const partes: string[] = [];
+    const hermanos = supuestos["hermanos_inscritos"];
+    const meses = supuestos["meses_pagados"];
+    if (typeof hermanos === "number" && hermanos > 0) partes.push(`${hermanos} ${hermanos === 1 ? "hermano ya inscrito" : "hermanos ya inscritos"}`);
+    if (typeof meses === "number" && meses > 0) partes.push(`${meses} ${meses === 1 ? "mes pagado" : "meses pagados"} por adelantado`);
+    if (partes.length > 0) lineas.push(`• Cotizado suponiendo: ${partes.join(" y ")} (lo capturó el asesor)`);
+  }
   const opciones = opcionesDeSnapshot(c.snapshot);
   if (c.grupoElegidoId) {
     const g = opciones.find((o) => o.grupoId === c.grupoElegidoId);

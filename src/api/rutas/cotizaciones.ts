@@ -160,13 +160,14 @@ export function rutasDeCotizaciones(deps: DepsApi): Router {
         creadoPorUsuarioId: ctx.usuario.id,
         fecha,
         vigenteHasta: vigenteHasta(cotizado, fecha, cotizacionVigenciaDias),
-        snapshot: snapshotDeCotizacion(cotizado, fecha),
+        snapshot: snapshotDeCotizacion(cotizado, fecha, { hermanosInscritos: e.hermanos_inscritos ?? 0, mesesPagadosPorAdelantado: e.meses_pagados ?? 0 }),
       });
       const fila = (await tx.cotizacion.findFirstOrThrow({ where: { id: nueva.id }, select: SELECCION })) as Fila;
       for (const vieja of nueva.reemplazadas) {
         await registrarCambio(tx, ctx, { entidad: "cotizacion", entidadId: vieja, accion: "actualizar", antes: { estatus: "vigente" }, despues: { estatus: "vencida" } });
       }
-      await registrarCambio(tx, ctx, { entidad: "cotizacion", entidadId: fila.id, accion: "crear", despues: instantanea(fila) });
+      // EC-08: lo que el asesor supuso (hermanos inscritos, meses por adelantado) queda también en el registro de cambios.
+      await registrarCambio(tx, ctx, { entidad: "cotizacion", entidadId: fila.id, accion: "crear", despues: { ...instantanea(fila), hermanos_inscritos: e.hermanos_inscritos ?? 0, meses_pagados: e.meses_pagados ?? 0 } });
       return fila;
     });
     res.status(201).json(presentar(guardada, ctx.ahora()));

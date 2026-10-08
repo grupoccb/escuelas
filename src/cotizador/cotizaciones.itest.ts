@@ -10,6 +10,7 @@ import { fijarConfiguracion, sembrarOrganizacion, sembrarPrograma, type Organiza
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { vencerCotizaciones } from "./guardar.ts";
+import { resumenDeCotizacion } from "./cotizacion.ts";
 import { vencerCotizacionesDeTodas } from "./vencer.ts";
 import { correrCiclo } from "../ciclo.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
@@ -287,4 +288,37 @@ test("el barrido por organizaciones y el ciclo (mantenimiento horario) vencen la
   const ciclo = await correrCiclo({ prisma: soloOrganizaciones(prisma, [o.organizacionId]), mensajeria: new MessagingProvider({ transporte: new TransporteFalso() }), retencion: {}, reloj });
   assert.equal(ciclo.cotizaciones?.vencidas, 1);
   assert.equal(await estado(otra), "vencida");
+});
+
+test("EC-08: los supuestos del asesor (hermanos inscritos, meses por adelantado) que habilitan una promoción quedan en el snapshot y en el registro de cambios", async () => {
+  const o = await sembrarOrganizacion(prisma, "CotizacionesSupuestos");
+  const apiLocal = levantarApi(prisma, { reloj: () => AHORA });
+  try {
+    const u = await sembrarUsuario(prisma, o.organizacionId, { rol: "administrador" });
+    const c = apiLocal.cliente();
+    assert.equal((await c.login(o.slug, u.correo, u.contrasena)).estado, 201);
+    const p = await sembrarPrograma(prisma, o, { sucursalId: o.sucursales[0]!.id, nombre: "P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", horarios: [[1, 960, 1020]] }], precio: { inscripcion: "100.00", mensualidad: "200.00" } });
+    const lead = await prisma.lead.create({ data: { organizacion_id: o.organizacionId, vertical_interes_id: o.verticalId, sucursal_interes_id: o.sucursales[0]!.id, etapa_id: o.etapaInicialId } });
+    const pro = await prisma.prospecto.create({ data: { organizacion_id: o.organizacionId, lead_id: lead.id, vertical_interes_id: o.verticalId, nombre: "N", edad_declarada: 8, origen: "asesor" } });
+    const promo = await c.post("/api/promociones", { nombre: "Hermanos", codigo: `H-${randomUUID().slice(0, 6)}`.toUpperCase(), vigencia_desde: "2026-01-01", condicion_tipo: "min_hermanos", condicion_valor: { hermanos: 2 }, programas: [p.id], beneficios: [{ tipo: "descuento_mensualidad", modo: "porcentaje", valor: "10.00" }] });
+    assert.equal(promo.estado, 201, JSON.stringify(promo.cuerpo));
+
+    const sin = await cotizar(c, lead.id, { prospecto_id: pro.id, programa_id: p.id });
+    assert.equal(sin.estado, 201);
+    assert.equal("supuestos" in sin.cuerpo.snapshot, false, "sin supuestos no hay campo");
+    assert.deepEqual(sin.cuerpo.snapshot.programa.promociones.aplicadas, []);
+
+    const con = await cotizar(c, lead.id, { prospecto_id: pro.id, programa_id: p.id, hermanos_inscritos: 1, meses_pagados: 3 });
+    assert.equal(con.estado, 201, JSON.stringify(con.cuerpo));
+    assert.deepEqual((con.cuerpo.snapshot as unknown as { supuestos: object }).supuestos, { hermanos_inscritos: 1, meses_pagados: 3 });
+    assert.deepEqual(con.cuerpo.snapshot.programa.promociones.aplicadas.map((a) => a.nombre), ["Hermanos"], "con 1 hermano ya inscrito (2 contándolo) la promoción aplica");
+    // Quedan en el registro de cambios (el de «crear» de esa cotización).
+    const reg = await conAlcance(prisma, o.organizacionId).registro_cambio.findFirstOrThrow({ where: { entidad_tipo: "cotizacion", entidad_id: con.cuerpo.id, accion: "crear" } });
+    const despues = reg.despues as Record<string, unknown>;
+    assert.deepEqual([despues["hermanos_inscritos"], despues["meses_pagados"]], [1, 3]);
+    // Y se ven en la nota que lee el asesor.
+    assert.deepEqual(resumenDeCotizacion({ snapshot: con.cuerpo.snapshot, vigenteHasta: con.cuerpo.vigente_hasta, grupoElegidoId: null }).filter((l) => l.includes("suponiendo")), ["• Cotizado suponiendo: 1 hermano ya inscrito y 3 meses pagados por adelantado (lo capturó el asesor)"]);
+  } finally {
+    await apiLocal.cerrar();
+  }
 });
