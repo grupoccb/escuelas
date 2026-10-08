@@ -13,6 +13,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A6 | HECHO | b9913a3 | Frecuencia: 3 automáticos al día y 1 de marketing cada 7 días, configurable por organización (`configuracion_organizacion`) |
 | A7 | HECHO | ddf95c0 | Firma en el borde: rutas de Twilio con `X-Twilio-Signature`, reintentos por `MessageSid`, reenvío sin modificar a Chatwoot |
 | A8 | HECHO | (ver git log) | SPEC.md al día: Fase 1 como quedó, Fases 2 y 3 detalladas |
+| A-fix | HECHO (2 pendientes, 1 decisión) | 46645c0…4ac0bb0 | Correcciones de la auditoría de la etapa A (`docs/auditorias/etapa-A.md`): ver la sección «Correcciones de la auditoría de la etapa A» |
 | B1 | PENDIENTE | | Usuarios y roles |
 | B2 | PENDIENTE | | Autorización por rol y sucursal |
 | B3 | PENDIENTE | | API base |
@@ -352,3 +353,104 @@ Experimento con una bandeja API de pruebas y el bot de capturas de la noche 1 (y
 
 **Para Eduardo**
 - Revisar los gates de Fases 2 y 3 y el gate nuevo de atribución en Fase 1.
+
+## Correcciones de la auditoría de la etapa A
+
+Auditoría: `docs/auditorias/etapa-A.md` (1 ALTA, 11 MEDIA, 11 BAJA). Estos commits son parte de la etapa A y se llaman `A-fix: …`; no hay bloque nuevo en el plan. Nueve commits, uno por grupo coherente:
+
+| Commit | Qué |
+|---|---|
+| `46645c0` | EA-01, EA-07 (y el informe de la auditoría, y `src/testutil/carrera.ts`) |
+| `4c9aebe`, `d6f8eee` | EA-12, EA-17 y EA-16 (el mensaje de `4c9aebe` nombra EA-16 por error; se hizo en `d6f8eee`) |
+| `6ceace0` | EA-10 |
+| `403862c` | EA-11, EA-08, parte de EA-23 |
+| `4cb65aa` | EA-06, EA-14, EA-15 |
+| `5e8090e` | EA-09, EA-13, EA-20 |
+| `ee8f952` | EA-03, EA-04, EA-05, y la documentación de EA-02, EA-21, EA-22 |
+| `4ac0bb0` | EA-18, EA-19, parte de EA-23 |
+
+### Estado de cada hallazgo
+
+| EA | Estado | Cómo / por qué |
+|---|---|---|
+| EA-01 ALTA | **corregido** | `espera.ts` ignora leads con `eliminado_en` en las dos consultas y dentro de la transacción. Un lead borrado ya no es un error: simplemente no existe para el barrido. |
+| EA-02 | **documentado, NO corregido (decisión de Eduardo)** | En la vía A los estados no pasan por el borde (Chatwoot fija su `status_callback`). Las tres opciones (a: vía C, b: proxy, c: aceptar y proteger con la red) y que F1-10 queda cerrado **solo para entrantes** están en `docs/DECISION-ATRIBUCION.md`. No hay código que arreglar sin elegir. |
+| EA-03 | **corregido** | El evento se guarda con cuerpo y cabeceras antes de reenviarlo; `reenviarPendientes()` (en el ciclo de cada minuto) reenvía los `fallido` y los `procesando` vencidos con el mismo candado, con 60 s entre intentos y hasta 10 (`abandonado` + alerta). Garantía exacta en `DECISION-ATRIBUCION.md`. Migración `20261009070000`. |
+| EA-04 | **corregido** | `redirect: "manual"`, una 3xx es fallo y no se sigue; solo 2xx es éxito. 7 pruebas del reenviador real contra un servidor HTTP local. |
+| EA-05 | **corregido** | Receptor no resuelto: se reenvía igual (sin registro) y queda `log.error` + contador `alertas.organizacionDesconocida`. Sin destino de reenvío solo alerta. No se pudo crear tarea: `tarea_asesor` exige lead. |
+| EA-06 | **corregido** | Una nota fallida (definitiva o incierta) no marca `pasar_a_asesor_pendiente` ni frena los mensajes que siguen; deja una tarea `nota_fallida`. La conversación del aviso de 30 min sigue en `bot` y se abre igual. |
+| EA-07 | **corregido** (menos la alarma por racha) | `try/catch` por conversación, por automatización, por ejecución, por fase y por organización, con log y contador (`errores`). `src/ciclo.ts` aísla espera, motor y barrido de Twilio. **No** se hizo la alarma «N barridos seguidos con el mismo elemento fallando»: solo log por barrido y contador. |
+| EA-08 | **corregido** | Barreras reales (`src/testutil/carrera.ts`) en F1-12, reclamo del motor (ejecutar y recuperar), A3i, A5c, A5e, A7l, el reclamo de eventos, el candado de frecuencia; A3m y A5k con tests directos. Mutaciones abajo. |
+| EA-09 | **corregido** | `PENDIENTE_VIGENCIA_MS` = 10 min (configurable por provider, `vigenciaPendienteMs`): un pendiente más viejo se bloquea con motivo `obsoleto`, sin tarea. La edad se mide con el reloj del provider (`creado_en` lo pone `encolar`). |
+| EA-10 | **corregido** | `origen` obligatorio (unión discriminada); `respuesta`/`confirmacion_baja` exigen `respondeA` y `encolar` comprueba que sea el último entrante de la conversación (`respuestaA()`, `confirmacionBajaA()`). Test de compilación con `@ts-expect-error`. |
+| EA-11 | **corregido** | `pg_advisory_xact_lock` por (organización, teléfono) alrededor de reclamar-y-contar (`src/datos/bloqueos.ts`, SQL crudo solo en `src/datos/alcance.ts`); `enviando` cuenta. Carrera real con barrera. |
+| EA-12 | **corregido** | `PrismaRaiz` opaco: los módulos no ven modelos, `$transaction` ni SQL crudo. `crearPrismaDePruebas()` en `src/testutil/`. `check:capas` endurecido. Las siembras de la auditoría no compilan (test con `tsc`). Residual abajo. |
+| EA-13 | **corregido** | El reclamo guarda la hora real; el recuperador mira la edad del propio mensaje `enviando`. |
+| EA-14 | **corregido** | Tipos `envio_incierto`, `automatizacion_omitida`, `baja_solicitada`, `nota_fallida` (migración `20261009050000`). `revision_manual` queda en el enum (no se puede quitar un valor de un enum sin recrearlo) como genérico heredado. |
+| EA-15 | **corregido** | La transacción del aviso de 30 min vuelve a exigir `ultimo_mensaje_entrante_en < corte`. |
+| EA-16 | **corregido** | Un `.ts` (y demás texto por nombre) con byte nulo se reporta como hallazgo y se escanea. |
+| EA-17 | **corregido** | `crearPrismaDePruebas()` y `scripts/test-int.ts` rechazan bases cuyo nombre no termine en `_pruebas`/`_test`; test (incluye un itest corrido contra `inscripciones`). Los scripts que usan `crearPrisma()` (demo) no se tocan. |
+| EA-18 | **corregido** | `SPEC.md`: Fase 2 «Planeada», Fase 3 «Detallada», sin construir. |
+| EA-19 | **corregido** | Cierre extraído a `src/cierre.ts` (testeado): sale con 1 si un paso falla o se agota el tope de 30 s; `stop_grace_period: 45s` en el backend de compose (un test lo compara con el tope). |
+| EA-20 | **corregido** | El recuperador del motor compara el contador `reclamos` (migración `20261009060000`) y el reclamo vencido del borde compara `intentos`; probados con filas escritas por SQL con microsegundos. |
+| EA-21 | **pendiente (documentado)** | Una cuenta de Twilio por despliegue. Requisito de la primera organización adicional; no se construye el alta de organizaciones. |
+| EA-22 | **pendiente (documentado)** | Verificar al arrancar que las bandejas no tengan asignación automática; probar con Twilio real. |
+| EA-23 | **corregido en lo que cabía** | A3m, A5k, F1-09f, A7l y el reenviador tienen test; el cierre de `server.ts` ya se prueba. **Sigue sin test el arranque de `server.ts`** (cableado de dependencias, `listen`). |
+
+### Verificación
+
+Último commit de código (`4ac0bb0`), con el árbol limpio:
+
+```
+$ npm run validar          → exit 0 · lint + typecheck + check:generico (141 archivos) + check:capas (41 archivos) + tests: 194 pass, 0 fail, 0 skipped
+$ npm run test:int         → exit 0 · tests 244, pass 244, fail 0, skipped 0, todo 0      (corrida 1)
+$ npm run test:int         → exit 0 · tests 244, pass 244, fail 0, skipped 0, todo 0      (corrida 2, seguida)
+```
+
+Línea base antes de empezar: `validar` 169 y `test:int` 193. Migraciones nuevas (`20261009050000_tareas_por_causa`, `…060000_ejecucion_reclamos`, `…070000_evento_twilio_durable`): aplican sobre base vacía (`zz_fix_vacia_pruebas`, creada y borrada), `migrate diff --from-config-datasource` → «No difference detected», y sobre `inscripciones_pruebas` con los datos de todas las corridas anteriores. Solo agregan valores de enum y columnas con default o nulas.
+
+### Mutaciones verificadas (quitar el arreglo → el test debe fallar)
+
+Herramienta: un script que aplica la mutación a una copia del archivo, corre los tests dirigidos y restaura. Todas **ATRAPADAS** salvo lo marcado.
+
+- **EA-01/EA-07.** Quitar el filtro del lead en `vencidas` y en la transacción; solo en la transacción; en el reintento de apertura; sin `try/catch` por conversación, por organización y en el reintento de apertura; ciclo sin aislar la espera, el motor o Twilio; motor sin aislar conversación, automatización, fase `programar` ni `recuperarUna`. **Sobrevive** (equivalente por doble defensa): quitar el filtro solo en la consulta `vencidas` (la transacción lo cubre).
+- **EA-12.** `PrismaRaiz` con firma abierta o con `$transaction`; cada regla nueva de `check:capas` (cliente completo, `testutil`, `fetch`, `createRequire`, `import()` dinámico, `CHATWOOT_`, módulos de red, cast, importar un test, `PrismaClient`).
+- **EA-16/EA-17.** Saltar siempre los `.ts` con NUL; quitar la guarda del nombre de base.
+- **EA-10.** Sin validar el entrante, aceptar cualquier entrante (no el último), regla «la etiqueta manda»; `origen` o `respondeA` opcionales (falla el `typecheck`).
+- **EA-11.** Sin candado (`$transaction` simple); `enviando` no cuenta; candado global en vez de por teléfono; en `bloqueos.itest`: sin `pg_advisory_xact_lock`, clave sin la organización, alcance sin `organizacion_id`, organización distinta aceptada.
+- **EA-08.** F1-12 sin reclamo condicional; motor sin reclamo al ejecutar, reclamo sin condición, recuperar sin reclamo o sin comparar, programar sin `skipDuplicates`; A3i quitando `version` **y** `visible_a_asesores_en`; A3m; A5c (recheck); A5e (escritura condicional y releer); A7l (CAS); X10 (comprobar y luego actuar); A5k (`some` por `every`, vacío definitivo); F1-09f. **Sobreviven** (par redundante a propósito): en A3i, quitar `version` solo o `visible_a_asesores_en: null` solo — cada uno basta por sí solo; quitar los dos falla.
+- **EA-06/14/15.** Una nota que pasa a asesor (definitiva e incierta), que frena a los siguientes o que no deja tarea; tipo genérico en el incierto; sin recheck del silencio.
+- **EA-09/13/20.** Sin regla `obsoleto`, sin pasar la edad, `encolar` con `creado_en` real, atención humana evaluada después; reclamo con la hora de inicio; `enviando` sin edad; los candados del motor y del borde comparando fechas; contador sin incrementar.
+- **EA-03/04/05.** Reenviador que altera el cuerpo (A7u), sigue redirecciones, no trata la 3xx como fallo, no exige 2xx, sin timeout, sin cabecera; barrido con CAS sin `intentos`, sin los `procesando`, sin la espera de 60 s, sin tope de intentos; sin borrar ni guardar el cuerpo; abandonado que se reintenta; receptor desconocido sin reenviar o sin contador.
+- **EA-19.** Salir siempre con 0, sin tope, `stop_grace_period` de 10 s, sin esperar al barrido.
+
+### Tests de la noche anterior que cambiaron (y por qué)
+
+- `provider.itest.ts` «una nota interna … no genera tarea al contacto»: ahora exige 0 tareas `envio_incierto` y **1** `nota_fallida` (lo pide EA-06).
+- `borde.itest.ts` «número receptor desconocido: 200 sin reenviar»: ahora reenvía y alerta (EA-05).
+- Los que afirmaban `tipo: "revision_manual"` (motor ×5, entrega fallida ×2, provider ×1, baja ×1) ahora afirman el tipo por causa (EA-14).
+- Los que encolaban sin `origen` ahora lo dicen (`automatizacion`) o contestan a un entrante sembrado con `respuestaA` (EA-10).
+- `check-capas.test.ts`: el ayudante `hallazgos()` ya no repite una misma línea que viola dos reglas a la vez (las expectativas son las mismas).
+- Los itests y helpers pasan de `crearPrisma()`/`PrismaClient` a `crearPrismaDePruebas()`/`PrismaPruebas` (mecánico).
+- Ninguno se borró ni se debilitó; `grep -rnE "\.(skip|todo|only)\b|@ts-ignore|@ts-nocheck|eslint-disable" src scripts` no encuentra nada (los únicos `@ts-expect-error` son aserciones de tipo de pruebas, y `tsc` falla si dejan de hacer falta).
+
+### Decisiones que tomé (con la alternativa descartada)
+
+1. **Tipo opaco `PrismaRaiz`** (src/datos/prisma.ts) en vez de reforzar el texto de `check:capas`: el compilador rechaza alias, multilínea, `deps["prisma"]`, desestructuración y `$transaction`. Residual **documentado y no resuelto**: un doble cast deliberado a una forma escrita a mano (`x as never as { lead: … }`) compila; la guarda de texto solo lo ve si `prisma` va en la misma línea. `scripts/` sigue sin revisarse.
+2. **El candado consultivo vive en `src/datos/alcance.ts`** como `$conBloqueoDeClave` y presenta la transacción sin extender con el mismo alcance mediante una función compartida (`aplicarAlcance`). Alternativas descartadas: (a) ganchos de consulta para el SQL crudo con una lista de permitidos — obligaba a cambiar a `rejects` un test existente de F1-14; (b) un candado en una conexión aparte — dos conexiones por sección crítica y riesgo de inanición del pool. El candado se toma antes de reclamar y la red (el envío) va fuera de la transacción.
+3. **`origen` validado al encolar, no con una columna nueva** (`en_respuesta_a_id`): evita una migración y una llave foránea más. Límite honesto: se evita el **olvido** de la etiqueta, no la mala fe (un recordatorio justo después de un entrante real y último podría disfrazarse de respuesta).
+4. **Una nota fallida deja una tarea, no se reintenta sola:** el aviso ya quedó marcado como visible y reintentar una nota vieja la mostraría fuera de contexto; la tarea avisa que el asesor se quedó sin el resumen.
+5. **El barrido de Twilio guarda el cuerpo** (datos de contacto) mientras el evento está pendiente y lo borra al reenviarlo; un `abandonado` lo conserva para rescate manual.
+6. **Receptor sin organización se reenvía sin registro**: Twilio podría duplicar si reintenta tras un 502 (sin organización no hay candado ni dónde registrar). Un duplicado se prefirió a perder el mensaje.
+7. **«dias_permitidos vacío» (pedido de EA-07) es imposible en la base** (CHECK `cardinality > 0`): se probó el mismo mecanismo (una conversación que hace lanzar a `siguienteHorarioValido`) con una zona horaria inválida.
+8. **El pendiente `obsoleto` se mide con el reloj del provider**, no con el de la base: `encolar` escribe `creado_en`. Un mensaje insertado a mano por un test o un script con el reloj de la base y despachado con un reloj inyectado muy posterior se vería obsoleto.
+9. **Hallazgo extra al probar el reenviador:** ante un 401 undici reintenta el POST y un `Uint8Array` ya cedido queda «detached» (error engañoso «fetch failed»); el cuerpo viaja ahora como `Blob`.
+10. **Prisma ejecuta las extensiones en el orden en que se registran** (una extensión interior ve los argumentos antes que el alcance): los ganchos de `carrera.ts` no ven `organizacion_id`; los predicados se escriben con los campos originales.
+
+### Para Eduardo
+
+- **Decidir EA-02** (a/b/c) y el resto de la sección 8 de la auditoría que no son código: borrado de un lead (¿cierra su conversación?), una cuenta de Twilio por organización, verificación de la asignación automática de Chatwoot.
+- **Excepción al invariante 4** (no toqué `CLAUDE.md`): `ReenviadorTwilioHttp` hace `fetch` a Chatwoot desde `src/mensajeria/`; propongo dejar por escrito que `src/mensajeria/twilio/` es una excepción acotada (no inicia mensajes), o moverla detrás del provider.
+- El contrato de `encolar` cambió para D3, D8 y H6: `origen` obligatorio, y una respuesta se construye con `respuestaA(entranteId, …)`.
+- Para los bloques de cupo y dinero: `src/testutil/carrera.ts` (`Barrera`, `conGanchos`, `soloOrganizaciones`) y `transaccionConBloqueo()` de `src/datos/bloqueos.ts`.
+- Los eventos de Twilio `abandonado` y los avisos `webhook_twilio_organizacion_desconocida` salen como líneas `error` del log; aún no hay tablero que los muestre.
