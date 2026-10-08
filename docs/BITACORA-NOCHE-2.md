@@ -42,6 +42,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | E1 | HECHO | ver `git log` (`E1:`) | Landing pública `/l/:vertical` con cuestionario: lead + prospecto idempotentes, aviso de privacidad con evidencia, consentimiento por formulario, atribución, `wa.me` con código de rastreo, anti-abuso y XSS; el bot no vuelve a preguntar lo capturado |
 | E2 | HECHO | ver `git log` (`E2:`) | Código de rastreo en el primer mensaje: parser, limpieza del texto del bot, atribución al lead con consumo condicional, primera atribución conservada, CTWA intacto y API de campañas y códigos |
 | E3 | HECHO | ver `git log` (`E3:`) | QR por campaña y sucursal: codificador propio (SVG y PNG), URL de la landing con código de rastreo, descarga para imprimir y pruebas de ida y vuelta con un lector independiente |
+| DE-fix | HECHO (10 pendientes, 8 decisiones) | 4d1faf6…4bf427b | Auditoría y correcciones de las etapas D y E (`docs/auditorias/etapa-D.md` y `etapa-E.md`): 2 ALTA corregidas (ED-01, EE-01), MEDIA corregidas y pendientes en la sección «Auditoría y correcciones de las etapas D y E» |
 | F1 | PENDIENTE | | Tutor, alumno y relación M:N |
 | F2 | PENDIENTE | | Conversión en una transacción |
 | F3 | PENDIENTE | | Inscripción |
@@ -1450,3 +1451,81 @@ Mutación atrapada: un candado distinto por petición rompe la prueba de concurr
 **Para Eduardo**
 - Pendiente de producto: una página con todos los QR de una campaña para imprimir en lote (hoy se baja de uno en uno por sucursal) y logotipo en el centro (la corrección M lo toleraría, pero no se hizo).
 - Para I1/I2: la fuente de los leads de un QR es `campana.origen = presencial` y el código `codigo_rastreo` (campaña + sucursal), con `usos` por código.
+
+
+## Auditoría y correcciones de las etapas D y E
+
+Auditor y corrector: sesión con contexto nuevo que no escribió el código (informes `docs/auditorias/etapa-D.md` y `docs/auditorias/etapa-E.md`, commits `4d1faf6` y `bee0c14`). Se corrigió con un commit por hallazgo (o grupo) `D-fix: ED-xx …` / `E-fix: EE-xx …`; cada arreglo lleva su prueba y se comprobó con la mutación correspondiente (la prueba falla si se deshace el arreglo). `npm run validar` y `npm run test:int` en exit 0 en cada commit (ver «Verificación»).
+
+**Último commit de código de la etapa D** (el último `D…` antes de los de E, por si hay que etiquetar): `a527339` (D8). Los arreglos de D (`D-fix`) llegan después de los de E en el historial, así que una etiqueta `etapa-D` en `a527339` no los incluye.
+
+### Hallazgos de la etapa D
+
+| ID | Gravedad | Estado | Commit | Nota |
+|---|---|---|---|---|
+| ED-01 | ALTA | **corregido** | `6a46ad3` | La baja (`BAJA`/`STOP`/`CANCELAR`/`NO MOLESTAR`) de un instructor se registra (`registrarBaja`) y se confirma UNA vez por `MessagingProvider.confirmarBajaDeInstructor`; los avisos siguientes quedan bloqueados por `opt_out` |
+| ED-02 | MEDIA | **corregido** | `6a46ad3` | El instructor con conversación previa que escribe desde otra no revienta: se le cambia la conversación vigente |
+| ED-03 | MEDIA | **corregido** | `e88ef41` | `motivo_cancelacion` sale del registro de cambios; `mencionaSalud` en notas y motivo de agendar/reprogramar/cancelar y en `practico_donde`, `practico_nivel`, `motivo_clase_detalle` |
+| ED-04 | MEDIA | **corregido** | `fe9f258` | El aviso frenado por el tope diario se reintenta cada hora mientras falten 2 h o más; si no hay tiempo, bloqueado + tarea al asesor |
+| ED-05 | MEDIA | **corregido** | `e931919` | Pruebas para las 10 mutaciones reales que sobrevivían (M33, M49, M53, M66, M75, M76, M85, M86, M88, M89), cada una verificada |
+| ED-06 | MEDIA | **corregido (causa no reproducida)** | `db70880` | `barrido.test.ts` espera por condición; los servidores de prueba responden `Connection: close`. Ninguno de los tres flaky se reprodujo (0 de 30 a 48 corridas, ni con 16 procesos ocupando la CPU); en la auditoría apareció además un 404 intermitente en `sesion.itest.ts` (CSRF con `ORIGEN_PUBLICO`) que tampoco se reprodujo. La causa del reuso de sockets es una hipótesis razonada |
+| ED-07 | BAJA | **corregido** | `2870190` | La perdedora de una reprogramación simultánea recibe «la clase ya no está agendada» |
+| ED-08 | BAJA | pendiente | | Orden de candados invertido entre el bot (lead → grupo) y la API (grupo → lead): interbloqueo posible para el mismo lead y grupo a la vez; razonado, no reproducido |
+| ED-09 | BAJA (producto) | pendiente | | Ventana de acceso del maestro a la ficha de salud tras la clase |
+| ED-10 | BAJA (producto) | pendiente | | Dos automatizaciones de recordatorio aplicables salen las dos |
+| ED-11 | BAJA (producto) | pendiente | | Avisar a quien toma la conversación que los recordatorios ya no saldrán solos |
+| ED-12 | BAJA | **corregido** | `2870190` | `moverLeadAEtapa` respeta también las etapas de cierre por `tipo_sistema` |
+| ED-13 | BAJA | **corregido** | `2870190` | El registro de cambios del movimiento de etapa va en la misma transacción (`alCambiar`) |
+| ED-14 | BAJA | pendiente | | `guardarRegistro` guarda la salud en otra transacción al final |
+| ED-15 | BAJA | pendiente | | N+1 de sesiones en el contexto del bot |
+| ED-16 | BAJA | pendiente | | Carrera `PATCH` del registro vs reprogramar |
+
+### Hallazgos de la etapa E
+
+| ID | Gravedad | Estado | Commit | Nota |
+|---|---|---|---|---|
+| EE-01 | ALTA (funcional) | **corregido** | `5a9b83a` | Se quita `form-action` de la CSP: Chrome la aplicaba a la redirección y bloqueaba el 303 a `wa.me`. Verificado en Chrome 154 headless: el POST sigue `wa.me` → `api.whatsapp.com` → `whatsapp://` |
+| EE-02 | MEDIA | **corregido** | `6bd60ad` | El código se consume ANTES de atribuir, con el cambio condicional; prueba de concurrencia forzada con barrera (8 leads, tope 1 → 1 atribuido) |
+| EE-03 | MEDIA | **corregido** | `6bd60ad` | `campanaVigenteParaElCodigo`: campaña apagada, dada de baja, vencida o futura apaga sus códigos (landing y bot); último día completo en la zona de la sucursal |
+| EE-04 | MEDIA | **corregido** | `6bd60ad` | El canal de `wa.me` sale de la sucursal ELEGIDA |
+| EE-05 | MEDIA | **corregido (decisión de producto anotada)** | `6bd60ad` | A un lead existente no se le agregan prospectos desde la landing; los nombres no llevan direcciones web. Un hermano se agrega por WhatsApp o lo registra el asesor |
+| EE-06 | MEDIA (producto) | pendiente | | `opt_in` por formulario sin verificar al titular del teléfono (hoy nadie lo lee) |
+| EE-07 | MEDIA (producto) | pendiente | | Lead perdido o inscrito que vuelve a llenar la landing |
+| EE-08 | MEDIA | **corregido en parte** | `de44e6a` | Se rechaza (403) un POST cross-site o de otro origen; `server.ts` cablea `ORIGEN_PUBLICO`. Pendiente (trabajo/decisión): token firmado con tiempo mínimo, tope por organización y alerta |
+| EE-09 | MEDIA | **corregido** | `6bd60ad`, `de44e6a`, `4bf427b` | Las 10 mutaciones reales de E (L05, L16, R08, L21, Q01, Q03, C02, X06, X12, X14), cada una con su prueba verificada |
+| EE-10 | BAJA | **corregido** | `5a9b83a` | El honeypot responde como un envío bueno |
+| EE-11 | BAJA | **corregido** | `de44e6a` | Vertical sin aviso vigente: el mismo 404 |
+| EE-12 | BAJA | **corregido** | `6bd60ad` | Caracteres invisibles no cuentan; un nombre necesita una letra o un número |
+| EE-13 | BAJA (producto) | pendiente | | Teléfonos de cualquier país en la landing |
+| EE-14 | BAJA | **corregido** | `4bf427b` | Escala del PNG de 4 a 40; el QR no reutiliza un código de otra vertical |
+| EE-15 | BAJA | pendiente | | `POST /api/codigos-rastreo` sin validar sucursal/vertical ni campaña activa |
+| EE-16 | BAJA | **corregido** | `6bd60ad` | A lo más 10 candidatos de código por mensaje |
+| EE-17 | BAJA | **corregido** | `5a9b83a` | El botón se reactiva con `pageshow` al volver con «atrás» |
+
+### Decisiones que tomé (con la alternativa descartada)
+
+1. **EE-01: quitar `form-action` y conservar el 303** (alternativa descartada: una página intermedia 200 con enlace y `<script nonce>` que haga `location.replace`, que el auditor consideraba más robusta). Quitar la directiva deja intactos los 13 tests de la landing y el recorrido por Chrome real funciona; la página intermedia queda como decisión de producto (¿botón «Abrir WhatsApp» para navegadores integrados de apps?).
+2. **EE-05: la landing nunca agrega prospectos a un lead que ya existía** (alternativa descartada: agregarlos pero ocultar el código). El formulario no prueba la titularidad del teléfono; el costo es que un hermano se registra por WhatsApp o por el asesor hasta F7. Cambia la prueba E1 que daba por bueno agregar al hermano.
+3. **ED-03: quitar `motivo_cancelacion` de la auditoría y filtrar los textos narrativos** (alternativa descartada: filtrar también nombres, escuela y talla, que bloquearía inscripciones con falsos positivos). El filtro sigue siendo un freno a lo evidente, no una garantía.
+4. **ED-04: reintentar cada hora, no saltarse el tope** (alternativa descartada: eximir los avisos a instructores del tope diario, que es decisión de producto abierta). Con tiempo suficiente el aviso sale; sin él, tarea al asesor.
+5. **EE-03: la fecha final de la campaña vale completa** y los días se cuentan en la zona de la sucursal del código (o de la campaña); sin ninguna, la primera sucursal activa.
+6. **ED-06: se corrigió lo razonable sin poder reproducirlo.** Hay que decirlo claro: los tres flaky reportados no se repitieron en 30 corridas cada uno; la mitigación (esperas por condición, `Connection: close`) es barata y no puede empeorar nada. Si reaparece alguno, el dato que falta es qué otro servidor respondió.
+7. **El bot no reagenda solo tras la recuperación (D4): no se implementó.** El plan (D4: «Asistió o no asistió, y recuperación de quien no llegó») y D1 («agendar, reprogramar y cancelar… desde el bot **o** el asesor») no lo exigen y el asesor lo cubre; queda como decisión de producto.
+
+### Para Eduardo
+
+- **Decisiones de producto abiertas** (D): bot que reagenda solo (D4); tope propio de frecuencia para avisos a instructores (con ED-04 ya no se pierden); ventana de acceso del maestro a la salud (ED-09); dos automatizaciones aplicables (ED-10); avisar al asesor cuando los recordatorios se apagan por atención humana (ED-11); antelación mínima de un recordatorio recorrido; avisar a la familia cuando una persona reprograma o cancela. (E): redirección directa o página intermedia; si el consentimiento se registra al enviar el formulario o cuando el número escribe (EE-06); qué pasa con un lead perdido o inscrito que vuelve (EE-07); hasta dónde bloquear la inundación (token, tope por organización, CAPTCHA); si los códigos siguen a la campaña (ya lo hacen); si la landing solo acepta teléfonos mexicanos (EE-13).
+- **No verificado:** Safari y Firefox con el envío de la landing (solo Chrome 154 headless); `CHATWOOT_ADMIN_TOKEN` real para abrir la conversación del instructor (D2); el cableado de `ORIGEN_PUBLICO` en `server.ts` no tiene prueba (el arranque no se prueba).
+- **Si usas la landing detrás de un balanceador:** define `ORIGEN_PUBLICO` con el origen público (https); sin él se compara `Origin` con el `Host` de la petición.
+
+### Verificación
+
+Línea base al empezar (HEAD `7435209`): `validar` 498 tests y `test:int` 712, ambos exit 0.
+En cada commit de arreglo `npm run validar` y `npm run test:int` salieron con exit 0 (los de E y los últimos de D se verificaron sobre una instantánea del árbol en una carpeta aparte, con base propia, mientras se seguía editando; no se corrió nada contra la base de la demo).
+Al cerrar (HEAD `4bf427b`, más esta sección):
+```
+$ npm run validar     → exit 0 · tests 500 · pass 500 · fail 0   (1.ª y 2.ª corrida seguidas)
+$ npm run test:int    → exit 0 · tests 746 · pass 746 · fail 0   (1.ª y 2.ª corrida seguidas)
+$ npm run test:int    → exit 0 · tests 746 · pass 746 · fail 0   (base NUEVA y vacía; luego se borró)
+```
+Un `test:int` intermedio falló una vez en `sesion.itest.ts` («CSRF: con ORIGEN_PUBLICO configurado solo ese origen vale»: 404 en vez de 403) y no se reprodujo en 25 corridas aisladas ni en 48 con 8 procesos a la vez; ver ED-06.
