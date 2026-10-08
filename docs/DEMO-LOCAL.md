@@ -59,6 +59,26 @@ varios programas (los marcados como alternativas) pregunta cuál; si la sucursal
 `GET /api/leads/:id/cotizaciones`; la lista de espera, en `GET /api/lista-espera`. Para apagarlo en una vertical (vuelve la captura de tres preguntas):
 `UPDATE vertical SET cotizador_whatsapp_activo = false WHERE slug = '…'`. Precios, cupos y promociones del seed son **[SUPUESTO]**.
 
+### Del lead al alumno inscrito (F1 a F7)
+
+Con el lead que dejó el simulador y la sesión de un asesor (ver «Usuarios de la aplicación»), por la API:
+
+```bash
+# 1) ¿Qué falta por capturar? Solo lo que el bot, el maestro y la cotización NO dieron (vacío = listo para convertir)
+GET  /api/leads/:id/conversion
+# 2) Convertir: tutor(es), alumno(s) e inscripción en UNA transacción (201; repetirlo devuelve lo ya convertido, 200)
+POST /api/leads/:id/convertir   {"tutor":{"parentesco":"madre"},"prospectos":[{"prospecto_id":"…","alumno":{"apellidos":"…","fecha_nacimiento":"2018-05-04"},"inscripcion":{"grupo_id":"…"}}]}
+# 3) Después: cambiar de grupo, congelar, reactivar o dar de baja con motivo; historial; cross-sell
+POST /api/inscripciones/:id/cambiar-grupo | congelar | reactivar | baja
+GET  /api/inscripciones/:id/movimientos
+GET  /api/familias/un-solo-hijo        # tutores con un solo hijo inscrito y las verticales en las que no están
+```
+
+Quién cierra la inscripción (decisión 7): por omisión el maestro marca la clase «lista para cerrar» (`POST /api/clases-muestra/:id/listo-para-cerrar`) y el
+asesor convierte; con `configuracion_organizacion.modo_cierre = 'maestro_en_sitio'` el maestro también puede convertir a sus alumnos al terminar la clase.
+El seed trae los motivos de baja de ejemplo `[SUPUESTO]` y la plantilla/automatización de **bienvenida de inscripción** (`bienvenida_inscripcion`, de servicio): con el
+motor corriendo, al inscribir sale a la conversación del tutor responsable (por el transporte configurado; sin Twilio real, solo se registra).
+
 ## Usuarios de la aplicación (API)
 
 La API vive en `http://localhost:3000/api` (ver `docs/API.md`). El seed de la demo crea la

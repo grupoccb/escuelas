@@ -105,6 +105,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "POST /api/tutores": "tutores:escribir",
   "PATCH /api/tutores/:id": "tutores:escribir",
   "DELETE /api/tutores/:id": "tutores:escribir",
+  "GET /api/familias/un-solo-hijo": "tutores:leer",
   "GET /api/alumnos": "alumnos:leer",
   "GET /api/alumnos/:id": "alumnos:leer",
   "POST /api/alumnos": "alumnos:escribir",

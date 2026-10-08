@@ -69,6 +69,18 @@ test("F5 seed: los motivos de baja de ejemplo [SUPUESTO] de la escuela; idempote
   assert.equal(await db().motivo_baja.count(), 5, "volver a correr el seed no duplica");
 });
 
+test("F7 seed: la bienvenida de inscripción es una plantilla de SERVICIO (utility, no marketing) y su automatización del evento inscripcion_creada; idempotente", async () => {
+  const p = await db().plantilla_mensaje.findFirstOrThrow({ where: { codigo: "bienvenida_inscripcion" }, select: { categoria: true, estado_aprobacion: true, variables: true, cuerpo_referencia: true } });
+  assert.equal(p.categoria, "utility", "es un aviso de servicio sobre algo ya acordado, no marketing");
+  assert.equal(p.estado_aprobacion, "aprobada");
+  assert.deepEqual((p.variables as { nombre: string }[]).map((v) => v.nombre), ["nombre_prospecto", "nombre_grupo", "nombre_sucursal", "fecha_inicio"]);
+  assert.ok(!/alergi|medicament|condici[oó]n m[eé]dica|salud/i.test(p.cuerpo_referencia ?? ""), "sin datos de salud");
+  const a = await db().automatizacion.findFirstOrThrow({ where: { evento_disparador: "inscripcion_creada" }, select: { offset_minutos: true, dias_permitidos: true, activo: true } });
+  assert.deepEqual([a.offset_minutos, a.activo], [0, true]);
+  await aplicar("seguimiento");
+  assert.equal(await db().automatizacion.count({ where: { evento_disparador: "inscripcion_creada" } }), 1);
+});
+
 test("D8 seed: plantillas de marketing y las dos automatizaciones (lead frío y promoción por vencer) con los tiempos de ejemplo; idempotente", async () => {
   const plantillas = await db().plantilla_mensaje.findMany({ where: { codigo: { in: ["reenganche_lead_frio", "promocion_por_vencer"] } }, select: { codigo: true, categoria: true, estado_aprobacion: true, variables: true, cuerpo_referencia: true } });
   assert.equal(plantillas.length, 2);

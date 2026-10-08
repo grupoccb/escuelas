@@ -27,6 +27,7 @@ import { cargarPromociones } from "../promociones/cargar.ts";
 import { consumirCupo, liberarCupo } from "../promociones/cupo.ts";
 import { resolverPromociones, type PromocionDef, type ResultadoPromociones } from "../promociones/resolver.ts";
 import { diaDeCortePorOmision, esDiaDeCorteValido } from "./corte.ts";
+import { programarBienvenida } from "./bienvenida.ts";
 import { contarHermanosInscritos } from "./hermanos.ts";
 
 export interface EntradaDeInscripcion {
@@ -237,6 +238,8 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
   if (cotizacionId) await tx.cotizacion.updateMany({ where: { id: cotizacionId, estatus: "vigente" }, data: { estatus: "aceptada" } });
   if (prospecto.lead_id) await moverLeadAEtapa(tx, prospecto.lead_id, "inscrito", { motivo: "inscripcion", ahora: ctx.ahora });
   if (alumno.estatus !== "activo") await tx.alumno.updateMany({ where: { id: alumno.id }, data: { estatus: "activo" } });
+  // La bienvenida (F7): una ejecución del motor por automatización aplicable, en esta misma transacción.
+  await programarBienvenida(tx, { inscripcionId: fila.id, verticalId: programa.vertical_id, sucursalId: programa.sucursal_id, zonaHoraria: programa.sucursal.zona_horaria, ahora: ctx.ahora });
 
   return {
     ok: true,

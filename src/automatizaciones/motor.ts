@@ -244,13 +244,21 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     log.info("automatizacion_omitida", { ejecucionId: e.id, motivo });
   };
 
-  const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion"];
+  const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion", "inscripcion"];
   if (!entidadesSoportadas.includes(e.entidad_tipo)) return omitir("entidad_no_soportada");
   const evento = e.automatizacion.evento_disparador;
   // D8: el lead frío (entidad `lead`) y la promoción por vencer (entidad `aviso_promocion`).
   const esLeadFrio = e.entidad_tipo === "lead";
   const esPromocion = e.entidad_tipo === "aviso_promocion";
-  if ((esLeadFrio && evento !== "lead_frio") || (esPromocion && evento !== "promocion_por_vencer")) return omitir("evento_no_soportado");
+  // F7: la bienvenida de inscripción (entidad `inscripcion`).
+  const esInscripcion = e.entidad_tipo === "inscripcion";
+  if ((esLeadFrio && evento !== "lead_frio") || (esPromocion && evento !== "promocion_por_vencer") || (esInscripcion !== (evento === "inscripcion_creada"))) return omitir("evento_no_soportado");
+  const inscr = esInscripcion ? await cargarInscripcion(db, e.entidad_id) : null;
+  if (esInscripcion) {
+    if (!inscr) return omitir("inscripcion_inexistente");
+    // Lo que se manda solo vale mientras la inscripción siga vigente (si se dio de baja o se congeló antes de que saliera, ya no).
+    if (inscr.estatus !== "activa") return omitir("inscripcion_no_vigente");
+  }
   let aviso: AvisoCargado | null = null;
   if (esPromocion) {
     // Antes de nada: ¿sigue valiendo el aviso? (el lead se inscribió o se perdió, la cotización venció, la promoción se apagó o se prorrogó…)
@@ -270,7 +278,9 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   if (e.entidad_tipo === "clase_muestra" && !clase) return omitir("clase_inexistente");
   const incluir = { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } } as const;
   const leadDeLaEntidad = esLeadFrio ? e.entidad_id : (aviso?.leadId ?? clase?.lead_id ?? null);
-  const conv = leadDeLaEntidad
+  const conv = inscr
+    ? await conversacionDeBienvenida(db, inscr)
+    : leadDeLaEntidad
     ? await db.conversacion.findFirst({ where: { lead_id: leadDeLaEntidad }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: incluir })
     : await db.conversacion.findFirst({ where: { id: e.entidad_id }, include: incluir });
 
@@ -290,6 +300,12 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     if (!e.automatizacion.plantilla) return omitir("solo_tarea");
   }
   if (!conv && esPromocion) return omitir("sin_conversacion");
+  if (!conv && inscr) {
+    // El tutor responsable no tiene una conversación de WhatsApp (se dio de alta por mostrador): no hay por dónde mandarle la bienvenida y una persona decide.
+    await omitir("sin_conversacion");
+    if (inscr.lead_id) await asegurarTareaDeLead(db, { leadId: inscr.lead_id, descripcion: `La bienvenida de inscripción de ${inscr.alumno.nombre} no se mandó: la familia no tiene una conversación de WhatsApp. Dale la bienvenida tú.` });
+    return;
+  }
   if (!conv) {
     await omitir(clase ? "sin_conversacion" : "conversacion_inexistente");
     // Una clase cuyo lead nunca escribió por WhatsApp (p. ej. entró por la landing): no hay por dónde mandar el recordatorio y una persona decide.
@@ -377,7 +393,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const propia: VentanaHoraria = { inicioMin: e.automatizacion.hora_inicio_min, finMin: e.automatizacion.hora_fin_min, dias: e.automatizacion.dias_permitidos };
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
-  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso);
+  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso, inscr);
   if (typeof variables === "string") return omitirConTarea(variables);
   const cuerpo = (plantilla.cuerpo_referencia ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_, pos: string) => variables[pos] ?? "");
   if (cuerpo.trim() === "") return omitirConTarea("plantilla_sin_cuerpo");
@@ -499,6 +515,7 @@ async function resolverVariables(
   conv: { lead: { id: string; nombre_contacto: string | null; sucursal_interes_id: string | null }; bandeja_chatwoot: { canal_whatsapp: { vertical: { nombre: string } } } },
   clase: ClaseDeEjecucion | null = null,
   aviso: AvisoCargado | null = null,
+  inscr: InscripcionDeEjecucion | null = null,
 ): Promise<Record<string, string> | string> {
   if (!Array.isArray(definidas)) return "variables_invalidas";
   const resultado: Record<string, string> = {};
@@ -516,7 +533,7 @@ async function resolverVariables(
         break;
       case "nombre_prospecto":
         // De una clase muestra o de un aviso de promoción: el alumno de ESA clase o cotización (el lead puede tener varios hijos).
-        valor = clase ? clase.prospecto.nombre : aviso ? aviso.prospectoNombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] }))?.nombre;
+        valor = inscr ? inscr.alumno.nombre : clase ? clase.prospecto.nombre : aviso ? aviso.prospectoNombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] }))?.nombre;
         break;
       case "nombre_promocion":
         if (!aviso) return "variable_desconocida";
@@ -527,8 +544,13 @@ async function resolverVariables(
         valor = fechaLarga(aviso.venceEl);
         break;
       case "nombre_grupo":
-        if (!clase) return "variable_desconocida";
-        valor = clase.grupo.nombre;
+        if (!clase && !inscr) return "variable_desconocida";
+        valor = inscr ? inscr.grupo.nombre : clase!.grupo.nombre;
+        break;
+      case "fecha_inicio":
+        // Primer día de clases de la inscripción, p. ej. «lunes 9 de noviembre».
+        if (!inscr) return "variable_desconocida";
+        valor = fechaLarga(inscr.fecha_inicio.toISOString().slice(0, 10));
         break;
       case "fecha_clase":
         if (!clase) return "variable_desconocida";
@@ -539,6 +561,10 @@ async function resolverVariables(
         valor = describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).hora;
         break;
       case "nombre_sucursal":
+        if (inscr) {
+          valor = inscr.grupo.programa.sucursal.nombre;
+          break;
+        }
         if (clase) {
           valor = clase.grupo.programa.sucursal.nombre;
           break;
@@ -573,6 +599,45 @@ type ClaseDeEjecucion = NonNullable<Awaited<ReturnType<typeof cargarClase>>>;
 
 async function cargarClase(db: BaseDatos, id: string) {
   return db.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });
+}
+
+// ── Inscripción (F7) ──
+
+type InscripcionDeEjecucion = NonNullable<Awaited<ReturnType<typeof cargarInscripcion>>>;
+
+async function cargarInscripcion(db: BaseDatos, id: string) {
+  return db.inscripcion.findFirst({
+    where: { id },
+    select: {
+      id: true,
+      estatus: true,
+      lead_id: true,
+      fecha_inicio: true,
+      alumno: { select: { id: true, nombre: true, tutores: { where: { eliminado_en: null, es_responsable_pago: true, tutor: { eliminado_en: null } }, select: { tutor: { select: { telefono: true } } }, take: 1 } } },
+      grupo: { select: { nombre: true, programa: { select: { sucursal: { select: { nombre: true } } } } } },
+    },
+  });
+}
+
+const INCLUIR_CONVERSACION = { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } } as const;
+
+/**
+ * La conversación de WhatsApp del TUTOR RESPONSABLE de pago (la del lead cuyo teléfono es el suyo); si no tiene, la del lead de origen de la
+ * inscripción. null si ninguno tiene conversación.
+ */
+async function conversacionDeBienvenida(db: BaseDatos, inscr: InscripcionDeEjecucion) {
+  const telefono = inscr.alumno.tutores[0]?.tutor.telefono;
+  if (telefono) {
+    const c = await db.conversacion.findFirst({ where: { lead: { telefono, eliminado_en: null } }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: INCLUIR_CONVERSACION });
+    if (c) return c;
+  }
+  return inscr.lead_id ? db.conversacion.findFirst({ where: { lead_id: inscr.lead_id }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: INCLUIR_CONVERSACION }) : null;
+}
+
+/** Tarea para el asesor ligada al lead (cuando no hay conversación a la que atarla). Una pendiente por lead y tipo. */
+async function asegurarTareaDeLead(db: BaseDatos, t: { leadId: string; descripcion: string }): Promise<void> {
+  if (await db.tarea_asesor.findFirst({ where: { lead_id: t.leadId, conversacion_id: null, tipo: "automatizacion_omitida", estado: "pendiente" }, select: { id: true } })) return;
+  await db.tarea_asesor.create({ data: altaConAlcance({ lead_id: t.leadId, tipo: "automatizacion_omitida" as const, descripcion: t.descripcion }) });
 }
 
 /** Tarea para el asesor ligada a una clase (el lead no tiene conversación a la que atarla). Una pendiente por clase y tipo. */

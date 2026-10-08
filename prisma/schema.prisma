@@ -756,6 +756,9 @@ enum evento_disparador {
   lead_frio
   /// Una promoción de la cotización vigente de un lead está por vencer (D8). La entidad es el `aviso_promocion`. `offset_minutos` NEGATIVO: -4320 = 3 días antes de que acabe la promoción.
   promocion_por_vencer
+  /// Se acaba de inscribir un alumno (F7): la bienvenida de inscripción al tutor responsable. La entidad es la `inscripcion`; `offset_minutos` = minutos
+  /// después de inscribirse (0 = en cuanto el horario de envío lo permita). Es un aviso de SERVICIO sobre algo ya acordado (plantilla `utility`), no marketing.
+  inscripcion_creada
 }
 
 /// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás

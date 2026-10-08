@@ -279,7 +279,7 @@ let contadorDeAlumnos = 0;
 export async function sembrarAlumno(
   prisma: PrismaPruebas,
   org: OrganizacionDePrueba,
-  o: { docs?: DocumentosLegalesSembrados; sucursalId?: string | null; nacimiento?: string; nombre?: string; telefono?: string; etapaId?: string; aceptarReglamento?: boolean } = {},
+  o: { docs?: DocumentosLegalesSembrados; sucursalId?: string | null; nacimiento?: string; nombre?: string; telefono?: string; etapaId?: string; aceptarReglamento?: boolean; /** Un tutor que ya existe (hermanos: la misma familia; el lead lleva otro teléfono). */ conTutor?: string } = {},
 ): Promise<AlumnoSembrado> {
   const n = ++contadorDeAlumnos;
   const telefono = o.telefono ?? `+5255${String(40_000_000 + ((n * 104729 + Date.now()) % 50_000_000))}`;
@@ -290,6 +290,7 @@ export async function sembrarAlumno(
   });
   await prisma.prospecto.update({ where: { id: fam.prospectoId }, data: { alumno_id: alumno.id } });
   const tutor =
+    (o.conTutor ? await prisma.tutor.findFirst({ where: { id: o.conTutor } }) : null) ??
     (await prisma.tutor.findFirst({ where: { organizacion_id: org.organizacionId, telefono, eliminado_en: null } })) ??
     (await prisma.tutor.create({ data: { organizacion_id: org.organizacionId, nombre: "Rosa", apellidos: "Mena", telefono, sucursal_id: sucursalId } }));
   await prisma.tutor_alumno.create({ data: { organizacion_id: org.organizacionId, tutor_id: tutor.id, alumno_id: alumno.id, parentesco: "madre", es_responsable_pago: true } });

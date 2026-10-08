@@ -71,3 +71,20 @@ INSERT INTO motivo_baja (id, organizacion_id, codigo, nombre, orden) VALUES
   ('00000000-0000-4000-8000-000000000934', '00000000-0000-4000-8000-000000000001', 'insatisfaccion',     'Insatisfacción',         4),
   ('00000000-0000-4000-8000-000000000935', '00000000-0000-4000-8000-000000000001', 'otro',               'Otro',                   9)
 ON CONFLICT DO NOTHING;
+
+-- ── F7: bienvenida de inscripción [SUPUESTO] ──────────────────────────────────────────────────────────────
+-- Un aviso de SERVICIO (plantilla `utility`, no marketing) sobre algo que la familia ya acordó: inscribirse. Sale al tutor responsable por
+-- MessagingProvider con todas sus reglas (baja, ventana de servicio / plantilla aprobada, horario 09:00–20:00 de la sucursal, frecuencia). Nunca lleva
+-- datos de salud: solo el nombre del alumno, el grupo, la sucursal y el primer día. Idempotente por inscripción. [SUPUESTO] el texto y que salga de lunes a sábado.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000709', '00000000-0000-4000-8000-000000000001', 'bienvenida_inscripcion',
+   'HX00000000000000000000000000000009', NULL, 'utility', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"nombre_sucursal"},{"pos":4,"nombre":"fecha_inicio"}]',
+   '¡Bienvenidos! {{1}} quedó inscrito en {{2}}, sucursal {{3}}. Su primera clase es el {{4}}. Cualquier duda, responde a este mensaje.',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_id, evento_disparador, offset_minutos, plantilla_id, max_intentos, condiciones, dias_permitidos) VALUES
+  ('00000000-0000-4000-8000-000000000807', '00000000-0000-4000-8000-000000000001', 'Bienvenida de inscripción', NULL, NULL,
+   'inscripcion_creada', 0, '00000000-0000-4000-8000-000000000709', 1, '{}', ARRAY[1,2,3,4,5,6])
+ON CONFLICT DO NOTHING;

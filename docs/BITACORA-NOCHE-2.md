@@ -50,7 +50,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F4 | HECHO | ver `git log` (`F4:`) | Cupo real: `InscripcionesActivas` como fuente única (servidor, API, bot, cotizador, clase muestra, lista de espera); concurrencia con 2 y 10 inscripciones por 1 y 3 lugares |
 | F5 | HECHO | ver `git log` (`F5:`) | Cambio de grupo atómico con historial de solo anexar, congelar/reactivar, baja con motivo de un catálogo editable, lista de espera avisada, concurrencia (último lugar, cruzados, bajas simultáneas) |
 | F6 | HECHO | ver `git log` (`F6:`) | Los dos modos de cierre por configuración (`modo_cierre`): «listo para cerrar» (etapa, tarea, idempotente) y quién convierte según el modo (el maestro solo en sitio y de sus alumnos) |
-| F7 | PENDIENTE | | Hermanos |
+| F7 | HECHO | ver `git log` (`F7:`) | Hermanos: promoción `min_hermanos` automática (alumnos distintos de la familia), lista de cross-sell y bienvenida de inscripción por el motor (plantilla de servicio, idempotente) |
 | G1 | PENDIENTE | | Pase de lista |
 | G2 | PENDIENTE | | Derivados de asistencia |
 | G3 | PENDIENTE | | Progresión genérica |
@@ -1720,3 +1720,30 @@ $ npm run test:int    → exit 0 · tests 824 · pass 824 · fail 0
 
 **Para Eduardo**
 - Decisión 7 abierta en la práctica: cuál modo usará la escuela (por omisión `asesor_whatsapp`); el modo en sitio no cobra, solo inscribe.
+
+
+## F7. Hermanos: promoción automática, cross-sell y bienvenida de inscripción
+
+**Qué se hizo**
+- **Promoción por hermanos, sola:** `contarHermanosInscritos` (`src/inscripciones/hermanos.ts`, usada desde F3 por `inscribirAlumno`) cuenta ALUMNOS distintos de los tutores del alumno con una inscripción activa. Un niño con dos tutores en común con otro (mamá y abuela) cuenta una vez. F7 la prueba a fondo (congeladas, bajas, otra vertical, un solo tutor en común).
+- **`GET /api/familias/un-solo-hijo`** (`src/familias/cross-sell.ts`, `tutores:leer`): tutores con UN solo hijo inscrito, con `verticales_inscritas` y `verticales_sin` (y si su sucursal las ofrece); filtros `sin_vertical_id` y `sucursal_id`; alcance por sucursal; paginado.
+- **Bienvenida de inscripción:** evento nuevo `inscripcion_creada` (migración `20261016050000_bienvenida_inscripcion`), `programarBienvenida` (`src/inscripciones/bienvenida.ts`) llamada dentro de la transacción de `inscribirAlumno`, y el motor entiende la entidad `inscripcion` (variables nuevas `fecha_inicio`, y `nombre_prospecto`/`nombre_grupo`/`nombre_sucursal` de la inscripción). Va al tutor responsable de pago por `MessagingProvider`. Seed `[SUPUESTO]`: plantilla `bienvenida_inscripcion` (709, **`utility`**: aviso de servicio sobre algo ya acordado, con el comentario en el seed y en el módulo) y automatización 807.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 506 · pass 506 · fail 0
+$ npm run test:int    → exit 0 · tests 835 · pass 835 · fail 0
+```
+`hermanos.itest.ts` (10) + el seed de F7: la promoción de 2 hermanos llega sola al segundo hijo (y no a una familia vecina); **mamá y abuela en común NO cuentan doble** (con una promoción de 3, el segundo hijo todavía no la recibe); congelada y baja no cuentan, un hermano por un solo tutor en común y otro de otra vertical sí; cross-sell (un hijo activo + uno congelado = un solo hijo, dos activos fuera, sin activos fuera, un niño en dos verticales es uno, ambos tutores de un único hijo aparecen, filtros, paginación, alcance por sucursal, maestro 403, otra organización); bienvenida: una ejecución programada y recorrida a las 09:00, plantilla con los datos exactos (alumno, grupo, sucursal, «martes 10 de noviembre»), al responsable de pago aunque escribiera otro adulto, no se repite, una baja del teléfono y la atención humana la omiten con su motivo, la inscripción dada de baja antes de salir la omite (`inscripcion_no_vigente`), sin conversación deja una tarea, idempotente por inscripción, y **sin datos de salud** (centinela en la ficha del alumno que no aparece en el texto, los envíos, las ejecuciones ni los mensajes). **Mutación atrapada:** contar también inscripciones no activas hace fallar la prueba de hermanos.
+
+**Decisiones que tomé**
+1. **Hermanos = alumnos distintos de los tutores del alumno con inscripción ACTIVA.** Alternativa descartada: contar por la sola vertical o por el grupo (la promoción es de la familia), o contar vínculos (duplicaría con dos tutores).
+2. **El cotizador sigue con `hermanos_inscritos` manual** (es una cotización hipotética, el bot ni siquiera conoce al tutor aún); al inscribir manda el conteo real. Puede haber una diferencia entre lo cotizado y lo aplicado si entre tanto se inscribió o se dio de baja un hermano.
+3. **La bienvenida va a la conversación del lead cuyo teléfono es el del tutor responsable** y, si no hay, a la del lead de origen. Alternativa descartada: crear una conversación nueva (abrir conversaciones es del transporte, y sin ventana abierta exigiría plantilla de todos modos).
+4. **Plantilla `utility` y comentario de servicio:** es un aviso sobre algo ya acordado; no cuenta para el tope de marketing. Hoy `en_atencion_humana` la bloquea como todo lo automático; INV-6 lo reformula.
+5. **El motor no revisa si la automatización sigue activa al ejecutar una ejecución ya programada** (comportamiento heredado de todos los eventos): apagar la automatización no cancela las ejecuciones ya creadas. Anotado para quien siga (pendiente de producto/INV-6).
+6. **Lista de cross-sell en memoria** (por familia con inscripción activa). Alternativa descartada: SQL agregado (no hace falta a esta escala y el alcance por rol se dejaría a mano).
+
+**Para Eduardo**
+- **[SUPUESTO]** el texto de la bienvenida y que salga de lunes a sábado, de 09:00 a 20:00.
+- Decisión de producto: ¿la bienvenida debe salir también al segundo tutor/abuela? Hoy solo al responsable de pago.

@@ -13,6 +13,8 @@
 //   PATCH  /api/alumnos/:id/tutores/:tutor_id     { parentesco?, banderas? }                (alumnos:escribir)
 //   DELETE /api/alumnos/:id/tutores/:tutor_id                                              (alumnos:escribir)  409 si es el único
 //
+//   GET    /api/familias/un-solo-hijo?sin_vertical_id=&sucursal_id=&limite=&pagina=         (tutores:leer)   F7: la lista de cross-sell
+//
 // Un tutor por teléfono normalizado (`normalizarTelefono()`, invariante 7): el mismo teléfono es la misma familia (detección de familia).
 // Alta de un alumno con un `tutor` nuevo cuyo teléfono ya existe: se LIGA al tutor que hay (no se duplica ni se le pisan los datos).
 // Sin datos de salud: viven cifrados en la ficha de salud (sujeto `alumno`, src/sensibles/) y se leen por `GET /api/salud/alumno/:id` con permiso, motivo y
@@ -25,6 +27,7 @@ import { problemaDeFechaDeNacimiento } from "../../clases-muestra/registro-regla
 import type { Consultas } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { dondeAlumnoVisible, dondeTutorVisible } from "../../familias/alcance.ts";
+import { familiasConUnHijo } from "../../familias/cross-sell.ts";
 import { crearAlumno, encontrarOCrearTutor, PARENTESCO_MAX, vincularTutor, type DatosDeAlumno } from "../../familias/familia.ts";
 import { autorizaUsoDeImagen } from "../../legal/aceptaciones.ts";
 import { edadCumplida } from "../../lib/edad.ts";
@@ -113,6 +116,7 @@ const esquemaCambioAlumno = objeto({
   motivo_clase_detalle: textoONulo(300),
 });
 
+const esquemaCrossSell = objeto({ ...esquemaPaginacion, sin_vertical_id: opcional(uuid()), sucursal_id: opcional(uuid()) });
 const ESTATUS_ALUMNO = ["activo", "baja", "congelado"] as const;
 const esquemaId = objeto({ id: uuid() });
 const esquemaIdYTutor = objeto({ id: uuid(), tutor_id: uuid() });
@@ -650,6 +654,27 @@ export function rutasDeFamilias(_deps: DepsApi): Router {
       await registrarCambio(tx, ctx, { entidad: "tutor_alumno", entidadId: antes.id, accion: "eliminar", antes: instVinculo({ tutor_id, alumno_id: id, ...antes }) });
     });
     res.status(204).end();
+  });
+
+  // F7: los tutores con UN solo hijo inscrito (inscripción activa), con las verticales en las que sí y en las que no están. Es la lista de cross-sell.
+  r.get("/familias/un-solo-hijo", requierePermiso("tutores:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const q = parsearQuery(esquemaCrossSell, req.query);
+    const pag = leerPaginacion(q);
+    const todas = await familiasConUnHijo(ctx.db, { visible: await dondeTutorVisible(ctx), hoy: hoyUTC(ctx), ...(q.sin_vertical_id ? { sinVerticalId: q.sin_vertical_id } : {}), ...(q.sucursal_id ? { sucursalId: q.sucursal_id } : {}) });
+    res.json({
+      datos: todas.slice(pag.saltar, pag.saltar + pag.limite).map((f) => ({
+        tutor_id: f.tutorId,
+        nombre: f.nombre,
+        apellidos: f.apellidos,
+        telefono: f.telefono,
+        sucursal_id: f.sucursalId,
+        alumno: { id: f.alumno.id, nombre: f.alumno.nombre, apellidos: f.alumno.apellidos, edad: f.alumno.edad },
+        verticales_inscritas: f.verticalesInscritas,
+        verticales_sin: f.verticalesSin.map((v) => ({ id: v.id, nombre: v.nombre, disponible_en_su_sucursal: v.disponibleEnSuSucursal })),
+      })),
+      paginacion: { pagina: pag.pagina, limite: pag.limite, total: todas.length },
+    });
   });
 
   return r;
