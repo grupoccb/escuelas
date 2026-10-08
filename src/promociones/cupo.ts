@@ -1,33 +1,27 @@
-// Consumo de cupo de una promoción (C3), SEGURO bajo concurrencia.
+// Consumo de cupo de una promoción (C3, endurecido en F-pre: EC-14 y EC-16), SEGURO bajo concurrencia y DENTRO de la transacción de quien lo llama.
 //
-// `cupo_usado` sube con un UPDATE condicional atómico (`WHERE cupo_usado < cupo_maximo`): si dos personas
-// toman el último lugar a la vez, Postgres re-evalúa la condición sobre la fila ya actualizada y a la
-// segunda no le toca (0 filas). Es una sola sentencia, sin leer-y-luego-escribir. Además la base tiene un CHECK
-// (`cupo_usado <= cupo_maximo`) por si alguien lo olvida. Una promoción sin tope también cuenta sus usos.
-
-// ADVERTENCIAS PARA QUIEN LA USE (F3, inscripción; auditoría de C, EC-14 y EC-16):
-//   · Solo mira `activo` y el tope. NO comprueba vigencia, alcance (vertical, sucursal, programa) ni condición: eso lo decide
-//     `resolverPromociones` y quien consuma debe haber resuelto ANTES con el mismo contexto.
-//   · Si el `UPDATE` condicional pierde contra un cambio de tope, el `CHECK promocion_cupo_check` falla. Con `BaseDatos` (sin
-//     transacción) el `catch` de abajo lo vuelve `false`; DENTRO de una transacción de Postgres una sentencia fallida deja la
-//     transacción abortada y el `catch` no la salva: llámala con `BaseDatos` o con un `SAVEPOINT`, o comprueba el tope antes.
+// 1. COMPRUEBA que la promoción aplica en el contexto (EC-16): activa, vigente ese día, dentro de su alcance (vertical, sucursal, programa) y con su
+//    condición cumplida: la misma `motivoDeDescarte` que usa el resolutor. Un consumo sin contexto no existe: quien consume dice para QUÉ.
+// 2. TOMA el lugar con UNA sentencia atómica (EC-14): `UPDATE … SET cupo_usado = cupo_usado + 1 WHERE id = … AND activo AND
+//    (cupo_maximo IS NULL OR cupo_usado < cupo_maximo)`, comparando las dos COLUMNAS en la propia base. Si dos personas toman el último lugar a la
+//    vez, Postgres re-evalúa la condición sobre la fila ya actualizada y a la segunda no le toca (0 filas). Nunca se lee el tope en el código y luego se
+//    escribe: aunque alguien baje el tope entre tanto, la condición lo ve. Por eso NO depende de ningún `catch`: el `CHECK` de la base
+//    (`cupo_usado <= cupo_maximo`) sigue ahí como defensa, pero este UPDATE nunca lo dispara, y una sentencia que no falla no deja abortada la
+//    transacción de Postgres de la inscripción (un error dentro de una transacción la aborta; un UPDATE de 0 filas, no).
+// Una promoción sin tope también cuenta sus usos.
 import type { BaseDatos, Consultas } from "../datos/alcance.ts";
+import { cargarPromociones } from "./cargar.ts";
+import { motivoDeDescarte, type ContextoPromocion } from "./resolver.ts";
 
-/** Toma un lugar. true = lo tomó; false = no había (o la promoción no existe / está dada de baja / inactiva). */
-export async function consumirCupo(db: BaseDatos | Consultas, promocionId: string): Promise<boolean> {
-  const p = await db.promocion.findFirst({ where: { id: promocionId, activo: true }, select: { cupo_maximo: true } });
-  if (!p) return false;
-  try {
-    const r = await db.promocion.updateMany({
-      where: { id: promocionId, activo: true, ...(p.cupo_maximo === null ? {} : { cupo_usado: { lt: p.cupo_maximo } }) },
-      data: { cupo_usado: { increment: 1 } },
-    });
-    return r.count === 1;
-  } catch (e) {
-    // Alguien bajó el tope entre la lectura y el UPDATE: la base se negó a pasarse del cupo → no había lugar.
-    if (e instanceof Error && e.message.includes("promocion_cupo_check")) return false;
-    throw e;
-  }
+/** Toma un lugar. true = lo tomó; false = la promoción no aplica a ese contexto, no existe, está dada de baja o inactiva, o no había lugar. */
+export async function consumirCupo(db: BaseDatos | Consultas, promocionId: string, contexto: ContextoPromocion): Promise<boolean> {
+  const [def] = await cargarPromociones(db, promocionId);
+  if (!def || motivoDeDescarte({ ...def, cupoUsado: 0 }, contexto) !== null) return false; // el cupo lo decide el UPDATE, no esta lectura
+  const r = await db.promocion.updateMany({
+    where: { id: promocionId, activo: true, OR: [{ cupo_maximo: null }, { cupo_usado: { lt: db.promocion.fields.cupo_maximo } }] },
+    data: { cupo_usado: { increment: 1 } },
+  });
+  return r.count === 1;
 }
 
 /** Devuelve un lugar (se canceló la inscripción). Nunca baja de cero. true = lo devolvió. */

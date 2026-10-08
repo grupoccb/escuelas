@@ -13,6 +13,7 @@ import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { aTexto, deTexto } from "../lib/dinero.ts";
 import { cargarPromociones, promocionesAplicables } from "./cargar.ts";
 import { consumirCupo, liberarCupo } from "./cupo.ts";
+import type { ContextoPromocion } from "./resolver.ts";
 
 let prisma: PrismaPruebas;
 let api: ApiLevantada;
@@ -73,6 +74,8 @@ const crearOk = async (extra: object = {}): Promise<Promo> => {
   return r.cuerpo;
 };
 const db = () => conAlcance(prisma, org.organizacionId);
+/** El contexto de una inscripción en el programa del norte, hoy (2026-10-20). */
+const ctx = (extra: Partial<ContextoPromocion> = {}): ContextoPromocion => ({ fecha: "2026-10-20", verticalId: org.verticalId, sucursalId: norte, programaId: pNorte, hermanosInscritos: 0, mesesPagadosPorAdelantado: 0, costoInscripcion: 50000n, costoMensualidad: 80000n, ...extra });
 const registros = (id: string) => prisma.registro_cambio.findMany({ where: { entidad_id: id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] });
 
 // ── API ────────────────────────────────────────────────────────────────────────────────
@@ -322,40 +325,89 @@ test("lo guardado por la API llega al resolutor con montos exactos: «inscripci�
 
 // ── Cupo bajo concurrencia ─────────────────────────────────────────────────────────────
 
-test("CARRERA: cupo 1 y dos consumos simultáneos (los dos leen antes de que cualquiera escriba) → gana UNO", async () => {
+test("CARRERA: cupo 1 y dos consumos simultáneos (los dos llegan al UPDATE a la vez) → gana UNO", async () => {
   const p = await crearOk({ cupo_maximo: 1 });
   const barrera = new Barrera(2);
-  const raiz = conGanchos(prisma, { modelo: "promocion", operacion: "findFirst", despues: () => barrera.esperar(2000) });
-  const [a, b] = await Promise.all([consumirCupo(conAlcance(raiz, org.organizacionId), p.id), consumirCupo(conAlcance(raiz, org.organizacionId), p.id)]);
-  assert.ok(barrera.completa, "las dos se solaparon de verdad: leyeron las dos antes de escribir");
+  const raiz = conGanchos(prisma, { modelo: "promocion", operacion: "updateMany", cuando: (a) => JSON.stringify(a["where"]).includes(p.id), antes: () => barrera.esperar(2000) });
+  const [a, b] = await Promise.all([consumirCupo(conAlcance(raiz, org.organizacionId), p.id, ctx()), consumirCupo(conAlcance(raiz, org.organizacionId), p.id, ctx())]);
+  assert.ok(barrera.completa, "las dos se solaparon de verdad: llegaron las dos al UPDATE antes de que cualquiera escribiera");
   assert.deepEqual([a, b].sort(), [false, true]);
   assert.equal((await prisma.promocion.findFirstOrThrow({ where: { id: p.id } })).cupo_usado, 1);
 });
 
 test("CARRERA: cupo 3 y 12 consumos simultáneos → exactamente 3 ganan y cupo_usado queda en 3; liberar devuelve un lugar y nunca baja de cero", async () => {
   const p = await crearOk({ cupo_maximo: 3 });
-  const resultados = await Promise.all(Array.from({ length: 12 }, () => consumirCupo(db(), p.id)));
+  const resultados = await Promise.all(Array.from({ length: 12 }, () => consumirCupo(db(), p.id, ctx())));
   assert.equal(resultados.filter(Boolean).length, 3);
   assert.equal((await prisma.promocion.findFirstOrThrow({ where: { id: p.id } })).cupo_usado, 3);
-  assert.equal(await consumirCupo(db(), p.id), false);
+  assert.equal(await consumirCupo(db(), p.id, ctx()), false);
   assert.equal(await liberarCupo(db(), p.id), true);
-  assert.equal(await consumirCupo(db(), p.id), true, "el lugar liberado se puede volver a tomar");
+  assert.equal(await consumirCupo(db(), p.id, ctx()), true, "el lugar liberado se puede volver a tomar");
   for (let i = 0; i < 3; i++) await liberarCupo(db(), p.id);
   assert.equal(await liberarCupo(db(), p.id), false, "no baja de cero");
   assert.equal((await prisma.promocion.findFirstOrThrow({ where: { id: p.id } })).cupo_usado, 0);
 });
 
+test("F-pre EC-16: consumirCupo comprueba vigencia, alcance y condición del contexto, no solo `activo`; lo que no aplica NO gasta cupo", async () => {
+  const p = await crearOk({ cupo_maximo: 5, vigencia_desde: "2026-10-01", vigencia_hasta: "2026-10-31", verticales: [org.verticalId], programas: [pNorte], condicion_tipo: "min_hermanos", condicion_valor: { hermanos: 2 } });
+  const usado = async () => (await prisma.promocion.findFirstOrThrow({ where: { id: p.id } })).cupo_usado;
+  assert.equal(await consumirCupo(db(), p.id, ctx()), false, "condición: con 0 hermanos inscritos no llega a 2 (cuenta al que se inscribe)");
+  assert.equal(await consumirCupo(db(), p.id, ctx({ hermanosInscritos: 1 })), true, "1 hermano + el que se inscribe = 2");
+  assert.equal(await consumirCupo(db(), p.id, ctx({ hermanosInscritos: 1, fecha: "2026-09-30" })), false, "antes de la vigencia");
+  assert.equal(await consumirCupo(db(), p.id, ctx({ hermanosInscritos: 1, fecha: "2026-11-01" })), false, "después de la vigencia");
+  assert.equal(await consumirCupo(db(), p.id, ctx({ hermanosInscritos: 1, fecha: "2026-10-31" })), true, "el último día de la vigencia vale");
+  assert.equal(await consumirCupo(db(), p.id, ctx({ hermanosInscritos: 1, programaId: pSur, sucursalId: sur })), false, "fuera del alcance (otro programa)");
+  assert.equal(await consumirCupo(db(), p.id, ctx({ hermanosInscritos: 1, verticalId: verticalB })), false, "fuera del alcance (otra vertical)");
+  assert.equal(await usado(), 2, "solo los dos consumos válidos gastaron cupo");
+  const anticipado = await crearOk({ cupo_maximo: 5, condicion_tipo: "pago_anticipado", condicion_valor: { meses: 3 } });
+  assert.equal(await consumirCupo(db(), anticipado.id, ctx({ mesesPagadosPorAdelantado: 2 })), false);
+  assert.equal(await consumirCupo(db(), anticipado.id, ctx({ mesesPagadosPorAdelantado: 3 })), true);
+});
+
+test("F-pre EC-14: el consumo es UN UPDATE atómico: aunque el tope baje justo antes, no lanza, devuelve false y la transacción de Postgres sigue viva", async () => {
+  const p = await crearOk({ cupo_maximo: 3 });
+  for (let i = 0; i < 2; i++) assert.equal(await consumirCupo(db(), p.id, ctx()), true);
+  // Cuando el consumo está por escribir, otra conexión baja el tope a 2 (válido: ya hay 2 usados). Con leer-y-luego-escribir el UPDATE subiría
+  // a 3 > 2 y el CHECK abortaría la transacción; con la condición en la propia sentencia simplemente no hay lugar.
+  const raiz = conGanchos(prisma, {
+    modelo: "promocion",
+    operacion: "updateMany",
+    cuando: (a) => JSON.stringify(a["where"]).includes(p.id) && JSON.stringify(a["data"]).includes("increment"),
+    antes: async () => {
+      await prisma.promocion.update({ where: { id: p.id }, data: { cupo_maximo: 2 } });
+    },
+  });
+  const dentro = await conAlcance(raiz, org.organizacionId).$transaction(async (tx) => {
+    const tomado = await consumirCupo(tx, p.id, ctx());
+    // Si Postgres hubiera abortado la transacción, esta consulta lanzaría «current transaction is aborted».
+    const sigueViva = await tx.promocion.count({ where: { id: p.id } });
+    return { tomado, sigueViva };
+  });
+  assert.deepEqual(dentro, { tomado: false, sigueViva: 1 });
+  const fila = await prisma.promocion.findFirstOrThrow({ where: { id: p.id } });
+  assert.deepEqual([fila.cupo_usado, fila.cupo_maximo], [2, 2]);
+});
+
+test("F-pre: el consumo dentro de una transacción que se revierte no deja cupo gastado", async () => {
+  const p = await crearOk({ cupo_maximo: 2 });
+  await assert.rejects(() => db().$transaction(async (tx) => {
+    assert.equal(await consumirCupo(tx, p.id, ctx()), true);
+    throw new Error("falla después de consumir");
+  }), /falla después/);
+  assert.equal((await prisma.promocion.findFirstOrThrow({ where: { id: p.id } })).cupo_usado, 0);
+});
+
 test("consumirCupo: sin tope cuenta los usos; una promoción inactiva, dada de baja, de otra organización o inexistente no da lugar", async () => {
   const libre = await crearOk();
-  for (let i = 0; i < 4; i++) assert.equal(await consumirCupo(db(), libre.id), true);
+  for (let i = 0; i < 4; i++) assert.equal(await consumirCupo(db(), libre.id, ctx()), true);
   assert.equal((await prisma.promocion.findFirstOrThrow({ where: { id: libre.id } })).cupo_usado, 4);
   const inactiva = await crearOk({ activo: false, cupo_maximo: 5 });
-  assert.equal(await consumirCupo(db(), inactiva.id), false);
-  assert.equal(await consumirCupo(db(), randomUUID()), false);
-  assert.equal(await consumirCupo(conAlcance(prisma, ajena.organizacionId), libre.id), false, "otra organización");
+  assert.equal(await consumirCupo(db(), inactiva.id, ctx()), false);
+  assert.equal(await consumirCupo(db(), randomUUID(), ctx()), false);
+  assert.equal(await consumirCupo(conAlcance(prisma, ajena.organizacionId), libre.id, ctx()), false, "otra organización");
   const baja = await crearOk({ cupo_maximo: 5 });
   await admin.delete(`/api/promociones/${baja.id}`);
-  assert.equal(await consumirCupo(db(), baja.id), false);
+  assert.equal(await consumirCupo(db(), baja.id, ctx()), false);
 });
 
 test("la BASE impide pasarse del cupo aunque el código lo olvide, y el tope no baja de lo usado", async () => {
@@ -427,7 +479,7 @@ test("EC-14: si un consumo gana la carrera justo antes de que se guarde el cambi
     assert.equal((await c.login(org.slug, u.correo, u.contrasena)).estado, 201);
     const p = await c.post<Promo & ErrorBody>("/api/promociones", { nombre: "Carrera de cupo", codigo: `CC-${randomUUID().slice(0, 8)}`.toUpperCase(), vigencia_desde: "2026-01-01", cupo_maximo: 5, beneficios: [{ tipo: "descuento_inscripcion", modo: "total" }] });
     assert.equal(p.estado, 201, JSON.stringify(p.cuerpo));
-    for (let i = 0; i < 4; i++) assert.equal(await consumirCupo(conAlcance(prisma, org.organizacionId), p.cuerpo.id), true);
+    for (let i = 0; i < 4; i++) assert.equal(await consumirCupo(conAlcance(prisma, org.organizacionId), p.cuerpo.id, ctx()), true);
     // Cuatro de cinco usados: bajar el tope a 4 es válido al leerlo, pero el consumo sube a 5 antes de que se escriba.
     gancho.promocionId = p.cuerpo.id;
     gancho.pendiente = true;

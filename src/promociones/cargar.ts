@@ -7,9 +7,10 @@ import { condicionDe } from "./condicion.ts";
 import { resolverPromociones, type ContextoPromocion, type PromocionDef, type ResultadoPromociones } from "./resolver.ts";
 import type { CondicionTipo, ModoDeBeneficio, MomentoDeDisparo, TipoDeBeneficio } from "./tipos.ts";
 
-/** Todas las promociones vivas de la organización (activas o no: el resolutor decide), con alcance y beneficios. */
-export async function cargarPromociones(db: Consultas | BaseDatos): Promise<PromocionDef[]> {
+/** Todas las promociones vivas de la organización (activas o no: el resolutor decide), con alcance y beneficios. `soloId` carga solo una. */
+export async function cargarPromociones(db: Consultas | BaseDatos, soloId?: string): Promise<PromocionDef[]> {
   const filas = await db.promocion.findMany({
+    ...(soloId ? { where: { id: soloId } } : {}),
     select: {
       id: true,
       nombre: true,

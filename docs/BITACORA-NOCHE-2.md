@@ -43,6 +43,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | E2 | HECHO | ver `git log` (`E2:`) | Código de rastreo en el primer mensaje: parser, limpieza del texto del bot, atribución al lead con consumo condicional, primera atribución conservada, CTWA intacto y API de campañas y códigos |
 | E3 | HECHO | ver `git log` (`E3:`) | QR por campaña y sucursal: codificador propio (SVG y PNG), URL de la landing con código de rastreo, descarga para imprimir y pruebas de ida y vuelta con un lector independiente |
 | DE-fix | HECHO (10 pendientes, 8 decisiones) | 4d1faf6…4bf427b | Auditoría y correcciones de las etapas D y E (`docs/auditorias/etapa-D.md` y `etapa-E.md`): 2 ALTA corregidas (ED-01, EE-01), MEDIA corregidas y pendientes en la sección «Auditoría y correcciones de las etapas D y E» |
+| F-pre | HECHO | ver `git log` (`F-pre:`) | EC-14 y EC-16: `consumirCupo` comprueba vigencia, alcance y condición y toma el lugar con un UPDATE atómico que compara columnas, sin `catch` dentro de la transacción de la inscripción |
 | F1 | HECHO | ver `git log` (`F1:`) | Tutor (único por teléfono normalizado), alumno sin atajos ni salud, `tutor_alumno` M:N con banderas, API con alcance por rol y sucursal, detección de familia y registro de cambios sin datos identificables |
 | F2 | PENDIENTE | | Conversión en una transacción |
 | F3 | PENDIENTE | | Inscripción |
@@ -803,7 +804,7 @@ Línea base al empezar: validar 257 tests, test:int 330. Antes de este cierre, e
 
 **Para el siguiente implementador (C5 a C9, cotizador)** — helpers y datos que ya existen:
 - `precioVigente(db, programaId, 'AAAA-MM-DD')` → `{ id, programaId, costoInscripcion, costoMensualidad (centavos bigint), moneda, desde, hasta } | null` (`src/catalogo/precios.ts`). Fechas de calendario locales como texto.
-- `promocionesAplicables(db, contexto)` / `resolverPromociones(promociones, contexto)` (`src/promociones/`): contexto `{ fecha, verticalId, sucursalId, programaId, hermanosInscritos, mesesPagadosPorAdelantado, costoInscripcion, costoMensualidad }` → `{ aplicadas, descartadas (con motivo), lineas (por beneficio, ahora/pendiente), inscripcion, mensualidad, mesesGratisAhora, mesesGratisDiferidos }`. Para consumir el cupo al INSCRIBIR (F3), `consumirCupo(db, promocionId)` (atómico) y `liberarCupo`.
+- `promocionesAplicables(db, contexto)` / `resolverPromociones(promociones, contexto)` (`src/promociones/`): contexto `{ fecha, verticalId, sucursalId, programaId, hermanosInscritos, mesesPagadosPorAdelantado, costoInscripcion, costoMensualidad }` → `{ aplicadas, descartadas (con motivo), lineas (por beneficio, ahora/pendiente), inscripcion, mensualidad, mesesGratisAhora, mesesGratisDiferidos }`. Para consumir el cupo al INSCRIBIR (F3), `consumirCupo(db, promocionId, contexto)` (atómico, F-pre) y `liberarCupo`.
 - `cupoPorGrupo(db, grupoId, fuente?)` (`src/catalogo/cupo.ts`): `{ cupoMaximo, ocupados, disponibles, lleno, oferta: lugar | lista_de_espera | sin_lugar }`; la fuente de ocupación es una interfaz (hoy `SinInscripciones`; F4 pone la real).
 - `detectarChoques` / `choquesDe` / `choquesDeGrupo` (`src/catalogo/choques.ts`) y la verificación del catálogo `cargarCatalogo` + `traslapesDeEdad` / `alternativasPorEdad` / `resumenDeCapacidad` / `choquesDeSalon` / `choquesDeInstructor` (`src/catalogo/verificacion.ts`).
 - **Varios programas para una edad (C6):** `alternativasPorEdad(catalogo)` ya lista los pares marcados `programa.permite_traslape`; el cotizador debe devolver todos los programas que aceptan la edad en la vertical y sucursal y, si hay más de uno, preguntar cuál.
@@ -1026,9 +1027,9 @@ Auditoría: `docs/auditorias/etapa-C.md` (0 ALTA, 10 MEDIA —9 más 1 de produc
 | EC-11 | **pendiente (documentado)** | La alta del bot corre en la transacción del mensaje y no toma el candado del grupo, así que contra un «quitar» concurrente puede dejar 1, 2, 4. Arreglarlo exige poder tomar un candado consultivo dentro de una transacción ya abierta con scope (hoy `$conBloqueoDeClave` abre la suya). El orden no se afecta y el siguiente cambio bajo candado renumera. |
 | EC-12 | **corregido** | `procesarEntrante` quita los NUL del contenido y del nombre del contacto antes de tocar la base. |
 | EC-13 | **pendiente: decisión** | `resumenDeCapacidad` suma grupos inactivos; ¿la verificación 2 cuenta solo lo activo? |
-| EC-14 | **corregido** | `PATCH /api/promociones/:id` pone `cupo_usado <= tope` dentro del propio `UPDATE`: si un consumo gana la carrera responde 409 y no 500. Prueba determinista con un cliente que sube el contador justo antes de escribir (con el código anterior da 500). Advertencia para F3 escrita en `src/promociones/cupo.ts` (`consumirCupo` dentro de una transacción). |
+| EC-14 | **corregido (y completado en F-pre)** | `PATCH /api/promociones/:id` pone `cupo_usado <= tope` dentro del propio `UPDATE`: si un consumo gana la carrera responde 409 y no 500. Prueba determinista con un cliente que sube el contador justo antes de escribir (con el código anterior da 500). Advertencia para F3 escrita en `src/promociones/cupo.ts` (`consumirCupo` dentro de una transacción). |
 | EC-15 | **corregido** | El vencimiento de cotizaciones tiene su propia frecuencia horaria en el ciclo (`deps.cotizaciones.cadaMs`), con o sin retención. |
-| EC-16 | **documentado** | `consumirCupo` solo mira `activo` y el tope; la advertencia para F3 (resolver antes vigencia, alcance y condición) está en el encabezado de `src/promociones/cupo.ts`. |
+| EC-16 | **corregido en F-pre** | `consumirCupo(db, id, contexto)` comprueba vigencia, alcance y condición (la misma `motivoDeDescarte` del resolutor) antes de tomar el lugar. |
 | EC-17 | **pendiente (H5)** | `producto_id` sin llave foránea hasta que exista la tabla de productos. |
 | EC-18 a EC-22 | **pendientes: decisiones de producto** | Clases que cruzan la medianoche, capacidad del salón vs cupo del grupo, reescribir una vigencia pasada o borrar la vigente, alcance vacío = todos, «sí» ante un único horario. |
 | EC-23 | **pendiente** | N+1 de `fuente.ocupados` y catálogo completo por mensaje del bot; F4 trae la fuente real y es el momento de optimizarlo. |
@@ -1567,3 +1568,22 @@ $ npm run test:int    → exit 0 · tests 762 · pass 762 · fail 0
 - Renombre `es_contacto_urgencia` (decisión 1).
 - Decisión de producto: si un alumno puede tener dos responsables de pago (hoy a lo más uno: el estado de cuenta de H se arma sobre él).
 - El alta directa de un alumno sin pasar por un lead (mostrador) crea la familia, pero no puede registrar la aceptación del reglamento (esa evidencia cuelga de un prospecto, D6): F3 pedirá esa aceptación al inscribir (ver F3).
+
+
+## F-pre. EC-14 y EC-16: el consumo del cupo de una promoción
+
+**Qué se hizo**
+- **`consumirCupo(db, promocionId, contexto)`** (`src/promociones/cupo.ts`): el contexto es obligatorio. **EC-16:** primero carga la promoción (`cargarPromociones(db, id)`) y comprueba con `motivoDeDescarte` —la misma regla del resolutor— que está activa, vigente ese día, dentro de su alcance (vertical, sucursal, programa) y con su condición cumplida (hermanos, meses por adelantado); si no aplica devuelve `false` SIN gastar cupo. **EC-14:** el lugar se toma con UNA sentencia, `UPDATE promocion SET cupo_usado = cupo_usado + 1 WHERE id = … AND activo AND (cupo_maximo IS NULL OR cupo_usado < cupo_maximo)`, comparando las dos COLUMNAS en la propia base (referencia de campo de Prisma, `fields.cupo_maximo`), así que no lee el tope en el código para luego escribir, no depende de ningún `catch` y nunca dispara el `CHECK`: una sentencia de 0 filas no aborta la transacción de Postgres de la inscripción (un error sí lo haría).
+- `inscribirAlumno` (F3) llama ya con el contexto completo de la inscripción.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 500 · pass 500 · fail 0
+$ npm run test:int    → exit 0 · tests 765 · pass 765 · fail 0 (base nueva y vacía; el árbol de este commit no tiene F3)
+```
+Tests (`promociones.itest.ts`): EC-16 (condición con 0, 1 y 2 hermanos; antes, durante, último día y después de la vigencia; otro programa, otra vertical; `pago_anticipado`; solo los consumos válidos gastaron cupo); **EC-14** (el tope baja a 2 justo antes del UPDATE, mediante un gancho que corre en la otra conexión: el consumo devuelve `false`, NO lanza y la MISMA transacción sigue viva y puede seguir consultando); un consumo dentro de una transacción que se revierte no deja cupo gastado; las carreras de 2 y de 12 consumos ahora se solapan en el UPDATE (antes en un `findFirst` que ya no existe). **Mutación atrapada:** cambiar la comparación de columnas por un literal hace fallar la prueba nueva y la de EC-14 del `PATCH`.
+
+**Decisiones que tomé**
+1. **El contexto es obligatorio** (no un parámetro opcional): un consumo sin decir para qué inscripción es justo el hueco que señaló EC-16. Alternativa descartada: dejarlo opcional «por compatibilidad» (un olvido volvería a consumir sin comprobar).
+2. **`UPDATE` condicional por columnas, no `SAVEPOINT`:** Prisma no expone savepoints en la transacción interactiva y un `UPDATE` que no puede fallar es más simple que recuperarse de un fallo.
+3. **La lectura previa ignora el cupo** (`cupoUsado: 0`): decide solo vigencia, alcance y condición; el cupo lo decide únicamente el `UPDATE`, que es el que no se puede adelantar.
