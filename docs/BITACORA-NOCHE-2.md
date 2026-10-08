@@ -4,8 +4,8 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 
 | Bloque | Estado | Commit | Nota |
 |---|---|---|---|
-| A0 | PENDIENTE | | Preparación |
-| A1 | PENDIENTE | | Auditoría de la primera sesión |
+| A0 | HECHO | f987191 | Preparación |
+| A1 | HECHO | ver sección | Auditoría de la primera sesión: 2 ALTA, 9 MEDIA, 7 BAJA |
 | A2 | PENDIENTE | | Correcciones de hallazgos altos de A1 |
 | A3 | PENDIENTE | | Lead a medias |
 | A4 | PENDIENTE | | Baja que vuelve a escribir |
@@ -82,3 +82,31 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K7 | PENDIENTE | | Documentación |
 | K8 | PENDIENTE | | Demo guiada |
 | K9 | PENDIENTE | | Auditoría final |
+
+## A0. Preparación
+
+**Qué se hizo**
+- Rama `noche-2` creada desde `noche-fase1`. Esta bitácora con los 78 bloques. Commit `f987191`.
+
+**Verificación (línea base)**
+- `npm run validar` → exit 0 (102 tests). `npm run test:int` → exit 0 (94 tests).
+
+**Decisiones que tomé**
+- Las etapas se ejecutan con subagentes implementadores (un brief común con las convenciones del repo) y un subagente auditor distinto por etapa. Alternativa descartada: hacerlo todo en una sola conversación; el tope de turnos de la sesión no alcanza para 78 bloques.
+
+**Para Eduardo**
+- Nada.
+
+## A1. Auditoría de la primera sesión
+
+**Qué se hizo**
+- Subagente con contexto nuevo, sin haber escrito el código, trabajó sobre una copia limpia del commit y proyectos de Docker aparte (`auditoria-a1`, ya bajado). Informe completo: `docs/auditorias/fase-1.md`.
+
+**Resultado**
+- Se reproduce desde cero: `validar` (102 tests), `test:int` (94 tests, también dos veces seguidas), migraciones sobre base vacía y con datos, `docker compose` y la demo. Ningún test preexistente debilitado.
+- ALTA: **F1-01** reclamos huérfanos (ejecución del motor y mensaje `enviando`) sin recuperación, y mensaje `pendiente` que sale tarde si falla `despachar`; **F1-02** `en_atencion_humana` no se entera de un asesor que entra sin que el contacto escriba.
+- MEDIA: F1-03 estado de entrega antes del id externo; F1-04 horario/frecuencia dependen de la etiqueta `origen`; F1-05 lead borrado; F1-06 reenganche no revalida; F1-07 omisiones sin tarea; F1-08/F1-09 las guardas `check:*` se dejan esquivar; F1-10 sin validación de firma de Twilio (se resuelve en A7); F1-11 producción arranca con transporte falso.
+- BAJA: F1-12 a F1-18.
+
+**Para Eduardo**
+- Diez decisiones de producto al final del informe (sección 5). Las que ya tienen respuesta en el plan: calendario del lead a medias (A3), baja que vuelve a escribir (A4), entrega fallida (A5), frecuencia (A6), firma en el borde (A7). Quedan abiertas: reenganche tras responder con `max_intentos = 1`, borrado de un lead, qué hace "resuelta" en Chatwoot.
