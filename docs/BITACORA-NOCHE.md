@@ -8,7 +8,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N1 | HECHO | 24f667f | Correcciones a CLAUDE.md (invariantes 13 y 14) |
 | N2 | HECHO | ecb2c01 | Prueba simulada de atribución y transporte |
 | N3 | HECHO | 4fa5dcf | Esquema de Fase 1 |
-| N4 | HECHO | (ver git log) | Entrada |
+| N4 | HECHO | cf578e5 | Entrada |
 | N5 | PENDIENTE | | Bot |
 | N6 | PENDIENTE | | Handoff |
 | N7 | PENDIENTE | | Estados de entrega |
