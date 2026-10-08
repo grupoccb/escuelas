@@ -35,3 +35,4 @@ export {
   type EstadoDeSalud,
   type PersonaDelRegistro,
 } from "./registro-salud.ts";
+export { trasladarFichaDeProspectoAAlumno, type OpcionesDeTraslado } from "./traslado.ts";

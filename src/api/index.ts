@@ -38,6 +38,7 @@ import { rutasDeEmbudo } from "./rutas/embudo.ts";
 import { rutasDeFamilias } from "./rutas/familias.ts";
 import { rutasDeInscripciones } from "./rutas/inscripciones.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
+import { rutasDeConversion } from "./rutas/conversion.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDeLegal } from "./rutas/legal.ts";
 import { rutasDeListaEspera } from "./rutas/lista-espera.ts";
@@ -116,6 +117,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeTareas(deps));
   // El embudo va ANTES que los leads: `/leads/estancados` no puede caer en `/leads/:id`.
   api.use(rutasDeEmbudo(deps));
+  api.use(rutasDeConversion(deps));
   api.use(rutasDeLeads(deps));
   api.use(rutasDeCotizaciones(deps));
   api.use(rutasDeListaEspera(deps));

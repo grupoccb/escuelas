@@ -20,7 +20,7 @@ import { log } from "../lib/log.ts";
 import { MessagingProvider, TransporteFalso, registrarEstadoEntrega, type EventoEntrante } from "../mensajeria/index.ts";
 import { colectarLogs, type ColectorDeLogs } from "../testutil/logs.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, sembrarDocumentosLegales, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, sembrarDocumentosLegales, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { escenarioBot } from "../testutil/bot.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra } from "../clases-muestra/agenda.ts";
 import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
@@ -365,4 +365,83 @@ test("D5: ningún centinela de salud aparece en logs, respuestas, errores, regis
   }
   assert.ok(await db.registro_cambio.count({ where: { entidad_tipo: "registro_clase_muestra" } }) >= 4, "el registro de cambios sí tiene entradas");
   assert.ok(await db.acceso_dato_sensible.count({ where: { accion: "validar" } }) >= 1, "la comparación interna del contacto quedó registrada como «validar»");
+});
+
+test("F1-F2: ningún centinela de salud aparece en logs, respuestas ni tablas tras dar de alta alumnos, capturar su salud, CONVERTIR el lead (la ficha se muda del prospecto al alumno) e inscribir", async () => {
+  const AHORA = new Date("2026-11-10T18:00:00Z");
+  const organizacion = await sembrarOrganizacion(prisma, "Fuga familia");
+  const db = conAlcance(prisma, organizacion.organizacionId);
+  const etapas = await sembrarEmbudo(prisma, organizacion);
+  const api = levantarApi(prisma, { reloj: () => AHORA, sensibles: { cifrador } });
+  const colector: ColectorDeLogs = colectarLogs();
+  const respuestas: string[] = [];
+  const anotar = <T>(r: { estado: number; cuerpo: T }): { estado: number; cuerpo: T } => {
+    respuestas.push(JSON.stringify(r.cuerpo));
+    return r;
+  };
+  try {
+    const entrar = async (rol: "administrador" | "asesor" | "maestro" | "recepcion") => {
+      const u = await sembrarUsuario(prisma, organizacion.organizacionId, { rol, sucursales: rol === "asesor" || rol === "recepcion" ? [organizacion.sucursales[0]!.id] : [] });
+      const c = api.cliente();
+      assert.equal((await c.login(organizacion.slug, u.correo, u.contrasena)).estado, 201);
+      return { c, id: u.id };
+    };
+    const admin = await entrar("administrador");
+    const asesor = await entrar("asesor");
+    const recepcion = await entrar("recepcion");
+    const maestro = await entrar("maestro");
+    const instructor = await prisma.instructor.create({ data: { organizacion_id: organizacion.organizacionId, usuario_id: maestro.id, nombre: "Maestro" } });
+    const programa = await sembrarPrograma(prisma, organizacion, { sucursalId: organizacion.sucursales[0]!.id, nombre: "Programa", edadMin: 3, edadMax: 14, grupos: [{ nombre: "Grupo", cupoMaximo: 20, horarios: [[1, 960, 1020]] }], precio: { inscripcion: "100.00", mensualidad: "200.00" } });
+    await prisma.grupo.update({ where: { id: programa.grupos[0]!.id }, data: { instructor_id: instructor.id } });
+    const documentos = await sembrarDocumentosLegales(prisma, organizacion);
+    const familia = await sembrarFamilia(prisma, organizacion, { sucursalId: organizacion.sucursales[0]!.id, etapaId: etapas.negociacion });
+    const clase = await prisma.clase_muestra.create({ data: { organizacion_id: organizacion.organizacionId, lead_id: familia.leadId, prospecto_id: familia.prospectoId, grupo_id: programa.grupos[0]!.id, fecha_hora: new Date("2026-11-09T22:00:00Z"), agendada_por: "usuario", agendada_por_usuario_id: admin.id } });
+    const url = `/api/clases-muestra/${clase.id}/registro`;
+    const salud = { alergias: CENTINELAS.alergias, condiciones_medicas: CENTINELAS.condiciones_medicas, medicamentos: CENTINELAS.medicamentos, contacto_emergencia: { ...CENTINELAS.contacto_emergencia, parentesco: "tía" }, autorizacion_atencion_medica: true };
+    // F1: un alumno dado de alta a mano con su salud (cifrada, solo por la ruta de salud) y las lecturas de la familia.
+    const directo = anotar(await recepcion.c.post<{ id: string; tutores: { tutor_id: string }[] }>("/api/alumnos", { nombre: "Directo", apellidos: "Prueba", fecha_nacimiento: "2018-01-01", tutores: [{ tutor: { nombre: "Ana", telefono: "+525544441111" }, parentesco: "madre" }] }));
+    assert.equal(directo.estado, 201);
+    assert.equal(anotar(await recepcion.c.pedir("PUT", `/api/salud/alumno/${directo.cuerpo.id}`, { motivo: "alta", alergias: CENTINELAS.alergias })).estado, 403, "recepción nunca escribe salud");
+    assert.ok([200, 204].includes(anotar(await admin.c.pedir("PUT", `/api/salud/alumno/${directo.cuerpo.id}`, { motivo: "alta", alergias: CENTINELAS.alergias, medicamentos: CENTINELAS.medicamentos })).estado));
+    for (const u of [`/api/alumnos/${directo.cuerpo.id}`, `/api/tutores/${directo.cuerpo.tutores[0]!.tutor_id}`, "/api/alumnos?limite=100", "/api/tutores?limite=100"]) assert.equal(anotar(await recepcion.c.get(u)).estado, 200);
+    // El registro completo del maestro con salud, y la conversión que la muda al alumno.
+    assert.equal(anotar(await maestro.c.patch(url, { alumno: { nombre: "Mateo", apellidos: "Soto", fecha_nacimiento: "2018-05-04", sexo: "masculino" }, tutores: [{ nombre: "Rosa", apellidos: "Mena", parentesco: "madre", telefono: familia.telefono!, es_responsable_pago: true }], antecedentes: { practico_antes: false, motivo_clase: "disciplina" }, salud })).estado, 200);
+    assert.equal(anotar(await maestro.c.post(`${url}/completar`, {})).estado, 200);
+    assert.equal(anotar(await admin.c.post(`${url}/aceptaciones`, { documento_id: documentos.reglamento, version: 1, resultado: "aceptada", aceptante: { nombre: "Rosa Mena", parentesco: "madre" }, canal: "presencial" })).estado, 201);
+    assert.equal(anotar(await asesor.c.get(`/api/leads/${familia.leadId}/conversion`)).estado, 200);
+    const sinGrupo = anotar(await asesor.c.post(`/api/leads/${familia.leadId}/convertir`, {}));
+    assert.equal(sinGrupo.estado, 409, "falta el grupo");
+    const conv = anotar(await asesor.c.post<{ alumnos: { alumno_id: string; inscripcion: { id: string } }[] }>(`/api/leads/${familia.leadId}/convertir`, { prospectos: [{ prospecto_id: familia.prospectoId, inscripcion: { grupo_id: programa.grupos[0]!.id } }] }));
+    assert.equal(conv.estado, 201);
+    const alumnoId = conv.cuerpo.alumnos[0]!.alumno_id;
+    anotar(await asesor.c.post(`/api/leads/${familia.leadId}/convertir`, {})); // la segunda vez: lo ya convertido
+    for (const u of [`/api/alumnos/${alumnoId}`, `/api/inscripciones/${conv.cuerpo.alumnos[0]!.inscripcion.id}`, "/api/inscripciones?limite=100", `/api/leads/${familia.leadId}/conversion`]) assert.equal(anotar(await asesor.c.get(u)).estado, 200);
+    assert.equal(anotar(await maestro.c.get(`/api/alumnos/${alumnoId}`)).estado, 200);
+    // Control positivo: el dato SÍ está en el sistema, ahora en la ficha del alumno, y lo lee su maestro por la ruta de salud.
+    const leida = await maestro.c.get<{ campos: { alergias: string } }>(`/api/salud/alumno/${alumnoId}?motivo=fuga`);
+    assert.equal(leida.cuerpo.campos.alergias, CENTINELAS.alergias);
+  } finally {
+    colector.detener();
+    await api.cerrar();
+  }
+  assert.deepEqual(fugas(colector.texto()), [], "logs");
+  assert.deepEqual(fugas(respuestas.join("\n")), [], "respuestas y errores de la API (menos las lecturas autorizadas de la ruta de salud)");
+  const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
+  await cliente.connect();
+  try {
+    const tablas = (await cliente.query<{ table_name: string }>(`SELECT DISTINCT table_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'organizacion_id'`)).rows.map((r) => r.table_name);
+    assert.ok(["alumno", "tutor", "tutor_alumno", "inscripcion", "ficha_salud", "registro_cambio", "interaccion"].every((t) => tablas.includes(t)));
+    let filas = 0;
+    for (const tabla of tablas) {
+      const r = await cliente.query<{ j: string }>(`SELECT row_to_json(t)::text AS j FROM "${tabla}" t WHERE organizacion_id = $1`, [organizacion.organizacionId]);
+      for (const fila of r.rows) {
+        filas++;
+        assert.deepEqual(fugas(fila.j), [], `tabla ${tabla}`);
+      }
+    }
+    assert.ok(filas > 25, `se revisaron ${filas} filas`);
+  } finally {
+    await cliente.end();
+  }
+  assert.equal(await db.acceso_dato_sensible.count({ where: { accion: "trasladar" } }), 1, "el traslado a la ficha del alumno quedó registrado");
 });

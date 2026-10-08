@@ -45,7 +45,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | DE-fix | HECHO (10 pendientes, 8 decisiones) | 4d1faf6…4bf427b | Auditoría y correcciones de las etapas D y E (`docs/auditorias/etapa-D.md` y `etapa-E.md`): 2 ALTA corregidas (ED-01, EE-01), MEDIA corregidas y pendientes en la sección «Auditoría y correcciones de las etapas D y E» |
 | F-pre | HECHO | ver `git log` (`F-pre:`) | EC-14 y EC-16: `consumirCupo` comprueba vigencia, alcance y condición y toma el lugar con un UPDATE atómico que compara columnas, sin `catch` dentro de la transacción de la inscripción |
 | F1 | HECHO | ver `git log` (`F1:`) | Tutor (único por teléfono normalizado), alumno sin atajos ni salud, `tutor_alumno` M:N con banderas, API con alcance por rol y sucursal, detección de familia y registro de cambios sin datos identificables |
-| F2 | PENDIENTE | | Conversión en una transacción |
+| F2 | HECHO | ver `git log` (`F2:`) | Conversión del lead en tutor(es), alumno(s) e inscripción(es) en una transacción: cero recaptura (vista previa solo con lo que falta), salud trasladada al alumno, idempotente, atómica y con candado por lead |
 | F3 | HECHO | ver `git log` (`F3:`) | Inscripción: precio congelado, promociones (inmediatas y diferidas) con cupo atómico, reglamento vigente aceptado, cotización aceptada, lead a «inscrito», día de corte con regla de fin de mes |
 | F4 | HECHO | ver `git log` (`F4:`) | Cupo real: `InscripcionesActivas` como fuente única (servidor, API, bot, cotizador, clase muestra, lista de espera); concurrencia con 2 y 10 inscripciones por 1 y 3 lugares |
 | F5 | PENDIENTE | | Cambio de grupo, congelar y baja |
@@ -1638,3 +1638,32 @@ $ npm run test:int    → exit 0 · tests 791 · pass 791 · fail 0
 1. **Las congeladas y las bajas NO ocupan lugar** (el índice del contexto es `WHERE estatus='activa'`). Consecuencia: al reactivar una congelada hace falta lugar (F5 lo exige). Alternativa descartada: que la congelada conserve su lugar (un periodo de congelamiento largo dejaría grupos «llenos» sin nadie asistiendo).
 2. **La lista de espera no cuenta** (ya estaba decidido en C9).
 3. **Una clase muestra agendada no es una inscripción:** reserva lugar solo en su sesión (D1); una inscripción no la cuenta.
+
+
+## F2. Conversión en una transacción
+
+**Qué se hizo**
+- **`convertirLead`** (`src/conversion/convertir.ts`, `POST /api/leads/:id/convertir`): en UNA transacción bajo un candado por lead crea/liga los **tutores** por teléfono (los adultos de `registro_tutor` con sus banderas; sin registro, el contacto del lead), un **alumno** por prospecto con todo lo del registro (nombre completo, acta, sexo, escuela, turno, talla, antecedentes) y sus `tutor_alumno`, **traslada la salud**, deja el alumno ligado al prospecto (de donde salen las aceptaciones legales y `autoriza_uso_imagen`), **inscribe** (`inscribirAlumno`, F3), y actualiza `lead.tutor_id` y `prospecto.alumno_id`. Usa `registroDeProspectoParaConversion` (D5) y, si el registro está en borrador, lo ya tecleado cuenta igual.
+- **`planear`** junta lo capturado (bot, registro, cotización con horario elegido o grupo recomendado por el maestro) y calcula SOLO lo que falta; lo comparten la vista previa **`GET /api/leads/:id/conversion`** (devuelve únicamente `faltantes`) y la conversión (que rechaza con la misma lista). También avisa de antemano lo que impediría inscribir: reglamento sin aceptar y programa sin precio.
+- **`src/sensibles/traslado.ts`** (`trasladarFichaDeProspectoAAlumno`) y migración **`20261016020000_traslado_salud`** (la acción `trasladar` en el registro de accesos): descifra con el contexto del prospecto y vuelve a cifrar con el del alumno dentro del módulo sensible; lo que el alumno ya tenía no se pisa; la ficha del prospecto queda dada de baja y sin valores.
+- Permisos `conversion:leer|ejecutar` (administrador y asesor). Registro de cambios sin valores identificables; el lead deja una nota «Lead convertido: n alumno(s), m inscripción(es)».
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 504 · pass 504 · fail 0
+$ npm run test:int    → exit 0 · tests 803 · pass 803 · fail 0
+```
+`conversion.itest.ts` (11): **cero recaptura campo por campo** (los dos adultos con parentesco y banderas, el alumno con sus 13 datos, el horario que eligió la familia —no el que recomendó el maestro—, precios, origen, cotización aceptada, `lead.tutor_id` = el tutor de SU teléfono, etapa «inscrito» con una fila de historial, imagen autorizada, la salud ahora en la ficha del alumno que lee su maestro y vacía en la del prospecto, el traslado en el registro de accesos, y la vista previa antes («listo», sin faltantes) y después («ya convertido»)); la vista previa de un lead de solo bot lista exactamente `tutor.parentesco`, apellidos, fecha del acta y grupo, y NO nombre, teléfono ni nombre del contacto; lo tecleado a medias cuenta; detección de familia (el tutor existente no se pisa); **idempotencia** (la segunda devuelve 200 con los mismos ids y los conteos no cambian); hermanos (un tutor, dos alumnos, dos inscripciones); **atomicidad** (la inscripción del segundo hijo falla por grupo lleno, habiendo ya hecho trabajo: no queda tutor, alumno, vínculo, inscripción del primero, cupo de promoción ni traslado de salud); **concurrencia** (6 conversiones simultáneas del mismo lead, con barrera: una crea y cinco reciben lo ya convertido, un solo tutor, alumno e inscripción; **mutación atrapada**: sin el candado por lead falla); permisos y alcance; aislamiento entre organizaciones. `fuga.itest.ts` suma el flujo F1-F2 (alta a mano, salud, registro, conversión, lecturas) con centinelas en logs, respuestas y todas las tablas.
+
+**Decisiones que tomé**
+1. **Lo que se manda gana a lo capturado** (el asesor puede corregir un dato al convertir). Alternativa descartada: ignorar lo que ya existe (no habría forma de corregir un error del bot sin editar antes).
+2. **El grupo sale del horario que eligió la familia al cotizar; si no hay, del que recomendó el maestro.** Alternativa descartada: preferir al maestro (la familia ya había escogido; si difieren, el asesor lo manda explícito en `inscripcion.grupo_id`). Si hace falta que el asesor decida cuando difieren, es decisión de producto.
+3. **Convertir pide el reglamento aceptado y un precio vigente, y lo dice como «faltante» desde la vista previa**, en vez de fallar a la mitad. El reglamento de una familia sin clase muestra/registro hoy no tiene dónde aceptarse fuera del registro (decisión de producto abierta de F3).
+4. **La salud no bloquea la conversión:** si no estaba capturada, se captura después (`PUT /api/salud/alumno/:id`, administrador o maestro). Alternativa descartada: exigirla (el asesor no puede capturarla y no podría cerrar).
+5. **Las aceptaciones legales no se copian al alumno:** son evidencia de solo anexar ligada al prospecto, y el alumno ya queda ligado a ese prospecto (una copia duplicaría la evidencia o exigiría relajar el disparador de solo anexar).
+6. **El orden de las inscripciones es por id de grupo** para que dos conversiones con los mismos grupos nunca tomen los candados en orden inverso.
+7. **Un lead sin prospectos no se convierte** (falta el alumno): el bot siempre crea el primero.
+
+**Para Eduardo**
+- Decisión abierta: si el asesor debe elegir entre el horario cotizado y el recomendado por el maestro cuando difieren (hoy gana el cotizado).
+- La conversión no genera cargos (llegan con H1) ni pide el pago: el cobro es registro manual (H2).

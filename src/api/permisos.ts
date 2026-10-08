@@ -50,6 +50,9 @@ export const MATRIZ_DE_PERMISOS = {
   // Inscripción (F3): inscribir y, después, cambiar de grupo, congelar y dar de baja (F5) son del administrador, el asesor y recepción. El maestro lee las de SUS grupos.
   "inscripciones:leer": ["administrador", "asesor", "recepcion", "maestro"],
   "inscripciones:escribir": ["administrador", "asesor", "recepcion"],
+  // Conversión del lead en familia e inscripciones (F2): quien cierra la inscripción. Por omisión el asesor y el administrador; el maestro, en el modo «maestro en sitio» (F6).
+  "conversion:leer": ["administrador", "asesor"],
+  "conversion:ejecutar": ["administrador", "asesor"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
