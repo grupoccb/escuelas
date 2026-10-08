@@ -109,7 +109,7 @@ test("MessagingProvider bloquea aunque alguien deje un saliente pendiente despu�
   for (const texto of ["Hola", "Ana", "10", "1"]) await procesarEntrante(deps, evento(texto));
   const conv = await conversacionDe(conversacion);
   const db = conAlcance(prisma, org.organizacionId);
-  await deps.mensajeria.encolar(db, conv.id, [{ tipo: "mensaje", cuerpo: "automatización tardía" }]);
+  await deps.mensajeria.encolar(db, conv.id, [{ tipo: "mensaje", origen: "automatizacion", cuerpo: "automatización tardía" }]);
   const antes = transporte.envios.length;
 
   const resumen = await deps.mensajeria.despachar(db, conv.id);

@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
-import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
-import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, MessagingProvider, TransporteFalso } from "./index.ts";
+import { fijarConfiguracion, sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, ErrorOrigenSaliente, MessagingProvider, TransporteFalso, respuestaA, type Saliente } from "./index.ts";
 
 let prisma: PrismaPruebas;
 
@@ -60,7 +60,7 @@ async function escenario(ahora: Date, opc: { ventanaAbiertaHasta?: Date | null }
 
 test("tres despachar simultáneos del mismo pendiente: un solo envío (reclamo por mensaje, F1-12)", async () => {
   const s = await escenario(MEDIODIA);
-  const [id] = await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [{ tipo: "mensaje", cuerpo: "uno" }]));
+  const [id] = await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [{ tipo: "mensaje", origen: "automatizacion", cuerpo: "uno" }]));
   const resumenes = await Promise.all([s.provider.despachar(s.db, s.conv.id), s.provider.despachar(s.db, s.conv.id), s.provider.despachar(s.db, s.conv.id)]);
 
   assert.equal(s.transporte.envios.filter((e) => e.tipo === "mensaje" && e.texto === "uno").length, 1);
@@ -70,24 +70,25 @@ test("tres despachar simultáneos del mismo pendiente: un solo envío (reclamo p
   assert.ok(m.id_externo);
 });
 
-test("horario por contenido, no por etiqueta: plantilla con el origen por defecto a las 03:00 y sin ventana NO sale (F1-04, invariante 14)", async () => {
+test("horario por contenido, no por etiqueta: una plantilla que dice ser respuesta, a las 03:00 y sin ventana, NO sale (F1-04, invariante 14)", async () => {
   const s = await escenario(MADRUGADA, { ventanaAbiertaHasta: null });
+  const entrante = await sembrarEntrante(s.db, s.conv.id);
   const [id] = await s.db.$transaction((tx) =>
-    s.provider.encolar(tx, s.conv.id, [{ tipo: "mensaje", cuerpo: "promo", plantilla: { id: s.plantilla.id, variables: {} } }]),
+    s.provider.encolar(tx, s.conv.id, [respuestaA(entrante, "promo", { id: s.plantilla.id, variables: {} })]),
   );
   const r = await s.provider.despachar(s.db, s.conv.id);
   assert.deepEqual(r.resultados.find((x) => x.mensajeId === id), { mensajeId: id, resultado: "bloqueado", motivo: "fuera_de_horario" });
   assert.equal(s.transporte.envios.length, 0);
 });
 
-test("la misma plantilla en horario sale; la segunda del día se frena por frecuencia aunque no diga `automatizacion` (F1-04)", async () => {
+test("la misma plantilla en horario sale; la segunda del día se frena por frecuencia (F1-04)", async () => {
   const s = await escenario(MEDIODIA, { ventanaAbiertaHasta: null });
   // El tope diario es de la organización (A6): aquí se fija en 1 para probar la regla sin depender del valor por defecto.
   await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1 });
   const ids = await s.db.$transaction((tx) =>
     s.provider.encolar(tx, s.conv.id, [
-      { tipo: "mensaje", cuerpo: "primera", plantilla: { id: s.plantilla.id, variables: {} } },
-      { tipo: "mensaje", cuerpo: "segunda", plantilla: { id: s.plantilla.id, variables: {} } },
+      { tipo: "mensaje", origen: "automatizacion", cuerpo: "primera", plantilla: { id: s.plantilla.id, variables: {} } },
+      { tipo: "mensaje", origen: "automatizacion", cuerpo: "segunda", plantilla: { id: s.plantilla.id, variables: {} } },
     ]),
   );
   const r = await s.provider.despachar(s.db, s.conv.id);
@@ -100,10 +101,59 @@ test("la misma plantilla en horario sale; la segunda del día se frena por frecu
 
 test("contestar a quien acaba de escribir (ventana abierta, sin plantilla) no tiene restricción de horario (decisión 5)", async () => {
   const s = await escenario(MADRUGADA);
-  await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [{ tipo: "mensaje", cuerpo: "respuesta nocturna" }]));
+  const entrante = await sembrarEntrante(s.db, s.conv.id);
+  await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [respuestaA(entrante, "respuesta nocturna")]));
   const r = await s.provider.despachar(s.db, s.conv.id);
   assert.equal(r.enviados, 1);
   assert.deepEqual(s.transporte.envios.map((e) => e.texto), ["respuesta nocturna"]);
+});
+
+test("lo iniciado por el sistema (`automatizacion`) con la ventana abierta, a las 03:00, NO sale: texto libre ni plantilla (EA-10)", async () => {
+  for (const conPlantilla of [false, true]) {
+    const s = await escenario(MADRUGADA); // ventana de servicio abierta
+    const saliente: Saliente = { tipo: "mensaje", origen: "automatizacion", cuerpo: "recordatorio", ...(conPlantilla ? { plantilla: { id: s.plantilla.id, variables: {} } } : {}) };
+    const [id] = await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [saliente]));
+    const r = await s.provider.despachar(s.db, s.conv.id);
+    assert.deepEqual(r.resultados.find((x) => x.mensajeId === id), { mensajeId: id, resultado: "bloqueado", motivo: "fuera_de_horario" }, conPlantilla ? "plantilla" : "texto libre");
+    assert.equal(s.transporte.envios.length, 0);
+  }
+});
+
+test("EA-10: una respuesta exige contestar al ÚLTIMO mensaje entrante de su conversación; si no, no se encola", async () => {
+  const s = await escenario(MEDIODIA);
+  const otra = await escenario(MEDIODIA);
+  const encolar = (db: typeof s.db, convId: string, r: Saliente) => db.$transaction((tx) => s.provider.encolar(tx, convId, [r]));
+
+  // Sin ningún entrante: no hay a quién contestar.
+  await assert.rejects(() => encolar(s.db, s.conv.id, respuestaA("00000000-0000-4000-8000-000000000001", "hola")), ErrorOrigenSaliente);
+  const viejo = await sembrarEntrante(s.db, s.conv.id);
+  const ultimo = await sembrarEntrante(s.db, s.conv.id);
+  // Un entrante anterior al último, uno de otra conversación, y un saliente: ninguno vale.
+  await assert.rejects(() => encolar(s.db, s.conv.id, respuestaA(viejo, "tarde")), ErrorOrigenSaliente);
+  const deOtra = await sembrarEntrante(otra.db, otra.conv.id);
+  await assert.rejects(() => encolar(s.db, s.conv.id, respuestaA(deOtra, "ajeno")), ErrorOrigenSaliente);
+  const [saliente] = await encolar(s.db, s.conv.id, respuestaA(ultimo, "ok"));
+  await assert.rejects(() => encolar(s.db, s.conv.id, respuestaA(saliente!, "a un saliente")), ErrorOrigenSaliente);
+  // Nada de lo rechazado quedó guardado.
+  assert.equal(await s.db.mensaje.count({ where: { conversacion_id: s.conv.id, direccion: "saliente" } }), 1);
+  // Y la confirmación de baja tiene la misma exigencia.
+  await assert.rejects(
+    () => encolar(s.db, s.conv.id, { tipo: "mensaje", origen: "confirmacion_baja", respondeA: viejo, cuerpo: "baja" }),
+    ErrorOrigenSaliente,
+  );
+});
+
+test("EA-10 (compilación): `origen` es obligatorio y `respuesta` exige `respondeA`", () => {
+  // Estas líneas no compilan; `tsc` (npm run typecheck) falla si alguna deja de fallar.
+  // @ts-expect-error falta el origen: ya no hay valor por defecto
+  const sinOrigen: Saliente = { tipo: "mensaje", cuerpo: "recordatorio" };
+  // @ts-expect-error una respuesta sin el entrante al que contesta
+  const sinEntrante: Saliente = { tipo: "mensaje", origen: "respuesta", cuerpo: "hola" };
+  // @ts-expect-error una automatización no puede decir a quién contesta: o es del sistema o es respuesta
+  const mezclado: Saliente = { tipo: "mensaje", origen: "automatizacion", respondeA: "x", cuerpo: "hola" };
+  // @ts-expect-error tampoco una nota interna sin origen
+  const notaSinOrigen: Saliente = { tipo: "nota_interna", cuerpo: "n" };
+  assert.ok(sinOrigen && sinEntrante && mezclado && notaSinOrigen);
 });
 
 test("una etiqueta de origen distinta de `respuesta` basta para ser del sistema, con o sin plantilla", async () => {

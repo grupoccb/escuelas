@@ -35,14 +35,54 @@ const DIA_MS = 24 * 60 * 60 * 1000;
  */
 export const ENVIO_INCIERTO_MS = 5 * 60 * 1000;
 
-export interface Saliente {
-  tipo: TipoSaliente;
-  cuerpo: string;
-  /** Por qué existe. Por defecto, una respuesta al contacto. */
-  origen?: OrigenMensaje;
-  /** Plantilla aprobada que lleva el mensaje; con ella el mensaje puede salir fuera de la ventana. */
-  plantilla?: { id: string; variables: Record<string, string> };
+/** Plantilla aprobada que lleva el mensaje; con ella el mensaje puede salir fuera de la ventana. */
+export interface PlantillaDeSaliente {
+  id: string;
+  variables: Record<string, string>;
 }
+
+/**
+ * Lo que se encola. El `origen` es OBLIGATORIO y no tiene valor por defecto (EA-10): decide si
+ * le aplican el horario de envío y el tope de frecuencia (invariante 14), así que quien encola
+ * tiene que decir por qué existe el mensaje.
+ *
+ * - `automatizacion`: lo inicia el sistema (recordatorio, reenganche, campaña). Horario y frecuencia.
+ * - `respuesta` / `confirmacion_baja`: contestan a un mensaje ENTRANTE. Solo el flujo que atiende
+ *   ese mensaje puede crearlos: exigen `respondeA`, el id del entrante al que contestan, y
+ *   `encolar` comprueba que sea el último entrante de esa conversación. Se construyen con
+ *   `respuestaA()` y `confirmacionBajaA()`.
+ * - Una nota interna no le llega al contacto: lleva su origen pero ninguna regla de envío al
+ *   contacto la toca (solo la atención humana).
+ */
+export type Saliente = SalienteDelSistema | SalienteDeRespuesta | { tipo: "nota_interna"; origen: OrigenMensaje; cuerpo: string };
+
+export interface SalienteDelSistema {
+  tipo: "mensaje";
+  origen: "automatizacion";
+  cuerpo: string;
+  plantilla?: PlantillaDeSaliente;
+}
+
+export interface SalienteDeRespuesta {
+  tipo: "mensaje";
+  origen: "respuesta" | "confirmacion_baja";
+  respondeA: string;
+  cuerpo: string;
+  plantilla?: PlantillaDeSaliente;
+}
+
+/** Respuesta al mensaje entrante `entranteId` (el último de la conversación). */
+export function respuestaA(entranteId: string, cuerpo: string, plantilla?: PlantillaDeSaliente): SalienteDeRespuesta {
+  return { tipo: "mensaje", origen: "respuesta", respondeA: entranteId, cuerpo, ...(plantilla ? { plantilla } : {}) };
+}
+
+/** La confirmación de la baja, que contesta al mensaje entrante `entranteId` que la pidió. */
+export function confirmacionBajaA(entranteId: string, cuerpo: string): SalienteDeRespuesta {
+  return { tipo: "mensaje", origen: "confirmacion_baja", respondeA: entranteId, cuerpo };
+}
+
+/** Un saliente que dice contestar a un entrante que no existe, no es de esa conversación o no es el último. */
+export class ErrorOrigenSaliente extends Error {}
 
 /** Qué pasó con cada mensaje que se intentó mandar. */
 export interface ResultadoSaliente {
@@ -77,14 +117,16 @@ export class MessagingProvider {
   async encolar(tx: Consultas, conversacionId: string, salientes: Saliente[]): Promise<string[]> {
     const ids: string[] = [];
     for (const s of salientes) {
+      if (s.tipo === "mensaje" && s.origen !== "automatizacion") await this.exigirEntranteAlQueContesta(tx, conversacionId, s.respondeA);
+      const plantilla = s.tipo === "mensaje" ? s.plantilla : undefined;
       const creado = await tx.mensaje.create({
         data: altaConAlcance({
           conversacion_id: conversacionId,
-          plantilla_id: s.plantilla?.id ?? null,
-          variables_usadas: s.plantilla?.variables ?? undefined,
+          plantilla_id: plantilla?.id ?? null,
+          variables_usadas: plantilla?.variables ?? undefined,
           direccion: s.tipo === "mensaje" ? ("saliente" as const) : ("nota_interna" as const),
           estatus: "pendiente" as const,
-          origen: s.origen ?? ("respuesta" as const),
+          origen: s.origen,
           cuerpo: s.cuerpo,
           proveedor: PROVEEDOR,
         }),
@@ -93,6 +135,23 @@ export class MessagingProvider {
       ids.push(creado.id);
     }
     return ids;
+  }
+
+  /**
+   * Una respuesta solo puede contestar al ÚLTIMO mensaje entrante de su conversación: así un
+   * recordatorio que se disfrace de respuesta no puede apuntar a cualquier cosa (EA-10).
+   */
+  private async exigirEntranteAlQueContesta(tx: Consultas, conversacionId: string, entranteId: string): Promise<void> {
+    const ultimo = await tx.mensaje.findFirst({
+      where: { conversacion_id: conversacionId, direccion: "entrante" },
+      orderBy: { secuencia: "desc" },
+      select: { id: true },
+    });
+    if (!ultimo || ultimo.id !== entranteId) {
+      throw new ErrorOrigenSaliente(
+        `Una respuesta solo puede contestar al último mensaje entrante de su conversación (${entranteId} no lo es): lo que inicia el sistema es origen «automatizacion»`,
+      );
+    }
   }
 
   /** Manda los pendientes de la conversación, en orden, y si toca la pasa a un asesor. */

@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { randomInt, randomUUID } from "node:crypto";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
-import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
-import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type Saliente } from "./index.ts";
+import { fijarConfiguracion, sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, confirmacionBajaA, respuestaA, type Saliente } from "./index.ts";
 
 let prisma: PrismaPruebas;
 before(() => {
@@ -161,11 +161,12 @@ test("marketing también cuenta en el tope diario de automáticos", async () => 
   assert.deepEqual(await s.mandar([s.promo(), s.auto(), s.auto()], T0), [ok, ok, tope]);
 });
 
-test("marketing con la ventana de servicio abierta (mensaje del sistema aunque diga `respuesta`) también está limitado", async () => {
+test("marketing con la ventana de servicio abierta (aunque conteste a un entrante) también está limitado", async () => {
   const s = await escenario();
   await s.db.conversacion.update({ where: { id: s.conv.id }, data: { ventana_servicio_hasta: en(T0, 10 * DIA) } });
-  const marketingRespuesta: Saliente = { tipo: "mensaje", cuerpo: "oferta", plantilla: { id: s.marketing.id, variables: {} } };
-  assert.deepEqual(await s.mandar([marketingRespuesta, { ...marketingRespuesta }], T0), [ok, tope]);
+  const entrante = await sembrarEntrante(s.db, s.conv.id);
+  const plantilla = { id: s.marketing.id, variables: {} };
+  assert.deepEqual(await s.mandar([respuestaA(entrante, "oferta", plantilla), respuestaA(entrante, "oferta", plantilla)], T0), [ok, tope]);
 });
 
 test("las respuestas y las notas internas NUNCA se limitan por frecuencia", async () => {
@@ -173,12 +174,13 @@ test("las respuestas y las notas internas NUNCA se limitan por frecuencia", asyn
   await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1, max_marketing_por_ventana: 0 });
   assert.deepEqual(await s.mandar([s.auto(), s.auto()], T0), [ok, tope]);
   await s.db.conversacion.update({ where: { id: s.conv.id }, data: { ventana_servicio_hasta: en(T0, 2 * HORA) } });
+  const entrante = await sembrarEntrante(s.db, s.conv.id);
   const respuestas: Saliente[] = [
-    { tipo: "mensaje", cuerpo: "r1" },
-    { tipo: "mensaje", cuerpo: "r2" },
-    { tipo: "mensaje", cuerpo: "r3" },
-    { tipo: "nota_interna", cuerpo: "n1" },
-    { tipo: "mensaje", cuerpo: "confirmación", origen: "confirmacion_baja" },
+    respuestaA(entrante, "r1"),
+    respuestaA(entrante, "r2"),
+    respuestaA(entrante, "r3"),
+    { tipo: "nota_interna", origen: "respuesta", cuerpo: "n1" },
+    confirmacionBajaA(entrante, "confirmación"),
   ];
   assert.deepEqual(await s.mandar(respuestas, en(T0, HORA)), [ok, ok, ok, ok, ok]);
 });

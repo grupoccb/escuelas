@@ -8,13 +8,14 @@ import { randomInt } from "node:crypto";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { procesarEntrante } from "../captacion/entrante.ts";
-import { sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import {
   ENVIO_INCIERTO,
   MessagingProvider,
   TransporteFalso,
   barrerEventosEntrega,
   registrarEstadoEntrega,
+  respuestaA,
   type CambioDeEstado,
   type EventoEntrante,
 } from "./index.ts";
@@ -63,7 +64,9 @@ async function conversacion(o: OrganizacionDePrueba = org) {
 async function enviar(o: OrganizacionDePrueba, transporte: TransporteFalso, convId: string, textos: string[], reloj: () => Date = () => new Date()) {
   const provider = new MessagingProvider({ transporte, reloj });
   const d = db(o);
-  const ids = await d.$transaction((tx) => provider.encolar(tx, convId, textos.map((cuerpo) => ({ tipo: "mensaje" as const, cuerpo }))));
+  // Respuestas al último mensaje del contacto: no les aplica el horario de envío (decisión 5).
+  const entrante = await sembrarEntrante(d, convId);
+  const ids = await d.$transaction((tx) => provider.encolar(tx, convId, textos.map((cuerpo) => respuestaA(entrante, cuerpo))));
   const resumen = await provider.despachar(d, convId);
   const mensajes = await Promise.all(ids.map((id) => d.mensaje.findUniqueOrThrow({ where: { id } })));
   return { provider, ids, resumen, mensajes };

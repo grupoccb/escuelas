@@ -6,7 +6,19 @@ import { TransporteChatwoot } from "./chatwoot/transporte.ts";
 import { TransporteFalso } from "./fake.ts";
 import { MessagingProvider } from "./provider.ts";
 
-export { MessagingProvider, ENVIO_INCIERTO, ENVIO_INCIERTO_MS, type Saliente, type ResumenDespacho } from "./provider.ts";
+export {
+  MessagingProvider,
+  ENVIO_INCIERTO,
+  ENVIO_INCIERTO_MS,
+  ErrorOrigenSaliente,
+  confirmacionBajaA,
+  respuestaA,
+  type PlantillaDeSaliente,
+  type Saliente,
+  type SalienteDeRespuesta,
+  type SalienteDelSistema,
+  type ResumenDespacho,
+} from "./provider.ts";
 export { asegurarTareaAsesor, asegurarTareaDeMensaje, asegurarTareaEnTransaccion, resumirTexto, type TareaDeMensaje, type TareaParaAsesor } from "./tareas.ts";
 export { TransporteFalso, type EnvioRegistrado } from "./fake.ts";
 export { EnvioIncierto, ErrorTransporte, type TransporteConversaciones } from "./transporte.ts";

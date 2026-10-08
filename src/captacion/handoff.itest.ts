@@ -129,7 +129,7 @@ test("con un asesor atendiendo no se crea tarea de plantilla: el bloqueo es por 
 
   // Alguien deja un saliente pendiente con la ventana vencida y un asesor atendiendo.
   await db().conversacion.update({ where: { id: conv.id }, data: { ventana_servicio_hasta: new Date(Date.now() - 1000) } });
-  await deps.mensajeria.encolar(db(), conv.id, [{ tipo: "mensaje", cuerpo: "recordatorio" }]);
+  await deps.mensajeria.encolar(db(), conv.id, [{ tipo: "mensaje", origen: "automatizacion", cuerpo: "recordatorio" }]);
   await deps.mensajeria.despachar(db(), conv.id);
 
   assert.equal(transporte.envios.length, envios);

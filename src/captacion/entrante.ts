@@ -18,6 +18,8 @@ import {
   resumirTexto,
   ventanaGratisDesde,
   ventanaServicioDesde,
+  confirmacionBajaA,
+  respuestaA,
   type Atribucion,
   type EventoEntrante,
   type FuenteAtribucion,
@@ -107,7 +109,8 @@ async function registrarYAvanzar(
     log.info("entrante_lead_eliminado", { conversacionId: conv.id });
     return { resultado: "ignorado", conversacionId: conv.id };
   }
-  await tx.mensaje.create({
+  // Las respuestas de este flujo contestan a ESTE mensaje (EA-10): el provider lo exige.
+  const entrante = await tx.mensaje.create({
     data: altaConAlcance({
       conversacion_id: conv.id,
       direccion: "entrante" as const,
@@ -116,6 +119,7 @@ async function registrarYAvanzar(
       proveedor: evento.llave.proveedor,
       id_externo: evento.llave.id,
     }),
+    select: { id: true },
   });
 
   const actualizar = async (datos: Parameters<Consultas["conversacion"]["updateMany"]>[0]["data"]) => {
@@ -131,7 +135,7 @@ async function registrarYAvanzar(
 
   // Una baja se atiende antes que todo lo demás y en cualquier estado.
   if (esPalabraDeBaja(evento.contenido)) {
-    return darDeBaja(tx, mensajeria, conv, evento, recibidoEn, actualizar, ventana);
+    return darDeBaja(tx, mensajeria, conv, evento, entrante.id, recibidoEn, actualizar, ventana);
   }
 
   // Alguien dado de baja que vuelve a escribir (decisión 2 del plan): el sistema calla y una
@@ -185,9 +189,9 @@ async function registrarYAvanzar(
     }
   }
 
-  const salientes: Saliente[] = r.respuestas.map((cuerpo) => ({ tipo: "mensaje", cuerpo }));
+  const salientes: Saliente[] = r.respuestas.map((cuerpo) => respuestaA(entrante.id, cuerpo));
   if (r.pasarAAsesor && r.respuestas.length > 0) {
-    salientes.push({ tipo: "nota_interna", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.pasarAAsesor) });
+    salientes.push({ tipo: "nota_interna", origen: "respuesta", cuerpo: await resumenParaAsesor(tx, conv.lead.id, r.pasarAAsesor) });
   }
   await mensajeria.encolar(tx, conv.id, salientes);
   return { resultado: "procesado", conversacionId: conv.id };
@@ -231,6 +235,7 @@ async function darDeBaja(
   mensajeria: MessagingProvider,
   conv: ConversacionConLead,
   evento: EventoEntrante,
+  entranteId: string,
   recibidoEn: Date,
   actualizar: (datos: Parameters<Consultas["conversacion"]["updateMany"]>[0]["data"]) => Promise<void>,
   ventana: { ventana_servicio_hasta: Date; ultimo_mensaje_entrante_en: Date },
@@ -257,7 +262,7 @@ async function darDeBaja(
     // La confirmación es la única respuesta; solo se encola si la baja es nueva o la
     // conversación aún no estaba en baja (cubre el caso sin teléfono).
     if (nueva || !telefono) {
-      await mensajeria.encolar(tx, conv.id, [{ tipo: "mensaje", cuerpo: textos.confirmacionBaja, origen: "confirmacion_baja" }]);
+      await mensajeria.encolar(tx, conv.id, [confirmacionBajaA(entranteId, textos.confirmacionBaja)]);
     }
   } else {
     await actualizar(ventana);

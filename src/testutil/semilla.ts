@@ -3,6 +3,7 @@
 // ids de Chatwoot son aleatorios para que las corridas no choquen entre sí.
 
 import { randomInt, randomUUID } from "node:crypto";
+import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import type { PrismaPruebas } from "./prisma-pruebas.ts";
 
 export interface OrganizacionDePrueba {
@@ -67,4 +68,23 @@ export async function fijarConfiguracion(
   const viva = await prisma.configuracion_organizacion.findFirst({ where: { organizacion_id: organizacionId, eliminado_en: null } });
   if (viva) await prisma.configuracion_organizacion.update({ where: { id: viva.id }, data: valores });
   else await prisma.configuracion_organizacion.create({ data: { organizacion_id: organizacionId, ...valores } });
+}
+
+/**
+ * Un mensaje ENTRANTE ya recibido en la conversación; devuelve su id. Las respuestas (`respuestaA`)
+ * tienen que contestar al último entrante, así que los tests que mandan respuestas lo siembran antes.
+ */
+export async function sembrarEntrante(db: Consultas, conversacionId: string, cuerpo = "Hola"): Promise<string> {
+  const m = await db.mensaje.create({
+    data: altaConAlcance({
+      conversacion_id: conversacionId,
+      direccion: "entrante" as const,
+      estatus: "recibido" as const,
+      cuerpo,
+      proveedor: "chatwoot",
+      id_externo: `entrante-${randomUUID()}`,
+    }),
+    select: { id: true },
+  });
+  return m.id;
 }

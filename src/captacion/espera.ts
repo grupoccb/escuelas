@@ -132,7 +132,7 @@ async function barrerOrganizacion(
         if (marcada.count !== 1) return false; // otro proceso la tocó: en el siguiente barrido
 
         await deps.mensajeria.encolar(tx, conv.id, [
-          { tipo: "nota_interna", cuerpo: await resumenParaAsesor(tx, conv.lead.id, "sin_respuesta") },
+          { tipo: "nota_interna", origen: "automatizacion", cuerpo: await resumenParaAsesor(tx, conv.lead.id, "sin_respuesta") },
         ]);
         return true;
       });
