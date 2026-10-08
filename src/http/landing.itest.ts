@@ -107,7 +107,10 @@ test("E1 GET: el cuestionario sale de las tablas (nombre, color, sucursales, avi
   assert.ok(nonce);
   assert.match(csp, /default-src 'none'/);
   assert.match(csp, /frame-ancestors 'none'/);
-  assert.match(csp, /form-action 'self'/);
+  // EE-01: sin `form-action`. Chrome aplica esa directiva también a las redirecciones del envío y bloqueaba el 303 a wa.me (→ api.whatsapp.com): el
+  // lead se creaba pero la persona nunca llegaba a WhatsApp. Aquí no hay un navegador, así que la prueba es que la directiva no esté.
+  assert.ok(!/form-action/.test(csp), `la CSP no debe llevar form-action: ${csp}`);
+  assert.match(html, /addEventListener\("pageshow"/, "EE-17: el botón se reactiva al volver con «atrás»");
   assert.ok(html.includes(`<style nonce="${nonce}">`) && html.includes(`<script nonce="${nonce}">`));
   assert.equal((html.match(/<script/g) ?? []).length, 1, "un solo script");
   // Otro nonce en cada respuesta.
@@ -283,10 +286,16 @@ test("E1 POST: validaciones — cada campo con su mensaje, los valores repintado
 test("E1 anti-abuso: el campo trampa, el tope de cuerpo y el límite de peticiones por IP", async () => {
   const m = await mundo();
   // Honeypot: se responde como a una persona y no se guarda nada.
+  // EE-10: la respuesta es la de un envío bueno (303 a WhatsApp con un código con la forma de uno real), para que un robot no pueda distinguirla.
   const trampa = await enviar(api.base, m.ruta, campos(m, { sitio_web: "http://spam.test" }));
-  assert.equal(trampa.status, 200);
-  assert.match(await trampa.text(), /Gracias/);
+  assert.equal(trampa.status, 303);
+  const destinoTrampa = decodeURIComponent(trampa.headers.get("location") ?? "");
+  assert.ok(destinoTrampa.startsWith(`https://wa.me/${m.numero}?text=`), destinoTrampa);
+  const codigoTrampa = /Mi código es ([A-Z2-9]{4}-[A-Z2-9]{4})$/.exec(destinoTrampa)?.[1];
+  assert.ok(codigoTrampa, "lleva un código con la forma de uno real");
+  await trampa.text();
   assert.equal(await m.db.lead.count(), 0);
+  assert.equal(await m.db.codigo_rastreo.count({ where: { codigo: codigoTrampa.replace("-", "") } }), 0, "ese código no existe: nada se guardó");
   // Tope de cuerpo (16 KB): 413 sin contenido.
   const grande = await enviar(api.base, m.ruta, new URLSearchParams({ nombre_alumno: "x".repeat(20_000) }));
   assert.equal(grande.status, 413);

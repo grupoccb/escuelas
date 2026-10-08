@@ -24,7 +24,7 @@ import { registrarAceptacion } from "../legal/aceptaciones.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
 import { estaDadoDeBaja } from "../mensajeria/consentimiento.ts";
 import { normalizarNombre } from "../sensibles/campos.ts";
-import { buscarCodigoUsable, codigoDeLead, formatearCodigo, normalizarCodigoEscrito } from "./codigos.ts";
+import { buscarCodigoUsable, codigoDeLead, formatearCodigo, generarCodigo, normalizarCodigoEscrito } from "./codigos.ts";
 
 export const PARAMETROS_UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -192,6 +192,12 @@ export async function numeroDeContacto(db: BaseDatos | Consultas, verticalId: st
   const canales = await db.canal_whatsapp.findMany({ where: { vertical_id: verticalId, activo: true, numero_whatsapp: { not: null } }, select: { numero_whatsapp: true, sucursal_id: true }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] });
   const elegido = canales.find((c) => sucursalId !== null && c.sucursal_id === sucursalId) ?? canales.find((c) => c.sucursal_id === null) ?? canales[0];
   return numeroParaEnlace(elegido?.numero_whatsapp);
+}
+
+/** Para el campo trampa (EE-10): el mismo enlace que un envío bueno, con un código al azar que NO se guarda. null si la vertical no tiene número. */
+export async function enlaceSimulado(prisma: PrismaRaiz, landing: Landing): Promise<string | null> {
+  const numero = await numeroDeContacto(conAlcance(prisma, landing.organizacionId), landing.verticalId, null);
+  return numero ? enlaceDeWhatsapp(numero, landing.nombre, generarCodigo()) : null;
 }
 
 // ── El envío ───────────────────────────────────────────────────────────────────────────────────────────

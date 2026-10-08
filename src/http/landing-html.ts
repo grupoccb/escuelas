@@ -149,7 +149,10 @@ ${ocultos}
 (function () {
   var f = document.querySelector("form");
   var b = document.getElementById("enviar");
+  var texto = b.textContent;
   f.addEventListener("submit", function () { b.disabled = true; b.textContent = "Enviando…"; });
+  // Al volver con «atrás» desde WhatsApp el navegador restaura la página tal como quedó (EE-17): el botón vuelve a estar disponible.
+  window.addEventListener("pageshow", function (e) { if (e.persisted) { b.disabled = false; b.textContent = texto; } });
   var r = document.getElementById("resumen");
   if (r) r.focus();
 })();

@@ -13,7 +13,7 @@
 import { randomBytes } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, Router } from "express";
 import { LIMITE_CUERPO_LANDING } from "../api/cuerpos.ts";
-import { cargarLanding, leerParametros, registrarEnvioDeLanding, validarEnvio, type Landing } from "../captacion/landing.ts";
+import { cargarLanding, enlaceSimulado, leerParametros, registrarEnvioDeLanding, validarEnvio, type Landing } from "../captacion/landing.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
 import type { ConfigLimites } from "./config-limites.ts";
@@ -30,8 +30,14 @@ export interface DepsLanding {
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/;
 
+/**
+ * La CSP de la página. SIN `form-action` (EE-01): Chrome aplica esa directiva también a las redirecciones del envío, y el envío termina con un 303 a
+ * `https://wa.me/…` (que a su vez redirige a `api.whatsapp.com`): con `form-action 'self'` el navegador bloqueaba el salto y la persona se quedaba en el
+ * formulario con el botón «Enviando…» para siempre. Sin la directiva, la defensa contra un formulario inyectado es la que ya hay: nada del visitante
+ * se refleja sin escapar, `default-src 'none'` y `base-uri 'none'`.
+ */
 function politica(res: Response, nonce: string): void {
-  res.setHeader("Content-Security-Policy", `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src https:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`);
+  res.setHeader("Content-Security-Policy", `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'`);
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
 }
@@ -94,9 +100,16 @@ export function rutasDeLanding(deps: DepsLanding): Router {
     const parametros = leerParametros({ ...req.query, ...cuerpo });
     const nonce = randomBytes(16).toString("base64");
 
-    // Honeypot: solo un robot llena el campo trampa. Se le responde como a cualquiera y no se guarda nada.
+    // Honeypot: solo un robot llena el campo trampa. Se le responde EXACTAMENTE como a un envío bueno (303 a WhatsApp con un código que no existe, o la
+    // página de gracias si la vertical no tiene número) y no se guarda nada (EE-10): no hay forma de distinguir la trampa de un éxito.
     if (typeof cuerpo["sitio_web"] === "string" && cuerpo["sitio_web"] !== "") {
       log.info("landing_trampa", { vertical: landing.verticalId });
+      const enlace = await enlaceSimulado(deps.prisma, landing);
+      if (enlace) {
+        res.setHeader("Cache-Control", "no-store");
+        res.redirect(303, enlace);
+        return;
+      }
       politica(res, nonce);
       res.status(200).send(paginaDeGracias(landing, { nonce }));
       return;
