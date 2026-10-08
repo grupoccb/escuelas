@@ -7,6 +7,7 @@ import { randomInt } from "node:crypto";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { fijarConfiguracion, sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, ErrorOrigenSaliente, MessagingProvider, TransporteFalso, respuestaA, type Saliente } from "./index.ts";
 
 let prisma: PrismaPruebas;
@@ -61,7 +62,20 @@ async function escenario(ahora: Date, opc: { ventanaAbiertaHasta?: Date | null }
 test("tres despachar simultáneos del mismo pendiente: un solo envío (reclamo por mensaje, F1-12)", async () => {
   const s = await escenario(MEDIODIA);
   const [id] = await s.db.$transaction((tx) => s.provider.encolar(tx, s.conv.id, [{ tipo: "mensaje", origen: "automatizacion", cuerpo: "uno" }]));
-  const resumenes = await Promise.all([s.provider.despachar(s.db, s.conv.id), s.provider.despachar(s.db, s.conv.id), s.provider.despachar(s.db, s.conv.id)]);
+  // Carrera REAL (EA-08): una barrera obliga a que las tres lean «hay un pendiente» ANTES de que
+  // cualquiera lo reclame. Sin el reclamo condicional (pendiente → enviando) saldrían tres envíos.
+  const barrera = new Barrera(3);
+  const db = conAlcance(
+    conGanchos(prisma, {
+      modelo: "mensaje",
+      operacion: "findMany",
+      cuando: (args) => (args["where"] as { estatus?: unknown } | undefined)?.estatus === "pendiente",
+      despues: () => barrera.esperar(),
+    }),
+    s.o.organizacionId,
+  );
+  const resumenes = await Promise.all([s.provider.despachar(db, s.conv.id), s.provider.despachar(db, s.conv.id), s.provider.despachar(db, s.conv.id)]);
+  assert.equal(barrera.completa, true, "las tres leyeron el mismo pendiente antes de reclamar");
 
   assert.equal(s.transporte.envios.filter((e) => e.tipo === "mensaje" && e.texto === "uno").length, 1);
   assert.equal(resumenes.reduce((n, r) => n + r.enviados, 0), 1);

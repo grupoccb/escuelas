@@ -205,3 +205,9 @@ test("EA-12: lo que el tipo NO impide (cast doble deliberado) lo ve la guarda de
   // Y no cuando se parte en dos líneas: residual conocido.
   assert.deepEqual(hallazgos({ "src/x/a.ts": `const p = deps.prisma;\nconst q = p as never as { lead: { findMany(): unknown } };` }), []);
 });
+
+test("invariante 9/4: la firma de un webhook (X-Twilio-Signature, X-Chatwoot-Signature) solo se toca en src/mensajeria (F1-09f)", () => {
+  assert.deepEqual(hallazgos({ "src/http/a.ts": `const f = req.headers["x-twilio-signature"];` }), ["src/http/a.ts:4"]);
+  assert.deepEqual(hallazgos({ "src/http/a.ts": `const f = req.get("X-Chatwoot-Signature");` }), ["src/http/a.ts:4"]);
+  assert.deepEqual(hallazgos({ "src/mensajeria/twilio/a.ts": `const f = cabeceras["x-twilio-signature"];` }), []);
+});

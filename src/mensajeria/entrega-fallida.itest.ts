@@ -9,6 +9,7 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pru
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { procesarEntrante } from "../captacion/entrante.ts";
 import { sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { Barrera, conGanchos, dormir } from "../testutil/carrera.ts";
 import {
   ENVIO_INCIERTO,
   MessagingProvider,
@@ -221,6 +222,64 @@ test("carrera: el evento de entrega y el guardado del id corren a la vez; en tod
     await evento;
     const m = await db().mensaje.findUniqueOrThrow({ where: { id: mensajes[0]!.id } });
     assert.equal(m.estatus, "entregado", `vuelta ${i}`);
+  }
+});
+
+test("EA-08 (F1-03): el id se guarda ENTRE la búsqueda del evento y su guardado: el reintento de la búsqueda lo concilia al instante", async () => {
+  // Carrera forzada, no probabilística: justo después de que la primera búsqueda no encuentra el
+  // mensaje, «el provider» le guarda el id y concilia (sin eventos que ver todavía). Si el evento
+  // no volviera a buscar el mensaje después de guardarse, quedaría esperando al barrido.
+  const { conv } = await conversacion();
+  const d = db();
+  const m = await d.mensaje.create({
+    data: altaConAlcance({ conversacion_id: conv.id, direccion: "saliente" as const, estatus: "enviando" as const, origen: "respuesta" as const, cuerpo: "en vuelo", proveedor: "chatwoot" }),
+  });
+  const idExterno = `cw-carrera-${siguiente++}`;
+  let busquedas = 0;
+  const raiz = conGanchos(prisma, {
+    modelo: "mensaje",
+    operacion: "findFirst",
+    despues: async () => {
+      if (++busquedas !== 1) return;
+      await d.mensaje.updateMany({ where: { id: m.id }, data: { estatus: "enviado", id_externo: idExterno, enviado_en: new Date() } });
+    },
+  });
+  const resultado = await registrarEstadoEntrega({ prisma: raiz }, cambio(idExterno, "entregado"));
+  assert.equal(resultado, "actualizado", "se conciliaron en la misma llamada, sin esperar al barrido");
+  assert.equal((await d.mensaje.findUniqueOrThrow({ where: { id: m.id } })).estatus, "entregado");
+  const evento = await d.evento_entrega_pendiente.findFirstOrThrow({ where: { id_externo: idExterno } });
+  assert.ok(evento.conciliado_en);
+});
+
+test("EA-08: dos estados que llegan a la vez sobre el mismo mensaje no retroceden y ninguno se pierde: gana el más avanzado", async () => {
+  // Carrera forzada: los dos leen el mensaje en `enviado`; el «rápido» escribe primero y el «lento»
+  // (que se quedó dormido tras leer) escribe después con un estatus ya viejo. Sin la escritura
+  // condicional el lento pisaría al rápido; sin releer, el lento se perdería.
+  for (const [estadoLento, estadoRapido] of [["entregado", "leido"], ["leido", "entregado"]] as const) {
+    const { conv } = await conversacion();
+    const { mensajes } = await enviar(org, new TransporteFalso(), conv.id, ["hola"]);
+    const id = mensajes[0]!.id_externo!;
+    const barrera = new Barrera(2);
+    const gancho = (dormirDespues: boolean) =>
+      conGanchos(prisma, {
+        modelo: "mensaje",
+        operacion: "findFirst",
+        cuando: () => !barrera.completa,
+        despues: async () => {
+          await barrera.esperar();
+          if (dormirDespues) await dormir(250);
+        },
+      });
+    const [lento, rapido] = await Promise.all([
+      registrarEstadoEntrega({ prisma: gancho(true) }, cambio(id, estadoLento)),
+      registrarEstadoEntrega({ prisma: gancho(false) }, cambio(id, estadoRapido)),
+    ]);
+    assert.equal(barrera.completa, true, "los dos leyeron antes de que cualquiera escribiera");
+    assert.equal(rapido, "actualizado");
+    assert.ok(lento === "actualizado" || lento === "sin_cambio");
+    const m = await db().mensaje.findUniqueOrThrow({ where: { id: mensajes[0]!.id } });
+    assert.equal(m.estatus, "leido", `lento=${estadoLento} rápido=${estadoRapido}: los estados solo avanzan y el más avanzado queda`);
+    assert.ok(m.leido_en && m.entregado_en, "un «leído» implica entregado");
   }
 });
 

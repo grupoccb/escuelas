@@ -12,7 +12,7 @@ import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type EventoEntrante
 import type { TransporteConversaciones } from "../mensajeria/transporte.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
 import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
-import { conGanchos } from "../testutil/carrera.ts";
+import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { correrAutomatizaciones, RECLAMO_VENCE_MS, type DepsMotor } from "./motor.ts";
 
 let prisma: PrismaPruebas;
@@ -147,10 +147,44 @@ test("antes de cumplirse el tiempo de silencio no se programa nada", async () =>
 test("dos motores a la vez no mandan dos veces (invariante 8)", async () => {
   const s = await escenario();
   const ahora = en(T0, 26);
-  await Promise.all([s.motor(ahora), s.motor(ahora), s.motor(ahora)]);
+  // Carrera REAL (EA-08): los tres motores leen la misma ejecución vencida ANTES de que cualquiera
+  // la reclame. Sin el reclamo condicional (programado y sin ejecutar) saldrían tres mensajes.
+  const programacion = new Barrera(3);
+  const raiz = conGanchos(prisma, {
+    modelo: "automatizacion_ejecucion",
+    operacion: "findMany",
+    // Solo la lectura de las vencidas (las otras lecturas no filtran por `programado_para`).
+    cuando: (args) => (args["where"] as { programado_para?: unknown } | undefined)?.programado_para !== undefined,
+    despues: () => programacion.esperar(),
+  });
+  // La ejecución ya está programada y vencida cuando llegan los tres motores.
+  await s.db.automatizacion_ejecucion.create({
+    data: { automatizacion_id: s.automatizacion.id, entidad_tipo: "conversacion", entidad_id: s.conversacionId, ocurrencia: 1, programado_para: en(T0, 25), organizacion_id: s.o.organizacionId },
+  });
+  await Promise.all([s.motor(ahora, { prisma: raiz }), s.motor(ahora, { prisma: raiz }), s.motor(ahora, { prisma: raiz })]);
+  assert.equal(programacion.completa, true, "los tres leyeron la misma ejecución vencida antes de reclamar");
   assert.equal(s.plantillasEnviadas().length, 1);
   assert.equal((await s.ejecuciones()).length, 1);
   assert.equal(await s.db.mensaje.count({ where: { conversacion_id: s.conversacionId, origen: "automatizacion" } }), 1);
+});
+
+test("dos motores que programan a la vez dejan UNA ejecución y ningún error (idempotencia de la programación)", async () => {
+  const s = await escenario();
+  // Carrera REAL (EA-08): ambos calculan «toca la ocurrencia 1» ANTES de que cualquiera inserte.
+  const barrera = new Barrera(2);
+  const raiz = conGanchos(prisma, {
+    modelo: "automatizacion_ejecucion",
+    operacion: "findMany",
+    cuando: (args) => (args["where"] as { entidad_tipo?: unknown } | undefined)?.entidad_tipo !== undefined,
+    despues: () => barrera.esperar(),
+  });
+  const ahora = en(T0, 26);
+  const [a, b] = await Promise.all([s.motor(ahora, { prisma: raiz }), s.motor(ahora, { prisma: raiz })]);
+  assert.equal(barrera.completa, true);
+  assert.equal(a.errores + b.errores, 0, "el segundo no choca con el índice único: lo salta (skipDuplicates)");
+  assert.equal(a.programadas + b.programadas, 1);
+  assert.equal((await s.ejecuciones()).length, 1);
+  assert.equal(s.plantillasEnviadas().length, 1);
 });
 
 test("horario: lo que cae de noche se recorre a las 09:00 locales y no se manda antes (invariante 14)", async () => {
@@ -544,7 +578,17 @@ test("recuperación: dos motores a la vez la resuelven una sola vez", async () =
       ejecutado_en: new Date(ahora.getTime() - RECLAMO_VENCE_MS - MINUTO),
     },
   });
-  const rs = await Promise.all([s.motor(ahora), s.motor(ahora), s.motor(ahora)]);
+  // Carrera REAL (EA-08): los tres leen la misma ejecución abandonada ANTES de que cualquiera la
+  // reclame. Sin el reclamo por comparación (estatus y hora leídos) la resolverían los tres.
+  const barrera = new Barrera(3);
+  const raiz = conGanchos(prisma, {
+    modelo: "automatizacion_ejecucion",
+    operacion: "findMany",
+    cuando: (args) => typeof (args["where"] as { ejecutado_en?: unknown } | undefined)?.ejecutado_en === "object" && (args["where"] as { ejecutado_en: unknown }).ejecutado_en !== null,
+    despues: () => barrera.esperar(),
+  });
+  const rs = await Promise.all([s.motor(ahora, { prisma: raiz }), s.motor(ahora, { prisma: raiz }), s.motor(ahora, { prisma: raiz })]);
+  assert.equal(barrera.completa, true, "los tres leyeron la misma ejecución abandonada antes de reclamar");
   assert.equal(rs.reduce((n, r) => n + r.recuperadas, 0), 1);
 });
 

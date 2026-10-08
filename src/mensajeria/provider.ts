@@ -15,6 +15,7 @@
 
 import { leerConfiguracion, type ConfiguracionOrganizacion } from "../configuracion/index.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
+import { OPCIONES_BLOQUEO, transaccionConBloqueoDeTelefono } from "../datos/bloqueos.ts";
 import type { OrigenMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
 import { estaDadoDeBaja } from "./consentimiento.ts";
@@ -99,6 +100,16 @@ export interface ResumenDespacho {
   resultados: ResultadoSaliente[];
 }
 
+/** Un mensaje pendiente tal como lo lee `despachar`. */
+interface MensajePendiente {
+  id: string;
+  direccion: string;
+  cuerpo: string;
+  origen: OrigenMensaje;
+  plantilla_id: string | null;
+  variables_usadas: unknown;
+}
+
 export interface DepsMessagingProvider {
   transporte: TransporteConversaciones;
   reloj?: () => Date;
@@ -170,53 +181,19 @@ export class MessagingProvider {
 
     let falloPrevio = false;
     for (const m of pendientes) {
-      // El reclamo deja la hora (del reloj del provider) en actualizado_en: con ella
-      // recuperarEnviosInciertos distingue un envío en curso de uno que quedó a medias.
-      const reclamo = await db.mensaje.updateMany({
-        where: { id: m.id, estatus: "pendiente" },
-        data: { estatus: "enviando", actualizado_en: this.reloj() },
+      // Reclamar y decidir son UNA sola cosa por teléfono (EA-11): el candado consultivo de
+      // (organización, teléfono) va desde antes de contar lo ya enviado hasta que el mensaje queda
+      // reclamado (`enviando`) o bloqueado. Quien llegue después ve ese `enviando` y lo cuenta. El
+      // envío mismo (la red) va fuera de la transacción, sin el candado.
+      const previa = await db.conversacion.findUniqueOrThrow({
+        where: { id: conversacionId },
+        include: { lead: { select: { telefono: true } } },
       });
-      if (reclamo.count === 0) continue; // otro proceso ya lo tomó
-
-      // Se relee en cada mensaje: un asesor pudo tomar la conversación a la mitad.
-      const conv = await this.leerConversacion(db, conversacionId);
-      const tipo: TipoSaliente = m.direccion === "nota_interna" ? "nota_interna" : "mensaje";
-      const ahora = this.reloj();
-      const plantilla = m.plantilla_id ? await this.leerPlantilla(db, m.plantilla_id, conv.vertical_id) : null;
-      // Horario y frecuencia aplican a todo lo que inicia el sistema, no a lo que una etiqueta diga.
-      const iniciadoPorSistema =
-        tipo === "mensaje" &&
-        esIniciadoPorSistema({
-          origen: m.origen,
-          conLaPlantilla: m.plantilla_id !== null,
-          ventanaAbierta: ventanaServicioAbierta(conv.ventana_servicio_hasta, ahora),
-        });
-
-      // Si uno anterior falló, los siguientes no salen: llegarían fuera de orden.
-      let motivo: MotivoBloqueo | "envio_previo_fallido" | null;
-      if (falloPrevio) motivo = "envio_previo_fallido";
-      else {
-        const esMarketing = plantilla?.enviable === true && plantilla.categoria === "marketing";
-        const conteo = iniciadoPorSistema || esMarketing ? await config() : null;
-        motivo = evaluarReglas({
-          conv,
-          tipo,
-          origen: m.origen,
-          ahora,
-          plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
-          zonaHoraria: conv.zonaHoraria,
-          automaticosRecientes: iniciadoPorSistema && conteo ? await this.enviadosAlTelefono(db, conv.lead.telefono, m.id, new Date(ahora.getTime() - DIA_MS)) : 0,
-          limiteFrecuencia: conteo?.maxAutomaticosPorDia ?? Number.POSITIVE_INFINITY,
-          marketingRecientes:
-            esMarketing && conteo
-              ? await this.enviadosAlTelefono(db, conv.lead.telefono, m.id, new Date(ahora.getTime() - conteo.ventanaMarketingDias * DIA_MS), true)
-              : 0,
-          limiteMarketing: conteo?.maxMarketingPorVentana ?? Number.POSITIVE_INFINITY,
-        });
-      }
+      const decision = await this.reclamarYDecidir(db, previa.organizacion_id, previa.lead.telefono, conversacionId, m, falloPrevio, config);
+      if (decision.estado === "tomado") continue; // otro proceso ya lo tomó
+      const { conv, tipo, ahora, plantilla, motivo } = decision;
 
       if (motivo) {
-        await db.mensaje.update({ where: { id: m.id }, data: { estatus: "bloqueado", motivo_bloqueo: motivo } });
         resumen.bloqueados++;
         resumen.resultados.push({ mensajeId: m.id, resultado: "bloqueado", motivo });
         log.info("saliente_bloqueado", { conversacionId, mensajeId: m.id, motivo });
@@ -288,6 +265,75 @@ export class MessagingProvider {
     return resumen;
   }
 
+  /**
+   * Reclama el mensaje (pendiente → enviando) y decide si sale, todo dentro de la transacción que
+   * tiene el candado del teléfono. Si una regla lo bloquea, queda `bloqueado` en la misma
+   * transacción. Si puede salir, queda `enviando` (y desde que la transacción termina cuenta para
+   * la frecuencia de quien llegue después).
+   */
+  private async reclamarYDecidir(
+    db: BaseDatos,
+    organizacionId: string,
+    telefono: string | null,
+    conversacionId: string,
+    m: MensajePendiente,
+    falloPrevio: boolean,
+    config: () => Promise<ConfiguracionOrganizacion>,
+  ) {
+    const trabajo = async (tx: Consultas) => {
+      // El reclamo deja la hora (del reloj del provider) en actualizado_en: con ella
+      // recuperarEnviosInciertos distingue un envío en curso de uno que quedó a medias.
+      const reclamadoEn = this.reloj();
+      const reclamo = await tx.mensaje.updateMany({
+        where: { id: m.id, estatus: "pendiente" },
+        data: { estatus: "enviando", actualizado_en: reclamadoEn },
+      });
+      if (reclamo.count === 0) return { estado: "tomado" as const };
+
+      // Se relee en cada mensaje: un asesor pudo tomar la conversación a la mitad.
+      const conv = await this.leerConversacion(tx, conversacionId);
+      const tipo: TipoSaliente = m.direccion === "nota_interna" ? "nota_interna" : "mensaje";
+      const ahora = this.reloj();
+      const plantilla = m.plantilla_id ? await this.leerPlantilla(tx, m.plantilla_id, conv.vertical_id) : null;
+      // Horario y frecuencia aplican a todo lo que inicia el sistema, no a lo que una etiqueta diga.
+      const iniciadoPorSistema =
+        tipo === "mensaje" &&
+        esIniciadoPorSistema({
+          origen: m.origen,
+          conLaPlantilla: m.plantilla_id !== null,
+          ventanaAbierta: ventanaServicioAbierta(conv.ventana_servicio_hasta, ahora),
+        });
+
+      // Si uno anterior falló, los siguientes no salen: llegarían fuera de orden.
+      let motivo: MotivoBloqueo | "envio_previo_fallido" | null;
+      if (falloPrevio) motivo = "envio_previo_fallido";
+      else {
+        const esMarketing = plantilla?.enviable === true && plantilla.categoria === "marketing";
+        const conteo = iniciadoPorSistema || esMarketing ? await config() : null;
+        motivo = evaluarReglas({
+          conv,
+          tipo,
+          origen: m.origen,
+          ahora,
+          plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria } : m.plantilla_id ? { enviable: false, categoria: "servicio" } : null,
+          zonaHoraria: conv.zonaHoraria,
+          automaticosRecientes: iniciadoPorSistema && conteo ? await this.enviadosAlTelefono(tx, conv.lead.telefono, m.id, new Date(ahora.getTime() - DIA_MS)) : 0,
+          limiteFrecuencia: conteo?.maxAutomaticosPorDia ?? Number.POSITIVE_INFINITY,
+          marketingRecientes:
+            esMarketing && conteo
+              ? await this.enviadosAlTelefono(tx, conv.lead.telefono, m.id, new Date(ahora.getTime() - conteo.ventanaMarketingDias * DIA_MS), true)
+              : 0,
+          limiteMarketing: conteo?.maxMarketingPorVentana ?? Number.POSITIVE_INFINITY,
+        });
+      }
+      if (motivo) await tx.mensaje.update({ where: { id: m.id }, data: { estatus: "bloqueado", motivo_bloqueo: motivo } });
+      return { estado: "reclamado" as const, conv, tipo, ahora, plantilla, motivo };
+    };
+
+    // Sin teléfono no hay frecuencia que proteger: la transacción corre sin candado.
+    return telefono ? transaccionConBloqueoDeTelefono(db, organizacionId, telefono, trabajo) : db.$transaction(trabajo, OPCIONES_BLOQUEO);
+  }
+
   private plantillaAEnviar(
     p: { codigo: string; idioma: string; content_sid: string },
     variables: unknown,
@@ -301,7 +347,7 @@ export class MessagingProvider {
   }
 
   /** La plantilla del mensaje y si hoy se puede enviar: aprobada, activa, viva y de esa vertical. */
-  private async leerPlantilla(db: BaseDatos, plantillaId: string, verticalId: string) {
+  private async leerPlantilla(db: Consultas, plantillaId: string, verticalId: string) {
     const p = await db.plantilla_mensaje.findFirst({
       where: { id: plantillaId },
       select: { codigo: true, idioma: true, content_sid: true, categoria: true, estado_aprobacion: true, activo: true, vertical_id: true },
@@ -315,9 +361,10 @@ export class MessagingProvider {
    * Cuántos mensajes iniciados por el sistema se le mandaron a este teléfono desde `desde`, en
    * TODA la organización (cualquier conversación o vertical): los de automatización y cualquiera
    * que llevara plantilla. Con `soloMarketing`, solo los de plantillas de categoría marketing.
-   * Cuentan también los envíos inciertos (pudieron haber salido): lo conservador.
+   * Cuentan también los envíos inciertos (pudieron haber salido) y los que están en curso
+   * (`enviando`): lo conservador. El candado del teléfono hace que contar y reclamar sea una sola cosa.
    */
-  private async enviadosAlTelefono(db: BaseDatos, telefono: string | null, excluirId: string, desde: Date, soloMarketing = false): Promise<number> {
+  private async enviadosAlTelefono(db: Consultas, telefono: string | null, excluirId: string, desde: Date, soloMarketing = false): Promise<number> {
     if (!telefono) return 0;
     return db.mensaje.count({
       where: {
@@ -329,6 +376,9 @@ export class MessagingProvider {
             OR: [
               { estatus: { in: ["enviado", "entregado", "leido"] }, enviado_en: { gt: desde } },
               { estatus: "fallido", error: ENVIO_INCIERTO, actualizado_en: { gt: desde } },
+              // Un envío en curso (reclamado, sin resultado) ya cuenta: si no, dos conversaciones del
+              // mismo teléfono pasarían a la vez el tope (EA-11).
+              { estatus: "enviando", actualizado_en: { gt: desde } },
             ],
           },
         ],
@@ -464,7 +514,7 @@ export class MessagingProvider {
     return true;
   }
 
-  private async leerConversacion(db: BaseDatos, conversacionId: string) {
+  private async leerConversacion(db: Consultas, conversacionId: string) {
     const conv = await db.conversacion.findUniqueOrThrow({
       where: { id: conversacionId },
       select: {

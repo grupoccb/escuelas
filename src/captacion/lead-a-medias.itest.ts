@@ -11,6 +11,7 @@ import { conAlcance } from "../datos/alcance.ts";
 import { correrAutomatizaciones } from "../automatizaciones/motor.ts";
 import { MessagingProvider, TransporteFalso, type EventoEntrante } from "../mensajeria/index.ts";
 import { sembrarOrganizacion } from "../testutil/semilla.ts";
+import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { procesarEntrante } from "./entrante.ts";
 import { barrerTiemposDeEspera, TIEMPO_ESPERA_MS } from "./espera.ts";
 import { textos } from "./maquina.ts";
@@ -145,13 +146,40 @@ test("(iii) el reenganche de 25 h puede salir mientras nadie la haya tomado, aun
 test("(v) el aviso de los 30 min es idempotente: barridos repetidos o simultáneos no avisan dos veces", async () => {
   const s = await escenario();
   const cuando = despues(31 * MIN);
-  const hechas = await Promise.all([s.barrer(cuando), s.barrer(cuando), s.barrer(cuando)]);
+  // Carrera REAL (EA-08): las tres transacciones leen la conversación sin avisar ANTES de que
+  // cualquiera la marque. Sin la marca condicional (versión y `visible_a_asesores_en` vacío) se
+  // enviarían tres notas.
+  const barrera = new Barrera(3);
+  const raiz = conGanchos(prisma, {
+    modelo: "conversacion",
+    operacion: "updateMany",
+    // La marca del aviso: el updateMany que escribe `visible_a_asesores_en`.
+    cuando: (args) => (args["data"] as { visible_a_asesores_en?: unknown } | undefined)?.visible_a_asesores_en !== undefined,
+    antes: () => barrera.esperar(),
+  });
+  const barrerCon = () => barrerTiemposDeEspera({ prisma: raiz, mensajeria: s.proveedor(cuando), organizacionId: s.o.organizacionId, reloj: () => cuando });
+  const hechas = await Promise.all([barrerCon(), barrerCon(), barrerCon()]);
+  assert.equal(barrera.completa, true, "las tres leyeron la conversación sin avisar antes de marcarla");
   assert.equal(hechas.reduce((n, h) => n + h, 0), 1, "una sola conversación avisada en total");
   assert.equal(s.notas().length, 1);
   assert.equal(s.aperturas().length, 1);
 
   for (const mas of [32 * MIN, 5 * HORA, 30 * HORA]) assert.equal(await s.barrer(despues(mas)), 0);
   assert.equal(s.notas().length, 1);
+  assert.equal(s.aperturas().length, 1);
+});
+
+test("abrirParaAsesores no abre una conversación que ya no es del bot (A3m)", async () => {
+  const s = await escenario();
+  const conv = await s.conv();
+  const provider = s.proveedor(despues(31 * MIN));
+  for (const estado of ["en_atencion_humana", "opt_out", "cerrada"] as const) {
+    await s.db.conversacion.update({ where: { id: conv.id }, data: { estado } });
+    assert.equal(await provider.abrirParaAsesores(s.db, conv.id), false, estado);
+  }
+  assert.equal(s.aperturas().length, 0, "no se tocó Chatwoot");
+  await s.db.conversacion.update({ where: { id: conv.id }, data: { estado: "bot" } });
+  assert.equal(await provider.abrirParaAsesores(s.db, conv.id), true);
   assert.equal(s.aperturas().length, 1);
 });
 

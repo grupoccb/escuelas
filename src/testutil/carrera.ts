@@ -18,9 +18,18 @@ export class Barrera {
   private llegaron = 0;
   private liberar!: () => void;
   private readonly abierta: Promise<void>;
+  private abierta_por_llegada = false;
   /** Cuántos han llegado. */
   get llegadas(): number {
     return this.llegaron;
+  }
+  private seAgoto = false;
+  /**
+   * true si todos llegaron SIN que nadie se cansara de esperar (se solaparon de verdad); false si
+   * alguno agotó su espera, que es lo que pasa cuando un candado deja a uno esperando al otro.
+   */
+  get completa(): boolean {
+    return this.abierta_por_llegada && !this.seAgoto;
   }
 
   constructor(participantes: number) {
@@ -30,13 +39,23 @@ export class Barrera {
     });
   }
 
-  /** Espera a que lleguen todos. Si alguno no llega, se libera a los `limiteMs` para no colgar el test. */
+  /**
+   * Espera a que lleguen todos. Si alguno no llega, se libera a los `limiteMs` para no colgar el
+   * test: eso pasa cuando un candado deja a uno esperando a que el otro termine. Usa un límite
+   * corto (unos 300 ms) en tests donde se espera esa exclusión.
+   */
   async esperar(limiteMs = 3000): Promise<void> {
     this.llegaron++;
-    if (this.llegaron >= this.n) this.liberar();
+    if (this.llegaron >= this.n) {
+      this.abierta_por_llegada = true;
+      this.liberar();
+    }
     let temporizador: NodeJS.Timeout | undefined;
     const limite = new Promise<void>((resolver) => {
-      temporizador = setTimeout(resolver, limiteMs);
+      temporizador = setTimeout(() => {
+        if (!this.abierta_por_llegada) this.seAgoto = true;
+        resolver();
+      }, limiteMs);
     });
     await Promise.race([this.abierta, limite]);
     clearTimeout(temporizador);

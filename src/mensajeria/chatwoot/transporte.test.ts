@@ -115,3 +115,20 @@ test("clasificarFalloDeRed: solo los errores que prueban que nunca llegó son de
   assert.ok(clasificarFalloDeRed("algo raro") instanceof EnvioIncierto);
   assert.ok(clasificarFalloDeRed(null) instanceof EnvioIncierto);
 });
+
+test("clasificarFalloDeRed con códigos MEZCLADOS o ninguno: ante la duda, incierto (A5k)", () => {
+  // Un error agregado donde una dirección rechazó la conexión y otra se cortó a media petición:
+  // la segunda pudo haber llegado. No se puede dar por definitivo.
+  const mezclado = Object.assign(new TypeError("fetch failed"), {
+    cause: Object.assign(new AggregateError([]), { errors: [{ code: "ECONNREFUSED" }, { code: "ECONNRESET" }] }),
+  });
+  assert.ok(clasificarFalloDeRed(mezclado) instanceof EnvioIncierto);
+  // Propio y de la causa, uno de cada clase.
+  const propioYCausa = Object.assign(new Error("x"), { code: "ECONNREFUSED", cause: { code: "ETIMEDOUT" } });
+  assert.ok(clasificarFalloDeRed(propioYCausa) instanceof EnvioIncierto);
+  // Sin ningún código no hay con qué probar que nunca llegó.
+  assert.ok(clasificarFalloDeRed(new TypeError("fetch failed")) instanceof EnvioIncierto);
+  assert.ok(clasificarFalloDeRed(Object.assign(new Error("x"), { cause: {} })) instanceof EnvioIncierto);
+  // Todos definitivos: sí es definitivo.
+  assert.ok(!(clasificarFalloDeRed(Object.assign(new Error("x"), { code: "ENOTFOUND", cause: { code: "ECONNREFUSED" } })) instanceof EnvioIncierto));
+});

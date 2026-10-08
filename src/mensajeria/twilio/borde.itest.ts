@@ -9,6 +9,7 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../../testutil/prisma-
 import { altaConAlcance, conAlcance } from "../../datos/alcance.ts";
 import { crearApp } from "../../http/app.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "../../testutil/semilla.ts";
+import { Barrera, conGanchos } from "../../testutil/carrera.ts";
 import { RECLAMO_TWILIO_VENCE_MS, crearBordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso } from "./reenviador.ts";
 
@@ -41,9 +42,9 @@ async function escuela(numero = `whatsapp:+1555${randomInt(1_000_000, 9_999_999)
   return { ...o, numero };
 }
 
-function entorno(opciones: { normalizarFromAlReenviar?: boolean; reloj?: () => Date } = {}) {
+function entorno(opciones: { normalizarFromAlReenviar?: boolean; reloj?: () => Date; prisma?: PrismaPruebas } = {}) {
   const reenviador = new ReenviadorTwilioFalso();
-  const borde = crearBordeTwilio({ prisma, reenviador, ...opciones });
+  const borde = crearBordeTwilio({ reenviador, ...opciones, prisma: opciones.prisma ?? prisma });
   const app = crearApp({
     pingDb: async () => {},
     secretoWebhookChatwoot: "s",
@@ -294,6 +295,35 @@ test("un reclamo de un proceso que murió (más de 60 s en `procesando`) se recl
     ahora = new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 1000);
     assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
     assert.equal(e.reenviador.enviados.length, 1);
+  } finally {
+    e.cerrar();
+  }
+});
+
+test("EA-08 (A7l): varios reintentos que encuentran el MISMO reclamo vencido a la vez: solo uno lo reclama y reenvía", async () => {
+  const o = await escuela();
+  const ahora = new Date("2026-10-08T18:00:00Z");
+  // Carrera forzada: los tres leen la fila vencida (`procesando` hace > 60 s) ANTES de que cualquiera
+  // la reclame de nuevo. Sin la comparación del estado y la hora leídos, los tres la ganarían.
+  const barrera = new Barrera(3);
+  const raiz = conGanchos(prisma, {
+    modelo: "evento_twilio",
+    operacion: "findFirst",
+    despues: () => barrera.esperar(),
+  });
+  const e = entorno({ reloj: () => new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 5000), prisma: raiz });
+  try {
+    const sid = sidNuevo();
+    const cuerpo = entrante(o, sid);
+    await conAlcance(prisma, o.organizacionId).evento_twilio.create({
+      data: altaConAlcance({ tipo: "entrante" as const, id_mensaje: sid, estado_mensaje: "", estado_proceso: "procesando" as const, reclamado_en: ahora }),
+    });
+    e.reenviador.demoraMs = 50;
+    const estados = await Promise.all([e.enviar(ENTRANTES, cuerpo), e.enviar(ENTRANTES, cuerpo), e.enviar(ENTRANTES, cuerpo)]);
+    assert.equal(barrera.completa, true, "los tres leyeron la misma fila vencida antes de reclamarla");
+    assert.equal(e.reenviador.enviados.length, 1, `estados ${estados}`);
+    assert.equal(estados.filter((s) => s === 200).length, 1);
+    assert.deepEqual(estados.filter((s) => s !== 200), [503, 503]);
   } finally {
     e.cerrar();
   }

@@ -7,6 +7,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../datos/alcance.ts";
 import { fijarConfiguracion, sembrarEntrante, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, confirmacionBajaA, respuestaA, type Saliente } from "./index.ts";
 
 let prisma: PrismaPruebas;
@@ -214,4 +215,66 @@ test("sin zona horaria o fuera de horario sigue mandando el horario antes que la
   const s = await escenario();
   const madrugada = new Date("2026-10-08T09:00:00Z"); // 03:00 en Ciudad de México
   assert.deepEqual(await s.mandar([s.auto()], madrugada), [["bloqueado", "fuera_de_horario"]]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-11: contar y reservar son una sola cosa por teléfono (candado consultivo). Concurrencia REAL:
+// una barrera obliga a que las dos conversaciones lleguen a contar al mismo tiempo; sin el candado
+// las dos ven «0 enviados» y salen las dos.
+
+/** Una `db` con la barrera puesta justo antes de CONTAR lo ya enviado al teléfono. */
+function conBarreraAntesDeContar(barrera: Barrera, limiteMs: number, organizacionId: string) {
+  const raiz = conGanchos(prisma, {
+    modelo: "mensaje",
+    operacion: "count",
+    antes: () => barrera.esperar(limiteMs),
+  });
+  return conAlcance(raiz, organizacionId);
+}
+
+test("EA-11: dos conversaciones del MISMO teléfono despachando a la vez, con tope 1: sale una sola", async () => {
+  const s = await escenario();
+  await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1 });
+  const otra = await s.conversacionPara(s.telefono, s.o); // otra vertical/bandeja del mismo teléfono
+  const transporte = new TransporteFalso();
+  transporte.demoraMs = 150; // el primero sigue «en vuelo» cuando el segundo decide
+  const provider = new MessagingProvider({ transporte, reloj: () => T0 });
+  for (const conversacionId of [s.conv.id, otra.id]) {
+    await s.db.$transaction((tx) => provider.encolar(tx, conversacionId, [s.auto("recordatorio")]));
+  }
+  const barrera = new Barrera(2);
+  const db = conBarreraAntesDeContar(barrera, 400, s.o.organizacionId);
+  const [a, b] = await Promise.all([provider.despachar(db, s.conv.id), provider.despachar(db, otra.id)]);
+
+  assert.equal(transporte.envios.filter((e) => e.tipo === "plantilla").length, 1, "sale una sola vez");
+  assert.equal(a.enviados + b.enviados, 1);
+  assert.deepEqual([...a.resultados, ...b.resultados].map((r) => [r.resultado, r.motivo]).sort(), [["bloqueado", "tope_frecuencia"], ["enviado", undefined]]);
+  assert.equal(barrera.completa, false, "el candado serializó la sección crítica: la segunda no pudo llegar a contar mientras la primera reclamaba");
+});
+
+test("EA-11: teléfonos distintos NO se estorban: las dos llegan a contar al mismo tiempo", async () => {
+  const s = await escenario();
+  await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1 });
+  const otra = await s.conversacionPara(telefonoNuevo(), s.o);
+  const transporte = new TransporteFalso();
+  const provider = new MessagingProvider({ transporte, reloj: () => T0 });
+  for (const conversacionId of [s.conv.id, otra.id]) {
+    await s.db.$transaction((tx) => provider.encolar(tx, conversacionId, [s.auto("recordatorio")]));
+  }
+  const barrera = new Barrera(2);
+  const db = conBarreraAntesDeContar(barrera, 3000, s.o.organizacionId);
+  await Promise.all([provider.despachar(db, s.conv.id), provider.despachar(db, otra.id)]);
+  assert.equal(barrera.completa, true, "ninguna esperó a la otra");
+  assert.equal(transporte.envios.filter((e) => e.tipo === "plantilla").length, 2, "cada teléfono tiene su propio tope");
+});
+
+test("EA-11: un mensaje en `enviando` (en curso) cuenta para el tope de quien llega después", async () => {
+  const s = await escenario();
+  await fijarConfiguracion(prisma, s.o.organizacionId, { max_automaticos_por_dia: 1 });
+  const otra = await s.conversacionPara(s.telefono, s.o);
+  // Un envío en curso de la otra conversación (reclamado hace un momento, sin resultado).
+  await s.db.mensaje.create({
+    data: altaConAlcance({ conversacion_id: otra.id, direccion: "saliente" as const, estatus: "enviando" as const, origen: "automatizacion" as const, cuerpo: "en vuelo", proveedor: "chatwoot", actualizado_en: T0 }),
+  });
+  assert.deepEqual(await s.mandar([s.auto()], T0), [tope]);
 });
