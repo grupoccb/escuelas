@@ -1,5 +1,8 @@
 # BITACORA-NOCHE.md
 
+**Resumen.** Quedó la Fase 1 completa (bloques 1.1–1.7) probada contra los fakes, más la prueba de fuego (segunda vertical solo con filas) y el catálogo mínimo de Fase 2: N0–N11 en HECHO, `validar` y `test:int` en verde, demo real verificada sobre la base migrada. No quedó nada contra Twilio, Meta o AWS reales (plantillas sincronizadas, estados reales, G0.3b), ni inscripciones, precios ni cotizador. **No marqué ningún gate**; `main` no se tocó.
+**Lo primero que debes ver:** (1) `docs/DECISION-ATRIBUCION.md`: la vía A funciona, pero Chatwoot 4.18 **no valida la firma de Twilio** y un reintento de Twilio **duplica** el mensaje; hay que elegir vía y poner un proxy que valide. (2) El calendario del lead a medias: **cambié el tiempo de espera de N5 de 30 min a 72 h** para que el reenganche (25 h) pueda disparar antes de pasar al asesor (ver N8). (3) Las decisiones de producto abiertas al final de cada bloque (qué hacer cuando alguien dado de baja vuelve a escribir, tarea por entrega fallida, horas `[SUPUESTO]` del catálogo).
+
 Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-NOCHE.md`.
 
 | Bloque | Estado | Commit | Nota |
@@ -300,3 +303,20 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 **Para Eduardo**
 - Confirmar con la escuela las horas de fin `[SUPUESTO]` y los cupos antes de usar el catálogo para cotizar.
 - Decidir si los traslapes de edad y los choques de salón deben impedirse en la base (hoy se detectan con la verificación).
+
+## Estado en que dejo el entorno
+
+- **Rama** `noche-fase1`, 24 commits sobre `main` (que no se tocó). Sin `git push`, merge ni reescritura de historia.
+- **Dependencias nuevas:** ninguna (`pg` ya estaba; se usa en pruebas para ejecutar los seeds).
+- **Docker (proyecto principal):** reconstruido con `docker compose up -d --build --wait`, sin `down -v`. `chatwoot` y `chatwoot-sidekiq` resuelven los dominios de Twilio a loopback (guarda contra tráfico real); `demo-preparar` aplica también el seed del catálogo.
+- **Restos de N2 en el Chatwoot local:** bandeja `N2 Twilio falso` (con una plantilla ficticia en su canal), Agent Bot `Captura N2` apuntando a una IP que ya no escucha, y contactos y mensajes de prueba. No afectan la demo (otra bandeja, otro bot). Se borran desde Ajustes → Bandejas.
+- **Base de pruebas** `inscripciones_pruebas`: acumula organizaciones de las corridas de `test:int` (cada prueba crea las suyas). Las bases temporales que creé (`inscripciones_n3`, `_n3b`, `_n5`, `_n11`) ya se borraron.
+- **`.tmp/`** (en `.gitignore`, y excluida de ESLint y de `check:generico`): borradores y respaldos de mutación. Se puede borrar.
+- **Guardas intactas:** no debilité ninguna guarda `check:*` ni salté tests. Cambios en tests existentes: solo las expectativas que dependen de campos o textos nuevos (anotados en N4, N6 y N7).
+
+## Pendiente con credenciales reales (nada de esto se simuló con suposiciones)
+
+- Que Twilio mande los `Referral*` de un anuncio Click-to-WhatsApp real (G0.3b) y que Chatwoot los conserve (N2/P1).
+- Envío real de plantillas (Content Templates) y su estado de aprobación; sincronización de plantillas (N2/P2, N8).
+- Estados de entrega reales (`delivered`/`read`/`failed`) con plantillas (N7).
+- Prueba en teléfonos reales con Telcel, AT&T y Movistar (gate de Fase 1).
