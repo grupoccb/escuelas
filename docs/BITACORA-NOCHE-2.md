@@ -982,3 +982,12 @@ Mutaciones atrapadas: quitar el candado, posición +2, no sacar de en medio al r
 3. Si el cliente puede recibir la cotización sin revisión de un asesor mientras precios, cupos y promociones del seed sigan siendo `[SUPUESTO]`.
 4. Textos del bot (genéricos): tono de la cotización, de la oferta de otra sucursal y de la lista de espera.
 5. Política `sucursal_sin_programa` por defecto (`ofrecer_otra`) —decisión 8 ya tomada— y quién la cambia (hoy SQL).
+
+**Verificación del último commit de código de C5 a C9** (árbol limpio; el último ajuste fue un test que dependía del orden de dos filas escritas en la misma transacción):
+```
+$ npm run validar                      → exit 0 · tests 392 · pass 392 · fail 0
+$ npm run test:int                     → exit 0 · tests 482 · pass 482 · fail 0   (1.ª corrida)
+$ npm run test:int                     → exit 0 · tests 482 · pass 482 · fail 0   (2.ª corrida seguida)
+$ DATABASE_URL_PRUEBAS=…/vacia_c9_pruebas npm run test:int → exit 0 · tests 482 · pass 482 · fail 0   (base NUEVA y vacía; luego se borró)
+```
+Línea base al empezar C5: validar 319 tests, test:int 394. Dos fallos intermitentes vistos y resueltos/anotados: (1) `cotizaciones.itest.ts` comparaba el ORDEN de dos filas de `registro_cambio` escritas en la misma transacción (comparten `creado_en`): ahora compara el conjunto; (2) una vez, en una corrida de `validar`, `src/http/twilio.test.ts` («respuestas del borde…») dio 404 en vez de 500; no se reprodujo en 6 corridas aisladas ni en las dos siguientes de `validar`. **No es de este trabajo** (no toca ese archivo ni la ruta), pero conviene vigilarlo: parece una intermitencia previa del test del borde.

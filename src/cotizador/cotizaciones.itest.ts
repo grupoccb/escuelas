@@ -136,8 +136,10 @@ test("una cotización nueva del mismo prospecto y programa reemplaza (vence) a l
   assert.equal(l.cuerpo.paginacion.total, 2);
   assert.deepEqual(l.cuerpo.datos.map((c) => [c.id, c.estatus]), [[segunda.cuerpo.id, "vigente"], [primera.cuerpo.id, "vencida"]], "la más reciente primero");
   // El registro de cambios dice quién cotizó y cuál se reemplazó.
-  const cambios = await db().registro_cambio.findMany({ where: { entidad_tipo: "cotizacion", entidad_id: { in: [primera.cuerpo.id, segunda.cuerpo.id] } }, orderBy: { creado_en: "asc" } });
-  assert.deepEqual(cambios.map((x) => [x.accion, x.entidad_id]), [["crear", primera.cuerpo.id], ["actualizar", primera.cuerpo.id], ["crear", segunda.cuerpo.id]]);
+  // (El orden dentro de una misma transacción no está definido —comparten la hora—: se compara el conjunto.)
+  const cambios = await db().registro_cambio.findMany({ where: { entidad_tipo: "cotizacion", entidad_id: { in: [primera.cuerpo.id, segunda.cuerpo.id] } } });
+  const como = (a: string, id: string) => `${a}:${id}`;
+  assert.deepEqual(cambios.map((x) => como(x.accion, x.entidad_id)).sort(), [como("crear", primera.cuerpo.id), como("actualizar", primera.cuerpo.id), como("crear", segunda.cuerpo.id)].sort());
   // Otro programa del mismo prospecto no la reemplaza.
   const otra = await cotizar(asesorNorte, lead.id, { prospecto_id: pro.id, programa_id: pSur.id }); // Sur: fuera del alcance de este asesor
   assert.equal(otra.estado, 400);
