@@ -57,54 +57,91 @@ export interface ResumenMotor {
   fallidas: number;
   /** Ejecuciones abandonadas y envíos inciertos que el barrido de recuperación resolvió. */
   recuperadas: number;
+  /**
+   * Fases, automatizaciones, conversaciones o ejecuciones cuyo trabajo falló y se saltó (EA-07).
+   * Un error persistente de UN elemento nunca detiene a los demás ni a otras organizaciones.
+   */
+  errores: number;
 }
 
 export async function correrAutomatizaciones(deps: DepsMotor): Promise<ResumenMotor> {
-  const resumen: ResumenMotor = { programadas: 0, enviadas: 0, reprogramadas: 0, omitidas: 0, descartadas: 0, fallidas: 0, recuperadas: 0 };
+  const resumen: ResumenMotor = { programadas: 0, enviadas: 0, reprogramadas: 0, omitidas: 0, descartadas: 0, fallidas: 0, recuperadas: 0, errores: 0 };
   const ahora = deps.reloj?.() ?? new Date();
   const organizaciones = (await listarOrganizaciones(deps.prisma)).filter(
     (o) => deps.organizacionId === undefined || o.id === deps.organizacionId,
   );
   for (const org of organizaciones) {
     const db = conAlcance(deps.prisma, org.id);
-    await recuperarAbandonadas(deps, db, ahora, resumen);
-    resumen.programadas += await programarReenganches(db, ahora);
-    await ejecutarVencidas(deps, db, ahora, resumen);
+    // Cada fase va aislada (EA-07): si programar falla, la recuperación de lo que un proceso muerto
+    // dejó a medias (F1-01) y el envío de lo ya programado corren igual, y otra organización también.
+    await aislado(resumen, { organizacionId: org.id, fase: "recuperar" }, () => recuperarAbandonadas(deps, db, ahora, resumen));
+    await aislado(resumen, { organizacionId: org.id, fase: "programar" }, async () => {
+      resumen.programadas += await programarReenganches(db, ahora, resumen);
+    });
+    await aislado(resumen, { organizacionId: org.id, fase: "ejecutar" }, () => ejecutarVencidas(deps, db, ahora, resumen));
   }
   return resumen;
+}
+
+/** Corre un trabajo; si lanza, lo registra y lo cuenta en vez de detener al resto (EA-07). */
+async function aislado(resumen: ResumenMotor, donde: Record<string, unknown>, trabajo: () => Promise<void>): Promise<void> {
+  try {
+    await trabajo();
+  } catch (e) {
+    resumen.errores++;
+    log.error("motor_error", { ...donde, error: (e as Error).message });
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
 // 1. Programar
 
-async function programarReenganches(db: BaseDatos, ahora: Date): Promise<number> {
+async function programarReenganches(db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<number> {
   let programadas = 0;
-  const automatizaciones = await db.automatizacion.findMany({ where: { activo: true, evento_disparador: "lead_sin_respuesta" } });
+  const automatizaciones = await db.automatizacion.findMany({
+    where: { activo: true, evento_disparador: "lead_sin_respuesta" },
+    orderBy: { creado_en: "asc" },
+  });
 
+  // Una automatización defectuosa (zona horaria inválida, etc.) no detiene a las demás (EA-07).
   for (const a of automatizaciones) {
-    const corte = new Date(ahora.getTime() - a.offset_minutos * MINUTO_MS);
-    const conversaciones = await db.conversacion.findMany({
-      where: {
-        estado: "bot",
-        pasar_a_asesor_pendiente: false,
-        paso_captacion: { in: ["nombre", "edad", "sucursal"] },
-        ultimo_mensaje_entrante_en: { lte: corte },
-        lead: {
-          eliminado_en: null, // un lead borrado no recibe nada (F1-05)
-          ...(a.vertical_id ? { vertical_interes_id: a.vertical_id } : {}),
-          ...(a.sucursal_id ? { sucursal_interes_id: a.sucursal_id } : {}),
-        },
-      },
-      select: {
-        id: true,
-        ultimo_mensaje_entrante_en: true,
-        lead: { select: { sucursal_interes_id: true, vertical_interes_id: true } },
-        bandeja_chatwoot: { select: { canal_whatsapp: { select: { sucursal_id: true } } } },
-      },
+    await aislado(resumen, { automatizacionId: a.id, fase: "programar" }, async () => {
+      programadas += await programarUna(db, a, ahora, resumen);
     });
+  }
+  return programadas;
+}
 
-    for (const c of conversaciones) {
-      if (!c.ultimo_mensaje_entrante_en) continue;
+type AutomatizacionParaProgramar = Awaited<ReturnType<BaseDatos["automatizacion"]["findMany"]>>[number];
+
+async function programarUna(db: BaseDatos, a: AutomatizacionParaProgramar, ahora: Date, resumen: ResumenMotor): Promise<number> {
+  let programadas = 0;
+  const corte = new Date(ahora.getTime() - a.offset_minutos * MINUTO_MS);
+  const conversaciones = await db.conversacion.findMany({
+    where: {
+      estado: "bot",
+      pasar_a_asesor_pendiente: false,
+      paso_captacion: { in: ["nombre", "edad", "sucursal"] },
+      ultimo_mensaje_entrante_en: { lte: corte },
+      lead: {
+        eliminado_en: null, // un lead borrado no recibe nada (F1-05)
+        ...(a.vertical_id ? { vertical_interes_id: a.vertical_id } : {}),
+        ...(a.sucursal_id ? { sucursal_interes_id: a.sucursal_id } : {}),
+      },
+    },
+    select: {
+      id: true,
+      ultimo_mensaje_entrante_en: true,
+      lead: { select: { sucursal_interes_id: true, vertical_interes_id: true } },
+      bandeja_chatwoot: { select: { canal_whatsapp: { select: { sucursal_id: true } } } },
+    },
+    orderBy: { creado_en: "asc" },
+  });
+
+  for (const c of conversaciones) {
+    // Una conversación con datos defectuosos no detiene a las demás (EA-07).
+    await aislado(resumen, { automatizacionId: a.id, conversacionId: c.id, fase: "programar" }, async () => {
+      if (!c.ultimo_mensaje_entrante_en) return;
       const previas = await db.automatizacion_ejecucion.findMany({
         where: { automatizacion_id: a.id, entidad_tipo: "conversacion", entidad_id: c.id },
         orderBy: { ocurrencia: "desc" },
@@ -113,12 +150,12 @@ async function programarReenganches(db: BaseDatos, ahora: Date): Promise<number>
       });
       const ultima = previas[0];
       const n = ultima ? ultima.ocurrencia + 1 : 1;
-      if (n > a.max_intentos) continue;
+      if (n > a.max_intentos) return;
       // Otro intento solo después de que el anterior salió.
-      if (ultima && ultima.estatus !== "enviado") continue;
+      if (ultima && ultima.estatus !== "enviado") return;
 
       const nominal = new Date(c.ultimo_mensaje_entrante_en.getTime() + n * a.offset_minutos * MINUTO_MS);
-      if (nominal.getTime() > ahora.getTime()) continue;
+      if (nominal.getTime() > ahora.getTime()) return;
 
       const zona = await zonaHorariaDeContacto(db, c.lead.sucursal_interes_id, c.bandeja_chatwoot.canal_whatsapp.sucursal_id, c.lead.vertical_interes_id);
       // Dentro del horario de la propia automatización, que solo puede ser más estrecho que 09:00–20:00.
@@ -131,7 +168,7 @@ async function programarReenganches(db: BaseDatos, ahora: Date): Promise<number>
         skipDuplicates: true,
       });
       programadas += r.count;
-    }
+    });
   }
   return programadas;
 }
@@ -297,51 +334,58 @@ async function recuperarAbandonadas(deps: DepsMotor, db: BaseDatos, ahora: Date,
     take: POR_CORRIDA,
   });
   for (const e of abandonadas) {
-    // Quien gana este reclamo (mismo ejecutado_en que se leyó) resuelve; los demás motores la saltan.
-    const reclamo = await db.automatizacion_ejecucion.updateMany({
-      where: { id: e.id, estatus: "programado", ejecutado_en: e.ejecutado_en },
-      data: { ejecutado_en: ahora },
-    });
-    if (reclamo.count !== 1) continue;
+    // Una ejecución que no se deja recuperar no detiene a las demás (EA-07).
+    await aislado(resumen, { ejecucionId: e.id, fase: "recuperar" }, () => recuperarUna(deps, db, e, ahora, resumen));
+  }
+}
 
-    const cierre = async (estatus: "enviado" | "fallido" | "omitido", motivo: string | null): Promise<void> => {
-      await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus, motivo_omision: motivo } });
-      resumen.recuperadas++;
-      log.warn("automatizacion_recuperada", { ejecucionId: e.id, estatus, motivo });
-    };
+type EjecucionAbandonada = Awaited<ReturnType<BaseDatos["automatizacion_ejecucion"]["findMany"]>>[number];
 
-    const mensaje = e.mensaje_id ? await db.mensaje.findFirst({ where: { id: e.mensaje_id } }) : null;
-    // Sin mensaje no se puede probar que nada salió (ejecuciones anteriores a que el mensaje se
-    // ligara a la ejecución): no se reintenta.
-    if (!mensaje) {
+async function recuperarUna(deps: DepsMotor, db: BaseDatos, e: EjecucionAbandonada, ahora: Date, resumen: ResumenMotor): Promise<void> {
+  // Quien gana este reclamo (mismo ejecutado_en que se leyó) resuelve; los demás motores la saltan.
+  const reclamo = await db.automatizacion_ejecucion.updateMany({
+    where: { id: e.id, estatus: "programado", ejecutado_en: e.ejecutado_en },
+    data: { ejecutado_en: ahora },
+  });
+  if (reclamo.count !== 1) return;
+
+  const cierre = async (estatus: "enviado" | "fallido" | "omitido", motivo: string | null): Promise<void> => {
+    await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus, motivo_omision: motivo } });
+    resumen.recuperadas++;
+    log.warn("automatizacion_recuperada", { ejecucionId: e.id, estatus, motivo });
+  };
+
+  const mensaje = e.mensaje_id ? await db.mensaje.findFirst({ where: { id: e.mensaje_id } }) : null;
+  // Sin mensaje no se puede probar que nada salió (ejecuciones anteriores a que el mensaje se
+  // ligara a la ejecución): no se reintenta.
+  if (!mensaje) {
+    await cierre("fallido", "ejecucion_abandonada");
+    return;
+  }
+  if (mensaje.id_externo !== null || mensaje.estatus === "enviado" || mensaje.estatus === "entregado" || mensaje.estatus === "leido") {
+    await cierre("enviado", null);
+    return;
+  }
+  switch (mensaje.estatus) {
+    case "pendiente": {
+      // Nunca salió ni saldrá: se cancela para que no aparezca después, fuera de contexto.
+      await db.mensaje.updateMany({
+        where: { id: mensaje.id, estatus: "pendiente" },
+        data: { estatus: "bloqueado", motivo_bloqueo: "ejecucion_abandonada" },
+      });
       await cierre("fallido", "ejecucion_abandonada");
-      continue;
+      break;
     }
-    if (mensaje.id_externo !== null || mensaje.estatus === "enviado" || mensaje.estatus === "entregado" || mensaje.estatus === "leido") {
-      await cierre("enviado", null);
-      continue;
+    case "enviando": {
+      await deps.mensajeria.recuperarEnviosInciertos(db, { desde: ahora, mensajeId: mensaje.id });
+      await cierre("fallido", ENVIO_INCIERTO);
+      break;
     }
-    switch (mensaje.estatus) {
-      case "pendiente": {
-        // Nunca salió ni saldrá: se cancela para que no aparezca después, fuera de contexto.
-        await db.mensaje.updateMany({
-          where: { id: mensaje.id, estatus: "pendiente" },
-          data: { estatus: "bloqueado", motivo_bloqueo: "ejecucion_abandonada" },
-        });
-        await cierre("fallido", "ejecucion_abandonada");
-        break;
-      }
-      case "enviando": {
-        await deps.mensajeria.recuperarEnviosInciertos(db, { desde: ahora, mensajeId: mensaje.id });
-        await cierre("fallido", ENVIO_INCIERTO);
-        break;
-      }
-      case "bloqueado":
-        await cierre("omitido", mensaje.motivo_bloqueo ?? "bloqueado");
-        break;
-      default:
-        await cierre("fallido", mensaje.error === ENVIO_INCIERTO ? ENVIO_INCIERTO : "envio_fallido");
-    }
+    case "bloqueado":
+      await cierre("omitido", mensaje.motivo_bloqueo ?? "bloqueado");
+      break;
+    default:
+      await cierre("fallido", mensaje.error === ENVIO_INCIERTO ? ENVIO_INCIERTO : "envio_fallido");
   }
 }
 

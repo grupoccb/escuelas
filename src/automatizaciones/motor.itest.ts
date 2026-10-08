@@ -12,6 +12,7 @@ import { ENVIO_INCIERTO, MessagingProvider, TransporteFalso, type EventoEntrante
 import type { TransporteConversaciones } from "../mensajeria/transporte.ts";
 import { normalizarTelefono } from "../lib/telefono.ts";
 import { fijarConfiguracion, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { conGanchos } from "../testutil/carrera.ts";
 import { correrAutomatizaciones, RECLAMO_VENCE_MS, type DepsMotor } from "./motor.ts";
 
 let prisma: PrismaClient;
@@ -629,4 +630,128 @@ test("F1-05: si el lead se borra después de programarse, la ejecución se omite
   assert.equal(s.transporte.envios.length, 0);
   const [e] = await s.ejecuciones();
   assert.deepEqual([e!.estatus, e!.motivo_omision], ["omitido", "lead_eliminado"]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// EA-07: aislamiento de fallos. Un error persistente de UN elemento no detiene a los demás.
+
+/** Otra conversación a medias de la misma organización, con su lead en la sucursal indicada. */
+async function otraConversacion(s: Awaited<ReturnType<typeof escenario>>, sucursalId: string) {
+  const id = String(siguiente++);
+  const conversacion = randomInt(1, 2_000_000_000);
+  const r = await procesarEntrante(s.antes, {
+    chatwootAccountId: s.o.chatwootAccountId,
+    chatwootInboxId: s.o.chatwootInboxId,
+    chatwootConversacionId: conversacion,
+    idMensaje: id,
+    contenido: "Hola",
+    estadoConversacion: "pending",
+    contacto: { nombre: "Papá", telefono: `+52155${randomInt(10_000_000, 99_999_999)}` },
+    creadoEn: null,
+    llave: { proveedor: "chatwoot", id },
+    numeroReceptor: null,
+    crudo: null,
+  });
+  const conversacionId = r.conversacionId!;
+  const conv = await s.db.conversacion.findUniqueOrThrow({ where: { id: conversacionId } });
+  await s.db.lead.update({ where: { id: conv.lead_id }, data: { sucursal_interes_id: sucursalId } });
+  return conversacionId;
+}
+
+test("EA-07: una conversación con datos defectuosos (zona horaria inválida) no impide programar a las demás", async () => {
+  const s = await escenario();
+  const [norte, sur] = s.o.sucursales;
+  await s.db.sucursal.update({ where: { id: norte!.id }, data: { zona_horaria: "Marte/Olimpo" } });
+  const mala = s.conversacionId; // primera en crearse
+  await s.db.lead.update({ where: { id: (await s.conv()).lead_id }, data: { sucursal_interes_id: norte!.id } });
+  const buena = await otraConversacion(s, sur!.id);
+
+  const r = await s.motor(en(T0, 26));
+  assert.equal(r.errores, 1, "el defectuoso se cuenta");
+  assert.equal(r.programadas, 1);
+  const ejecuciones = await s.ejecuciones();
+  assert.deepEqual(ejecuciones.map((e) => e.entidad_id), [buena]);
+  assert.ok(mala);
+});
+
+test("EA-07: una automatización que falla al leer no detiene a las demás de la organización", async () => {
+  const s = await escenario();
+  const [norte, sur] = s.o.sucursales;
+  const buena = await otraConversacion(s, sur!.id);
+  await s.db.lead.update({ where: { id: (await s.conv()).lead_id }, data: { sucursal_interes_id: norte!.id } });
+  // Dos automatizaciones, una por sucursal; la de Norte no puede leer sus conversaciones.
+  await s.db.automatizacion.update({ where: { id: s.automatizacion.id }, data: { sucursal_id: norte!.id } });
+  const deSur = await s.db.automatizacion.create({
+    data: { organizacion_id: s.o.organizacionId, nombre: "Sur", evento_disparador: "lead_sin_respuesta", offset_minutos: 1500, plantilla_id: s.plantilla.id, sucursal_id: sur!.id },
+  });
+  const raiz = conGanchos(prisma, {
+    modelo: "conversacion",
+    operacion: "findMany",
+    cuando: (args) => JSON.stringify(args["where"]).includes(norte!.id),
+    antes: async () => {
+      throw new Error("falló la lectura de la automatización de Norte");
+    },
+  });
+  const r = await s.motor(en(T0, 26), { prisma: raiz });
+  assert.equal(r.errores, 1);
+  const ejecuciones = await s.ejecuciones();
+  assert.deepEqual(ejecuciones.map((e) => [e.automatizacion_id, e.entidad_id]), [[deSur.id, buena]]);
+});
+
+test("EA-07: si programar falla por completo, igual se ejecuta lo ya programado (las fases van aisladas)", async () => {
+  const s = await escenario();
+  await s.db.automatizacion_ejecucion.create({
+    data: { automatizacion_id: s.automatizacion.id, entidad_tipo: "conversacion", entidad_id: s.conversacionId, ocurrencia: 1, programado_para: en(T0, 25), organizacion_id: s.o.organizacionId },
+  });
+  const raiz = conGanchos(prisma, {
+    modelo: "automatizacion",
+    operacion: "findMany",
+    antes: async () => {
+      throw new Error("falló programar");
+    },
+  });
+  const r = await s.motor(en(T0, 26), { prisma: raiz });
+  assert.equal(r.errores, 1);
+  assert.equal(r.enviadas, 1, "lo programado salió");
+});
+
+test("EA-07: una ejecución abandonada que no se deja recuperar no impide recuperar las demás", async () => {
+  const s = await escenario();
+  const ahora = en(T0, 26);
+  const sur = s.o.sucursales[1]!;
+  const segunda = await otraConversacion(s, sur.id);
+  const mensajes: string[] = [];
+  for (const conversacionId of [s.conversacionId, segunda]) {
+    const m = await s.db.mensaje.create({
+      data: { organizacion_id: s.o.organizacionId, conversacion_id: conversacionId, direccion: "saliente", estatus: "pendiente", origen: "automatizacion", cuerpo: "recordatorio", proveedor: "chatwoot" },
+    });
+    mensajes.push(m.id);
+    await s.db.automatizacion_ejecucion.create({
+      data: {
+        organizacion_id: s.o.organizacionId,
+        automatizacion_id: s.automatizacion.id,
+        entidad_tipo: "conversacion",
+        entidad_id: conversacionId,
+        ocurrencia: 1,
+        programado_para: en(ahora, -1),
+        ejecutado_en: new Date(ahora.getTime() - RECLAMO_VENCE_MS - MINUTO),
+        mensaje_id: m.id,
+      },
+    });
+  }
+  // La primera ejecución que se intenta recuperar lanza al leer su mensaje; la otra debe resolverse.
+  let lanzo = false;
+  const raiz = conGanchos(prisma, {
+    modelo: "mensaje",
+    operacion: "findFirst",
+    cuando: (args) => mensajes.some((id) => JSON.stringify(args["where"]).includes(id)),
+    antes: async () => {
+      if (lanzo) return;
+      lanzo = true;
+      throw new Error("falló la lectura del mensaje");
+    },
+  });
+  const r = await s.motor(ahora, { prisma: raiz });
+  assert.equal(r.errores, 1);
+  assert.equal(r.recuperadas, 1, "la otra sí se recuperó");
 });

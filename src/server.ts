@@ -1,7 +1,6 @@
 import { iniciarBarrido } from "./barrido.ts";
-import { correrAutomatizaciones } from "./automatizaciones/motor.ts";
+import { correrCiclo } from "./ciclo.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
-import { barrerTiemposDeEspera } from "./captacion/espera.ts";
 import { registrarTomaDeConversacion } from "./captacion/toma.ts";
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
@@ -32,14 +31,11 @@ const server = app.listen(port, () => {
   log.info("backend_escuchando", { port, transporte: mensajeria.transporte, twilio: twilio.authToken && twilio.publicBaseUrl ? `activo (reenvío ${twilio.reenvio})` : "apagado" });
 });
 
-// Cada minuto: el tiempo de espera del bot y las automatizaciones (reenganche y recuperación de
-// lo que un proceso muerto dejó a medias). Uno tras otro, no en paralelo, para que no se pisen
-// sobre la misma conversación.
+// Cada minuto, un ciclo (ver ciclo.ts): espera del bot y automatizaciones, cada uno aislado del otro.
 const barrido = iniciarBarrido({
   intervaloMs: 60_000,
   tarea: async () => {
-    await barrerTiemposDeEspera({ prisma, mensajeria: mensajeria.provider });
-    await correrAutomatizaciones({ prisma, mensajeria: mensajeria.provider });
+    await correrCiclo({ prisma, mensajeria: mensajeria.provider });
   },
 });
 
