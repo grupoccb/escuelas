@@ -18,7 +18,11 @@ import { cookieSeguraDesdeEntorno } from "./cookies.ts";
 import { origenesPermitidosDesdeEntorno, proteccionCsrf } from "./csrf.ts";
 import { noEncontrado } from "./errores.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
+import { rutasDeGrupos } from "./rutas/grupos.ts";
+import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDeSesionPropia, rutasPublicasDeSesion } from "./rutas/sesion.ts";
+import { rutasDeTareas } from "./rutas/tareas.ts";
+import { rutasDeUsuarios } from "./rutas/usuarios.ts";
 
 export interface ApiDepsEntrada {
   prisma: PrismaRaiz;
@@ -54,6 +58,10 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasPublicasDeSesion(deps));
 
   api.use(rutasDeSesionPropia(deps));
+  api.use(rutasDeUsuarios(deps));
+  api.use(rutasDeGrupos(deps));
+  api.use(rutasDeTareas(deps));
+  api.use(rutasDeLeads(deps));
 
   // Cualquier otra ruta de /api: 404 con la convención.
   api.use(() => {

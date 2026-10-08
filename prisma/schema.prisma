@@ -64,6 +64,7 @@ model organizacion {
   usuarios_sucursales        usuario_sucursal[]
   sesiones                   sesion[]
   intentos_acceso            intento_acceso[]
+  instructores               instructor[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -839,6 +840,8 @@ model grupo {
   salon                String?
   cupo_maximo          Int
   permite_lista_espera Boolean   @default(false)
+  /// Quién imparte el grupo. Opcional: un grupo puede no tener instructor asignado todavía.
+  instructor_id        String?   @db.Uuid
   activo               Boolean   @default(true)
   creado_en            DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
@@ -846,6 +849,7 @@ model grupo {
 
   organizacion organizacion    @relation(fields: [organizacion_id], references: [id])
   programa     programa        @relation(fields: [programa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  instructor   instructor?     @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   horarios     grupo_horario[]
 
   @@unique([id, organizacion_id])
@@ -903,6 +907,7 @@ model usuario {
   organizacion organizacion       @relation(fields: [organizacion_id], references: [id])
   sucursales   usuario_sucursal[]
   sesiones     sesion[]
+  instructores instructor[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -969,4 +974,29 @@ model intento_acceso {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([organizacion_id, correo, ip, creado_en])
+}
+
+// ── Instructores (B2) ──────────────────────────────────────────────────────────────────
+
+/// Quien imparte grupos. Mínimo a propósito: C1 lo amplía (salones, disponibilidad). Un maestro (rol)
+/// ve solo los grupos cuyo instructor está ligado a su usuario. Un usuario tiene a lo más un
+/// instructor vivo (índice parcial en la migración).
+model instructor {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  /// El usuario con el que entra, si tiene cuenta. Un instructor puede existir sin usuario.
+  usuario_id      String?   @db.Uuid
+  nombre          String
+  activo          Boolean   @default(true)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  usuario      usuario?     @relation(fields: [usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  grupos       grupo[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([usuario_id])
 }

@@ -15,7 +15,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | A8 | HECHO | (ver git log) | SPEC.md al día: Fase 1 como quedó, Fases 2 y 3 detalladas |
 | A-fix | HECHO (2 pendientes, 1 decisión) | 46645c0…4ac0bb0 | Correcciones de la auditoría de la etapa A (`docs/auditorias/etapa-A.md`): ver la sección «Correcciones de la auditoría de la etapa A» |
 | B1 | HECHO | (ver git log) | Usuarios, roles, sesiones y contraseñas con scrypt; login con bloqueo; CSRF |
-| B2 | PENDIENTE | | Autorización por rol y sucursal |
+| B2 | HECHO | (ver git log) | Matriz permiso×rol, alcance por sucursal y por grupo del maestro, usuarios/grupos/tareas/leads |
 | B3 | PENDIENTE | | API base |
 | B4 | PENDIENTE | | Datos sensibles |
 | B5 | PENDIENTE | | Usuario y agente de Chatwoot |
@@ -492,3 +492,31 @@ Herramienta: un script que aplica la mutación a una copia del archivo, corre lo
 **Para Eduardo**
 - La contraseña de los usuarios de demo es conocida y está en el repo a propósito; no usar ese seed fuera de la demo.
 - Decidir si se quiere 2FA o inicio de sesión con terceros más adelante (hoy fuera de alcance por la decisión 11).
+
+## B2. Autorización por rol y sucursal
+
+**Qué se hizo**
+- **Matriz en un solo archivo**, `src/api/permisos.ts`: permisos `recurso:acción` → roles (`usuarios:administrar`, `leads:leer|escribir`, `tareas:leer|resolver`, `conversaciones:leer`, `grupos:leer`, `catalogo:leer|escribir`, `registro_cambios:leer`, `salud:leer|escribir`). Lo que no está, se niega. `requierePermiso(...)` (`src/api/autorizar.ts`) es el único modo en que una ruta decide; el nombre del permiso es un tipo, así que uno inexistente no compila.
+- **Alcance** (`src/api/alcance.ts`): `alcanceDeSucursales(db, usuario)` (administrador: todas; asesor y recepción: las de `usuario_sucursal`), `filtroDeSucursal()` para armar el `where`, y `ctx.alcance()` memoizado por petición. Un maestro se limita por GRUPOS: la tabla nueva `instructor` (migración `20261010010000_instructor_y_grupo`: `organizacion_id`, `usuario_id` opcional único entre los vivos, `nombre`, `activo`) y `grupo.instructor_id` (FK compuesta opcional). No hay salones ni choques (C1).
+- **Rutas reales** (todas con `autenticar` + `requierePermiso`): `GET /api/yo` (usuario, sucursales, permisos), `GET|POST /api/usuarios` y `PATCH /api/usuarios/:id` (administrador), `GET /api/grupos`, `GET /api/tareas`, `PATCH /api/tareas/:id` (hecha/descartada, atómico), `GET /api/leads` y `GET /api/leads/:id`.
+- **Reglas de usuarios**: el correo no se cambia; no puedes desactivarte ni quitarte el rol de administrador; nunca queda la organización sin un administrador activo (comprobado bajo el candado `usuarios:administradores`); desactivar, cambiar el rol o restablecer la contraseña cierra sus sesiones; un usuario con rol maestro tiene su `instructor` (se crea si falta); las sucursales se reemplazan marcando eliminadas las que sobran.
+- **Un recurso fuera de tu alcance o de otra organización da 404**, nunca 403 (no se confirma que exista). Un id mal formado da 400.
+- Se adelantó de B3 lo que las listas necesitan: `src/api/paginacion.ts` (`?limite=&pagina=`, tope de 100, respuesta `{datos, paginacion}`).
+- Seed: el instructor del maestro de la demo y tres grupos suyos (`Lun-Mié…`) en `catalogo.sql`. Los ids del seed pasaron a la convención de 3 dígitos (`…501`, `…511`, `…521`) para que los tests puedan re-prefijarlos.
+
+**Verificación**
+- `npm run validar` → exit 0 (`check:generico: 173 archivos`, `check:capas: 65 archivos`); `npm run test:int` → exit 0 · `ℹ tests 287 · pass 287 · fail 0` (antes 265).
+- `permisos.test.ts` (4): la matriz comparada con una copia escrita a mano (cambiarla obliga a cambiar el test), el administrador lo tiene todo, salud solo administrador y maestro.
+- `autorizacion.itest.ts` (22): la tabla permiso × rol (12 permisos × 4 roles = 48 comprobaciones, 200/403, sobre una ruta de sonda con `requierePermiso`) y la tabla de las rutas reales por rol; alcance de leads, tareas y grupos por rol y sucursal; el maestro solo ve sus grupos (y uno sin grupos ve la lista vacía); seis resoluciones simultáneas de una tarea → 1 vez 200 y 5 veces 409; altas simultáneas del mismo correo → una; dos administradores que se quitan el rol a la vez → queda uno; no-fuga entre organizaciones en las dos direcciones (leer, modificar, listar y filtrar con ids ajenos).
+- Mutaciones atrapadas: candado de «último administrador» → `$transaction` simple; filtro de sucursal en el PATCH de tareas y en el detalle de leads; filtro del maestro; resolver sin `estado: pendiente`.
+
+**Decisiones que tomé**
+- *Un lead sin sucursal lo ve solo el administrador.* Alternativa descartada: que cualquier asesor vea los leads sin sucursal (para atenderlos); los dejaría ver teléfonos de otras sucursales. Si quieres lo contrario, es una línea en `filtroDeSucursal`.
+- *Recepción NO tiene `salud:*` ni `tareas:*` ni `conversaciones:leer`*; el asesor tampoco tiene `salud:*`. Mínimo privilegio; ampliar es una fila en la matriz.
+- *El permiso `salud:leer` del maestro se queda corto a propósito*: «maestro del grupo» necesita la inscripción (F3); hasta entonces B4 falla cerrado para el maestro.
+- *404 y no 403* para lo ajeno. Alternativa descartada: 403 (confirma que el id existe).
+- *El `instructor` se crea al crear o promover a un maestro* para que «sus grupos» funcione sin otro paso. Alternativa descartada: alta manual del instructor (C1 lo hará con salones y disponibilidad).
+- *Sin registro de cambios todavía*: las escrituras de este bloque lo reciben en B3.
+
+**Para Eduardo**
+- Revisar la matriz (`src/api/permisos.ts`): sobre todo que recepción no vea tareas ni conversaciones y que el asesor no escriba el catálogo.

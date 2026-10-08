@@ -8,6 +8,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { DepsAcceso } from "../auth/acceso.ts";
 import type { UsuarioDeSesion } from "../auth/sesiones.ts";
 import { normalizarIp } from "../http/ip.ts";
+import { alcanceDeSucursales, type AlcanceDeSucursales } from "./alcance.ts";
 
 /** Dependencias de la API ya resueltas (con sus valores por defecto). */
 export interface DepsApi {
@@ -26,18 +27,23 @@ export interface ContextoApi {
   db: BaseDatos;
   ip: string;
   ahora(): Date;
+  /** Sucursales que ve el usuario (se consulta una vez por petición). */
+  alcance(): Promise<AlcanceDeSucursales>;
 }
 
 const LLAVE = "contexto";
 
 export function fijarContexto(res: Response, req: Request, deps: DepsApi, usuario: UsuarioDeSesion, sesionId: string): ContextoApi {
+  const db = conAlcance(deps.prisma, usuario.organizacionId);
+  let alcance: Promise<AlcanceDeSucursales> | undefined;
   const ctx: ContextoApi = {
     usuario,
     sesionId,
     organizacionId: usuario.organizacionId,
-    db: conAlcance(deps.prisma, usuario.organizacionId),
+    db,
     ip: normalizarIp(req.ip),
     ahora: deps.reloj,
+    alcance: () => (alcance ??= alcanceDeSucursales(db, usuario)),
   };
   res.locals[LLAVE] = ctx;
   return ctx;

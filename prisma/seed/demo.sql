@@ -79,16 +79,22 @@ ON CONFLICT DO NOTHING;
 -- administrador se crea con `scripts/crear-usuario.ts` y NUNCA se corre este seed.
 -- El correo del asesor coincide con el del agente de Chatwoot de la demo (para vincularlos, B5).
 INSERT INTO usuario (id, organizacion_id, correo, nombre, rol, contrasena_hash, activo) VALUES
-  ('00000000-0000-4000-8000-000000001001', '00000000-0000-4000-8000-000000000001', 'admin@demo.test',     'Administrador demo', 'administrador', 'scrypt$32768$8$3$OQkFfX_NJYpeRxcQeU9G0A$M1mgs8FZQBb7imOJUKM3EXr7b1oY2CMKQ6t5Z1zHYI4', true),
-  ('00000000-0000-4000-8000-000000001002', '00000000-0000-4000-8000-000000000001', 'asesor@demo.test',    'Asesor demo',        'asesor',        'scrypt$32768$8$3$d1Bw6qFmJ58LV3GP_nopAg$pqsTWIV2qd5FhzLAqpYCp6MZLkg_XeG9-TB3SPFhHy4', true),
-  ('00000000-0000-4000-8000-000000001003', '00000000-0000-4000-8000-000000000001', 'maestro@demo.test',   'Maestro demo',       'maestro',       'scrypt$32768$8$3$cKzvj_ErPzrnorsWBclwFA$izwu8B1jNj_IuqILemEOe_LU8JuQHb84-Yl38OpCBYU', true),
-  ('00000000-0000-4000-8000-000000001004', '00000000-0000-4000-8000-000000000001', 'recepcion@demo.test', 'Recepción demo',    'recepcion',     'scrypt$32768$8$3$KX4RIqyh7oyybCFL2_dp1w$petqDz1zi__fOm_AxpJt7e-PPQTAmdXVvpXBZGrf_Yw', true)
+  ('00000000-0000-4000-8000-000000000501', '00000000-0000-4000-8000-000000000001', 'admin@demo.test',     'Administrador demo', 'administrador', 'scrypt$32768$8$3$OQkFfX_NJYpeRxcQeU9G0A$M1mgs8FZQBb7imOJUKM3EXr7b1oY2CMKQ6t5Z1zHYI4', true),
+  ('00000000-0000-4000-8000-000000000502', '00000000-0000-4000-8000-000000000001', 'asesor@demo.test',    'Asesor demo',        'asesor',        'scrypt$32768$8$3$d1Bw6qFmJ58LV3GP_nopAg$pqsTWIV2qd5FhzLAqpYCp6MZLkg_XeG9-TB3SPFhHy4', true),
+  ('00000000-0000-4000-8000-000000000503', '00000000-0000-4000-8000-000000000001', 'maestro@demo.test',   'Maestro demo',       'maestro',       'scrypt$32768$8$3$cKzvj_ErPzrnorsWBclwFA$izwu8B1jNj_IuqILemEOe_LU8JuQHb84-Yl38OpCBYU', true),
+  ('00000000-0000-4000-8000-000000000504', '00000000-0000-4000-8000-000000000001', 'recepcion@demo.test', 'Recepción demo',    'recepcion',     'scrypt$32768$8$3$KX4RIqyh7oyybCFL2_dp1w$petqDz1zi__fOm_AxpJt7e-PPQTAmdXVvpXBZGrf_Yw', true)
 ON CONFLICT DO NOTHING;
 
 -- Sucursales de cada quien: el asesor ve solo la primera; recepción ve las dos; el administrador ve
 -- todas sin necesitar filas. El maestro se limita por sus grupos (B2), no por sucursal.
 INSERT INTO usuario_sucursal (id, organizacion_id, usuario_id, sucursal_id) VALUES
-  ('00000000-0000-4000-8000-000000001101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000001002', '00000000-0000-4000-8000-000000000201'),
-  ('00000000-0000-4000-8000-000000001102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000001004', '00000000-0000-4000-8000-000000000201'),
-  ('00000000-0000-4000-8000-000000001103', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000001004', '00000000-0000-4000-8000-000000000202')
+  ('00000000-0000-4000-8000-000000000511', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000502', '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000000512', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000504', '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000000513', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000504', '00000000-0000-4000-8000-000000000202')
+ON CONFLICT DO NOTHING;
+
+-- Instructor ligado al usuario maestro de la demo (B2). Los grupos que imparte se asignan en
+-- catalogo.sql (los grupos nacen después).
+INSERT INTO instructor (id, organizacion_id, usuario_id, nombre, activo) VALUES
+  ('00000000-0000-4000-8000-000000000521', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000503', 'Maestro demo', true)
 ON CONFLICT DO NOTHING;

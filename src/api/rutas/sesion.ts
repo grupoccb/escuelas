@@ -16,6 +16,7 @@ import { ErrorApi, demasiadasPeticiones, validacion } from "../errores.ts";
 import { correo, objeto, opcional, parsear, texto, textoLiteral } from "../validar.ts";
 import { normalizarIp } from "../../http/ip.ts";
 import { autenticar } from "../autenticar.ts";
+import { permisosDe } from "../permisos.ts";
 import { LIMITE_CUERPO_LOGIN } from "../cuerpos.ts";
 
 const esquemaLogin = objeto({
@@ -75,9 +76,17 @@ export function rutasDeSesionPropia(deps: DepsApi): Router {
   r.get("/yo", dentro, async (_req, res) => {
     const ctx = contextoDe(res);
     const organizacion = await ctx.db.organizacion.findFirst({ where: {}, select: { id: true, nombre: true, slug: true } });
+    const alcance = await ctx.alcance();
+    const sucursales = await ctx.db.sucursal.findMany({
+      where: alcance.todas ? {} : { id: { in: alcance.sucursalIds } },
+      select: { id: true, nombre: true },
+      orderBy: [{ nombre: "asc" }, { id: "asc" }],
+    });
     res.json({
       usuario: { id: ctx.usuario.id, correo: ctx.usuario.correo, nombre: ctx.usuario.nombre, rol: ctx.usuario.rol },
       organizacion,
+      sucursales,
+      permisos: permisosDe(ctx.usuario.rol),
     });
   });
 
