@@ -57,9 +57,9 @@ Los índices únicos parciales del modelo (`WHERE estatus='activa'`, teléfono n
 
 12. **Local primero.** Todo corre con `docker compose` (Postgres, Chatwoot, backend) antes de tocar AWS.
 
-13. **La familia es la entidad central.** `tutor` y `alumno` se relacionan M:N. El `lead` guarda nombre, edad y sucursal como datos estructurados para que la conversión posterior no recapture nada. Ningún atajo tipo `alumno.telefono_mama`.
+13. **La familia es la entidad central.** `tutor` y `alumno` se relacionan M:N. Un `lead` es el adulto que escribe y tiene uno o más `prospecto` (cada niño o alumno potencial) con sus datos estructurados, para que la conversión posterior no recapture nada. Ningún atajo tipo `alumno.telefono_mama`.
 
-14. **Horario de envío.** Nada automático fuera de 09:00–20:00 hora local de la sucursal. Lo programado fuera de rango se recorre al siguiente horario válido.
+14. **Horario de envío.** Ningún mensaje iniciado por el sistema (recordatorio, reenganche, campaña) sale fuera de 09:00–20:00 hora local de la sucursal. Lo programado fuera de rango se recorre al siguiente horario válido; si con eso llegaría después del evento, se descarta y se registra. Responder a un mensaje entrante dentro de la ventana de servicio no tiene restricción de horario.
 
 ## Reglas de trabajo
 

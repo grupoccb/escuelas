@@ -5,7 +5,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | Bloque | Estado | Commit | Nota |
 |---|---|---|---|
 | N0 | HECHO | 0c205e6 + bitácora | Preparación |
-| N1 | PENDIENTE | | Correcciones a CLAUDE.md (invariantes 13 y 14) |
+| N1 | HECHO | (ver git log) | Correcciones a CLAUDE.md (invariantes 13 y 14) |
 | N2 | PENDIENTE | | Prueba simulada de atribución y transporte |
 | N3 | PENDIENTE | | Esquema de Fase 1 |
 | N4 | PENDIENTE | | Entrada |
@@ -33,3 +33,18 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 **Para Eduardo**
 - Nada.
+
+## N1. Correcciones a CLAUDE.md
+
+**Qué se hizo**
+- Invariantes 13 y 14 de `CLAUDE.md` reemplazados con el texto literal del plan. Ningún otro cambio en el archivo.
+
+**Verificación**
+- `git diff HEAD~1 -- CLAUDE.md` muestra solo esas dos líneas.
+- `npm run validar` y `npm run test:int` en verde (ver cierre).
+
+**Decisiones que tomé**
+- Ninguna.
+
+**Para Eduardo**
+- `SPEC.md` y `docs/CONTEXTO-PROYECTO.md` aún pueden hablar del lead con nombre/edad/sucursal planos; manda `CLAUDE.md`. No los toqué.
