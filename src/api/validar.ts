@@ -10,6 +10,7 @@
 //   const esquema = objeto({ nombre: texto({ max: 80 }), edad: opcional(entero({ min: 0 })) });
 //   const entrada = parsear(esquema, req.body);   // { nombre: string; edad?: number }
 
+import { aTexto, cabeEnDecimal, deTexto, ErrorDeDinero } from "../lib/dinero.ts";
 import { validacion, type DetalleDeError } from "./errores.ts";
 
 const INVALIDO = Symbol("invalido");
@@ -72,6 +73,38 @@ export function entero(opciones: { min?: number; max?: number } = {}): Esquema<n
       if (opciones.min !== undefined && valor < opciones.min) return falla(errores, ruta, `Debe ser al menos ${opciones.min}`);
       if (opciones.max !== undefined && valor > opciones.max) return falla(errores, ruta, `Debe ser a lo más ${opciones.max}`);
       return valor;
+    },
+  };
+}
+
+/**
+ * Un importe de dinero como TEXTO decimal («1234.50»), a lo más dos decimales; devuelve centavos (`bigint`).
+ * Un número JSON se RECHAZA: `19.99` llega como flotante y el dinero no pasa por flotantes. Entre 0 y
+ * 9 999 999 999.99 (lo que cabe en `Decimal(12,2)`).
+ */
+export function dinero(): Esquema<bigint> {
+  return {
+    leer(valor, ruta, errores) {
+      if (typeof valor === "number") return falla(errores, ruta, 'Manda el importe como texto con dos decimales, p. ej. "1234.50" (un número JSON es un flotante)');
+      if (typeof valor !== "string") return falla(errores, ruta, "Debe ser un importe en texto, p. ej. \"1234.50\"");
+      try {
+        const c = deTexto(valor);
+        return cabeEnDecimal(c) ? c : falla(errores, ruta, `Debe estar entre 0.00 y ${aTexto(9_999_999_999_99n)}`);
+      } catch (e) {
+        if (e instanceof ErrorDeDinero) return falla(errores, ruta, "Importe inválido: dígitos con a lo más dos decimales, sin comas ni símbolos");
+        throw e;
+      }
+    },
+  };
+}
+
+/** Una fecha de calendario `AAAA-MM-DD` que existe (no el 31 de febrero). Devuelve el mismo texto. */
+export function fechaISO(): Esquema<string> {
+  return {
+    leer(valor, ruta, errores) {
+      if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return falla(errores, ruta, "Debe ser una fecha AAAA-MM-DD");
+      const d = new Date(`${valor}T00:00:00.000Z`);
+      return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === valor ? valor : falla(errores, ruta, "No es una fecha del calendario");
     },
   };
 }

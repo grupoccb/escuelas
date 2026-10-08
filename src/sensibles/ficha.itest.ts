@@ -111,12 +111,14 @@ test("quién puede: administrador sí; asesor y recepción nunca (ni leer ni esc
   const filas = await accesos(id);
   assert.equal(filas.length, 5, "el del administrador y los cuatro intentos denegados");
   const denegados = filas.filter((f) => f.resultado === "denegado");
-  assert.deepEqual(denegados.map((f) => [f.usuario_id === asesor.id ? "asesor" : "recepcion", f.accion, f.causa]), [
+  // Sin depender del orden de los relojes (la base corre en una VM cuya hora puede dar saltitos): se comparan ordenados.
+  const orden = (xs: (string | null)[][]) => xs.map((x) => x.join("|")).sort();
+  assert.deepEqual(orden(denegados.map((f) => [f.usuario_id === asesor.id ? "asesor" : "recepcion", f.accion, f.causa])), orden([
     ["asesor", "leer", "sin_permiso"],
     ["asesor", "escribir", "sin_permiso"],
     ["recepcion", "leer", "sin_permiso"],
     ["recepcion", "escribir", "sin_permiso"],
-  ]);
+  ]));
   assert.ok(filas.filter((f) => f.resultado === "permitido").every((f) => f.causa === null));
 });
 
@@ -126,11 +128,12 @@ test("el maestro falla CERRADO: sin la relación inscripción→grupo no lee ni 
   await assert.rejects(leerSensible(db(), actor(maestro), { sujetoTipo: "prospecto", sujetoId: id, motivo: "clase" }, opciones), (e) => e instanceof ErrorAccesoSensible && e.motivo === "no_es_de_tu_grupo");
   await assert.rejects(guardarSensible(db(), actor(maestro), { sujetoTipo: "prospecto", sujetoId: id, motivo: "clase", valores: { alergias: "x" } }, opciones), ErrorAccesoSensible);
   const filas = await accesos(id);
-  assert.deepEqual(filas.map((f) => [f.usuario_id === maestro.id ? "maestro" : "admin", f.accion, f.resultado, f.causa]), [
+  const claves = (xs: (string | null)[][]) => xs.map((x) => String(x.join("|"))).sort();
+  assert.deepEqual(claves(filas.map((f) => [f.usuario_id === maestro.id ? "maestro" : "admin", f.accion, f.resultado, f.causa])), claves([
     ["admin", "escribir", "permitido", null],
     ["maestro", "leer", "denegado", "no_es_de_tu_grupo"],
     ["maestro", "escribir", "denegado", "no_es_de_tu_grupo"],
-  ]);
+  ]));
   const leida = await leerSensible(db(), actor(admin), { sujetoTipo: "prospecto", sujetoId: id, motivo: "verifico" }, opciones);
   assert.equal(leida.campos.alergias?.revelar(), "a", "la escritura denegada del maestro no cambió nada");
 });
@@ -152,10 +155,10 @@ test("sujeto inexistente, de otra organización o `alumno` (aún sin tabla) → 
     await assert.rejects(leerSensible(db(), actor(admin), { sujetoTipo: tipo, sujetoId: id, motivo: "x" }, opciones), (e) => e instanceof ErrorAccesoSensible && e.motivo === "sujeto_no_encontrado");
     await assert.rejects(guardarSensible(db(), actor(admin), { sujetoTipo: tipo, sujetoId: id, motivo: "x", valores: { alergias: "a" } }, opciones), ErrorAccesoSensible);
     const filas = await accesos(id);
-    assert.deepEqual(filas.map((f) => [f.organizacion_id === org.organizacionId, f.accion, f.resultado, f.causa]), [
-      [true, "leer", "denegado", "sujeto_no_encontrado"],
-      [true, "escribir", "denegado", "sujeto_no_encontrado"],
-    ], `${tipo} ${id}`);
+    assert.deepEqual(filas.map((f) => [f.organizacion_id === org.organizacionId, f.accion, f.resultado, f.causa].join("|")).sort(), [
+      "true|leer|denegado|sujeto_no_encontrado",
+      "true|escribir|denegado|sujeto_no_encontrado",
+    ].sort(), `${tipo} ${id}`);
   }
 });
 
@@ -252,7 +255,7 @@ test("API: PUT/GET con motivo; el teléfono de emergencia se normaliza; asesor y
     assert.ok(filas.some((f) => f.usuario_id === maestro.id && f.resultado === "denegado" && f.causa === "no_es_de_tu_grupo"));
     for (const u of [asesor, recepcion]) {
       const suyos = filas.filter((f) => f.usuario_id === u.id);
-      assert.deepEqual(suyos.map((f) => [f.accion, f.resultado, f.causa]), [["leer", "denegado", "sin_permiso"], ["escribir", "denegado", "sin_permiso"]], u.rol);
+      assert.deepEqual(suyos.map((f) => [f.accion, f.resultado, f.causa].join("|")).sort(), ["escribir|denegado|sin_permiso", "leer|denegado|sin_permiso"], u.rol);
     }
     assert.ok(filas.every((f) => !JSON.stringify(f).includes("polen-API")));
     // Un identificador mal formado no tiene a quién atribuirse: 400 al administrador, nada para el asesor, y sin rastro.

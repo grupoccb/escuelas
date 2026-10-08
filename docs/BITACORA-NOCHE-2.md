@@ -22,7 +22,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | B6 | HECHO | c73d7b9 | Límite de peticiones por IP y ruta, 429 con Retry-After, `trust proxy`, tope de cuerpo por ruta |
 | B-fix | HECHO (6 pendientes, 1 decisión) | 25616f5…6a19fad | Correcciones de la auditoría de la etapa B (`docs/auditorias/etapa-B.md`): ver la sección «Correcciones de la auditoría de la etapa B» |
 | C1 | HECHO | ver sección | Instructores y salones: tabla `salon`, `grupo.salon_id`, choques de salón e instructor (función pura + API 409 + disparadores en la base) |
-| C2 | PENDIENTE | | Precios versionados |
+| C2 | HECHO | ver sección | Precios versionados por fecha (exclusión btree_gist), `precioVigente`, `src/lib/dinero.ts` en centavos `bigint` y `check:dinero` |
 | C3 | PENDIENTE | | Promociones |
 | C4 | PENDIENTE | | Catálogo de las tres verticales |
 | C5 | PENDIENTE | | Cotizador determinista |
@@ -708,3 +708,28 @@ Auditoría: `docs/auditorias/etapa-B.md` (0 ALTA, 12 MEDIA, 14 BAJA; el informe 
 **Para Eduardo**
 - **[SUPUESTO]** capacidad de los salones «Dojo» (24) del seed; los salones de las otras verticales llegan con C4. Todo editable por la API.
 - Un salón o instructor que hoy tiene dos grupos que se pisan (si los hubiera en la base real) migra sin error y aparece en la verificación 3; hay que corregirlo a mano antes de poder editar esos grupos.
+
+## C2. Precios versionados por fecha
+
+**Qué se hizo**
+- **Tabla `precio`** (migración `20261011010000_precios`): `programa_id`, `costo_inscripcion` y `costo_mensualidad` `Decimal(12,2)`, `moneda` (3 letras mayúsculas, `MXN` por defecto), `vigencia_desde` y `vigencia_hasta` (`DATE`, inclusivas; `hasta` nula = abierta). **Las vigencias de un programa no se traslapan por una restricción de exclusión** (`btree_gist`: `EXCLUDE USING gist (programa_id WITH =, daterange(desde, hasta, '[]') WITH &&) WHERE eliminado_en IS NULL`), más CHECK de costos ≥ 0, moneda y `hasta ≥ desde`.
+- **`precioVigente(db, programaId, 'AAAA-MM-DD')`** (`src/catalogo/precios.ts`): determinista; el precio que rige ese día en centavos `bigint`, o null. Con la parte pura `rigeEn`, `elegirVigente`, `planDeAlta` y `sumarDias`.
+- **API** `/api/precios` (`docs/API.md`): lista/historial por programa (`?programa_id=`), `vigente_en=`, alta, corrección y baja lógica. **Alta = vigencia nueva abierta; la anterior se cierra el día previo en la misma transacción, bajo un candado por programa**; 409 si ya hay una que empiece ese día o después. `registrarCambio` en el alta y en el cierre de la anterior. Alcance por sucursal del programa (404 a lo ajeno); escritura solo del administrador.
+- **`src/lib/dinero.ts`:** centavos `bigint`; `deTexto`/`aTexto` estrictos (dos decimales como máximo, sin redondear en silencio), `deDecimal`, `formatear` es-MX (exacto, sin pasar por flotante), `sumar`, `restar`, `multiplicar`, `porcentaje` y `descuentoPorcentual`, `repartir` (sin perder ni inventar centavos), `noNegativo`. **Redondeo definido y documentado en el archivo: al centavo más cercano y, en la mitad exacta, alejándose de cero** (15 % de $1,234.50 = $185.18; 0.5 centavo → 1). La API recibe los importes como **texto** y rechaza un número JSON (`dinero()` en `validar.ts`); también `fechaISO()`.
+- **`npm run check:dinero`** (en `validar`): prohíbe `parseFloat`, `.toNumber()` y `Number()/parseInt/toFixed/Math.round…` sobre una línea con palabras de dinero, y en las «zonas de dinero» (`promociones/`, `cotizador/`, `finanzas/`, `pagos/`, `cobranza/`, `catalogo/precios.ts`) cualquiera de esas llamadas. Con 7 tests de la guarda. Residual (en el encabezado): es revisión de texto, no ve un importe con nombre neutro fuera de las zonas.
+
+**Verificación**
+- `npm run validar` → exit 0 (ahora con `check:dinero`); `npm run test:int` → exit 0 (conteos finales en el cierre de la etapa C).
+- Tests nuevos: `dinero.test.ts` (10: tabla de casos, ida y vuelta con 20 000 importes, `porcentaje` contra la definición en 30 000 casos aleatorios con PRNG fijo, monotonía, `repartir` suma siempre el total, formato es-MX hasta más allá de 2^53 centavos), `check-dinero.test.ts` (7), `precios.test.ts` (puros: fin de mes/año/bisiesto, bordes inclusivos, plan de alta), `precios.itest.ts` (9: bordes de fecha, alta y cierre del día previo, historial, 409 por fecha repetida o anterior, 14 entradas inválidas, cambios y reapertura, permisos y alcance, no-fuga, la base rechaza traslapes y CHECK, y **tres carreras**: 6 altas con la misma fecha → una gana; 6 con fechas distintas → historial contiguo y una sola abierta; dos transacciones directas con rangos que se traslapan → una gana).
+- Mutaciones atrapadas: cerrar la anterior en `desde` en vez del día previo, `lte`→`lt` y `gte`→`gt` en `precioVigente`, `parseFloat`/zona/línea de dinero en la guarda, redondeo hacia abajo/truncado, `repartir` sin resto; y, sobre una base creada SIN la restricción de exclusión, fallan los tres tests que dependen de ella. Dos mutaciones equivalentes: quitar la rama `typeof number` de `dinero()` (el siguiente `typeof !== string` también lo rechaza; el mensaje sí se prueba) y no mapear el error de exclusión en el alta (con el candado nunca se llega a él: es red de seguridad).
+
+**Decisiones que tomé**
+- *Importes como texto en la API y `bigint` en código* (no `Prisma.Decimal` ni flotantes): sumar y repartir exactos con el tipo del lenguaje, sin librería; `Decimal(12,2)` solo en la columna. Alternativa descartada: `Prisma.Decimal` por todos lados (aritmética de decimal.js con redondeo configurable por contexto global: más fácil de equivocar).
+- *Las fechas de vigencia son fechas de calendario (texto `AAAA-MM-DD`), no instantes:* «el precio de hoy» es una fecha local de la sucursal; evita husos horarios en una regla de negocio. El cotizador (C5) le pasará la fecha local.
+- *El historial solo crece hacia delante* (no se da de alta una vigencia que empiece antes de la última): cambiar el pasado se hace con `PATCH`/`DELETE` explícitos. Una baja deja un hueco sin precio (`precioVigente` → null), a propósito: mejor «sin precio» que un precio equivocado.
+- *Corregir costos de una vigencia pasada se permite* (una errata): lo ya inscrito congela su precio en F3, así que no se reescribe lo cobrado.
+- *Aviso de carrera:* con la exclusión, dos transacciones directas que compiten pueden terminar en `exclusion_violation` o en el interbloqueo que Postgres detecta (ambas esperan a la otra): el test acepta las dos. La API pasa por el candado y siempre da 201/409.
+
+**Para Eduardo**
+- Los precios de ejemplo `[SUPUESTO]` llegan con C4 (seed). Mientras no haya precio vigente de un programa, el cotizador (C5) tendrá que decir «sin precio» en vez de inventar uno.
+- Aparece una extensión nueva de Postgres, `btree_gist` (incluida en las imágenes oficiales y permitida en RDS); el usuario que migra necesita poder crearla.

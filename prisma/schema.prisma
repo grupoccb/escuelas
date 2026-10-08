@@ -70,6 +70,7 @@ model organizacion {
   accesos_dato_sensible      acceso_dato_sensible[]
   salones                    salon[]
   instructores_sucursales    instructor_sucursal[]
+  precios                    precio[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -839,9 +840,37 @@ model programa {
   vertical     vertical     @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   sucursal     sucursal     @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupos       grupo[]
+  precios      precio[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+}
+
+/// Precio de un programa, VERSIONADO por fecha (C2). Una vigencia va de `vigencia_desde` a `vigencia_hasta`
+/// (ambas inclusivas, fechas del calendario local de la escuela); `vigencia_hasta` nula = abierta. Las
+/// vigencias de un programa NO se traslapan: lo impone una restricción de exclusión (btree_gist) en la
+/// migración. Dinero en `Decimal(12,2)`; en código siempre en centavos (`src/lib/dinero.ts`).
+/// Cambiar el precio = una vigencia nueva (la anterior se cierra el día previo), nunca editar el pasado:
+/// lo ya inscrito congela su precio (F3).
+model precio {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id   String    @db.Uuid
+  programa_id       String    @db.Uuid
+  costo_inscripcion Decimal   @db.Decimal(12, 2)
+  costo_mensualidad Decimal   @db.Decimal(12, 2)
+  moneda            String    @default("MXN")
+  vigencia_desde    DateTime  @db.Date
+  vigencia_hasta    DateTime? @db.Date
+  creado_en         DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en      DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  programa     programa     @relation(fields: [programa_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([programa_id, vigencia_desde])
 }
 
 /// Un grupo es una opción de horario de un programa. "Lun-Mié o Mar-Jue" son dos grupos.

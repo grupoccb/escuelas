@@ -23,6 +23,7 @@ export const CAMPOS_AUDITABLES = {
   tarea_asesor: ["estado", "resuelta_en"],
   salon: ["sucursal_id", "nombre", "capacidad", "activo"],
   instructor: ["nombre", "telefono", "correo", "activo", "usuario_id", "sucursales"],
+  precio: ["programa_id", "costo_inscripcion", "costo_mensualidad", "moneda", "vigencia_desde", "vigencia_hasta"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

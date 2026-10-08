@@ -18,10 +18,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "validar": "npm run lint && npm run typecheck && npm run check:generico && npm run check:capas && npm run check:sensibles && npm test",
+    "validar": "npm run lint && npm run typecheck && npm run check:generico && npm run check:capas && npm run check:sensibles && npm run check:dinero && npm test",
     "test:int": "node scripts/test-int.ts",
     "check:capas": "node scripts/check-capas.ts",
     "check:sensibles": "node scripts/check-sensibles.ts",
+    "check:dinero": "node scripts/check-dinero.ts",
     "demo:contacto": "node --env-file=config/demo-local.env scripts/simular-contacto.ts",
     "reporte:leads": "node --env-file-if-exists=.env scripts/reporte-leads.ts"
   },
