@@ -22,6 +22,8 @@ export const MATRIZ_DE_PERMISOS = {
   "tareas:leer": ["administrador", "asesor"],
   "tareas:resolver": ["administrador", "asesor"],
   "conversaciones:leer": ["administrador", "asesor"],
+  // Cotizador (C5): programa, grupos con lugar, precio y promociones para una edad. Lo usan quienes atienden al lead.
+  "cotizador:leer": ["administrador", "asesor"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],

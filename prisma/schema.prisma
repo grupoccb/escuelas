@@ -853,6 +853,10 @@ model programa {
   /// (un estilo, no un rango de edad) y el cotizador pregunta cuál (decisión 9 del plan). Si dos programas de la
   /// misma vertical y sucursal se traslapan en edad y NO ambos lo permiten, es un error del catálogo.
   permite_traslape    Boolean   @default(false)
+  /// Fecha en la que se mide la edad de quien se inscribe (p. ej. el inicio del ciclo): la edad se calcula a esa
+  /// fecha a partir de la fecha de nacimiento, no a hoy. Nula = a la fecha de la consulta. Si solo se conoce la
+  /// edad que declaró el contacto, se usa tal cual (C5).
+  fecha_corte_edad    DateTime? @db.Date
   activo              Boolean   @default(true)
   creado_en           DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)

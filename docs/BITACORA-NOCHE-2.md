@@ -25,7 +25,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | C2 | HECHO | 32c8f41 | Precios versionados por fecha (exclusión btree_gist), `precioVigente`, `src/lib/dinero.ts` en centavos `bigint` y `check:dinero` |
 | C3 | HECHO | d6c38f4 | Promociones: tablas del modelo, resolutor puro (prioridad, acumulación, cupo, montos exactos), consumo de cupo atómico y API CRUD |
 | C4 | HECHO | c4bdc80 | Catálogo completo de las tres verticales del insumo (14 programas, 18 grupos, 31 horarios) con salones, instructores, precios y promociones de ejemplo; las tres verificaciones como tests |
-| C5 | PENDIENTE | | Cotizador determinista |
+| C5 | HECHO | ver sección | Cotizador determinista: `src/cotizador/` (puro + capa de consulta), `programa.fecha_corte_edad`, `edadCumplida`, horarios en español, `GET /api/cotizador` |
 | C6 | PENDIENTE | | Varios programas para una edad |
 | C7 | PENDIENTE | | Otra sucursal |
 | C8 | PENDIENTE | | Cotización guardada y cotizador por WhatsApp |
@@ -816,3 +816,32 @@ Línea base al empezar: validar 257 tests, test:int 330. Antes de este cierre, e
 3. Cuánto se conserva el registro de accesos a salud y el de cambios (solo de anexar; EB-19) y si se separan las cuentas de base de datos de migraciones y de aplicación antes de producción (EB-08; documentado en `docs/API.md`).
 4. Reautenticación o 2FA para crear administradores y cambiar roles (EB-02) y un tope de intentos por cuenta independiente de la IP (EB-03).
 5. Todos los `[SUPUESTO]` del seed de C4 (precios, cupos de los grupos nuevos, capacidad de salones, colores, instructores, promociones, horas de fin) y las direcciones de las sucursales.
+
+## C5. Cotizador determinista
+
+**Qué se hizo**
+- **`src/cotizador/`** (zona de dinero de `check:dinero`; sin LLM, invariante 10): `cotizar(catalogo, entrada)` es **pura** (sin base, reloj ni flotantes); `cargarCatalogoCotizable(db, {verticalId, sucursalIds?, fecha, fuente?})` la alimenta por el scope; `cotizacionAJson` saca los importes como texto decimal. Salida por programa que cubre la edad (`edad_min…edad_max` inclusivos, misma vertical y sucursal, programa y sucursal activos): sus **grupos activos con horario** (de más lugares a menos; un grupo sin horario no se ofrece), **lugares reales** (`calcularCupo`), **precio vigente** en la fecha (`null` = «sin precio»: ni se inventa ni se calculan promociones) y **promociones aplicables con desglose** (resolutor de C3). Si hay más de un programa son alternativas (`permite_traslape`; decisión 9 → C6).
+- **Fecha de corte de edad** (migración `20261012000000_cotizador_edad_corte`): `programa.fecha_corte_edad` (nula). Con fecha de nacimiento, la edad se mide **a esa fecha** y no a hoy (quien nace después del corte aún no es elegible); sin corte, a la fecha de la consulta; con solo `edad_declarada` se usa tal cual (documentado en el encabezado de `cotizar.ts`). `edadCumplida(fechaNac, fecha)` en `src/lib/edad.ts` (el 29 de febrero se cumple el 1 de marzo en años no bisiestos; el día del cumpleaños ya cuenta).
+- **Horarios y fechas en español** (`src/lib/horario.ts`): `formatearHorarios` junta los días con la misma hora («lunes y miércoles de 16:00 a 17:00»), el domingo va al final; `fechaLocal(instante, zona)` da «hoy» en la zona de la sucursal.
+- **Punto de enchufe de la ocupación (para F4):** `FuenteOcupacion` entra por `cargarCatalogoCotizable({fuente})` y por `DepsApi.fuenteOcupacion` / `ApiDepsEntrada.fuenteOcupacion` (por omisión `SinInscripciones`). **No se creó la tabla `inscripcion`.**
+- **API** `GET /api/cotizador?vertical_id=&sucursal_id=&edad=|fecha_nacimiento=&fecha=&hermanos_inscritos=&meses_pagados=`; permiso nuevo `cotizador:leer` (administrador y asesor); sucursal fuera del alcance → 404. Documentado en `docs/API.md`.
+- Helpers de prueba nuevos en `src/testutil/semilla.ts`: `sembrarPrograma` (programa + grupos + horarios + precio) y `OcupacionFija` (fuente de ocupación que el test cambia).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 350 · pass 350 · fail 0
+$ npm run test:int    → exit 0 · tests 406 · pass 406 · fail 0   (dos corridas; la 2.ª sin tocar archivos)
+```
+Tests nuevos: `src/lib/edad.test.ts` (6: cumpleaños, 29 de febrero, cuenta día por día durante 40 años), `src/lib/horario.test.ts` (5), `src/cotizador/cotizar.test.ts` (20: cada borde de rango 5/6 y 13/14 y los extremos, sin programa, vertical y sucursal, alternativas, grupo lleno con y sin lista de espera, orden, dinero exacto 15 % de $1,234.50 = $185.18, promoción vencida en sus bordes, fecha de corte —antes/después/mismo día—, solo edad declarada, entradas imposibles, determinismo con el catálogo barajado), `src/cotizador/cotizador.itest.ts` (12: endpoint, bordes, fuente de ocupación inyectada, **cambio de precio a mitad** el 14/15 de octubre y equivalencia con `precioVigente`, promoción vencida, fecha de corte por la API, «hoy» en la zona de la sucursal, permisos por rol, alcance por sucursal, no-fuga, 12 validaciones, programas inactivos/borrados/grupos inactivos/sucursal que deja de ofrecer la vertical).
+Mutaciones atrapadas: `>=`→`>` y `<=`→`<` en el rango de edad, ignorar el corte, aceptar nacidos después del corte, quitar el orden por lugares, ofrecer grupos sin horario, `>=`→`>` en el día y en el mes del cumpleaños, ignorar la vertical.
+
+**Decisiones que tomé**
+- *Catálogo cargado una vez + función pura* (en vez de una consulta SQL por cotización como el §9 del modelo): el bot (C6–C8) decide con el mismo catálogo en memoria y la máquina de estados sigue pura; el costo es cargar los programas de la vertical (decenas de filas). Alternativa descartada: replicar la consulta SQL del insumo (agregaciones `json_agg` que habría que mantener junto a una versión en código).
+- *Sin `POST /api/cotizador/cotizar`:* el `GET` ya recibe todo lo que cambia el resultado (edad o nacimiento, hermanos, meses por adelantado, fecha) y no escribe nada. El `POST` que sí tiene sentido es el de guardar la cotización (C8).
+- *Solo grupos con horario:* sin horario no se puede ofrecer; la verificación 2 del catálogo ya exige cero grupos sin horario.
+- *Con fecha de nacimiento Y edad declarada manda la fecha de nacimiento* (es el dato más preciso).
+- *Quien nace después de la fecha de corte no entra al programa* (todavía «no tiene edad»), en lugar de dar una edad negativa.
+
+**Para Eduardo**
+- **No se puso `fecha_corte_edad` en ningún programa del seed:** no hay una fecha de inicio de ciclo que la escuela haya dado. Se captura por programa cuando exista J7 (o por SQL). El cotizador y los tests ya la respetan.
+- El bot captura solo la **edad declarada** (el contacto dice «8»), no la fecha de nacimiento: para un programa con corte, la edad declarada se usa tal cual. Si la escuela quiere que la edad se mida al corte desde WhatsApp, hay que pedir la fecha de nacimiento (decisión de producto; no se cambió el flujo de tres preguntas).

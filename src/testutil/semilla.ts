@@ -92,3 +92,95 @@ export async function sembrarEntrante(db: Consultas, conversacionId: string, cue
   });
   return m.id;
 }
+
+// ── Catálogo de prueba (C5 en adelante) ───────────────────────────────────────────────────────────────
+
+export interface GrupoParaSembrar {
+  nombre: string;
+  cupoMaximo?: number;
+  permiteListaEspera?: boolean;
+  /** `[dia 0-6, inicio en minutos, fin en minutos]`. */
+  horarios?: [number, number, number][];
+  activo?: boolean;
+}
+
+export interface ProgramaParaSembrar {
+  sucursalId: string;
+  nombre: string;
+  edadMin: number;
+  edadMax: number;
+  descripcionPublica?: string | null;
+  permiteTraslape?: boolean;
+  /** `AAAA-MM-DD`. */
+  fechaCorteEdad?: string | null;
+  activo?: boolean;
+  grupos?: GrupoParaSembrar[];
+  /** Precio vigente desde esa fecha (abierto). Importes como texto: `"500.00"`. */
+  precio?: { inscripcion: string; mensualidad: string; desde?: string } | null;
+}
+
+export interface ProgramaSembrado {
+  id: string;
+  grupos: { id: string; nombre: string }[];
+  precioId: string | null;
+}
+
+/** Crea un programa con sus grupos, horarios y precio. Nombres y valores los pone el test (nada de verticales reales). */
+export async function sembrarPrograma(prisma: PrismaPruebas, org: OrganizacionDePrueba, p: ProgramaParaSembrar): Promise<ProgramaSembrado> {
+  const programa = await prisma.programa.create({
+    data: {
+      organizacion_id: org.organizacionId,
+      vertical_id: org.verticalId,
+      sucursal_id: p.sucursalId,
+      nombre: p.nombre,
+      edad_min: p.edadMin,
+      edad_max: p.edadMax,
+      descripcion_publica: p.descripcionPublica ?? null,
+      permite_traslape: p.permiteTraslape ?? false,
+      fecha_corte_edad: p.fechaCorteEdad ? new Date(`${p.fechaCorteEdad}T00:00:00.000Z`) : null,
+      activo: p.activo ?? true,
+    },
+  });
+  const grupos: { id: string; nombre: string }[] = [];
+  for (const g of p.grupos ?? []) {
+    const grupo = await prisma.grupo.create({
+      data: {
+        organizacion_id: org.organizacionId,
+        programa_id: programa.id,
+        nombre: g.nombre,
+        cupo_maximo: g.cupoMaximo ?? 10,
+        permite_lista_espera: g.permiteListaEspera ?? false,
+        activo: g.activo ?? true,
+      },
+    });
+    for (const [dia, ini, fin] of g.horarios ?? []) {
+      await prisma.grupo_horario.create({ data: { organizacion_id: org.organizacionId, grupo_id: grupo.id, dia_semana: dia, hora_inicio_min: ini, hora_fin_min: fin } });
+    }
+    grupos.push({ id: grupo.id, nombre: grupo.nombre });
+  }
+  let precioId: string | null = null;
+  if (p.precio) {
+    const precio = await prisma.precio.create({
+      data: {
+        organizacion_id: org.organizacionId,
+        programa_id: programa.id,
+        costo_inscripcion: p.precio.inscripcion,
+        costo_mensualidad: p.precio.mensualidad,
+        vigencia_desde: new Date(`${p.precio.desde ?? "2020-01-01"}T00:00:00.000Z`),
+      },
+    });
+    precioId = precio.id;
+  }
+  return { id: programa.id, grupos, precioId };
+}
+
+/** Fuente de ocupación de prueba: lugares ocupados por grupo, que el test cambia a voluntad (F4 la sustituye por la real). */
+export class OcupacionFija {
+  readonly ocupados_ = new Map<string, number>();
+  fijar(grupoId: string, ocupados: number): void {
+    this.ocupados_.set(grupoId, ocupados);
+  }
+  async ocupados(_db: Consultas, grupoId: string): Promise<number> {
+    return this.ocupados_.get(grupoId) ?? 0;
+  }
+}

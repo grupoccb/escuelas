@@ -8,6 +8,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { DepsAcceso } from "../auth/acceso.ts";
 import type { UsuarioDeSesion } from "../auth/sesiones.ts";
 import { normalizarIp } from "../http/ip.ts";
+import type { FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { alcanceDeCatalogo, alcanceDeSucursales, type AlcanceDeSucursales } from "./alcance.ts";
@@ -23,6 +24,11 @@ export interface DepsApi {
   sensibles: OpcionesSensibles;
   /** Agentes de Chatwoot. Nulo = no configurado. */
   directorio: DirectorioAgentes | null;
+  /**
+   * De dónde salen los lugares ocupados de un grupo (cotizador, lista de espera). Hoy no hay inscripciones
+   * (`SinInscripciones`); F4 inyecta la que cuenta las activas.
+   */
+  fuenteOcupacion: FuenteOcupacion;
 }
 
 export interface ContextoApi {

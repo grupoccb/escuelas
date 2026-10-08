@@ -27,8 +27,10 @@ import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeGrupos } from "./rutas/grupos.ts";
 import { rutasDeInstructores } from "./rutas/instructores.ts";
 import { rutasDeSalones } from "./rutas/salones.ts";
+import { SinInscripciones, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
+import { rutasDeCotizador } from "./rutas/cotizador.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDePrecios } from "./rutas/precios.ts";
@@ -58,6 +60,8 @@ export interface ApiDepsEntrada {
   /** Límites por IP (B6). Sin ellos la API no limita. */
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
+  /** Lugares ocupados por grupo. Por omisión, ninguno (`SinInscripciones`) hasta que exista la inscripción (F4). */
+  fuenteOcupacion?: FuenteOcupacion;
 }
 
 export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
@@ -71,6 +75,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(e.entorno),
     sensibles: e.sensibles ?? {},
     directorio: e.directorio ?? null,
+    fuenteOcupacion: e.fuenteOcupacion ?? new SinInscripciones(),
   };
 }
 
@@ -96,6 +101,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeInstructores(deps));
   api.use(rutasDePrecios(deps));
   api.use(rutasDePromociones(deps));
+  api.use(rutasDeCotizador(deps));
   api.use(rutasDeTareas(deps));
   api.use(rutasDeLeads(deps));
   api.use(rutasDeConversaciones(deps));
