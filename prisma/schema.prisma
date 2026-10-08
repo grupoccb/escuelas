@@ -84,6 +84,8 @@ model organizacion {
   avisos_maestro             aviso_maestro[]
   registros_clase_muestra    registro_clase_muestra[]
   registros_tutor            registro_tutor[]
+  documentos_legales         documento_legal[]
+  aceptaciones_legales       aceptacion_legal[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -167,6 +169,7 @@ model vertical {
   automatizaciones    automatizacion[]
   programas           programa[]
   promociones         promocion_vertical[]
+  documentos_legales  documento_legal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -385,6 +388,7 @@ model lead {
   lista_espera     lista_espera[]
   clases_muestra   clase_muestra[]
   registros_clase_muestra registro_clase_muestra[]
+  aceptaciones_legales aceptacion_legal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -421,6 +425,7 @@ model prospecto {
   lista_espera      lista_espera[]
   clases_muestra    clase_muestra[]
   registros_clase_muestra registro_clase_muestra[]
+  aceptaciones_legales aceptacion_legal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1271,6 +1276,8 @@ model usuario {
   clases_muestra_marcadas  clase_muestra[]        @relation("clase_asistencia_por")
   registros_creados        registro_clase_muestra[] @relation("registro_creado_por")
   registros_cerrados       registro_clase_muestra[] @relation("registro_cerrado_por")
+  documentos_legales_creados documento_legal[]     @relation("documento_creado_por")
+  aceptaciones_capturadas  aceptacion_legal[]      @relation("aceptacion_capturada_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1851,6 +1858,7 @@ model registro_clase_muestra {
   creado_por        usuario          @relation("registro_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   cerrado_por       usuario?         @relation("registro_cerrado_por", fields: [cerrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   tutores           registro_tutor[]
+  aceptaciones_legales aceptacion_legal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1886,8 +1894,105 @@ model registro_tutor {
 
   organizacion organizacion           @relation(fields: [organizacion_id], references: [id])
   registro     registro_clase_muestra @relation(fields: [registro_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  aceptaciones_legales aceptacion_legal[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([registro_id])
+}
+
+// ── Documentos legales y evidencia de aceptación (D6) ──────────────────────────────────
+
+enum tipo_documento_legal {
+  reglamento
+  uso_imagen
+  /// El aviso de privacidad que acepta quien llena el cuestionario público (E1).
+  aviso_privacidad
+}
+
+enum resultado_aceptacion {
+  aceptada
+  /// La familia vio el documento y dijo que no (p. ej. no autoriza el uso de su imagen).
+  rechazada
+  /// Retiró una aceptación anterior: es una fila NUEVA, la aceptación original no se toca.
+  revocada
+}
+
+enum canal_aceptacion {
+  presencial
+  web
+  whatsapp
+  telefono
+}
+
+/// Un documento legal VERSIONADO e INMUTABLE: cambiar el texto es crear la versión siguiente (un disparador impide UPDATE, DELETE y
+/// TRUNCATE). `vertical_id` nulo = vale para todas las verticales; uno por vertical manda sobre el general. Vigente = la versión más alta
+/// cuyo `vigente_desde` ya llegó. `texto_hash` (SHA-256 del texto) es lo que cada aceptación copia como evidencia de lo que se mostró.
+model documento_legal {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id       String               @db.Uuid
+  tipo                  tipo_documento_legal
+  vertical_id           String?              @db.Uuid
+  version               Int
+  titulo                String
+  texto                 String
+  texto_hash            String
+  vigente_desde         DateTime             @db.Timestamptz(6)
+  creado_por_usuario_id String?              @db.Uuid
+  creado_en             DateTime             @default(now()) @db.Timestamptz(6)
+  actualizado_en        DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en          DateTime?            @db.Timestamptz(6)
+
+  organizacion organizacion      @relation(fields: [organizacion_id], references: [id])
+  vertical     vertical?         @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  creado_por   usuario?          @relation("documento_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  aceptaciones aceptacion_legal[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([organizacion_id, tipo, version])
+}
+
+/// La evidencia de que alguien aceptó (o rechazó, o revocó) un documento: de SOLO ANEXAR (disparador). Estado vigente = la fila más
+/// reciente por (prospecto, tipo) según `secuencia`. Quién aceptó (nombre y parentesco), cuándo, por qué canal, quién lo capturó, el hash de lo
+/// que se le mostró, IP y agente si llegó por la web y una evidencia opcional. Revocar la autorización de imagen es una fila nueva.
+model aceptacion_legal {
+  id                        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String               @db.Uuid
+  documento_id              String               @db.Uuid
+  tipo                      tipo_documento_legal
+  version_aceptada          Int
+  resultado                 resultado_aceptacion
+  lead_id                   String               @db.Uuid
+  prospecto_id              String               @db.Uuid
+  registro_clase_muestra_id String?              @db.Uuid
+  registro_tutor_id         String?              @db.Uuid
+  aceptante_nombre          String
+  aceptante_parentesco      String?
+  canal                     canal_aceptacion
+  capturada_por_usuario_id  String?              @db.Uuid
+  aceptado_en               DateTime             @db.Timestamptz(6)
+  /// SHA-256 del texto que se mostró (copiado del documento).
+  texto_hash                String
+  evidencia                 Json?
+  ip                        String?
+  agente_usuario            String?
+  /// Orden de registro (aceptado_en puede repetirse).
+  secuencia                 BigInt               @default(autoincrement())
+  creado_en                 DateTime             @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime?            @db.Timestamptz(6)
+
+  organizacion  organizacion             @relation(fields: [organizacion_id], references: [id])
+  documento     documento_legal          @relation(fields: [documento_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  lead          lead                     @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  prospecto     prospecto                @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registro      registro_clase_muestra?  @relation(fields: [registro_clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registro_tutor registro_tutor?         @relation(fields: [registro_tutor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  capturada_por usuario?                 @relation("aceptacion_capturada_por", fields: [capturada_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([prospecto_id, tipo, secuencia])
+  @@index([documento_id])
 }

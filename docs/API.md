@@ -112,6 +112,13 @@ Editar un completo al que le queda algo sin responder lo regresa a borrador. Esc
 distinta de los tutores (mismo teléfono normalizado o mismo nombre sin acentos): se comprueba al capturarlo, al cambiar los adultos (aunque quien los cambie no lea salud: la comparación interna deja la acción `validar` en el registro de accesos y no muestra nada) y al completar. `maestroDelSujeto` ya existe para prospectos: el maestro accede a la ficha de un prospecto con clase muestra vigente o dada en un grupo suyo.
 **Registro de cambios:** solo estatus, motivo, interés, banderas y las SECCIONES tocadas (`secciones`): ni nombres, ni fechas de nacimiento, ni teléfonos, ni salud (el registro de cambios es de solo anexar y no se purga). **Conversión (F2):** `registroDeProspectoParaConversion(db, prospectoId)` (`src/clases-muestra/registro.ts`) entrega el registro completo en forma estructurada (alumno, adultos con banderas, antecedentes, observación) para crear `tutor`, `alumno` y `tutor_alumno` sin preguntar nada; la ficha de salud no viaja: está ligada al prospecto y F2 la pasa al alumno por el módulo sensible.
 
+**Reglamento y autorización de imagen con evidencia (D6).** `documento_legal` (`reglamento` | `uso_imagen` | `aviso_privacidad`, versión, texto, `vigente_desde`, huella SHA-256 del texto, por organización y opcionalmente por vertical) y `aceptacion_legal`. **Ambas son de SOLO ANEXAR en la base** (disparadores: ni UPDATE, ni DELETE, ni TRUNCATE, también en cascada; mismo límite
+que `registro_cambio`: el dueño de la tabla puede quitar el disparador, ver «Roles de base de datos»). Cambiar un texto es publicar la versión siguiente: `POST /api/documentos-legales` (administrador) numera bajo un candado por (tipo, vertical) —dos publicaciones simultáneas obtienen versiones distintas— y la nueva no puede regir antes que la anterior. **Vigente** = la versión más alta cuyo `vigente_desde` ya llegó;
+la de una vertical manda sobre la general. `GET /api/documentos-legales/vigentes?vertical_id=` es lo que se le muestra a la familia hoy (con el texto de la tabla). **Aceptar:** `POST /api/clases-muestra/:id/registro/aceptaciones {documento_id, version, resultado: aceptada|rechazada|revocada, aceptante: {nombre?, parentesco?, registro_tutor_id?}, canal: presencial|web|whatsapp|telefono, evidencia?}`.
+Solo se acepta (o rechaza) la versión VIGENTE y la que dice haber visto quien acepta debe coincidir: si no, 409 con la vigente. La fila guarda quién aceptó (nombre y parentesco, o el adulto del registro por su id), cuándo (reloj del servidor), el canal, quién lo capturó, la huella del texto mostrado (la copia el servidor: el cliente no la manda), IP y agente SOLO si el canal es `web`, y una evidencia opcional (a lo más 10 datos de texto corto).
+**Repetir lo mismo no duplica** (200 con la fila existente, también con peticiones simultáneas: candado por (prospecto, tipo)). **Revocar** solo aplica a `uso_imagen` y solo si lo último fue «aceptada»: es una fila NUEVA (la aceptación original queda intacta) y se puede volver a autorizar con otra. `GET …/registro/aceptaciones` da el estado por tipo con su frase («Aceptó el reglamento v3 el 2026-11-10 (Rosa Mena, madre)», `al_corriente` si lo último es la versión vigente) y el historial.
+**Sin la aceptación del reglamento un registro no pasa a `cerrado`** (409 con `detalles`: sin aceptar, rechazado o sin reglamento configurado); se acepta cualquier versión aceptada en su momento: la inscripción (F3) deberá pedir la vigente. Tablas, ids y textos de ejemplo `[SUPUESTO]` en `prisma/seed/seguimiento.sql`.
+
 **Choques de salón e instructor.** Dos grupos activos con el mismo salón, o el mismo instructor (aunque sea en otra sucursal), en franjas que se traslapan (mismo día, `inicio < fin` ajeno y `fin > inicio` ajeno; terminar justo cuando empieza la otra NO choca) → `409 conflicto` con `detalles: [{campo: "salon_id"|"instructor_id", mensaje: "El salón ya está ocupado por el grupo «X» el martes de 16:30 a 17:30 (se traslapa con 17:00–18:00)"}]`.
 Lo calcula `src/catalogo/choques.ts` (`detectarChoques` pura + `choquesDeGrupo` con consulta). La base lo impone también con disparadores (`choque_de_ocupacion`, SQLSTATE 23P01) que toman un candado consultivo por salón e instructor: una restricción de exclusión (`btree_gist`) no sirve porque salón e instructor viven en `grupo` y las franjas en `grupo_horario`, y una exclusión mira una sola tabla.
 
@@ -198,6 +205,11 @@ Con `NODE_ENV=production` y sin valor, el backend loguea una alerta fuerte (`tru
 | `PATCH /api/clases-muestra/:id/registro` `{alumno?, tutores?, salud?, antecedentes?, observacion?}` | `registro_muestra:escribir` | Guarda parcial (borrador). `salud` solo con `salud:escribir` (403 con constancia si no). 400 validación, 409 cerrado / clase no vigente / asistencia rechazada |
 | `POST /api/clases-muestra/:id/registro/completar` · `…/cerrar` | `registro_muestra:escribir` | `borrador → completo` (409 con `detalles` de lo que falta) · `completo → cerrado` (409 si falta algo del cierre) |
 | `POST /api/clases-muestra/:id/registro/reabrir` | `registro_muestra:reabrir` (administrador) | `cerrado → completo` |
+| `GET /api/documentos-legales/vigentes?vertical_id=` | `registro_muestra:leer` | Reglamento, uso de imagen y aviso de privacidad vigentes (con texto y huella) |
+| `GET /api/documentos-legales?tipo=&vertical_id=` · `GET /api/documentos-legales/:id` | `catalogo:leer` | Historial de versiones (sin texto) · una versión con su texto |
+| `POST /api/documentos-legales` `{tipo, vertical_id?, titulo, texto, vigente_desde?}` | `catalogo:escribir` | Publica la versión SIGUIENTE (inmutable). 409 si `vigente_desde` es anterior a la de la versión previa |
+| `GET /api/clases-muestra/:id/registro/aceptaciones` | `registro_muestra:leer` | Estado por tipo («aceptó el reglamento v3 el …») e historial de respuestas del prospecto |
+| `POST /api/clases-muestra/:id/registro/aceptaciones` `{documento_id, version, resultado, aceptante, canal, evidencia?}` | `registro_muestra:escribir` | Registra aceptación, rechazo o revocación (201; 200 si ya estaba igual). 409 si no es la versión vigente / no hay qué revocar |
 | `GET /api/maestro/clases-muestra?desde=&hasta=&estatus=` | `clases_muestra:leer` | Las clases muestra «del día y próximas» de SUS grupos (el maestro; los demás roles, lo de su alcance): por omisión de hace 24 h a 14 días, agendadas / asistidas / no asistidas, por fecha. Sin teléfono ni contacto de la familia para el maestro |
 | `GET /api/maestro/avisos?leidos=` | `avisos_maestro:leer` (maestro; el administrador solo ve los de su propio instructor, si lo es) | Los avisos del maestro (los suyos, más reciente primero) con `entrega` (estado del envío por WhatsApp), `motivo_entrega`, `leido_en`, la clase y `datos` |
 | `PATCH /api/maestro/avisos/:id` `{visto: boolean}` | `avisos_maestro:escribir` | Marca visto (o lo desmarca). Idempotente; solo cambia y registra si cambia. 404 si es de otro maestro |
@@ -222,7 +234,7 @@ borra la asignación (no devuelve el bot). El directorio de agentes (`Directorio
 
 ## Roles de base de datos (producción)
 
-Los disparadores que hacen «solo de anexar» a `registro_cambio` y `acceso_dato_sensible` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
+Los disparadores que hacen «solo de anexar» a `registro_cambio`, `acceso_dato_sensible`, `documento_legal` y `aceptacion_legal` protegen de un `UPDATE`, un `DELETE` y un `TRUNCATE`, pero **el dueño de la tabla puede quitarlos**
 (`ALTER TABLE … DISABLE TRIGGER`). La garantía completa exige dos cuentas distintas (EB-08):
 
 - **Migraciones** (`prisma migrate deploy`): una cuenta dueña de las tablas (p. ej. `inscripciones_migrador`), que solo corre en el despliegue.
@@ -232,7 +244,7 @@ Los disparadores que hacen «solo de anexar» a `registro_cambio` y `acceso_dato
 CREATE ROLE inscripciones_app LOGIN PASSWORD '…';
 GRANT USAGE ON SCHEMA public TO inscripciones_app;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO inscripciones_app;   -- sin DELETE: el borrado es lógico (invariante 3)
-REVOKE UPDATE ON registro_cambio, acceso_dato_sensible FROM inscripciones_app;       -- solo de anexar
+REVOKE UPDATE ON registro_cambio, acceso_dato_sensible, documento_legal, aceptacion_legal FROM inscripciones_app;       -- solo de anexar
 ALTER DEFAULT PRIVILEGES FOR ROLE inscripciones_migrador IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO inscripciones_app;
 -- Sin TRUNCATE, ALTER ni TRIGGER: no se otorgan. Las tablas de la demo local (docker compose) usan una sola cuenta, a propósito.
 ```

@@ -36,7 +36,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | D3 | HECHO | 7df6d8d | Recordatorios de 24 h y 2 h: evento `clase_muestra_proxima`, plan puro con el borde «posterior o igual», cancelación al reprogramar o cancelar, el motor ejecuta clases |
 | D4 | HECHO | de73e25 | Asistió / no asistió (transiciones válidas, corrección con ventana, etapa del lead) y recuperación de quien no llegó (evento `clase_muestra_no_asistio`, intentos espaciados con tope, tarea de llamar) |
 | D5 | HECHO | ver `git log` (`D5:`) | Registro del maestro por API: `registro_clase_muestra` + `registro_tutor`, salud solo con `guardarSensible()`, borrador → completo → cerrado, permisos por rol, conversión sin recaptura |
-| D6 | PENDIENTE | | Reglamento y autorización de imagen |
+| D6 | HECHO | ver `git log` (`D6:`) | Reglamento y autorización de imagen: `documento_legal` versionado e inmutable, `aceptacion_legal` de solo anexar con evidencia, revocación como fila nueva, el registro no cierra sin reglamento |
 | D7 | PENDIENTE | | Embudo con historial |
 | D8 | PENDIENTE | | Lead frío y promoción por vencer |
 | E1 | PENDIENTE | | Landing pública por vertical |
@@ -1265,3 +1265,36 @@ Mutación atrapada: quitar el candado de la captura → el test de concurrencia 
 - Revisar la decisión 2 (el asesor no captura salud): en la práctica, ¿quién la captura el día de la clase cuando el maestro no está? Hoy: el maestro del grupo o el administrador.
 - **[SUPUESTO]** edad válida 1–99 años; catálogo de motivos tal como lo pidió el encargo; qué cuenta como «completo».
 - F2 debe llamar a `registroDeProspectoParaConversion` y mover la ficha de salud del prospecto al alumno con el módulo de datos sensibles.
+
+
+## D6. Reglamento y autorización de imagen con evidencia de aceptación
+
+**Qué se hizo**
+- **Migración `20261015010000_documentos_legales`:** `documento_legal` (tipo `reglamento|uso_imagen|aviso_privacidad`, versión, título, texto, huella SHA-256, `vigente_desde`, vertical opcional; único por (organización, tipo, vertical-o-general, versión)) y `aceptacion_legal` (documento y versión aceptada, resultado `aceptada|rechazada|revocada`, lead, prospecto, registro y adulto del registro opcionales, quién aceptó —nombre y parentesco—, canal, quién lo capturó, `aceptado_en`, huella de lo mostrado, evidencia opcional, IP y agente, `secuencia`). **Las dos de SOLO ANEXAR por disparadores** (UPDATE, DELETE y TRUNCATE, también en cascada), igual que `registro_cambio`.
+- **`src/legal/documentos.ts`:** `documentoVigente` (la versión más alta con `vigente_desde` ya llegado; el documento de la vertical manda sobre el general), `crearVersionDeDocumento` (numera bajo un candado por (tipo, vertical); la nueva no puede regir antes que la anterior). **`src/legal/aceptaciones.ts`:** `registrarAceptacion` (solo la versión vigente y la que dice haber visto quien acepta; idempotente; candado por (prospecto, tipo); revocar solo la imagen y solo lo aceptado), `estadoLegal` (con la frase «Aceptó el reglamento v3 el … (nombre, parentesco)») y `problemasDeReglamento`.
+- **API** (`src/api/rutas/legal.ts`): `GET /api/documentos-legales/vigentes`, `GET /api/documentos-legales[/:id]`, `POST /api/documentos-legales`, `GET|POST /api/clases-muestra/:id/registro/aceptaciones`. Sin permisos nuevos: lectura `registro_muestra:leer`/`catalogo:leer`, escritura `registro_muestra:escribir` y publicar `catalogo:escribir`.
+- **Cierre del registro (D5) exige el reglamento aceptado** (409 con `detalles`: sin aceptar, rechazado, o sin reglamento configurado).
+- **Seed** `prisma/seed/seguimiento.sql` (nuevo; lo seguirán D7, D8, E1 y E2): los tres documentos v1 de ejemplo `[SUPUESTO]` con su huella calculada en SQL; ya en el `docker-compose` y en `docs/DEMO-LOCAL.md`.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 458 · pass 458 · fail 0
+$ npm run test:int    → exit 0 · tests 646 · pass 646 · fail 0
+```
+Tests nuevos (`src/legal/legal.itest.ts`, 10, cada uno con su organización limpia porque publicar versiones cambia lo vigente; y `seed.itest.ts`, 1): lo vigente y la versión nueva que no toca a la anterior (y la fecha futura que no rige todavía ni puede ser anterior); un documento por vertical sobre el general, publicar solo el administrador, otra organización invisible; **tres publicaciones simultáneas obtienen versiones distintas y consecutivas**; **UPDATE, DELETE y TRUNCATE rechazados por la base** y la huella que el cliente no puede mandar; quién, cuándo, canal, capturista, huella e IP/agente solo por la web; versión vieja, futura o que no coincide con lo mostrado: 409 y no se escribe nada; **seis aceptaciones simultáneas iguales dejan UNA fila**; revocación como fila nueva con la original intacta (solo imagen, solo si estaba aceptada, idempotente, se puede volver a autorizar); sin reglamento aceptado / rechazado / sin reglamento configurado el registro no se cierra; permisos, IDOR (documento de otra organización, adulto de otro registro) y validación de la evidencia.
+Mutaciones atrapadas: sin el candado de (prospecto, tipo) → duplicados; sin la comprobación de la versión vigente → el test de versiones falla.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Los documentos son inmutables en la base** (no solo por convención): cambiar un texto es la versión siguiente. Alternativa descartada: un `UPDATE` con historial aparte (la prueba de qué se aceptó dependería de que nadie toque la tabla). Consecuencia: no hay baja lógica de un documento (`eliminado_en` existe por convención pero el disparador impide moverlo); una versión mal publicada se reemplaza con la siguiente.
+2. **La huella la calcula el servidor**, no el cliente: la aceptación copia el `texto_hash` del documento. El cliente solo dice qué versión vio; si no es la vigente, no se registra.
+3. **El estado es la fila más reciente por (prospecto, tipo)**, ordenada por `secuencia` (el reloj puede repetirse). Alternativa descartada: una fila de estado que se actualiza (se perdería la historia que es justo la evidencia).
+4. **La aceptación cuelga del prospecto** (y del registro si ya existe): el registro puede moverse al reprogramar, la aceptación no. El aviso de privacidad de la landing (E1) usará la misma tabla.
+5. **Revocar solo la autorización de imagen** y solo si lo último fue «aceptada». Alternativa descartada: permitir revocar el reglamento (aceptar un reglamento no es un permiso retirable; si la familia no está de acuerdo, se baja).
+6. **Cerrar acepta cualquier versión del reglamento aceptada en su momento**, no exige la vigente al cerrar; la inscripción (F3) sí deberá pedir la vigente. Alternativa descartada: exigir la vigente al cerrar (obligaría a re-aceptar registros viejos por un cambio de texto).
+7. **Sin reglamento configurado el registro no se cierra** (hay que publicar uno): la alternativa de dejar pasar hacía que una escuela sin reglamento cerrara sin ninguna evidencia.
+8. **IP y agente solo con el canal `web`**: son datos personales y solo aportan cuando la aceptación llegó por un navegador.
+
+**Para Eduardo**
+- **[SUPUESTO]** los tres textos del seed (reglamento, uso de imagen, aviso de privacidad): la escuela pone los suyos y el aviso debe revisarlo su abogado. Se publican como versión 2 desde administración (no se editan).
+- Decisión de producto: ¿la autorización de imagen es obligatoria para cerrar el registro o puede quedar «rechazada»? Hoy solo el reglamento es obligatorio.
+- Pendiente de producto: firma manuscrita/foto como evidencia (hoy solo texto corto en `evidencia`); no se pidió ni se construyó almacenamiento de archivos.

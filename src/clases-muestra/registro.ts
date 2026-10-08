@@ -43,6 +43,7 @@ import {
   type OpcionesSensibles,
   type PersonaDelRegistro,
 } from "../sensibles/index.ts";
+import { problemasDeReglamento } from "../legal/aceptaciones.ts";
 import { marcarAsistencia, type MotivoDeRechazoDeAsistencia } from "./asistencia.ts";
 import { faltantesDelRegistro, normalizarTutores, problemaDeFechaDeNacimiento, problemasDeAntecedentes, type Problema, type TutorEntrada, type TutorNormalizado } from "./registro-reglas.ts";
 
@@ -460,16 +461,7 @@ export async function completarRegistro(ctx: ContextoApi, deps: DepsRegistro, cl
   return leerRegistro(ctx, claseId);
 }
 
-/** Lo que exige el cierre además de estar completo. D6 agrega aquí el reglamento aceptado. Devuelve los motivos por los que NO se puede cerrar. */
-export type RequisitoDeCierre = (tx: Consultas, registro: { id: string; clase_muestra_id: string; prospecto_id: string }) => Promise<{ campo: string; mensaje: string }[]>;
-
-const requisitosDeCierre: RequisitoDeCierre[] = [];
-/** Registra un requisito más para cerrar (lo usa el módulo legal de D6 al cargarse). */
-export function agregarRequisitoDeCierre(r: RequisitoDeCierre): void {
-  if (!requisitosDeCierre.includes(r)) requisitosDeCierre.push(r);
-}
-
-/** `completo` → `cerrado`. Exige estar completo y cumplir los requisitos registrados (reglamento aceptado, D6) y, si asistió, el interés percibido. */
+/** `completo` → `cerrado`. Exige estar completo, el reglamento aceptado (D6) y, si la clase se dio, el interés percibido. */
 export async function cerrarRegistro(ctx: ContextoApi, claseId: string): Promise<RegistroPresentado> {
   const clase = await cargarClase(ctx.db, claseId);
   if (!clase) throw noEncontrado();
@@ -480,7 +472,8 @@ export async function cerrarRegistro(ctx: ContextoApi, claseId: string): Promise
     if (c.registro.estatus !== "completo") throw conflicto("El registro tiene que estar completo antes de cerrarlo");
     const faltan: { campo: string; mensaje: string }[] = [];
     if (clase.estatus === "asistio" && !c.registro.interes_percibido) faltan.push({ campo: "observacion.interes_percibido", mensaje: "Falta el interés percibido del maestro (la clase se dio)" });
-    for (const requisito of requisitosDeCierre) faltan.push(...(await requisito(tx, { id: c.registro.id, clase_muestra_id: claseId, prospecto_id: clase.prospecto_id })));
+    // D6: sin la aceptación del reglamento (evidencia en `aceptacion_legal`) no hay cierre.
+    faltan.push(...(await problemasDeReglamento(tx, clase.prospecto_id, clase.prospecto.vertical_interes_id, ctx.ahora())));
     if (faltan.length > 0) throw conflicto("El registro no se puede cerrar todavía", faltan);
     await tx.registro_clase_muestra.update({ where: { id: c.registro.id }, data: { estatus: "cerrado", cerrado_en: ctx.ahora(), cerrado_por_usuario_id: ctx.usuario.id } });
     await registrarCambio(tx, ctx, { entidad: "registro_clase_muestra", entidadId: c.registro.id, accion: "actualizar", antes: instantaneaDe(c.registro), despues: instantaneaDe({ ...c.registro, estatus: "cerrado" }) });

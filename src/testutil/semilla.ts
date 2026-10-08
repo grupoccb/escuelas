@@ -2,7 +2,7 @@
 // cliente sin scope porque las organizaciones no se crean desde el scope (invariante 1). Los
 // ids de Chatwoot son aleatorios para que las corridas no choquen entre sí.
 
-import { randomInt, randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import type { PrismaPruebas } from "./prisma-pruebas.ts";
 
@@ -236,4 +236,25 @@ export async function sembrarFamilia(
     data: { organizacion_id: org.organizacionId, lead_id: lead.id, vertical_interes_id: org.verticalId, nombre: o.nombre ?? `Niño ${n}`, edad_declarada: o.edad ?? 8, origen: "asesor" },
   });
   return { leadId: lead.id, prospectoId: prospecto.id, telefono };
+}
+
+// ── Documentos legales (D6) ───────────────────────────────────────────────────────────────────────────────
+
+export interface DocumentosLegalesSembrados {
+  reglamento: string;
+  usoImagen: string;
+  avisoPrivacidad: string;
+}
+
+/** Versión 1 de cada documento legal (generales, vigentes desde mucho antes), con textos de prueba. Devuelve sus ids. */
+export async function sembrarDocumentosLegales(prisma: PrismaPruebas, org: OrganizacionDePrueba): Promise<DocumentosLegalesSembrados> {
+  const ids: Record<string, string> = {};
+  for (const [tipo, clave] of [["reglamento", "reglamento"], ["uso_imagen", "usoImagen"], ["aviso_privacidad", "avisoPrivacidad"]] as const) {
+    const texto = `Texto de prueba de ${tipo}, versión 1.`;
+    const d = await prisma.documento_legal.create({
+      data: { organizacion_id: org.organizacionId, tipo, version: 1, titulo: `Documento de prueba ${tipo}`, texto, texto_hash: createHash("sha256").update(texto, "utf8").digest("hex"), vigente_desde: new Date("2020-01-01T00:00:00Z") },
+    });
+    ids[clave] = d.id;
+  }
+  return ids as unknown as DocumentosLegalesSembrados;
 }

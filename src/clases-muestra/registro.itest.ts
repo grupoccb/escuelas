@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { conAlcance } from "../datos/alcance.ts";
 import { crearCifrador } from "../sensibles/index.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { sembrarDocumentosLegales, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { registroDeProspectoParaConversion } from "./registro.ts";
 
@@ -29,6 +29,7 @@ let recepcion: ClienteApi;
 let maestroA: ClienteApi;
 let maestroB: ClienteApi;
 let adminId: string;
+let docs: DocumentosLegalesSembrados;
 let maestroAId: string;
 let norte: string;
 let sur: string;
@@ -60,6 +61,7 @@ before(async () => {
   org = await sembrarOrganizacion(prisma, "Registro muestra");
   ajena = await sembrarOrganizacion(prisma, "Registro muestra ajena");
   await sembrarEmbudo(prisma, org);
+  docs = await sembrarDocumentosLegales(prisma, org);
   norte = org.sucursales[0]!.id;
   sur = org.sucursales[1]!.id;
   const entrar = async (rol: "administrador" | "asesor" | "maestro" | "recepcion", sucursales: string[] = []) => {
@@ -99,14 +101,14 @@ after(async () => {
 let n = 0;
 /** Una clase muestra insertada directo, con su familia. */
 async function clase(grupoId = grupoA, o: { fecha?: Date; sucursalId?: string; estatus?: "agendada" | "cancelada" | "reagendada" | "asistio" | "no_asistio" } = {}) {
-  const f = await sembrarFamilia(prisma, org, { sucursalId: o.sucursalId ?? norte, telefono: `+5255${String(40_000_000 + ++n * 17 + Math.floor(Math.random() * 1000))}` });
+  const f = await sembrarFamilia(prisma, org, { sucursalId: o.sucursalId ?? norte, telefono: `+5255${String(40_000_000 + ++n * 37)}` });
   const c = await prisma.clase_muestra.create({
     data: { organizacion_id: org.organizacionId, lead_id: f.leadId, prospecto_id: f.prospectoId, grupo_id: grupoId, fecha_hora: o.fecha ?? FUTURA, agendada_por: "usuario", agendada_por_usuario_id: adminId, estatus: o.estatus ?? "agendada" },
   });
   return { id: c.id, leadId: f.leadId, prospectoId: f.prospectoId };
 }
 
-const tel = (): string => `+5255${String(60_000_000 + ++n * 31 + Math.floor(Math.random() * 1000))}`;
+const tel = (): string => `+5255${String(60_000_000 + ++n * 37)}`;
 const tutorBase = (extra: Record<string, unknown> = {}) => ({ nombre: "Rosa", apellidos: "Mena", parentesco: "madre", telefono: tel(), correo: "rosa@correo.test", es_responsable_pago: true, lo_lleva: true, ...extra });
 const saludCompleta = (telefono = tel()) => ({
   alergias: "CENTINELA-D5-ALERGIA",
@@ -119,6 +121,11 @@ const alumnoBase = { nombre: "Mateo", apellidos: "Soto Mena", fecha_nacimiento: 
 const antecedentesBase = { practico_antes: true, practico_donde: "Club del barrio", practico_nivel: "principiante", motivo_clase: "disciplina" };
 const patch = (c: ClienteApi, claseId: string, cuerpo: unknown) => c.patch<Respuesta>(`/api/clases-muestra/${claseId}/registro`, cuerpo);
 const ver = (c: ClienteApi, claseId: string) => c.get<Respuesta>(`/api/clases-muestra/${claseId}/registro`);
+/** La familia acepta el reglamento (D6): sin esto un registro no se cierra. */
+const aceptarReglamento = async (c: ClienteApi, claseId: string) => {
+  const r = await c.post(`/api/clases-muestra/${claseId}/registro/aceptaciones`, { documento_id: docs.reglamento, version: 1, resultado: "aceptada", aceptante: { nombre: "Rosa Mena", parentesco: "madre" }, canal: "presencial" });
+  assert.ok(r.estado === 201 || r.estado === 200, JSON.stringify(r.cuerpo));
+};
 const accion = (c: ClienteApi, claseId: string, a: "completar" | "cerrar" | "reabrir") => c.post<Respuesta>(`/api/clases-muestra/${claseId}/registro/${a}`, {});
 
 /** Captura todo lo necesario para estar completo (el maestro, que puede escribir salud). */
@@ -238,7 +245,11 @@ test("D5: borrador → completo → cerrado — lo que falta, completar con 409,
   assert.equal((await ver(maestroA, c.id)).cuerpo.estatus, "borrador");
   assert.equal((await accion(maestroA, c.id, "completar")).estado, 200);
 
-  // La clase no se ha dado: cerrar no pide el interés (solo si asistió). Hoy el reglamento todavía no existe (D6).
+  // Sin el reglamento aceptado no se cierra (D6); la clase no se ha dado, así que no pide el interés percibido.
+  const sinReglamento = await accion(asesorNorte, c.id, "cerrar");
+  assert.equal(sinReglamento.estado, 409);
+  assert.deepEqual(sinReglamento.cuerpo.error.detalles?.map((d) => d.campo), ["reglamento"]);
+  await aceptarReglamento(asesorNorte, c.id);
   const cerrado = await accion(asesorNorte, c.id, "cerrar");
   assert.equal(cerrado.estado, 200, JSON.stringify(cerrado.cuerpo));
   assert.equal(cerrado.cuerpo.estatus, "cerrado");
@@ -275,6 +286,7 @@ test("D5: asistió o no es el estatus de la clase — desde la hora, con las reg
   assert.equal(sinInteres.estado, 409);
   assert.ok(sinInteres.cuerpo.error.detalles?.some((d) => d.campo === "observacion.interes_percibido"));
   await patch(maestroA, pasada.id, { observacion: { interes_percibido: "alto" } });
+  await aceptarReglamento(maestroA, pasada.id);
   assert.equal((await accion(maestroA, pasada.id, "cerrar")).estado, 200);
 });
 
@@ -442,6 +454,7 @@ test("D5: reprogramar lleva el registro a la clase nueva (los datos son del alum
   const otra = await clase(grupoA, { fecha: FUTURA });
   await capturaCompleta(otra.id);
   assert.equal((await accion(admin, otra.id, "completar")).estado, 200);
+  await aceptarReglamento(admin, otra.id);
   assert.equal((await accion(admin, otra.id, "cerrar")).estado, 200);
   const r2 = await admin.post<{ id: string } & Errores>(`/api/clases-muestra/${otra.id}/reprogramar`, { fecha_hora: "2026-11-23T16:00:00-06:00" });
   assert.equal(r2.estado, 201, JSON.stringify(r2.cuerpo));

@@ -20,7 +20,7 @@ import { log } from "../lib/log.ts";
 import { MessagingProvider, TransporteFalso, registrarEstadoEntrega, type EventoEntrante } from "../mensajeria/index.ts";
 import { colectarLogs, type ColectorDeLogs } from "../testutil/logs.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, sembrarDocumentosLegales, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { escenarioBot } from "../testutil/bot.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra } from "../clases-muestra/agenda.ts";
 import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
@@ -301,6 +301,7 @@ test("D5: ningún centinela de salud aparece en logs, respuestas, errores, regis
     const instructor = await prisma.instructor.create({ data: { organizacion_id: organizacion.organizacionId, usuario_id: maestro.id, nombre: "Maestro" } });
     const programa = await sembrarPrograma(prisma, organizacion, { sucursalId: organizacion.sucursales[0]!.id, nombre: "Programa", edadMin: 3, edadMax: 14, grupos: [{ nombre: "Grupo", cupoMaximo: 20, horarios: [[1, 960, 1020]] }] });
     await prisma.grupo.update({ where: { id: programa.grupos[0]!.id }, data: { instructor_id: instructor.id } });
+    const documentos = await sembrarDocumentosLegales(prisma, organizacion);
     const familia = await sembrarFamilia(prisma, organizacion, { sucursalId: organizacion.sucursales[0]!.id });
     const clase = await prisma.clase_muestra.create({ data: { organizacion_id: organizacion.organizacionId, lead_id: familia.leadId, prospecto_id: familia.prospectoId, grupo_id: programa.grupos[0]!.id, fecha_hora: new Date("2026-11-09T22:00:00Z"), agendada_por: "usuario", agendada_por_usuario_id: admin.id } });
     const url = `/api/clases-muestra/${clase.id}/registro`;
@@ -331,6 +332,7 @@ test("D5: ningún centinela de salud aparece en logs, respuestas, errores, regis
     assert.equal(anotar(await maestro.c.post(`${url}/completar`, {})).estado, 200);
     assert.equal(anotar(await asesor.c.get(url)).estado, 200);
     assert.equal(anotar(await maestro.c.get(url)).estado, 200);
+    assert.equal(anotar(await admin.c.post(`${url}/aceptaciones`, { documento_id: documentos.reglamento, version: 1, resultado: "aceptada", aceptante: { nombre: "Rosa Mena", parentesco: "madre" }, canal: "presencial" })).estado, 201);
     assert.equal(anotar(await admin.c.post(`${url}/cerrar`, {})).estado, 200);
     assert.equal(anotar(await admin.c.post(`${url}/reabrir`, {})).estado, 200);
     // Lo que SÍ puede salir: el maestro lee la ficha por la ruta de salud (control positivo: el dato está en el sistema).

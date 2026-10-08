@@ -33,6 +33,9 @@ export const CAMPOS_AUDITABLES = {
   aviso_maestro: ["leido_en"],
   // D5: SOLO campos no identificables. El registro de cambios es de solo anexar y no se purga: nada de nombres, fechas de nacimiento,
   // teléfonos ni salud. `secciones` dice QUÉ partes del registro se tocaron (alumno, tutores, salud, antecedentes, observacion).
+  // D6: el documento (sin su texto, que es público y vive en su tabla inmutable) y la aceptación (sin el nombre de quien aceptó: está en `aceptacion_legal`).
+  documento_legal: ["tipo", "vertical_id", "version", "titulo", "vigente_desde"],
+  aceptacion_legal: ["tipo", "version_aceptada", "resultado", "canal", "documento_id"],
   registro_clase_muestra: ["estatus", "motivo_clase", "practico_antes", "interes_percibido", "grupo_recomendado_id", "salud_completa", "secciones"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
