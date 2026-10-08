@@ -43,6 +43,8 @@ export interface ApiDepsEntrada {
   /** Parámetros de scrypt para contraseñas NUEVAS. Los tests pasan los baratos. */
   parametrosHash?: ParametrosScrypt;
   cookieSegura?: boolean;
+  /** Variables de entorno de las que salen los valores por omisión (cookie segura, orígenes). Por omisión `process.env`. */
+  entorno?: NodeJS.ProcessEnv;
   /** Orígenes que pueden hacer peticiones que cambian algo. Vacío = solo el propio host. */
   origenesPermitidos?: string[];
   /** Cifrado y regla del maestro de los datos de salud. Por omisión: clave del entorno y maestro sin acceso. */
@@ -56,13 +58,13 @@ export interface ApiDepsEntrada {
 
 export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
   const reloj = e.reloj ?? (() => new Date());
-  const sesion = e.sesion ?? configSesionDesdeEntorno();
+  const sesion = e.sesion ?? configSesionDesdeEntorno(e.entorno);
   return {
     prisma: e.prisma,
     reloj,
     acceso: { prisma: e.prisma, reloj, sesion, bloqueo: e.bloqueo ?? BLOQUEO_POR_DEFECTO, parametrosHash: e.parametrosHash ?? PARAMETROS_POR_DEFECTO },
-    cookieSegura: e.cookieSegura ?? cookieSeguraDesdeEntorno(),
-    origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(),
+    cookieSegura: e.cookieSegura ?? cookieSeguraDesdeEntorno(e.entorno),
+    origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(e.entorno),
     sensibles: e.sensibles ?? {},
     directorio: e.directorio ?? null,
   };

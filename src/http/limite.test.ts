@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./config-limites.ts";
+import { avisoDeTrustProxy, confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./config-limites.ts";
 import { llaveDeIp, normalizarIp } from "./ip.ts";
 import { LimitadorDeTasa, perfilPorMinuto } from "./limite.ts";
 
@@ -119,4 +119,24 @@ test("TRUST_PROXY: nada por defecto; número de saltos; lista de redes; `true` s
   assert.equal(confianzaProxyDesdeEntorno({ TRUST_PROXY: "1" }), 1);
   assert.equal(confianzaProxyDesdeEntorno({ TRUST_PROXY: "loopback, 10.0.0.0/8" }), "loopback, 10.0.0.0/8");
   assert.equal(confianzaProxyDesdeEntorno({ TRUST_PROXY: "true" }), true);
+});
+
+test("EB-04: en producción sin TRUST_PROXY explícito hay un aviso fuerte; con cualquier valor explícito (incluido false) o fuera de producción, no", () => {
+  assert.match(avisoDeTrustProxy({ NODE_ENV: "production" }) ?? "", /TRUST_PROXY/);
+  assert.match(avisoDeTrustProxy({ NODE_ENV: "production", TRUST_PROXY: "  " }) ?? "", /balanceador/);
+  assert.equal(avisoDeTrustProxy({ NODE_ENV: "production", TRUST_PROXY: "1" }), null);
+  assert.equal(avisoDeTrustProxy({ NODE_ENV: "production", TRUST_PROXY: "false" }), null, "false es una decisión, no un olvido");
+  assert.equal(avisoDeTrustProxy({}), null);
+  assert.equal(avisoDeTrustProxy({ NODE_ENV: "development" }), null);
+});
+
+test("EB-17: una inundación de claves nuevas NO expulsa la cubeta agotada de una IP ya limitada", () => {
+  const r = reloj();
+  const l = new LimitadorDeTasa({ maxClaves: 50, reloj: r.ahora });
+  const perfil = perfilPorMinuto(10);
+  for (let i = 0; i < 10; i++) l.consumir("victima", perfil);
+  assert.equal(l.consumir("victima", perfil).permitido, false, "limitada");
+  for (let i = 0; i < 500; i++) l.consumir(`inundacion-${i}`, perfil); // 10 veces el tope, todas distintas
+  assert.ok(l.tamano <= 50);
+  assert.equal(l.consumir("victima", perfil).permitido, false, "sigue limitada tras la inundación");
 });

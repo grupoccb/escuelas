@@ -55,7 +55,7 @@ test("guardar: en la base solo hay texto cifrado (nunca el valor), y leer lo dev
   }, opciones);
   const fila = await prisma.ficha_salud.findFirstOrThrow({ where: { sujeto_id: id } });
   assert.ok(!JSON.stringify(fila).includes("reservada-para-pruebas") && !JSON.stringify(fila).includes("5511112222"), "ni rastro del valor en la fila");
-  assert.match(fila.alergias ?? "", /^v1\./);
+  assert.match(fila.alergias ?? "", /^v2\.[A-Za-z0-9_-]{8}\./);
   assert.equal(fila.condiciones_medicas, null);
 
   const ficha = await leerSensible(db(), actor(admin), { sujetoTipo: "prospecto", sujetoId: id, motivo: "revisión", ruta: "GET /prueba" }, opciones);

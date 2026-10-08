@@ -5,9 +5,11 @@
 // Permite ráfagas de hasta `capacidad` y sostiene `recargaPorSegundo` por segundo, sin los saltos de
 // una ventana fija.
 //
-// TOPE DE MEMORIA: a lo más `maxClaves` cubetas. Al llenarse se tiran primero las que ya están
-// llenas (inactivas: equivalen a no tener cubeta) y, si no hay, las menos usadas. Costo: un atacante
-// con muchísimas IPs distintas puede expulsar la cubeta de otra IP y devolverle sus fichas; el tope
+// TOPE DE MEMORIA: a lo más `maxClaves` cubetas. Al llenarse se revisa un tramo acotado de las más
+// viejas y se tira la que MÁS fichas tiene (las llenas equivalen a no tener cubeta; una agotada es la
+// que está frenando a alguien y se protege). Así una inundación de claves nuevas (cada una con
+// capacidad-1 fichas) expulsa claves de la propia inundación y no la cubeta de una IP ya limitada
+// (EB-17). Costo que queda: si TODO el tramo revisado está agotado, se tira la más vieja; el tope
 // protege la memoria, no es un cortafuegos.
 //
 // LO QUE NO RESUELVE: vive en el proceso. Con VARIAS réplicas del backend cada una cuenta por
@@ -100,19 +102,22 @@ export class LimitadorDeTasa {
   }
 
   #hacerLugar(ahora: number): void {
-    if (this.#cubetas.size < this.#maxClaves) return;
-    // Primero las inactivas (ya llenas): tirarlas no cambia nada. Se revisa un tramo acotado por llamada.
-    let revisadas = 0;
-    for (const [clave, c] of this.#cubetas) {
-      if (this.#rellenada(c, ahora) >= c.capacidad) this.#cubetas.delete(clave);
-      if (this.#cubetas.size < this.#maxClaves) return;
-      if (++revisadas >= 64) break;
-    }
-    // Si no alcanzó: la menos usada recientemente (la primera del mapa).
     while (this.#cubetas.size >= this.#maxClaves) {
-      const primera = this.#cubetas.keys().next();
-      if (primera.done) break;
-      this.#cubetas.delete(primera.value);
+      // De las 64 más viejas, la que más fichas tiene: tirarla daña lo menos posible (EB-17).
+      let elegida: string | undefined;
+      let fichasElegida = -1;
+      let revisadas = 0;
+      for (const [clave, c] of this.#cubetas) {
+        const fichas = this.#rellenada(c, ahora);
+        if (fichas > fichasElegida) {
+          elegida = clave;
+          fichasElegida = fichas;
+          if (fichas >= c.capacidad) break; // ya llena: no se puede tirar nada más inocuo
+        }
+        if (++revisadas >= 64) break;
+      }
+      if (elegida === undefined) break;
+      this.#cubetas.delete(elegida);
     }
   }
 }

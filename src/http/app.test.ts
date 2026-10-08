@@ -216,3 +216,30 @@ test("B5: quitar el asesor, firmado, registra la desasignación; sin el manejado
   const falla = deps({ registrarDesasignacion: async () => { throw new Error("base caída"); } });
   assert.equal((await pedir(falla, "POST", "/webhooks/chatwoot", cuerpo, firmado(cuerpo))).status, 500);
 });
+
+// ── EB-05: HSTS con la configuración REAL (no con un valor que solo el test pasa a mano) ─────────
+
+async function cabecera(extra: Partial<AppDeps>, nombre: string): Promise<string | null> {
+  const server = crearApp(deps(extra)).listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    const res = await fetch(`http://127.0.0.1:${port}/salud`);
+    await res.arrayBuffer();
+    return res.headers.get(nombre);
+  } finally {
+    server.close();
+  }
+}
+
+test("HSTS: con NODE_ENV=production (cookie segura por defecto) o ORIGEN_PUBLICO https o COOKIE_SEGURA=true se emite; sin nada de eso, no", async () => {
+  const api = { prisma: {} as never };
+  const hsts = (entorno: NodeJS.ProcessEnv, conApi = true) => cabecera({ entorno, ...(conApi ? { api } : {}) }, "strict-transport-security");
+  assert.match((await hsts({ NODE_ENV: "production" })) ?? "", /max-age=\d+/, "producción: la cookie es Secure por defecto, así que HSTS también");
+  assert.match((await hsts({ ORIGEN_PUBLICO: "https://app.escuela.example" })) ?? "", /includeSubDomains/);
+  assert.match((await hsts({ COOKIE_SEGURA: "true" })) ?? "", /max-age/);
+  assert.equal(await hsts({ NODE_ENV: "production", COOKIE_SEGURA: "false", ORIGEN_PUBLICO: "http://localhost:3000" }), null, "la demo en http no manda HSTS");
+  assert.equal(await hsts({}), null);
+  assert.equal(await hsts({ ORIGEN_PUBLICO: "http://localhost:3000" }), null);
+  // Sin API montada también se respeta un origen https.
+  assert.match((await hsts({ ORIGEN_PUBLICO: "https://app.escuela.example" }, false)) ?? "", /max-age/);
+});

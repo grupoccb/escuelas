@@ -1,6 +1,15 @@
 // Cabeceras de seguridad básicas, sin dependencias (B3).
 
 import type { NextFunction, Request, Response } from "express";
+import { origenesPermitidosDesdeEntorno } from "./csrf.ts";
+
+/**
+ * ¿Hay que mandar HSTS? Sí si la cookie de sesión es Secure o si el origen público configurado es
+ * https. (Antes solo miraba un valor que `server.ts` no pasaba, así que nunca se emitía: EB-05.)
+ */
+export function hstsActivo(cookieSegura: boolean, env: NodeJS.ProcessEnv = process.env): boolean {
+  return cookieSegura || origenesPermitidosDesdeEntorno(env).some((o) => o.startsWith("https://"));
+}
 
 /** En TODA respuesta del backend. */
 export function cabecerasDeSeguridad(hsts: boolean) {

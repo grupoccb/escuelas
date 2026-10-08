@@ -6,7 +6,7 @@ import { registrarDesasignacionDeConversacion, registrarTomaDeConversacion } fro
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { crearApp } from "./http/app.ts";
-import { confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./http/config-limites.ts";
+import { avisoDeTrustProxy, confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./http/config-limites.ts";
 import { LimitadorDeTasa } from "./http/limite.ts";
 import { log } from "./lib/log.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
@@ -21,6 +21,8 @@ const atribucion = new AtribucionDesdeChatwoot();
 const twilio = bordeTwilioDesdeEntorno(prisma);
 
 const limites = limitesDesdeEntorno();
+const avisoProxy = avisoDeTrustProxy();
+if (avisoProxy) log.error("trust_proxy_no_definido", { aviso: avisoProxy });
 
 const app = crearApp({
   // Límites de peticiones por IP (B6) y confianza en el proxy para leer la IP real.

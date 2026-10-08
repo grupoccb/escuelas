@@ -1,6 +1,6 @@
 export { CAMPOS_SENSIBLES, esCampoSensible, esClaveSecreta, esClaveSensible, normalizarNombre, type CampoSensible } from "./campos.ts";
 export { REDACTADO, Sensible, esSensible } from "./marca.ts";
-export { crearCifrador, cifradorDesdeEntorno, ErrorCifrado, type Cifrador } from "./cifrado.ts";
+export { crearCifrador, cifradorDesdeEntorno, ErrorCifrado, kidDe, type Cifrador } from "./cifrado.ts";
 export {
   ErrorAccesoSensible,
   guardarSensible,

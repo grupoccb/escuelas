@@ -53,15 +53,22 @@ Límite por **IP** y ruta, en memoria (`src/http/limite.ts`: cubeta de fichas, r
 | Inicio de sesión | `LIMITE_LOGIN_POR_MINUTO` | 10 | Además del bloqueo por (correo, IP) de B1 |
 | Resto de `/api` | `LIMITE_API_POR_MINUTO` | 600 | Antes de revisar la sesión |
 | Landing pública (E1) | `LIMITE_LANDING_POR_MINUTO` | 30 | Perfil listo: la landing usará `limitarApiPorIp(limitador, "landing", limites.landing)` y `LIMITE_CUERPO_LANDING` |
-| Webhooks: firmas INVÁLIDAS | `LIMITE_WEBHOOK_FALLOS_POR_MINUTO` | 30 | Por IP y por ruta; agotado, la IP recibe 429 antes de que se lea el cuerpo |
-| Webhooks: techo | `LIMITE_WEBHOOK_POR_MINUTO` | 6000 | Frena una inundación; no estorba al tráfico normal |
+| Webhooks: firmas INVÁLIDAS | `LIMITE_WEBHOOK_FALLOS_POR_MINUTO` | 30 | Por IP y por ruta; cada rechazo gasta este cupo y, agotado, los siguientes rechazos responden 429 |
+| Webhooks: techo | `LIMITE_WEBHOOK_POR_MINUTO` | 6000 | Solo lo firmado y legítimo lo gasta; frena una inundación sin estorbar al tráfico normal |
 | Tope de memoria | `LIMITE_MAX_CLAVES` | 50000 | Cubetas guardadas |
 
-El tráfico de webhooks **firmado y legítimo** no gasta cupo de fallos: solo cuentan las firmas inválidas. (Una IP que acumula firmas inválidas espera aunque ahora firme bien.)
+Los límites de webhooks se aplican **después** de verificar la firma, con dos cubetas separadas (EB-04): las firmas inválidas gastan solo el cupo de fallos y el tráfico
+**firmado y legítimo** solo el techo. Por eso nadie agota el límite de lo legítimo mandando firmas inválidas, ni siquiera desde la misma IP (un balanceador sin `TRUST_PROXY`, una oficina con NAT).
+Costo: el cuerpo (acotado por ruta) se lee y se verifica antes de decidir; verificar una firma es barato.
 Tamaño de cuerpo por ruta (`src/api/cuerpos.ts`): login 4 KB, resto de la API 100 KB, Twilio 100 KB, Chatwoot 1 MB, landing 16 KB; al pasarlo, 413.
 
-**IP real detrás de un balanceador:** `TRUST_PROXY` (número de saltos de confianza, p. ej. `1`, o lista de redes). Sin definirlo se usa la IP de la conexión y
+**IP real detrás de un balanceador:** `TRUST_PROXY` (número de saltos de confianza, p. ej. `1` con un ALB de AWS, o lista de redes). Sin definirlo se usa la IP de la conexión y
 `X-Forwarded-For` se ignora, así que no sirve para esquivar el límite. No uses `true`. Las IPv6 se agrupan por /64.
+**Defínelo siempre en producción** (EB-04): detrás de un balanceador sin `TRUST_PROXY` todos los clientes comparten una IP, y cinco intentos fallidos bloquean el login de cualquiera.
+Con `NODE_ENV=production` y sin valor, el backend loguea una alerta fuerte (`trust_proxy_no_definido`) al arrancar; un valor explícito (`false` incluido) la silencia.
+`docker-compose.yml` lo fija a `false` (el puerto se publica sin balanceador); un despliegue detrás de un ALB usa `1`. El caso contrario también es peligroso: `TRUST_PROXY=1` con el puerto expuesto directamente permite falsificar la IP.
+
+**HSTS.** `Strict-Transport-Security` se manda cuando la cookie de sesión es `Secure` (`NODE_ENV=production` o `COOKIE_SEGURA=true`) o cuando `ORIGEN_PUBLICO` es `https://…`; no en la demo en http.
 
 **Lo que NO resuelve:**
 - El estado vive en el proceso: con **varias réplicas** cada una cuenta aparte (el límite efectivo se multiplica) y un reinicio lo borra. Con más de una réplica hace falta un almacén compartido (Redis, la base) o un WAF/balanceador que limite antes.

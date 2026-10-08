@@ -69,6 +69,12 @@ test("una segunda señal mientras cierra no cierra dos veces", async () => {
   assert.deepEqual(salidas, [0]);
 });
 
+test("EB-04: el compose de ejemplo decide TRUST_PROXY de forma explícita para el backend (si no, en producción el backend alerta)", () => {
+  const compose = readFileSync(fileURLToPath(new URL("../docker-compose.yml", import.meta.url)), "utf8");
+  const bloque = compose.slice(compose.indexOf("\n  backend:"), compose.indexOf("\n  chatwoot-postgres:"));
+  assert.match(bloque, /^\s+TRUST_PROXY:\s*"?[^\s"#]+"?\s*$/m, "el servicio backend fija TRUST_PROXY");
+});
+
 test("EA-19: el plazo que compose da al backend para parar (stop_grace_period) es MAYOR que el tope del cierre", () => {
   const compose = readFileSync(fileURLToPath(new URL("../docker-compose.yml", import.meta.url)), "utf8");
   const bloque = compose.slice(compose.indexOf("\n  backend:"), compose.indexOf("\n  chatwoot-postgres:"));

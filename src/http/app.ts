@@ -2,13 +2,13 @@
 // no necesiten base ni red.
 
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import { cabecerasDeSeguridad } from "../api/cabeceras.ts";
-import { crearApiRouter, type ApiDepsEntrada } from "../api/index.ts";
+import { cabecerasDeSeguridad, hstsActivo } from "../api/cabeceras.ts";
+import { crearApiRouter, resolverDepsApi, type ApiDepsEntrada } from "../api/index.ts";
 import { LIMITE_CUERPO_CHATWOOT, LIMITE_CUERPO_TWILIO } from "../api/cuerpos.ts";
 import { log } from "../lib/log.ts";
 import type { ConfigLimites } from "./config-limites.ts";
 import type { LimitadorDeTasa } from "./limite.ts";
-import { protegerWebhook, registrarFirmaInvalida } from "./limite-http.ts";
+import { admitirWebhookValido, rechazar429, registrarFirmaInvalida } from "./limite-http.ts";
 import {
   interpretarDesasignacion,
   interpretarEventoChatwoot,
@@ -57,6 +57,8 @@ export interface AppDeps {
   limitador?: LimitadorDeTasa;
   /** `trust proxy` de Express: cuántos saltos de proxy creer para leer la IP real. Por omisión ninguno. */
   confiarEnProxy?: boolean | number | string;
+  /** Variables de entorno (por omisión `process.env`): de ahí salen la cookie segura y HSTS si no se pasan. */
+  entorno?: NodeJS.ProcessEnv;
   reloj?: () => Date;
 }
 
@@ -66,10 +68,13 @@ export function crearApp(deps: AppDeps): Express {
   // La IP del cliente (req.ip) sale de la conexión, salvo que se configure confiar en un proxy.
   app.set("trust proxy", deps.confiarEnProxy ?? false);
   const { limites, limitador } = deps;
-  app.use(cabecerasDeSeguridad(deps.api?.cookieSegura ?? false));
+  // HSTS con la MISMA resolución de la cookie segura que usa la API (no un valor aparte que nadie pasa, EB-05).
+  const entorno = deps.entorno ?? process.env;
+  const cookieSegura = deps.api ? resolverDepsApi({ ...deps.api, entorno: deps.api.entorno ?? entorno }).cookieSegura : false;
+  app.use(cabecerasDeSeguridad(hstsActivo(cookieSegura, deps.api?.entorno ?? entorno)));
 
   // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
-  if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), ...deps.api }));
+  if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
 
   app.get("/salud", async (_req, res) => {
     try {
@@ -82,13 +87,20 @@ export function crearApp(deps: AppDeps): Express {
 
   // Webhook del Agent Bot. La firma se valida sobre el cuerpo crudo antes de parsear nada
   // (invariante 9). Un 500 hace que Chatwoot reintente; el procesamiento es idempotente.
-  const protegido = (nombre: string): express.RequestHandler[] => (limitador && limites ? [protegerWebhook(limitador, limites, nombre)] : []);
-  app.post("/webhooks/chatwoot", ...protegido("chatwoot"), express.raw({ type: () => true, limit: LIMITE_CUERPO_CHATWOOT }), async (req, res) => {
+  // La protección por IP (B6, EB-04) se aplica DESPUÉS de verificar la firma: los rechazos gastan un cupo
+  // propio y solo lo firmado y legítimo gasta el techo; ver src/http/limite-http.ts.
+  app.post("/webhooks/chatwoot", express.raw({ type: () => true, limit: LIMITE_CUERPO_CHATWOOT }), async (req, res) => {
     const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (!verificarWebhookChatwoot(req, cuerpo, deps.secretoWebhookChatwoot, deps.reloj?.())) {
-      registrarFirmaInvalida(limitador, limites, "chatwoot", req);
+      const fallos = registrarFirmaInvalida(limitador, limites, "chatwoot", req);
       log.warn("webhook_chatwoot_rechazado");
-      res.status(401).json({ ok: false });
+      if (!fallos.permitido) rechazar429(res, fallos.reintentarEnSegundos);
+      else res.status(401).json({ ok: false });
+      return;
+    }
+    const techo = admitirWebhookValido(limitador, limites, "chatwoot", req);
+    if (!techo.permitido) {
+      rechazar429(res, techo.reintentarEnSegundos);
       return;
     }
 
@@ -157,14 +169,21 @@ export function crearApp(deps: AppDeps): Express {
     ["/webhooks/twilio/entrantes", "entrante"],
     ["/webhooks/twilio/estados", "estado"],
   ] as const) {
-    app.post(ruta, ...protegido(`twilio${tipo === "entrante" ? "" : "-estados"}`), express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
+    const nombreLimite = `twilio${tipo === "entrante" ? "" : "-estados"}`;
+    app.post(ruta, express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
       const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       const t = deps.twilio;
       const verificado = verificarWebhookTwilio(req, cuerpo, t?.authToken, t?.publicBaseUrl ? urlPublicaDe(t.publicBaseUrl, req.originalUrl) : null);
       if (!t || !verificado) {
-        registrarFirmaInvalida(limitador, limites, `twilio${tipo === "entrante" ? "" : "-estados"}`, req);
+        const fallos = registrarFirmaInvalida(limitador, limites, nombreLimite, req);
         log.warn("webhook_twilio_rechazado", { ruta });
-        res.status(403).end();
+        if (!fallos.permitido) rechazar429(res, fallos.reintentarEnSegundos);
+        else res.status(403).end();
+        return;
+      }
+      const techo = admitirWebhookValido(limitador, limites, nombreLimite, req);
+      if (!techo.permitido) {
+        rechazar429(res, techo.reintentarEnSegundos);
         return;
       }
       try {

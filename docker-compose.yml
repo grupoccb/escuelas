@@ -67,6 +67,10 @@ services:
       # único origen que puede hacer peticiones que cambian algo es el propio backend.
       COOKIE_SEGURA: "false"
       ORIGEN_PUBLICO: http://localhost:3000
+      # IP real de los clientes (EB-04). En la demo el puerto 3000 se publica directamente (no hay balanceador):
+      # ningún salto de confianza. Detrás de un balanceador de AWS (ALB) se pone `1`; con `false` explícito el
+      # backend no avisa. Sin ningún valor y con NODE_ENV=production el backend loguea una alerta fuerte al arrancar.
+      TRUST_PROXY: "false"
       # Clave de los datos de salud (B4). SOLO DEMO: está en el repositorio. En un ambiente real se genera
       # con `openssl rand -base64 32` y vive en el gestor de secretos.
       CLAVE_DATOS_SENSIBLES: "I4YAELLXaPYTGc2hPt5pVkQ8r0G5MpudNuv0u31Zp28="

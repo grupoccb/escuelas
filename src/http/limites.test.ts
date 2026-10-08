@@ -116,7 +116,7 @@ test("firmas inválidas en ráfaga: tras el cupo, 429 con Retry-After y sin cuer
   }
 });
 
-test("el bloqueo es por IP: otra IP (detrás de un proxy de confianza) no se afecta; la bloqueada tampoco pasa lo legítimo hasta que se rellene", async () => {
+test("el cupo de fallos es por IP: otra IP (detrás de un proxy de confianza) no se afecta, y lo firmado legítimo pasa aunque la IP ya agotó sus fallos", async () => {
   const m = montar({ fallos: 3, confiarEnProxy: 1 });
   try {
     const atacante = "203.0.113.66";
@@ -125,7 +125,7 @@ test("el bloqueo es por IP: otra IP (detrás de un proxy de confianza) no se afe
     assert.equal((await m.twilio(atacante, false)).estado, 429);
     assert.equal((await m.twilio(legitima, true)).estado, 200, "otra IP, intacta");
     assert.equal((await m.twilio(legitima, false)).estado, 403, "y sus propios fallos cuentan aparte");
-    assert.equal((await m.twilio(atacante, true)).estado, 429, "una IP bloqueada espera aunque ahora firme bien");
+    assert.equal((await m.twilio(atacante, true)).estado, 200, "lo firmado y legítimo NUNCA espera por los fallos (EB-04), venga de la IP que venga");
   } finally {
     m.cerrar();
   }
@@ -201,5 +201,29 @@ test("sin límites configurados (los demás tests de la app) nada se limita", as
     }
   } finally {
     server.close();
+  }
+});
+
+test("EB-04: 31 firmas inválidas de otra gente (misma IP, p. ej. un balanceador sin TRUST_PROXY) NO agotan el límite del tráfico firmado legítimo", async () => {
+  const m = montar({ fallos: 30 });
+  try {
+    for (let i = 0; i < 30; i++) assert.equal((await m.twilio(null, false)).estado, 403);
+    assert.equal((await m.twilio(null, false)).estado, 429, "el atacante agotó SU cupo de fallos");
+    assert.equal((await m.chatwoot(null, false)).estado, 401, "cada ruta tiene el suyo");
+    for (let i = 0; i < 50; i++) assert.equal((await m.twilio(null, true)).estado, 200, `legítimo ${i}`);
+    for (let i = 0; i < 50; i++) assert.equal((await m.twilio(null, true, "/webhooks/twilio/estados")).estado, 200, `legítimo estados ${i}`);
+    assert.equal(m.llamadasAlBorde(), 100);
+    // Y los rechazos no gastan el techo del tráfico válido: con techo 10, 30 rechazos y 10 válidos entran.
+  } finally {
+    m.cerrar();
+  }
+  const m2 = montar({ fallos: 100, techo: 10 });
+  try {
+    for (let i = 0; i < 40; i++) await m2.twilio(null, false);
+    const estados: number[] = [];
+    for (let i = 0; i < 12; i++) estados.push((await m2.twilio(null, true)).estado);
+    assert.equal(estados.filter((e) => e === 200).length, 10, "los rechazos no gastaron el techo de lo válido");
+  } finally {
+    m2.cerrar();
   }
 });

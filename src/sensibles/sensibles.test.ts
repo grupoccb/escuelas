@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { inspect } from "node:util";
-import { randomBytes } from "node:crypto";
+import { createCipheriv, randomBytes } from "node:crypto";
 import { log, redactar } from "../lib/log.ts";
 import { colectarLogs } from "../testutil/logs.ts";
 import { CAMPOS_SENSIBLES, esClaveSecreta, esClaveSensible, normalizarNombre } from "./campos.ts";
@@ -84,24 +84,77 @@ test("cifrado: ida y vuelta, IV distinto cada vez, ligado a su lugar y a prueba 
   assert.throws(() => c.descifrar(a, "otra|prospecto|1|alergias"), ErrorCifrado, "otra organización");
   assert.throws(() => c.descifrar(a, "org|prospecto|1|medicamentos"), ErrorCifrado, "otro campo");
   const partes = a.split(".");
-  partes[3] = Buffer.from("alterado").toString("base64url");
-  assert.throws(() => c.descifrar(partes.join("."), "org|prospecto|1|alergias"), ErrorCifrado);
+  assert.equal(partes.length, 5);
+  assert.equal(partes[0], "v2");
+  assert.equal(partes[1], c.kid);
+  const alterado = [...partes];
+  alterado[4] = Buffer.from("alterado").toString("base64url");
+  assert.throws(() => c.descifrar(alterado.join("."), "org|prospecto|1|alergias"), ErrorCifrado);
   assert.throws(() => crearCifrador(randomBytes(32)).descifrar(a, "org|prospecto|1|alergias"), ErrorCifrado, "otra clave");
   assert.throws(() => crearCifrador(Buffer.alloc(16)), ErrorCifrado);
   assert.throws(() => c.descifrar("basura", "x"), ErrorCifrado);
 });
 
-test("cifrador del entorno: con clave la usa; sin clave en producción se niega; sin clave fuera de producción usa la de desarrollo con aviso", () => {
+test("cifrador del entorno: con clave la usa; SIN clave solo se acepta la de desarrollo con NODE_ENV=development|test explícito (EB-07)", () => {
   const clave = randomBytes(32).toString("base64");
   const con = cifradorDesdeEntorno({ CLAVE_DATOS_SENSIBLES: clave });
   assert.equal(con.descifrar(con.cifrar("x", "a"), "a"), "x");
-  assert.throws(() => cifradorDesdeEntorno({ NODE_ENV: "production" }), /CLAVE_DATOS_SENSIBLES/);
-  const c = colectarLogs();
-  try {
-    const dev = cifradorDesdeEntorno({});
-    assert.equal(dev.descifrar(dev.cifrar("x", "a"), "a"), "x");
-  } finally {
-    c.detener();
+  // Sin clave: producción, sin NODE_ENV, o cualquier otro valor → se niega (nunca cifra con una clave pública).
+  for (const env of [{ NODE_ENV: "production" }, {}, { NODE_ENV: "staging" }, { NODE_ENV: "" }]) {
+    assert.throws(() => cifradorDesdeEntorno(env), /CLAVE_DATOS_SENSIBLES/, JSON.stringify(env));
   }
-  assert.match(c.texto(), /sensibles_clave_de_desarrollo/);
+  for (const modo of ["development", "test"]) {
+    const c = colectarLogs();
+    try {
+      const dev = cifradorDesdeEntorno({ NODE_ENV: modo });
+      assert.equal(dev.descifrar(dev.cifrar("x", "a"), "a"), "x");
+    } finally {
+      c.detener();
+    }
+    assert.match(c.texto(), /sensibles_clave_de_desarrollo/);
+  }
+});
+
+test("EB-07: el texto cifrado lleva el kid de su clave; la rotación lee lo viejo y escribe con la nueva; un kid desconocido da un error claro", () => {
+  const vieja = randomBytes(32);
+  const nueva = randomBytes(32);
+  const soloVieja = crearCifrador(vieja);
+  const guardadoViejo = soloVieja.cifrar("dato viejo", "lugar");
+  assert.match(guardadoViejo, new RegExp(`^v2\\.${soloVieja.kid}\\.`));
+  assert.notEqual(soloVieja.kid, crearCifrador(nueva).kid);
+
+  // Rotación: la nueva es la actual y la vieja queda en el llavero.
+  const rotado = cifradorDesdeEntorno({ CLAVE_DATOS_SENSIBLES: nueva.toString("base64"), CLAVES_DATOS_SENSIBLES_ANTERIORES: ` ${vieja.toString("base64")} ,` });
+  assert.equal(rotado.descifrar(guardadoViejo, "lugar"), "dato viejo");
+  const guardadoNuevo = rotado.cifrar("dato nuevo", "lugar");
+  assert.ok(guardadoNuevo.startsWith(`v2.${rotado.kid}.`));
+  assert.throws(() => soloVieja.descifrar(guardadoNuevo, "lugar"), /clave que no está configurada \(kid /, "sin la clave nueva se dice que falta, no que está alterado");
+  // Sin la vieja en el llavero, lo viejo da el mismo error claro.
+  assert.throws(() => cifradorDesdeEntorno({ CLAVE_DATOS_SENSIBLES: nueva.toString("base64") }).descifrar(guardadoViejo, "lugar"), (e) => e instanceof ErrorCifrado && e.message.includes(soloVieja.kid));
+  // El kid no revela la clave.
+  assert.ok(!soloVieja.kid.includes(vieja.toString("base64url").slice(0, 8)));
+});
+
+test("EB-07: el formato anterior (v1, sin kid) se sigue leyendo con la clave actual o con una anterior", () => {
+  const clave = randomBytes(32);
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", clave, iv);
+  c.setAAD(Buffer.from("lugar"));
+  const texto = Buffer.concat([c.update("dato v1", "utf8"), c.final()]);
+  const v1 = ["v1", iv.toString("base64url"), c.getAuthTag().toString("base64url"), texto.toString("base64url")].join(".");
+  assert.equal(crearCifrador(clave).descifrar(v1, "lugar"), "dato v1");
+  assert.equal(crearCifrador(randomBytes(32), { anteriores: [clave] }).descifrar(v1, "lugar"), "dato v1");
+  assert.throws(() => crearCifrador(randomBytes(32)).descifrar(v1, "lugar"), ErrorCifrado);
+});
+
+test("EB-15: una etiqueta GCM truncada no se acepta (solo 16 bytes)", () => {
+  const cif = crearCifrador(randomBytes(32));
+  const partes = cif.cifrar("dato", "lugar").split(".");
+  const etiqueta = Buffer.from(partes[3]!, "base64url");
+  for (const largo of [4, 8, 12, 15]) {
+    const truncada = [...partes];
+    truncada[3] = etiqueta.subarray(0, largo).toString("base64url");
+    assert.throws(() => cif.descifrar(truncada.join("."), "lugar"), ErrorCifrado, `${largo} bytes`);
+  }
+  assert.equal(cif.descifrar(partes.join("."), "lugar"), "dato");
 });

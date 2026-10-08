@@ -44,6 +44,18 @@ export function limitesDesdeEntorno(env: NodeJS.ProcessEnv = process.env): Confi
   };
 }
 
+/**
+ * Aviso fuerte (EB-04) si el backend corre en producción SIN decidir `TRUST_PROXY`. Detrás de un
+ * balanceador, sin él todos los clientes parecen una sola IP: cinco intentos fallidos bloquean el
+ * login de cualquiera y los límites de IP caen sobre todos. Poner un valor EXPLÍCITO (`1` para un
+ * balanceador; `false` si el puerto está expuesto directamente) lo silencia. null = nada que avisar.
+ */
+export function avisoDeTrustProxy(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env["NODE_ENV"] !== "production") return null;
+  if ((env["TRUST_PROXY"] ?? "").trim() !== "") return null;
+  return "TRUST_PROXY no está definido en producción: sin él X-Forwarded-For se ignora y, detrás de un balanceador, todos los clientes comparten una IP (el bloqueo de login y los límites de IP caen sobre todos). Defínelo: 1 con un balanceador, false si el puerto está expuesto directamente.";
+}
+
 /** Valor para `app.set("trust proxy", …)`. */
 export function confianzaProxyDesdeEntorno(env: NodeJS.ProcessEnv = process.env): boolean | number | string {
   const crudo = env["TRUST_PROXY"]?.trim();
