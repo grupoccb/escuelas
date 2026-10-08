@@ -33,7 +33,7 @@ interface Mundo {
   telefono: string;
   instructorId: string;
   grupoId: string;
-  escribe(contenido: string, conversacion?: number): ReturnType<typeof procesarEntrante>;
+  escribe(contenido: string, conversacion?: number, creadoEn?: Date): ReturnType<typeof procesarEntrante>;
   agendar(fecha: Date): Promise<void>;
   barrer(): ReturnType<typeof barrerAvisosMaestro>;
   avisos(): Promise<{ entrega: string; motivo_entrega: string | null }[]>;
@@ -58,7 +58,7 @@ async function mundo(): Promise<Mundo> {
   });
   const usuario = await prisma.usuario.create({ data: { organizacion_id: e.org.organizacionId, correo: `a-${Math.random()}@p.test`, nombre: "Asesor", rol: "asesor", contrasena_hash: "x" } });
   let n = 0;
-  const evento = (contenido: string, conversacion: number): EventoEntrante => {
+  const evento = (contenido: string, conversacion: number, creadoEn: Date | null = null): EventoEntrante => {
     const id = `instr-${randomInt(1_000_000_000)}-${++n}`;
     return {
       chatwootAccountId: e.org.chatwootAccountId,
@@ -68,7 +68,7 @@ async function mundo(): Promise<Mundo> {
       contenido,
       estadoConversacion: "pending",
       contacto: { nombre: "Maestra Ana", telefono },
-      creadoEn: null,
+      creadoEn,
       llave: { proveedor: "chatwoot", id },
       numeroReceptor: null,
       crudo: null,
@@ -80,7 +80,7 @@ async function mundo(): Promise<Mundo> {
     telefono,
     instructorId: instructor.id,
     grupoId,
-    escribe: (contenido, conversacion = conversacionInicial) => procesarEntrante(e.deps(AHORA), evento(contenido, conversacion)),
+    escribe: (contenido, conversacion = conversacionInicial, creadoEn) => procesarEntrante(e.deps(AHORA), evento(contenido, conversacion, creadoEn ?? null)),
     async agendar(fecha) {
       const f = await sembrarFamilia(prisma, e.org, { sucursalId: e.org.sucursales[0]!.id });
       const r = await e.db.$transaction((tx) => agendarClaseMuestra(tx, { ahora: AHORA, fuente: new OcupacionFija(), origen: { tipo: "usuario", usuarioId: usuario.id } }, { prospectoId: f.prospectoId, grupoId, fechaHora: fecha }));
@@ -182,4 +182,25 @@ test("ED-02 (concurrencia): dos mensajes del instructor desde dos conversaciones
   const rs = await Promise.all([m.escribe("a", base), m.escribe("b", base + 1), m.escribe("c", base + 2)]);
   assert.deepEqual(rs.map((r) => r.resultado), ["instructor", "instructor", "instructor"]);
   assert.equal(await m.e.db.conversacion_instructor.count({}), 1);
+});
+
+test("ED-05 (M88): si el teléfono del instructor también es el de un contacto de esa vertical, su mensaje se atiende como contacto (no como instructor)", async () => {
+  const m = await mundo();
+  const f = await sembrarFamilia(prisma, m.e.org, { sucursalId: m.e.org.sucursales[0]!.id, telefono: m.telefono });
+  const r = await m.escribe("Hola, quiero informes", randomInt(1, 2_000_000_000));
+  assert.notEqual(r.resultado, "instructor");
+  assert.equal(await m.e.db.conversacion_instructor.count({}), 0, "no se le abrió conversación de instructor");
+  assert.equal(await m.e.db.conversacion.count({ where: { lead_id: f.leadId } }), 1, "la conversación es la del contacto");
+});
+
+test("ED-05 (M89): un mensaje tardío del instructor (un reintento de Chatwoot) nunca acorta su ventana de 24 h", async () => {
+  const m = await mundo();
+  await m.escribe("Hola"); // recibido en AHORA
+  const ci = await m.e.db.conversacion_instructor.findFirstOrThrow({});
+  assert.equal(ci.ultimo_mensaje_entrante_en?.toISOString(), AHORA.toISOString());
+  // Llega después un mensaje que Chatwoot fechó dos horas antes: la ventana sigue contando desde el último real.
+  await m.escribe("(reintento tardío)", undefined, new Date(AHORA.getTime() - 2 * 3_600_000));
+  const despues = await m.e.db.conversacion_instructor.findFirstOrThrow({});
+  assert.equal(despues.ultimo_mensaje_entrante_en?.toISOString(), AHORA.toISOString());
+  assert.equal(despues.ventana_servicio_hasta?.toISOString(), new Date(AHORA.getTime() + 24 * 3_600_000).toISOString());
 });

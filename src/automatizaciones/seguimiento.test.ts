@@ -86,6 +86,14 @@ test("planearAvisoDePromocion: aún no, vencida, dentro de la ventana (siguiente
   assert.equal(plan("2026-11-13", "2026-11-11T06:00:00Z", { ventana: { ...TODO, dias: [6] } }).estado, "descartar");
 });
 
+test("ED-05: el borde de la promoción por vencer es EXCLUSIVO: si el siguiente horario válido cae justo cuando vence, se descarta", () => {
+  // La promo vale hasta el sábado 7 (vence a las 00:00 del domingo 8, 06:00Z). La ventana solo permite los domingos desde las 00:00: el aviso de las 20:00
+  // del sábado se recorre exactamente a las 00:00 del domingo = el instante en que vence → ya no sirve (con un límite inclusivo saldría tarde).
+  const soloDomingo: VentanaHoraria = { inicioMin: 0, finMin: 1200, dias: [0] };
+  const justo = plan("2026-11-07", "2026-11-08T02:00:00Z", { offset: -240, ventana: soloDomingo });
+  assert.equal(justo.estado, "descartar", JSON.stringify(justo));
+});
+
 test("fechaLarga: la fecha en español de México", () => {
   assert.equal(fechaLarga("2026-11-13"), "viernes 13 de noviembre");
   assert.equal(fechaLarga("2027-01-01"), "viernes 1 de enero");
