@@ -14,7 +14,7 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 | N7 | HECHO | d0c0882 | Estados de entrega |
 | N8 | HECHO | b50a9f1 | Reenganche |
 | N9 | HECHO | f2712b9 | Reporte mínimo |
-| N10 | PENDIENTE | | Prueba de fuego (segunda vertical) |
+| N10 | HECHO | (ver git log) | Prueba de fuego (segunda vertical) |
 | N11 | PENDIENTE | | Catálogo de Fase 2 |
 
 ## N0. Preparación
@@ -246,3 +246,30 @@ Sesión nocturna del 7 de octubre de 2026. Rama `noche-fase1`. Plan: `docs/PLAN-
 
 **Para Eduardo**
 - Con datos reales hay que correr primero la demo (ver abajo, N10/N11) o apuntar `DATABASE_URL` a la base que quieras: la base de la demo (`inscripciones`) se migra al hacer `docker compose up --build`, no antes.
+
+## N10. Prueba de fuego (segunda vertical solo con seed)
+
+**Qué se hizo**
+- `prisma/seed/segunda-vertical.sql`: la segunda vertical de `docs/insumos/seed-sucursales-horarios.sql` (vertical, las dos sucursales, canal y bandeja). Solo filas; idempotente.
+- `src/captacion/prueba-de-fuego.itest.ts`: aplica los seeds reales a una organización nueva (ids reescritos con un prefijo aleatorio por corrida para no chocar con otras pruebas), descubre cuál es la vertical que trajo la segunda semilla comparando filas antes y después, y demuestra el loop completo para ella.
+- El archivo de prueba **no nombra ninguna vertical** (`check:generico` lo prohíbe): verifica contra lo que dice la tabla.
+
+**Qué demuestra el test (6 pruebas)**
+- Vertical, sucursales, canal y bandeja existen solo por filas; correr el seed dos veces no duplica.
+- Loop completo: saludo con el nombre de **su** vertical (desde la tabla), opciones con **sus** sucursales, lead con **su** `vertical_interes_id`, prospecto, nota al asesor, conversación abierta y `en_atencion_humana`.
+- El mismo teléfono escribiendo a las dos verticales → dos leads y dos conversaciones independientes.
+- Una baja dada en una vertical calla a la otra (reglas por organización).
+- Reenganche: la misma plantilla de la organización, con el nombre de la vertical nueva como variable.
+- El reporte separa las verticales por el slug de la tabla.
+
+**Verificación**
+- `npm run validar` exit 0 (91 tests) · `npm run test:int` exit 0 (84 tests) · `npm run check:generico` ✓ (75 archivos).
+- **Cero cambios de código**: `git status --short src prisma/schema.prisma prisma/migrations` durante esta etapa → solo `?? src/captacion/prueba-de-fuego.itest.ts` (la prueba). Ni `src/` productivo, ni schema, ni migraciones.
+- Control negativo: quitando del seed las filas de `sucursal_vertical`, fallan 3 pruebas; restaurado, vuelven a pasar.
+
+**Decisiones que tomé**
+- El seed no incluye programas, grupos ni horarios del insumo: son de Fase 2 (N11 solo trae los de la primera vertical, según el plan).
+- Canal sin número de WhatsApp (como el de la primera vertical): la demo usa bandejas tipo API de Chatwoot. Un número real se agrega con una fila más.
+
+**Para Eduardo**
+- Para ver la segunda vertical en la demo: `docker compose up -d --build` y aplicar `prisma/seed/segunda-vertical.sql` (`npx prisma db execute --file …`) y luego `node scripts/preparar-chatwoot.ts` crea su bandeja en Chatwoot. No lo agregué a `demo-preparar` para no cambiar la demo de 0.5.
