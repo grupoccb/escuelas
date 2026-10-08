@@ -1619,3 +1619,22 @@ $ npm run test:int    → exit 0 · tests 791 · pass 791 · fail 0   (árbol de
 - Decisión de producto: ¿una inscripción con fecha de inicio pasada (alumnos que ya venían)? Hoy se rechaza.
 - `promocion_aplicacion` con la FK `NOT VALID`: si algún día se quiere validar, primero hay que borrar lógicamente las filas de prueba huérfanas.
 
+
+## F4. Cupo real
+
+**Qué se hizo**
+- **Defensa en la base (regla de Eduardo: cupo y dinero se protegen en la base, dentro de la misma transacción).** Migración `20261016011000_cupo_en_la_base`: un disparador `BEFORE INSERT OR UPDATE OF estatus, grupo_id, eliminado_en` sobre `inscripcion` toma la fila del grupo con `FOR UPDATE` (el mismo candado) y cuenta las activas DESPUÉS; si ya hay `cupo_maximo`, rechaza con `inscripcion_cupo_maximo` (SQLSTATE 23514). Cubre el alta, reactivar una congelada, revivir una borrada y mover de grupo. Falla cerrada aunque el código olvide el candado o alguien escriba por SQL. No rompe a los ya inscritos si luego baja el cupo del grupo, ni cuenta de nuevo a una activa que solo cambia otra columna. Los importes ya tienen sus CHECK (F3) y la promoción su `cupo_usado <= cupo_maximo` (C3), y el código cuenta y consume con sentencias atómicas.
+- **`InscripcionesActivas`** (`src/catalogo/cupo.ts`) cuenta las inscripciones `activa` del grupo (índice `inscripcion_cupo_idx`). Es el valor por omisión de `cupoPorGrupo`, `cargarCatalogoCotizable`, `resolverDepsApi` (API) y `procesarEntrante` (bot), y `src/server.ts` crea UNA y la pasa a la API y al bot en lugar de `SinInscripciones` (que queda solo para pruebas). Se revisó todo lo que reparte o muestra lugares: cotizador (API y bot), sesiones y agenda de la clase muestra, aviso de «ya se llenó» y lista de espera, y la inscripción; todos reciben la misma fuente.
+- Quien reparte lugares toma `bloquearCupoDeGrupo` y cuenta después: la clase muestra (D1) y ahora la inscripción; F5 hará lo mismo.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 504 · pass 504 · fail 0
+$ npm run test:int    → exit 0 · tests 791 · pass 791 · fail 0
+```
+`cupo.itest.ts` (7): activa/congelada/baja/lista de espera/borrada; la API se vuelve a abrir al congelar; **el cotizador de la API, las sesiones de clase muestra y el bot de WhatsApp (sin fuente inyectada) ven los lugares de las inscripciones**; **concurrencia real: 2 y 10 inscripciones por el último lugar y 10 por 3 lugares → ganan exactamente 1 y 3, el resto `grupo_lleno`, ningún 500 y nunca se pasa del cupo** (barrera sobre el UPDATE del candado, `barrera.completa` comprobado). Mutación atrapada: quitar `bloquearCupoDeGrupo` de la inscripción hace fallar los 3 tests. **`base.itest.ts` (7), saltándose el código a propósito (cliente de Prisma, sin candado ni reglas):** más activas que el cupo → la base rechaza (congeladas, bajas y borradas no cuentan); reactivar una congelada, mover a un grupo lleno y revivir una borrada → rechazado; bajar el cupo no rompe a los inscritos; **12 altas simultáneas por SQL a un grupo de 3 → entran exactamente 3**; dos activas del mismo alumno en el grupo (4 a la vez) → una; CHECKs de importes negativos, descuentos mayores que el precio, día de corte, meses y baja sin fecha; la aplicación de promoción con montos negativos o de otra organización. Mutación atrapada: deshabilitar el disparador hace fallar 4 de esos tests.
+
+**Decisiones que tomé**
+1. **Las congeladas y las bajas NO ocupan lugar** (el índice del contexto es `WHERE estatus='activa'`). Consecuencia: al reactivar una congelada hace falta lugar (F5 lo exige). Alternativa descartada: que la congelada conserve su lugar (un periodo de congelamiento largo dejaría grupos «llenos» sin nadie asistiendo).
+2. **La lista de espera no cuenta** (ya estaba decidido en C9).
+3. **Una clase muestra agendada no es una inscripción:** reserva lugar solo en su sesión (D1); una inscripción no la cuenta.
