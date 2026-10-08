@@ -101,6 +101,8 @@ model organizacion {
   asistencias                asistencia[]
   niveles_progresion         nivel_progresion[]
   progresiones               alumno_progresion[]
+  eventos                    evento[]
+  eventos_alumno             evento_alumno[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -202,6 +204,7 @@ model vertical {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   niveles_progresion  nivel_progresion[]
+  eventos             evento[]
 }
 
 model sucursal {
@@ -234,6 +237,7 @@ model sucursal {
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  eventos       evento[]
 }
 
 /// Qué verticales se imparten en qué sucursal.
@@ -1391,6 +1395,8 @@ model usuario {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   progresiones_registradas alumno_progresion[] @relation("progresion_registrada_por")
+  eventos_creados evento[] @relation("evento_creado_por")
+  participaciones_registradas evento_alumno[] @relation("evento_alumno_registrado_por")
 }
 
 /// Sucursales que ve un usuario. El administrador ve todas sin necesidad de filas aquí.
@@ -2349,6 +2355,7 @@ model alumno {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   progresiones alumno_progresion[]
+  eventos_alumno evento_alumno[]
 }
 
 /// Puente M:N: un alumno puede tener mamá, papá y abuela; un tutor, varios hijos en varias verticales. Una fila viva por
@@ -2633,6 +2640,7 @@ model nivel_progresion {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([vertical_id])
+  otorgados_en_eventos evento_alumno[]
 }
 
 /// Un peldaño que un alumno obtuvo. El nivel ACTUAL de una vertical es el más reciente (`fecha_obtenido` y, a igualdad, `creado_en`). Una fila por (alumno, nivel).
@@ -2642,7 +2650,7 @@ model alumno_progresion {
   alumno_id                 String    @db.Uuid
   nivel_id                  String    @db.Uuid
   fecha_obtenido            DateTime  @db.Date
-  /// El evento en el que se otorgó (G4); nulo si lo registró una persona fuera de un evento.
+  /// El evento en el que se otorgó (G4); nulo si lo registró una persona fuera de un evento. Un peldaño por (evento, alumno).
   evento_id                 String?   @db.Uuid
   instructor_id             String?   @db.Uuid
   /// Texto libre del maestro. NO se audita ni sale del expediente: puede mencionar salud (decisión 12).
@@ -2655,6 +2663,7 @@ model alumno_progresion {
   organizacion   organizacion      @relation(fields: [organizacion_id], references: [id])
   alumno         alumno            @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   nivel          nivel_progresion  @relation(fields: [nivel_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  evento         evento?           @relation(fields: [evento_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   instructor     instructor?       @relation(fields: [instructor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   registrado_por usuario?          @relation("progresion_registrada_por", fields: [registrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
@@ -2662,4 +2671,81 @@ model alumno_progresion {
   @@index([organizacion_id])
   @@index([alumno_id])
   @@index([nivel_id])
+}
+
+// ── Eventos y elegibilidad (G4) ────────────────────────────────────────────────────────────────
+
+enum estatus_evento_alumno {
+  convocado
+  confirmado
+  pagado
+  asistio
+}
+
+enum resultado_evento {
+  aprobado
+  no_aprobado
+}
+
+/// Un evento de una vertical en una sucursal (un examen, una exhibición…): el nombre con el que la escuela le dice vive en `vertical.etiqueta_evento`
+/// y el `tipo` es un texto corto que elige ella. El CUPO se protege en la base: un disparador toma la fila del evento y cuenta; ver la migración.
+model evento {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id     String    @db.Uuid
+  vertical_id         String    @db.Uuid
+  sucursal_id         String    @db.Uuid
+  tipo                String
+  nombre              String
+  /// El día del evento (calendario local de la sucursal).
+  fecha               DateTime  @db.Date
+  /// Lo que cuesta participar. Dinero exacto (nunca flotante). El maestro no lo ve.
+  cuota               Decimal   @default(0) @db.Decimal(12, 2)
+  /// Lugares: convocados, confirmados, pagados y asistentes ocupan uno. Entre 1 y lo que quepa; no se puede bajar por debajo de los ocupados.
+  cupo                Int
+  requiere_vestuario  Boolean   @default(false)
+  /// ¿Aprobar en este evento sube de peldaño? Si sí, solo se convoca a quien es elegible por clases mínimas (G4). Una exhibición, por ejemplo, no.
+  otorga_progresion   Boolean   @default(true)
+  creado_por_usuario_id String? @db.Uuid
+  creado_en           DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en        DateTime? @db.Timestamptz(6)
+
+  organizacion  organizacion        @relation(fields: [organizacion_id], references: [id])
+  vertical      vertical            @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal      sucursal            @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  creado_por    usuario?            @relation("evento_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  participantes evento_alumno[]
+  progresiones  alumno_progresion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([vertical_id, fecha])
+  @@index([sucursal_id])
+}
+
+/// Un alumno en un evento. Una fila viva por (evento, alumno). El estatus solo avanza (convocado → confirmado → pagado → asistio). `resultado` solo con `asistio`;
+/// si aprobó un evento que otorga progresión, `nivel_otorgado_id` es el peldaño que se le dio (y su `alumno_progresion` apunta a este evento).
+model evento_alumno {
+  id                        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String                @db.Uuid
+  evento_id                 String                @db.Uuid
+  alumno_id                 String                @db.Uuid
+  estatus                   estatus_evento_alumno @default(convocado)
+  resultado                 resultado_evento?
+  nivel_otorgado_id         String?               @db.Uuid
+  registrado_por_usuario_id String?               @db.Uuid
+  creado_en                 DateTime              @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime?             @db.Timestamptz(6)
+
+  organizacion   organizacion      @relation(fields: [organizacion_id], references: [id])
+  evento         evento            @relation(fields: [evento_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  alumno         alumno            @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  nivel_otorgado nivel_progresion? @relation(fields: [nivel_otorgado_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registrado_por usuario?          @relation("evento_alumno_registrado_por", fields: [registrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([evento_id])
+  @@index([alumno_id])
 }

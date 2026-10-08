@@ -39,8 +39,8 @@ let consecutivo = 0;
 export async function mundoDeOperacion(prisma: PrismaPruebas, nombre = "Operación", ahora = new Date("2026-11-18T18:00:00Z")): Promise<MundoDeOperacion> {
   const org = await sembrarOrganizacion(prisma, nombre);
   const reloj = { ahora };
-  // Sesiones largas: las pruebas mueven el reloj horas adelante y no deben expirar por inactividad.
-  const api = levantarApi(prisma, { reloj: () => reloj.ahora, sesion: { duracionMs: 48 * 3_600_000, inactividadMs: 48 * 3_600_000 } });
+  // Sesiones largas: las pruebas mueven el reloj días adelante y no deben expirar.
+  const api = levantarApi(prisma, { reloj: () => reloj.ahora, sesion: { duracionMs: 120 * 86_400_000, inactividadMs: 120 * 86_400_000 } });
   const norte = org.sucursales[0]!.id;
   const sur = org.sucursales[1]!.id;
   const entrar = async (rol: "administrador" | "asesor" | "maestro" | "recepcion", sucursales: string[] = []) => {
@@ -64,11 +64,11 @@ export async function mundoDeOperacion(prisma: PrismaPruebas, nombre = "Operaci�
     edadMin: 3,
     edadMax: 14,
     grupos: [
-      { nombre: "Norte A", cupoMaximo: 40, horarios: [[1, 960, 1020], [3, 960, 1020]] },
-      { nombre: "Norte B", cupoMaximo: 40, horarios: [[2, 960, 1020], [4, 960, 1020]] },
+      { nombre: "Norte A", cupoMaximo: 400, horarios: [[1, 960, 1020], [3, 960, 1020]] },
+      { nombre: "Norte B", cupoMaximo: 400, horarios: [[2, 960, 1020], [4, 960, 1020]] },
     ],
   });
-  const ps = await sembrarPrograma(prisma, org, { sucursalId: sur, nombre: "Programa sur", edadMin: 3, edadMax: 14, grupos: [{ nombre: "Sur A", cupoMaximo: 40, horarios: [[1, 960, 1020], [3, 960, 1020]] }] });
+  const ps = await sembrarPrograma(prisma, org, { sucursalId: sur, nombre: "Programa sur", edadMin: 3, edadMax: 14, grupos: [{ nombre: "Sur A", cupoMaximo: 400, horarios: [[1, 960, 1020], [3, 960, 1020]] }] });
   const grupoA = pn.grupos[0]!.id;
   const grupoB = pn.grupos[1]!.id;
   const grupoSur = ps.grupos[0]!.id;

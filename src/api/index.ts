@@ -32,6 +32,7 @@ import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeAsistencia } from "./rutas/asistencia.ts";
 import { rutasDeCampanas } from "./rutas/campanas.ts";
+import { rutasDeEventos } from "./rutas/eventos.ts";
 import { rutasDeNiveles } from "./rutas/niveles.ts";
 import { rutasDeProgresion } from "./rutas/progresion.ts";
 import { rutasDeCierre } from "./rutas/cierre.ts";
@@ -136,6 +137,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeAsistencia(deps));
   api.use(rutasDeNiveles(deps));
   api.use(rutasDeProgresion(deps));
+  api.use(rutasDeEventos(deps));
   api.use(rutasDeMotivosBaja(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));

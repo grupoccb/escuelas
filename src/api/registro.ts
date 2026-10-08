@@ -57,6 +57,9 @@ export const CAMPOS_AUDITABLES = {
   // G3: los peldaños (catálogo) y lo que cada alumno obtuvo. Sin `observaciones` (texto libre que puede mencionar salud, decisión 12).
   nivel_progresion: ["vertical_id", "nombre", "orden", "color_hex", "horas_minimas", "clases_minimas", "requisitos_texto"],
   alumno_progresion: ["alumno_id", "nivel_id", "fecha_obtenido", "evento_id", "instructor_id"],
+  // G4: el evento (con su cuota como texto exacto) y la participación de cada alumno. Sin observaciones.
+  evento: ["vertical_id", "sucursal_id", "tipo", "nombre", "fecha", "cuota", "cupo", "requiere_vestuario", "otorga_progresion"],
+  evento_alumno: ["evento_id", "alumno_id", "estatus", "resultado", "nivel_otorgado_id"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

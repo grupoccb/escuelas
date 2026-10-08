@@ -57,7 +57,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | G1 | HECHO | ver `git log` (`G1:`) | Pase de lista por grupo y fecha: `asistencia` única por (inscripción, fecha), solo sesiones que ya empezaron, lista de inscritos activos, guardado masivo idempotente y serializado, corrección con registro de cambios |
 | G2 | HECHO | ver `git log` (`G2:`) | Derivados al registrar el pase: % de 30 días, racha de faltas por sesiones con pase tomado y tarea para el asesor al llegar al umbral (configurable, una por inscripción y por racha, se resuelve sola), consultables por API |
 | G3 | HECHO | ver `git log` (`G3:`) | Progresión genérica: `nivel_progresion` y `alumno_progresion` (filas, sin términos de vertical), nivel actual = el más reciente, siguiente por orden, API de niveles y de la progresión del alumno, seed `[SUPUESTO]` de las tres verticales |
-| G4 | PENDIENTE | | Eventos y elegibilidad |
+| G4 | HECHO | ver `git log` (`G4:`) | Eventos y elegibilidad por clases mínimas: solo elegibles se convocan, cupo atómico y protegido en la base (disparador que falla cerrado; SQL directo y carrera real), estatus que solo avanza, resultado que crea la progresión en la misma transacción |
 | G5 | PENDIENTE | | Expediente del alumno |
 | H1 | PENDIENTE | | Cargos |
 | H2 | PENDIENTE | | Pagos |
@@ -2032,3 +2032,36 @@ Mutaciones atrapadas: sin la regla de fecha futura, sin la de inscripción en la
 **Para Eduardo**
 - **[SUPUESTO]** los nombres, colores, clases mínimas y requisitos del seed (salvo los seis peldaños de ballet, que son los del contexto §7), y que la tercera vertical no lleve progresión por ahora (`usa_progresion` en `catalogo-completo.sql`).
 - Decisión abierta: ¿se debe poder dar un peldaño que se salta uno? Hoy sí (con permiso de maestro o administrador).
+
+
+## G4. Eventos y elegibilidad
+
+**Qué se hizo**
+- **Migración `20261020010000_eventos`:** `evento` (vertical, sucursal, `tipo`, `nombre`, `fecha`, `cuota Decimal(12,2)`, `cupo`, `requiere_vestuario`, `otorga_progresion`) y `evento_alumno` (`estatus` convocado/confirmado/pagado/asistio, `resultado` aprobado/no_aprobado, `nivel_otorgado_id`); FK compuestas, CHECK de cupo ≥ 1, cuota ≥ 0, textos y fechas; únicos parciales por `(evento, alumno)` y `(evento, alumno)` en `alumno_progresion`; CHECK de que el resultado solo existe con la asistencia y el peldaño solo con «aprobado»; la FK de `alumno_progresion.evento_id` que G3 dejó pendiente.
+- **El cupo en la base:** disparador `evento_alumno_cupo` (BEFORE INSERT / UPDATE de `eliminado_en` y `evento_id`): toma la fila del evento con `FOR UPDATE`, cuenta los vivos y falla cerrado (`evento_cupo`, SQLSTATE 23514) si no hay lugar; y `evento_cupo_no_menor_a_ocupados` impide bajar el cupo por debajo de los ocupados. El código hace lo mismo antes (`bloquearEvento` = un UPDATE de la fila, contar DESPUÉS, insertar) y traduce el rechazo de la base a un 409 `evento_lleno`.
+- **`src/progresion/elegibilidad.ts`:** `evaluarElegibilidad` (pura) y `elegibilidadDe`. **`src/eventos/eventos.ts`:** `convocarAlumnos` (solo elegibles, parcial, idempotente), `cambiarEstatus` (solo hacia adelante, cambio condicional), `registrarResultado` (reclamo condicional y peldaño con `otorgarNivel` de G3 en la misma transacción) y `RechazoDeEvento` (revierte el resultado si el peldaño no se puede dar).
+- **API** (`docs/API.md`, «Eventos y elegibilidad»): 11 rutas bajo `/api/eventos`. Permisos nuevos `eventos:leer` (todos), `eventos:escribir` (administrador) y `eventos:participantes` (administrador, recepción, maestro). Registro de cambios de `evento` y `evento_alumno`. El maestro no ve la cuota (EF-03).
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 537 · pass 537 · fail 0   (antes 534)
+$ npm run test:int    → exit 0 · tests 913 · pass 913 · fail 0   (antes 900)
+```
+(Dos descubrimientos al probar: el cupo del grupo del propio mundo de prueba —40— frenó a la prueba que inscribe decenas de alumnos, y era la defensa de F4 funcionando; y las sesiones de prueba tuvieron que durar más que el salto de reloj de 17 días.)
+Tests nuevos: `elegibilidad.test.ts` (3, puros: el borde inclusivo, el primer peldaño sin clases, las razones en orden) y `eventos.itest.ts` (13, la app real + Postgres): CRUD con permisos y alcance, cuota exacta (seis importes; 10 000 000 000.00 no cabe), elegibilidad con sus bordes (10 justo, 9 no, el día del examen no cuenta, faltas y justificadas no, congeladas y bajas fuera, sin nivel y en el tope), convocar solo elegibles con parciales, idempotencia, `evento_pasado`, maestro solo a los suyos y un recital sin umbral; **cupo**: por API (ocho aspirantes por tres lugares), **carrera real por HTTP (doce por cuatro)**, **SQL directo** (la base rechaza la cuarta alta, revivir una borrada, mover a un evento lleno y bajar el cupo; editar el estatus de una fila viva no vuelve a contar) y **ocho altas simultáneas directas en la base → exactamente tres**; CHECK y únicos de la base y cruce entre organizaciones; estatus (adelante, saltos, retroceso, `evento_futuro`, quitar); resultado (peldaño siguiente con la fecha del evento y el instructor, idempotente, conflicto, **seis simultáneos → un peldaño**, y que si el peldaño no se puede dar el resultado no queda); no-fuga entre organizaciones.
+Mutaciones atrapadas: sin el conteo del código, sin el disparador de la base (3 pruebas con el código también apagado: la defensa en profundidad), el día del examen que cuenta, sin el reclamo del resultado, el peldaño que falla sin revertir y el estatus que retrocede.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Ocupan lugar convocado, confirmado, pagado y asistió** (un convocado ya aparta lugar). Alternativa descartada: contar solo confirmados (se sobrevenderían lugares). Quitar a alguien es baja lógica y libera.
+2. **`otorga_progresion` en el evento** (campo que agregué a los del encargo): la elegibilidad por clases solo tiene sentido en un evento que sube de peldaño; un recital no. Por omisión sí. Alternativa descartada: exigirla siempre (nadie podría convocar a un recital).
+3. **Clases cuentan estrictamente después de la fecha del nivel actual** (el día del examen no suma para el siguiente) y solo asistencias de ESA vertical. Alternativa: `>=` (la clase del examen contaría dos veces).
+4. **El estatus avanza y puede saltar pasos** (se paga en el mostrador sin confirmar antes); retroceder no. `pagado` hoy es una marca manual: no hay módulo de pagos todavía (H2 la conectará con la cuota).
+5. **Convocar es parcial** (entran los que caben y cumplen; el resto se rechaza con motivo) y solo es 409 si nadie quedó. Alternativa descartada: todo o nada (un alumno no elegible en una lista de treinta tumbaría la convocatoria).
+6. **El resultado y el peldaño son una sola cosa.** Alternativa: dos llamadas (podría quedar un «aprobado» sin peldaño).
+7. **El peldaño del evento lleva la fecha del evento** (no la del día en que se capturó) y el instructor es el maestro que lo registra.
+8. **Convocar exige que el evento no haya pasado** (en la zona de su sucursal).
+
+**Para Eduardo**
+- **[SUPUESTO]** `otorga_progresion` (por omisión sí), que recepción cobra y marca el estatus, y que el maestro califica a sus alumnos.
+- Decisión abierta: ¿una cuota por evento o por alumno (becas, descuento por hermano)? Hoy una cuota por evento; el cobro llegará con H.
+- Decisión abierta: ¿se puede convocar a quien no cumple las clases con una excepción del administrador? Hoy no.
