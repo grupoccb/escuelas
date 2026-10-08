@@ -417,6 +417,54 @@ test("EF-01: la conversión no reparte el cupo de otra sucursal — el grupo, ma
   assert.equal(await enNorte(), 1);
 });
 
+test("EF-05: si el registro no marca responsable de pago, el primer adulto lo es (un alumno sin responsable no tiene a quién cobrarle)", async () => {
+  const f = await leadDelBot({ nombre: "Sin marca", sucursalId: norte });
+  const g = await grupoNuevo({ instructor: instructorId });
+  const clase = await prisma.clase_muestra.create({ data: { organizacion_id: org.organizacionId, lead_id: f.leadId, prospecto_id: f.prospectoId, grupo_id: g.grupoId, fecha_hora: new Date("2026-11-09T22:00:00Z"), agendada_por: "usuario", agendada_por_usuario_id: adminId } });
+  await aceptaReglamento(f.leadId, f.prospectoId);
+  const registro = await maestro.patch(`/api/clases-muestra/${clase.id}/registro`, {
+    alumno: { nombre: "Sin marca", apellidos: "Soto", fecha_nacimiento: "2018-05-04" },
+    tutores: [{ nombre: "Uno", apellidos: "Soto", parentesco: "madre", telefono: f.telefono! }, { nombre: "Dos", apellidos: "Soto", parentesco: "abuelo", telefono: "+525533336666", puede_recoger: true }],
+  });
+  assert.equal(registro.estado, 200, JSON.stringify(registro.cuerpo));
+  const r = await asesorNorte.post<Conv & Errores>(`/api/leads/${f.leadId}/convertir`, { prospectos: [{ prospecto_id: f.prospectoId, inscripcion: { grupo_id: g.grupoId } }] });
+  assert.equal(r.estado, 201, JSON.stringify(r.cuerpo));
+  const vinculos = await prisma.tutor_alumno.findMany({ where: { alumno_id: r.cuerpo.alumnos[0]!.alumno_id }, include: { tutor: true } });
+  assert.equal(vinculos.length, 2);
+  const responsables = vinculos.filter((v) => v.es_responsable_pago);
+  assert.deepEqual(responsables.map((v) => v.tutor.telefono), [f.telefono], "el primero de la lista (posición 1) es el responsable");
+});
+
+test("EF-05: la conversión toma los candados de los grupos de sus inscripciones SIEMPRE en el mismo orden (por id), sea cual sea el orden de los hijos: dos conversiones cruzadas no se interbloquean", async () => {
+  const g1 = await grupoNuevo();
+  const g2 = await grupoNuevo();
+  const [menor, mayor] = [g1.grupoId, g2.grupoId].sort() as [string, string];
+  const f = await leadDelBot({ nombre: "Primero", sucursalId: norte });
+  const segundo = await prisma.prospecto.create({ data: { organizacion_id: org.organizacionId, lead_id: f.leadId, vertical_interes_id: org.verticalId, nombre: "Segundo", edad_declarada: 6, origen: "asesor", creado_en: new Date(Date.now() + 60_000) } });
+  await aceptaReglamento(f.leadId, f.prospectoId);
+  await aceptaReglamento(f.leadId, segundo.id);
+  const tomados: string[] = [];
+  const raiz = conGanchos(prisma, { modelo: "grupo", operacion: "updateMany", cuando: (a) => [menor, mayor].some((id) => JSON.stringify(a["where"]).includes(id)), antes: async (a) => { tomados.push([menor, mayor].find((id) => JSON.stringify(a["where"]).includes(id))!); } });
+  const apiOrden = levantarApi(raiz, { reloj: () => AHORA, sensibles: { cifrador } });
+  try {
+    const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "administrador" });
+    const c = apiOrden.cliente();
+    await c.login(org.slug, u.correo, u.contrasena);
+    // El primer hijo va al grupo de id MAYOR y el segundo al de id MENOR: sin ordenar, se tomarían en ese orden.
+    const r = await c.post<Conv & Errores>(`/api/leads/${f.leadId}/convertir`, {
+      tutor: { parentesco: "madre" },
+      prospectos: [
+        { prospecto_id: f.prospectoId, alumno: { apellidos: "Soto", fecha_nacimiento: "2018-01-01" }, inscripcion: { grupo_id: mayor } },
+        { prospecto_id: segundo.id, alumno: { apellidos: "Soto", fecha_nacimiento: "2019-01-01" }, inscripcion: { grupo_id: menor } },
+      ],
+    });
+    assert.equal(r.estado, 201, JSON.stringify(r.cuerpo));
+    assert.deepEqual(tomados, [menor, mayor], "los candados de los grupos, en orden de id");
+  } finally {
+    await apiOrden.cerrar();
+  }
+});
+
 test("el aislamiento entre organizaciones: el lead de otra organización es 404 y el teléfono igual en otra organización es otro tutor", async () => {
   const otra = await sembrarOrganizacion(prisma, "Conversión ajena");
   const e2 = await sembrarEmbudo(prisma, otra);

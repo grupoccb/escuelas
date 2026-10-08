@@ -114,6 +114,21 @@ test("la promoción por 2 hermanos se aplica SOLA al segundo hijo (el primero pa
   }
 });
 
+test("EF-05: un alumno no es hermano de sí mismo — su segunda inscripción (otro grupo) no recibe la promoción por 2 hermanos", async () => {
+  const promo = await promoHermanos(2);
+  try {
+    const a = await alumno();
+    assert.equal((await inscribir(admin, a.alumnoId, (await programa()).grupoId)).estado, 201);
+    const segunda = await inscribir(admin, a.alumnoId, (await programa()).grupoId);
+    assert.equal(segunda.estado, 201);
+    assert.equal(segunda.cuerpo.descuento_mensualidad_aplicado, "0.00", "sin hermanos no hay promoción");
+    assert.equal(segunda.cuerpo.promociones.length, 0);
+    assert.equal((await prisma.promocion.findFirstOrThrow({ where: { id: promo } })).cupo_usado, 0);
+  } finally {
+    await apagar(promo);
+  }
+});
+
 test("dos tutores del mismo niño (mamá y abuela) NO cuentan dos veces: con una promoción de 3 hermanos, el segundo hijo todavía no la recibe", async () => {
   const promo = await promoHermanos(3);
   try {
