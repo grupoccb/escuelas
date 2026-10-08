@@ -14,6 +14,10 @@ import type { Consultas } from "../datos/alcance.ts";
 export const POLITICAS_SUCURSAL_SIN_PROGRAMA = ["ofrecer_otra", "avisar_asesor"] as const;
 export type PoliticaSucursalSinPrograma = (typeof POLITICAS_SUCURSAL_SIN_PROGRAMA)[number];
 
+/** Quién cierra la inscripción (F6, decisión 7 del plan): el asesor por WhatsApp (por omisión) o el maestro en sitio. */
+export const MODOS_DE_CIERRE = ["asesor_whatsapp", "maestro_en_sitio"] as const;
+export type ModoDeCierre = (typeof MODOS_DE_CIERRE)[number];
+
 export interface ConfiguracionOrganizacion {
   /** Mensajes automáticos por teléfono en una ventana móvil de 24 h. */
   maxAutomaticosPorDia: number;
@@ -32,6 +36,8 @@ export interface ConfiguracionOrganizacion {
   claseMuestraHorizonteDias: number;
   /** Horas después de marcar asistió / no asistió en que se puede corregir (D4). */
   claseMuestraCorreccionHoras: number;
+  /** `asesor_whatsapp` (por omisión): el maestro marca «listo para cerrar» y solo el asesor o el administrador convierten. `maestro_en_sitio`: el maestro también puede convertir al terminar la clase (F6). */
+  modoCierre: ModoDeCierre;
 }
 
 /** Lo que vale cuando la organización no tiene fila. Mismos valores que los defaults de la columna. */
@@ -45,6 +51,7 @@ export const CONFIGURACION_POR_DEFECTO: Readonly<ConfiguracionOrganizacion> = Ob
   claseMuestraAnticipacionMin: 120,
   claseMuestraHorizonteDias: 60,
   claseMuestraCorreccionHoras: 48,
+  modoCierre: "asesor_whatsapp",
 });
 
 interface FilaConfiguracion {
@@ -57,6 +64,7 @@ interface FilaConfiguracion {
   clase_muestra_anticipacion_min: number;
   clase_muestra_horizonte_dias: number;
   clase_muestra_correccion_horas: number;
+  modo_cierre: ModoDeCierre;
 }
 
 function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
@@ -70,13 +78,14 @@ function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
     claseMuestraAnticipacionMin: f.clase_muestra_anticipacion_min,
     claseMuestraHorizonteDias: f.clase_muestra_horizonte_dias,
     claseMuestraCorreccionHoras: f.clase_muestra_correccion_horas,
+    modoCierre: f.modo_cierre,
   };
 }
 
 /** La configuración de la organización del scope; los valores por defecto si no hay fila. */
 export async function leerConfiguracion(db: Consultas): Promise<ConfiguracionOrganizacion> {
   const fila = await db.configuracion_organizacion.findFirst({
-    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true, cotizacion_vigencia_dias: true, lista_espera_oferta_horas: true, clase_muestra_anticipacion_min: true, clase_muestra_horizonte_dias: true, clase_muestra_correccion_horas: true },
+    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true, cotizacion_vigencia_dias: true, lista_espera_oferta_horas: true, clase_muestra_anticipacion_min: true, clase_muestra_horizonte_dias: true, clase_muestra_correccion_horas: true, modo_cierre: true },
   });
   return fila ? desdeFila(fila) : { ...CONFIGURACION_POR_DEFECTO };
 }

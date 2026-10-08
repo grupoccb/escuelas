@@ -32,6 +32,8 @@ export const MATRIZ_DE_PERMISOS = {
   "clases_muestra:escribir": ["administrador", "asesor"],
   // Marcar asistió / no asistió (D4): el maestro de ese grupo, el asesor y el administrador.
   "clases_muestra:asistencia": ["administrador", "asesor", "maestro"],
+  // Marcar «listo para cerrar» (F6): el maestro de ese grupo, el asesor y el administrador, en cualquier modo de cierre.
+  "clases_muestra:listo_para_cerrar": ["administrador", "asesor", "maestro"],
   // Registro de la clase muestra (D5): lo captura el maestro de ese grupo, el asesor de la sucursal y el administrador. Recepción no lo ve. La
   // sección de salud sigue su propio marco (`salud:leer` / `salud:escribir`: administrador y maestro). Reabrir un registro cerrado: solo el administrador.
   "registro_muestra:leer": ["administrador", "asesor", "maestro"],
@@ -50,9 +52,9 @@ export const MATRIZ_DE_PERMISOS = {
   // Inscripción (F3): inscribir y, después, cambiar de grupo, congelar y dar de baja (F5) son del administrador, el asesor y recepción. El maestro lee las de SUS grupos.
   "inscripciones:leer": ["administrador", "asesor", "recepcion", "maestro"],
   "inscripciones:escribir": ["administrador", "asesor", "recepcion"],
-  // Conversión del lead en familia e inscripciones (F2): quien cierra la inscripción. Por omisión el asesor y el administrador; el maestro, en el modo «maestro en sitio» (F6).
-  "conversion:leer": ["administrador", "asesor"],
-  "conversion:ejecutar": ["administrador", "asesor"],
+  // Conversión del lead en familia e inscripciones (F2): quien cierra la inscripción. El maestro tiene el permiso, pero la ruta solo se lo concede con el modo de cierre `maestro_en_sitio` (F6, `puedeConvertir`) y de SUS alumnos.
+  "conversion:leer": ["administrador", "asesor", "maestro"],
+  "conversion:ejecutar": ["administrador", "asesor", "maestro"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],

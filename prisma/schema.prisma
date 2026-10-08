@@ -109,6 +109,14 @@ enum politica_sucursal_sin_programa {
   avisar_asesor
 }
 
+/// Quién cierra la inscripción (decisión 7 del plan, F6). `asesor_whatsapp` (por omisión): el maestro marca «listo para cerrar» y el asesor
+/// convierte y cobra por WhatsApp. `maestro_en_sitio`: el maestro, con permiso, convierte al lead al terminar la clase muestra (el cobro sigue
+/// siendo registro manual, H2).
+enum modo_cierre_inscripcion {
+  asesor_whatsapp
+  maestro_en_sitio
+}
+
 model configuracion_organizacion {
   id                        String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizacion_id           String                         @db.Uuid
@@ -133,6 +141,8 @@ model configuracion_organizacion {
   clase_muestra_horizonte_dias   Int                       @default(60)
   /// Cuántas horas después de marcar asistió / no asistió se puede corregir el error (D4).
   clase_muestra_correccion_horas Int                       @default(48)
+  /// Quién cierra la inscripción (F6): ver `modo_cierre_inscripcion`.
+  modo_cierre               modo_cierre_inscripcion        @default(asesor_whatsapp)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -856,6 +866,8 @@ enum tipo_tarea_asesor {
   llamar_no_asistio
   /// Un lead lleva sin movimiento los días que marca su etapa: el asesor decide cómo retomarlo (D8). Una pendiente por lead.
   lead_frio
+  /// El maestro (o el asesor) marcó que la familia quedó lista para cerrar la inscripción (F6). Una pendiente por lead; se resuelve sola al convertirse.
+  listo_para_cerrar
 }
 
 enum estado_tarea_asesor {
@@ -1338,6 +1350,7 @@ model usuario {
   cambios_de_etapa         lead_etapa_historial[]  @relation("historial_usuario")
   inscripciones_creadas    inscripcion[]           @relation("inscripcion_creada_por")
   inscripciones_movidas    inscripcion_movimiento[] @relation("movimiento_usuario")
+  clases_listas_para_cerrar clase_muestra[]          @relation("clase_listo_por")
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1717,11 +1730,15 @@ model clase_muestra {
   /// Cuándo y quién marcó asistió / no asistió (D4); se actualiza si se corrige.
   asistencia_marcada_en   DateTime?             @db.Timestamptz(6)
   asistencia_marcada_por_usuario_id String?     @db.Uuid
+  /// Cuándo y quién marcó que la familia quedó «lista para cerrar» la inscripción (F6).
+  listo_para_cerrar_en    DateTime?             @db.Timestamptz(6)
+  listo_para_cerrar_por_usuario_id String?      @db.Uuid
   creado_en               DateTime              @default(now()) @db.Timestamptz(6)
   actualizado_en          DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en            DateTime?             @db.Timestamptz(6)
 
   organizacion     organizacion    @relation(fields: [organizacion_id], references: [id])
+  listo_por        usuario?        @relation("clase_listo_por", fields: [listo_para_cerrar_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   lead             lead            @relation(fields: [lead_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   prospecto        prospecto       @relation(fields: [prospecto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   grupo            grupo           @relation(fields: [grupo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)

@@ -31,6 +31,7 @@ import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts"
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeCampanas } from "./rutas/campanas.ts";
+import { rutasDeCierre } from "./rutas/cierre.ts";
 import { rutasDeClasesMuestra } from "./rutas/clases-muestra.ts";
 import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
@@ -123,6 +124,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeCotizaciones(deps));
   api.use(rutasDeListaEspera(deps));
   api.use(rutasDeClasesMuestra(deps));
+  api.use(rutasDeCierre(deps));
   api.use(rutasDeRegistroMuestra(deps));
   api.use(rutasDeLegal(deps));
   api.use(rutasDelMaestro(deps));

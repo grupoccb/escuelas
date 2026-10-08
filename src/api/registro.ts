@@ -30,7 +30,7 @@ export const CAMPOS_AUDITABLES = {
   cotizacion: ["lead_id", "prospecto_id", "programa_id", "sucursal_id", "grupo_elegido_id", "origen", "estatus", "fecha", "vigente_hasta", "hermanos_inscritos", "meses_pagados"],
   // `notas` y `motivo_cancelacion` NO se auditan (ED-03): son texto libre, pueden llevar datos de salud («está enfermo») y el registro de
   // cambios es de solo anexar y no se purga (decisión 12). El motivo vive en la clase, con su permiso y su baja lógica.
-  clase_muestra: ["lead_id", "prospecto_id", "grupo_id", "fecha_hora", "estatus", "agendada_por", "reprogramada_de_id", "asistencia_marcada_en"],
+  clase_muestra: ["lead_id", "prospecto_id", "grupo_id", "fecha_hora", "estatus", "agendada_por", "reprogramada_de_id", "asistencia_marcada_en", "listo_para_cerrar_en"],
   aviso_maestro: ["leido_en"],
   // D5: SOLO campos no identificables. El registro de cambios es de solo anexar y no se purga: nada de nombres, fechas de nacimiento,
   // teléfonos ni salud. `secciones` dice QUÉ partes del registro se tocaron (alumno, tutores, salud, antecedentes, observacion).

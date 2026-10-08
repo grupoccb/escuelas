@@ -6,15 +6,21 @@
 // El POST toma lo ya capturado (bot, landing, registro del maestro, cotización) y SOLO pide lo que falta: si falta algo responde 409
 // `faltan_datos` con la misma lista de la vista previa. Es idempotente: convertir otra vez devuelve lo ya convertido (200). Todo ocurre en una
 // transacción. Alcance: el asesor, los leads de sus sucursales; lo ajeno es 404.
+//
+// QUIÉN CIERRA (F6, `configuracion_organizacion.modo_cierre`): administrador y asesor siempre; el MAESTRO solo con el modo `maestro_en_sitio`
+// (si no, 403: la inscripción la cierra el asesor) y solo de SUS alumnos —los prospectos con una clase muestra a la que asistieron en un grupo
+// suyo; lo demás es 404— y eligiendo grupos de las sucursales donde da clases. Recepción nunca. Cambiar el modo cambia esto sin tocar código.
 
 import { Router } from "express";
 import express from "express";
+import { leerConfiguracion } from "../../configuracion/index.ts";
+import { puedeConvertir } from "../../conversion/cierre.ts";
 import { convertirLead, vistaPreviaDeConversion, type EntradaDeConversion, type ResultadoDeConversion } from "../../conversion/convertir.ts";
 import { filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
-import { ErrorApi, conflicto, noEncontrado, validacion } from "../errores.ts";
+import { ErrorApi, conflicto, noEncontrado, prohibido, validacion } from "../errores.ts";
 import { MOTIVOS_DE_CLASE, SEXOS, TURNOS_ESCOLARES } from "../../clases-muestra/registro.ts";
 import { booleano, correo, entero, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, texto, uuid } from "../validar.ts";
 
@@ -103,17 +109,27 @@ export function rutasDeConversion(deps: DepsApi): Router {
   const r = Router();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
-  /** El lead, si lo ve quien pregunta (el asesor, por la sucursal de interés). */
-  async function leadVisible(ctx: ContextoApi, id: string): Promise<void> {
+  /**
+   * El lead, si lo ve quien pregunta. Para el maestro: solo con el modo «maestro en sitio» (403 si no) y devuelve los prospectos que son suyos
+   * (con clase muestra asistida en un grupo suyo; ninguno = 404). Para los demás, `null` (sin restricción de prospectos).
+   */
+  async function acceso(ctx: ContextoApi, id: string): Promise<string[] | null> {
+    if (ctx.usuario.rol === "maestro") {
+      if (!puedeConvertir("maestro", (await leerConfiguracion(ctx.db)).modoCierre)) throw prohibido("En esta escuela la inscripción la cierra el asesor: marca la clase «lista para cerrar»");
+      const propias = await ctx.db.clase_muestra.findMany({ where: { lead_id: id, estatus: "asistio", grupo: { instructor: { usuario_id: ctx.usuario.id, eliminado_en: null } } }, select: { prospecto_id: true } });
+      if (propias.length === 0) throw noEncontrado();
+      return [...new Set(propias.map((c) => c.prospecto_id))];
+    }
     const filtro = filtroDeSucursal(await ctx.alcance());
     if (!(await ctx.db.lead.findFirst({ where: { id, ...(filtro ? { sucursal_interes_id: filtro } : {}) }, select: { id: true } }))) throw noEncontrado();
+    return null;
   }
 
   r.get("/leads/:id/conversion", requierePermiso("conversion:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
-    await leadVisible(ctx, id);
-    const v = await vistaPreviaDeConversion(ctx.db, id, {}, ctx.ahora());
+    const propios = await acceso(ctx, id);
+    const v = await vistaPreviaDeConversion(ctx.db, id, propios ? { prospectos: propios.map((prospectoId) => ({ prospectoId })) } : {}, ctx.ahora());
     if (!v) throw noEncontrado();
     res.json({ lead_id: v.leadId, listo: v.listo, ya_convertido: v.yaConvertido, faltantes: v.faltantes, prospectos: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, ya_convertido: p.yaConvertido })) });
   });
@@ -122,8 +138,22 @@ export function rutasDeConversion(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const cuerpo = parsear(esquemaConversion, req.body ?? {});
-    await leadVisible(ctx, id);
-    const h = await convertirLead(ctx.db, ctx, id, aEntrada(cuerpo, ctx.usuario.rol === "administrador"), { ...(deps.sensibles.cifrador ? { cifrador: deps.sensibles.cifrador } : {}) });
+    const propios = await acceso(ctx, id);
+    const entrada = aEntrada(cuerpo, ctx.usuario.rol === "administrador");
+    if (propios) {
+      // El maestro: solo sus alumnos y solo grupos de las sucursales donde da clases.
+      if (entrada.prospectos) {
+        if (entrada.prospectos.some((p) => !propios.includes(p.prospectoId))) throw noEncontrado();
+      } else {
+        entrada.prospectos = propios.map((prospectoId) => ({ prospectoId }));
+      }
+      const sucursales = await ctx.alcanceCatalogo();
+      for (const p of entrada.prospectos) {
+        const g = p.inscripcion?.grupoId;
+        if (g && !(await ctx.db.grupo.findFirst({ where: { id: g, ...(filtroDeSucursal(sucursales) ? { programa: { sucursal_id: filtroDeSucursal(sucursales)! } } : {}) }, select: { id: true } }))) throw noEncontrado("No se encontró el grupo");
+      }
+    }
+    const h = await convertirLead(ctx.db, ctx, id, entrada, { ...(deps.sensibles.cifrador ? { cifrador: deps.sensibles.cifrador } : {}) });
     if (!h.ok) {
       if (h.motivo === "lead_inexistente") throw noEncontrado();
       if (h.motivo === "faltan_datos") throw conflicto("Faltan datos para convertir al lead", [{ campo: "motivo", mensaje: "faltan_datos" }, ...h.faltantes]);

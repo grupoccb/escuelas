@@ -49,7 +49,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F3 | HECHO | ver `git log` (`F3:`) | Inscripción: precio congelado, promociones (inmediatas y diferidas) con cupo atómico, reglamento vigente aceptado, cotización aceptada, lead a «inscrito», día de corte con regla de fin de mes |
 | F4 | HECHO | ver `git log` (`F4:`) | Cupo real: `InscripcionesActivas` como fuente única (servidor, API, bot, cotizador, clase muestra, lista de espera); concurrencia con 2 y 10 inscripciones por 1 y 3 lugares |
 | F5 | HECHO | ver `git log` (`F5:`) | Cambio de grupo atómico con historial de solo anexar, congelar/reactivar, baja con motivo de un catálogo editable, lista de espera avisada, concurrencia (último lugar, cruzados, bajas simultáneas) |
-| F6 | PENDIENTE | | Quién cierra la inscripción |
+| F6 | HECHO | ver `git log` (`F6:`) | Los dos modos de cierre por configuración (`modo_cierre`): «listo para cerrar» (etapa, tarea, idempotente) y quién convierte según el modo (el maestro solo en sitio y de sus alumnos) |
 | F7 | PENDIENTE | | Hermanos |
 | G1 | PENDIENTE | | Pase de lista |
 | G2 | PENDIENTE | | Derivados de asistencia |
@@ -1695,3 +1695,28 @@ $ npm run test:int    → exit 0 · tests 817 · pass 817 · fail 0
 **Para Eduardo**
 - **[SUPUESTO]** los cinco motivos de baja y que cualquier rol con escritura (incluida recepción) pueda dar de baja o congelar.
 - Decisión de producto: qué pasa con los beneficios diferidos de quien se da de baja antes de pagar y con el cupo de la promoción que ya usó.
+
+
+## F6. Quién cierra la inscripción (decisión 7: los dos modos, por configuración)
+
+**Qué se hizo**
+- **Migraciones `20261016040000_modo_de_cierre` y `20261016041000_tarea_listo_para_cerrar_indice`:** enum `modo_cierre_inscripcion` (`asesor_whatsapp` | `maestro_en_sitio`) y `configuracion_organizacion.modo_cierre` (por omisión `asesor_whatsapp`; `leerConfiguracion` lo expone como `modoCierre`), tipo de tarea `listo_para_cerrar` con su índice único parcial (una pendiente por lead; en migración aparte porque el valor de enum nuevo no se puede usar en la misma transacción), y `clase_muestra.listo_para_cerrar_en/por` (siempre juntos).
+- **`src/conversion/cierre.ts`:** `puedeConvertir(rol, modo)` (la matriz, pura) y `marcarListoParaCerrar` (etapa de negociación por `tipo_sistema` con historial, tarea para el asesor, nota en el lead, idempotente, bajo el candado `conversion:<lead>`).
+- **API:** `POST /api/clases-muestra/:id/listo-para-cerrar` (permiso `clases_muestra:listo_para_cerrar`: administrador, asesor, maestro) y las rutas de conversión de F2 ahora consultan el modo: el maestro solo con `maestro_en_sitio` y de SUS alumnos y grupos de las sucursales donde da clases. Al convertirse el lead, la tarea «listo para cerrar» queda `hecha` sola.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 506 · pass 506 · fail 0
+$ npm run test:int    → exit 0 · tests 824 · pass 824 · fail 0
+```
+`cierre.test.ts` (2, la matriz completa de rol × modo escrita a mano) y `cierre.itest.ts` (7): marcar «listo» (etapa, historial, una tarea, visible en `GET /api/tareas`, repetirlo no duplica), alcance (otro maestro y asesor de otra sucursal 404, recepción 403, clase no asistida o lead inscrito 409, sin sesión 401), **6 marcas simultáneas → una tarea y un movimiento de etapa**, el modo por omisión (el maestro 403 en la vista previa y en convertir; asesor y administrador sí), **el mismo código cambia de comportamiento solo por la configuración** (403 → 201 → 403 al cambiar `modo_cierre`, con la tarea resuelta sola), los límites del maestro en sitio (alumno de otro maestro 404, prospecto ajeno dentro de su lead 404, fuera de edad 403, grupo de otra sucursal 404, recepción 403) y la configuración (valor por omisión, solo dos modos en la base).
+
+**Decisiones que tomé**
+1. **«Listo para cerrar» funciona igual en los dos modos** y solo la conversión depende del modo. En `maestro_en_sitio` el maestro puede marcar y, si quiere, convertir de una vez; la tarea del asesor se resuelve sola. Alternativa descartada: apagar la marca en el modo en sitio (el maestro que no pueda cobrar o completar datos necesita poder dejarlo al asesor).
+2. **El «aviso» al asesor es la tarea y la etapa del embudo**, no un mensaje: la API no envía nada (invariante 4) y un aviso interno por Chatwoot corresponde a `MessagingProvider`. Alternativa descartada: llamar al proveedor desde la ruta.
+3. **El maestro tiene `conversion:*` en la matriz y la ruta lo restringe por modo y alcance.** Alternativa descartada: dos permisos distintos según el modo (la matriz es estática y el modo es dato de la organización).
+4. **«Listo» exige que el alumno haya ASISTIDO** (la marca de D4), no solo que la clase exista.
+5. **Sin API para cambiar el modo** (queda para J8): hoy se cambia con SQL o por la administración que llegue.
+
+**Para Eduardo**
+- Decisión 7 abierta en la práctica: cuál modo usará la escuela (por omisión `asesor_whatsapp`); el modo en sitio no cobra, solo inscribe.

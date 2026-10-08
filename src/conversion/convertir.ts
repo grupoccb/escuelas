@@ -356,6 +356,8 @@ export async function convertirLead(db: BaseDatos, ctx: Pick<ContextoApi, "usuar
       }
 
       if (hizoAlgo) {
+        // Ya inscrito, la tarea «listo para cerrar» (F6) quedó cumplida.
+        await tx.tarea_asesor.updateMany({ where: { lead_id: plan.leadId, tipo: "listo_para_cerrar", estado: "pendiente" }, data: { estado: "hecha", resuelta_en: ahora } });
         await tx.interaccion.create({
           data: altaConAlcance({ lead_id: plan.leadId, tipo: "nota" as const, contenido: `Lead convertido: ${salida.filter((s) => s.creado).length} alumno(s) nuevo(s), ${salida.filter((s) => s.inscripcion?.creada).length} inscripción(es).` }),
         });
