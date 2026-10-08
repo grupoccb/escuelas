@@ -135,6 +135,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "GET /api/alumnos/:id/progresion": "alumnos:leer",
   "POST /api/alumnos/:id/progresion": "progresion:escribir",
   "DELETE /api/alumnos/:id/progresion/:progresion_id": "progresion:corregir",
+  "GET /api/alumnos/:id/expediente": "alumnos:leer",
   "GET /api/eventos": "eventos:leer",
   "GET /api/eventos/:id": "eventos:leer",
   "POST /api/eventos": "eventos:escribir",

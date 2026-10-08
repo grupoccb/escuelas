@@ -30,7 +30,7 @@ export interface MundoDeOperacion {
   /** Sur, lunes y miércoles 16:00–17:00, sin maestro. */
   grupoSur: string;
   programaNorteId: string;
-  inscribir(grupoId: string, o?: { estatus?: "activa" | "congelada" | "baja"; fechaInicio?: string; nombre?: string; programaId?: string; sucursalId?: string }): Promise<{ inscripcionId: string; alumnoId: string; leadId: string; tutorId: string }>;
+  inscribir(grupoId: string, o?: { estatus?: "activa" | "congelada" | "baja"; fechaInicio?: string; nombre?: string; programaId?: string; sucursalId?: string; /** Campos de la inscripción que se fijan al crearla (precios, descuentos y promoción no se pueden cambiar después: EF-04). */ datos?: Record<string, unknown> }): Promise<{ inscripcionId: string; alumnoId: string; leadId: string; tutorId: string }>;
   cerrar(): Promise<void>;
 }
 
@@ -120,7 +120,8 @@ export async function mundoDeOperacion(prisma: PrismaPruebas, nombre = "Operaci�
           dia_corte_pago: 5,
           ...(estatus === "baja" ? { motivo_baja_id: await sembrarMotivoBaja(prisma, org), fecha_baja: new Date("2026-10-21T00:00:00.000Z") } : {}),
           ...(estatus === "congelada" ? { congelada_desde: new Date("2026-10-21T00:00:00.000Z") } : {}),
-        },
+          ...(o.datos ?? {}),
+        } as never,
       });
       return { inscripcionId: i.id, alumnoId: a.alumnoId, leadId: a.leadId, tutorId: a.tutorId };
     },

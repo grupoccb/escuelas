@@ -9,6 +9,7 @@ import type { DepsAcceso } from "../auth/acceso.ts";
 import type { UsuarioDeSesion } from "../auth/sesiones.ts";
 import { normalizarIp } from "../http/ip.ts";
 import type { FuenteOcupacion } from "../catalogo/cupo.ts";
+import type { ProveedoresDelExpediente } from "../expediente/proveedores.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { alcanceDeCatalogo, alcanceDeSucursales, type AlcanceDeSucursales } from "./alcance.ts";
@@ -29,6 +30,8 @@ export interface DepsApi {
    * inscripciones activas (`InscripcionesActivas`, F4).
    */
   fuenteOcupacion: FuenteOcupacion;
+  /** Los enchufes del expediente del alumno hacia finanzas y productos (G5): por omisión, las implementaciones nulas documentadas. */
+  expediente: ProveedoresDelExpediente;
 }
 
 export interface ContextoApi {

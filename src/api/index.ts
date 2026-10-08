@@ -28,11 +28,13 @@ import { rutasDeGrupos } from "./rutas/grupos.ts";
 import { rutasDeInstructores } from "./rutas/instructores.ts";
 import { rutasDeSalones } from "./rutas/salones.ts";
 import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { PROVEEDORES_NULOS, type ProveedoresDelExpediente } from "../expediente/proveedores.ts";
 import type { DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeAsistencia } from "./rutas/asistencia.ts";
 import { rutasDeCampanas } from "./rutas/campanas.ts";
 import { rutasDeEventos } from "./rutas/eventos.ts";
+import { rutasDeExpediente } from "./rutas/expediente.ts";
 import { rutasDeNiveles } from "./rutas/niveles.ts";
 import { rutasDeProgresion } from "./rutas/progresion.ts";
 import { rutasDeCierre } from "./rutas/cierre.ts";
@@ -79,6 +81,8 @@ export interface ApiDepsEntrada {
   limitador?: LimitadorDeTasa;
   /** Lugares ocupados por grupo. Por omisión, las inscripciones activas (`InscripcionesActivas`, F4). */
   fuenteOcupacion?: FuenteOcupacion;
+  /** Estado de cuenta y productos del expediente (G5). Por omisión nulos hasta que la etapa H los enchufe. */
+  expediente?: Partial<ProveedoresDelExpediente>;
 }
 
 export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
@@ -93,6 +97,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     sensibles: e.sensibles ?? {},
     directorio: e.directorio ?? null,
     fuenteOcupacion: e.fuenteOcupacion ?? new InscripcionesActivas(),
+    expediente: { ...PROVEEDORES_NULOS, ...e.expediente },
   };
 }
 
@@ -138,6 +143,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeNiveles(deps));
   api.use(rutasDeProgresion(deps));
   api.use(rutasDeEventos(deps));
+  api.use(rutasDeExpediente(deps));
   api.use(rutasDeMotivosBaja(deps));
   api.use(rutasDeConversaciones(deps));
   api.use(rutasDeRegistroCambios(deps));

@@ -58,7 +58,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | G2 | HECHO | ver `git log` (`G2:`) | Derivados al registrar el pase: % de 30 días, racha de faltas por sesiones con pase tomado y tarea para el asesor al llegar al umbral (configurable, una por inscripción y por racha, se resuelve sola), consultables por API |
 | G3 | HECHO | ver `git log` (`G3:`) | Progresión genérica: `nivel_progresion` y `alumno_progresion` (filas, sin términos de vertical), nivel actual = el más reciente, siguiente por orden, API de niveles y de la progresión del alumno, seed `[SUPUESTO]` de las tres verticales |
 | G4 | HECHO | ver `git log` (`G4:`) | Eventos y elegibilidad por clases mínimas: solo elegibles se convocan, cupo atómico y protegido en la base (disparador que falla cerrado; SQL directo y carrera real), estatus que solo avanza, resultado que crea la progresión en la misma transacción |
-| G5 | PENDIENTE | | Expediente del alumno |
+| G5 | HECHO | ver `git log` (`G5:`) | Expediente del alumno en una sola respuesta (trayectoria, económico, operativo y comercial) con enchufes `ProveedorEconomico` y `ProveedorProductos` para H; la salud fuera (endpoint aparte); el maestro sin importes |
 | H1 | PENDIENTE | | Cargos |
 | H2 | PENDIENTE | | Pagos |
 | H3 | PENDIENTE | | Estado de cuenta por familia |
@@ -2065,3 +2065,34 @@ Mutaciones atrapadas: sin el conteo del código, sin el disparador de la base (3
 - **[SUPUESTO]** `otorga_progresion` (por omisión sí), que recepción cobra y marca el estatus, y que el maestro califica a sus alumnos.
 - Decisión abierta: ¿una cuota por evento o por alumno (becas, descuento por hermano)? Hoy una cuota por evento; el cobro llegará con H.
 - Decisión abierta: ¿se puede convocar a quien no cumple las clases con una excepción del administrador? Hoy no.
+
+
+## G5. Expediente del alumno
+
+**Qué se hizo**
+- **`GET /api/alumnos/:id/expediente`** (`src/api/rutas/expediente.ts`, permiso `alumnos:leer`): todo lo de la sección 9 del contexto en UNA respuesta (`docs/API.md`, «Expediente del alumno»). Solo lee: ni escribe ni registra accesos a salud.
+- **`src/expediente/expediente.ts`** (`armarExpediente`, determinista): *trayectoria* (inicio, antigüedad en días y meses completos —`antiguedadEntre`, pura—, grupo actual, historial de cambios de grupo de `inscripcion_movimiento`, nivel actual y fecha por vertical de G3, próximo examen con la elegibilidad de G4), *económico* (mensualidad = precio de lista − descuento en centavos exactos, día y próximo corte con `proximoCorte`, promoción aplicada, beneficios pendientes, estado de cuenta y cartera vencida), *operativo* (% de 30 días y racha de G2, eventos, productos) y *comercial* (campaña, canal, fuente y código de rastreo del lead, días para cerrar, hermanos inscritos con sus verticales, motivo de baja).
+- **Enchufes para H** (`src/expediente/proveedores.ts`): `ProveedorEconomico` (estado de cuenta y antigüedad de la cartera vencida) y `ProveedorProductos` (H5) con implementaciones NULAS documentadas (`{ disponible: false, motivo }`), inyectables por `ApiDepsEntrada.expediente`. Una prueba enchufa unas falsas y el expediente las muestra sin cambiar nada más.
+- **La salud no va en el expediente:** la respuesta solo trae `salud: { incluida: false, endpoint }` hacia `GET /api/salud/alumno/:id`, que sigue pidiendo permiso y motivo y dejando registro.
+- **Por rol:** el maestro solo ve a sus alumnos y recibe `economico` y `comercial` en `null` (EF-03: sin importes; el origen del lead y el motivo de baja tampoco son suyos). Asesor y recepción, solo los alumnos de sus sucursales.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 537 · pass 537 · fail 0   (sin cambio: G5 solo agrega pruebas de integración)
+$ npm run test:int    → exit 0 · tests 924 · pass 924 · fail 0   (antes 913)
+```
+Tests nuevos: `expediente.itest.ts` (10, la app real + Postgres): antigüedad (7 bordes de fin de mes, de año y bisiesto), la trayectoria de una alumna con un cambio de grupo real (F5), un nivel, un examen próximo y una convocatoria; el económico con descuento y promoción exactos; el operativo (60 % en la ventana, racha 2); el comercial con campaña, canal, hermano en OTRA vertical y una baja; **los enchufes de H** con proveedores falsos y las implementaciones nulas; los cuatro roles + sucursal ajena + el maestro anterior que ya no ve a la alumna y el nuevo que sí, **sin ningún importe ni campaña en lo que recibe el maestro**; la salud fuera y sin tocar el registro de accesos; no-fuga entre organizaciones; y un alumno recién dado de alta (expediente vacío, no un error). Más `fuga.itest.ts` (+1): **ningún centinela de salud en el pase, los derivados, la progresión, los eventos ni el expediente** (19 respuestas, los logs y 9 tablas), las observaciones del maestro solo para administrador y maestro (con control positivo), y que ningún flujo de G1 a G5 LEYÓ la ficha de salud.
+Mutaciones atrapadas: el maestro que ve lo económico, la mensualidad sin el descuento, la baja que cuenta como vigente, sin hermanos y las observaciones visibles a todos (esta última, también en `progresion.itest.ts`).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El maestro no recibe `economico` ni `comercial`** (no solo «sin importes»): el origen del lead y el motivo de baja son de captación y cobranza, no de quien da la clase. Alternativa descartada: darle el comercial sin dinero (la campaña y el motivo de baja de una familia no le sirven y sí exponen).
+2. **Un solo `grupo_actual` más la lista de inscripciones:** un alumno de dos verticales tiene dos grupos vigentes; el primero es el de la inscripción más antigua. Alternativa: una lista (más honesta, pero rompe el campo que pidió el contexto).
+3. **Próximo examen por vertical** y solo en las sucursales donde el alumno está inscrito, con la elegibilidad calculada por el mismo código que la convocatoria (G4): no hay dos reglas.
+4. **El estado de cuenta se pide a una interfaz, no se inventa:** no hay cargos ni pagos hasta H. Alternativa descartada: calcular la «deuda» a partir de la mensualidad (daría una cifra falsa).
+5. **El % de asistencia del alumno junta las filas de sus inscripciones activas** (dos disciplinas = una sola cifra) y la racha es la mayor; el detalle por inscripción va aparte.
+6. **«Días para cerrar» = del alta del lead a la primera inscripción** en días de calendario local.
+
+**Para Eduardo**
+- **[SUPUESTO]** qué ve el maestro (trayectoria y operativo), y que el comercial sea de asesor, recepción y administrador.
+- **Para H:** implementar `ProveedorEconomico` (H1 a H3) y `ProveedorProductos` (H5) y pasarlos en `server.ts` (`api: { …, expediente: { economico, productos } }`).
+- Decisión abierta: ¿el expediente debe mostrar al asesor los beneficios pendientes de una inscripción congelada? Hoy sí (solo se excluyen las bajas).

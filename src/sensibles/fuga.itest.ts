@@ -26,6 +26,7 @@ import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra } fr
 import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
 import { marcarAsistencia } from "../clases-muestra/asistencia.ts";
 import { levantarApi, sembrarUsuario } from "../testutil/api.ts";
+import { mundoDeOperacion } from "../testutil/operacion.ts";
 import { crearCifrador } from "./cifrado.ts";
 import { ErrorAccesoSensible, guardarSensible, leerSensible } from "./index.ts";
 
@@ -444,4 +445,82 @@ test("F1-F2: ningún centinela de salud aparece en logs, respuestas ni tablas tr
     await cliente.end();
   }
   assert.equal(await db.acceso_dato_sensible.count({ where: { accion: "trasladar" } }), 1, "el traslado a la ficha del alumno quedó registrado");
+});
+
+test("G1-G5: ningún centinela de salud aparece en el pase de lista, los derivados, la progresión, los eventos ni el expediente — ni en sus respuestas, ni en los logs, ni en las tablas nuevas", async () => {
+  const m = await mundoDeOperacion(prisma, "Fuga de operación", new Date("2026-11-18T18:00:00Z"));
+  // Texto libre que escribe el maestro: NO es de salud, pero tampoco debe salir del lugar donde se guardó (no entra al registro de cambios, al expediente ni a quien no lo necesita).
+  const OBSERVACION = `CENTINELA-OBSERVACION-${SUFIJO}`;
+  const colector: ColectorDeLogs = colectarLogs();
+  const respuestas: string[] = [];
+  try {
+    await cuerpo();
+  } finally {
+    colector.detener();
+    await m.cerrar();
+  }
+  async function cuerpo(): Promise<void> {
+    const o = m.org.organizacionId;
+    await prisma.vertical.update({ where: { id: m.org.verticalId }, data: { usa_progresion: true, etiqueta_progresion: "Peldaño", etiqueta_evento: "Prueba" } });
+    const niveles = [];
+    for (const [orden, nombre] of [[1, "Primero"], [2, "Segundo"]] as const) niveles.push((await prisma.nivel_progresion.create({ data: { organizacion_id: o, vertical_id: m.org.verticalId, nombre, orden } })).id);
+    const a = await m.inscribir(m.grupoA, { nombre: "Elena" });
+    // La ficha de salud del alumno, con los centinelas (cifrada, solo por su puerta).
+    const admin = await sembrarUsuario(prisma, o, { rol: "administrador" });
+    await guardarSensible(conAlcance(prisma, o), { usuarioId: admin.id, organizacionId: o, rol: "administrador" }, { sujetoTipo: "alumno", sujetoId: a.alumnoId, motivo: "captura de la inscripción", ruta: "prueba", valores: { ...CENTINELAS } }, { cifrador });
+    const ver = async (r: Promise<{ estado: number; cuerpo: unknown }>): Promise<unknown> => {
+      const x = await r;
+      respuestas.push(JSON.stringify(x.cuerpo));
+      return x;
+    };
+    // G1/G2: el pase (faltas hasta el umbral → tarea), los derivados.
+    for (const f of ["2026-10-26", "2026-10-28", "2026-11-02"]) await ver(m.maestroA.pedir("PUT", `/api/grupos/${m.grupoA}/pase`, { fecha: f, asistencias: [{ inscripcion_id: a.inscripcionId, estatus: "falta" }] }));
+    await ver(m.maestroA.get(`/api/grupos/${m.grupoA}/pase?fecha=2026-11-02`));
+    await ver(m.maestroA.get(`/api/inscripciones/${a.inscripcionId}/asistencia`));
+    await ver(m.maestroA.get(`/api/grupos/${m.grupoA}/asistencia/derivados`));
+    await ver(m.admin.get("/api/tareas?tipo=faltas_consecutivas"));
+    // G3: niveles y progresión con texto libre.
+    await ver(m.admin.get(`/api/niveles?vertical_id=${m.org.verticalId}`));
+    const otorgado = (await ver(m.maestroA.post(`/api/alumnos/${a.alumnoId}/progresion`, { nivel_id: niveles[0], fecha_obtenido: "2026-10-01", observaciones: OBSERVACION }))) as { cuerpo: { progresion_id: string } };
+    // G4: evento, elegibles, convocatoria, estatus y resultado.
+    const ev = (await ver(m.admin.post("/api/eventos", { vertical_id: m.org.verticalId, sucursal_id: m.norte, tipo: "examen", nombre: "Examen", fecha: "2026-11-18", cupo: 5, cuota: "10.00", otorga_progresion: false }))) as { cuerpo: { id: string } };
+    await ver(m.admin.get(`/api/eventos/${ev.cuerpo.id}/elegibles`));
+    await ver(m.admin.post(`/api/eventos/${ev.cuerpo.id}/alumnos`, { alumno_ids: [a.alumnoId] }));
+    await ver(m.maestroA.patch(`/api/eventos/${ev.cuerpo.id}/alumnos/${a.alumnoId}`, { estatus: "asistio" }));
+    await ver(m.maestroA.post(`/api/eventos/${ev.cuerpo.id}/alumnos/${a.alumnoId}/resultado`, { resultado: "aprobado", observaciones: OBSERVACION }));
+    await ver(m.admin.get(`/api/eventos/${ev.cuerpo.id}/alumnos`));
+    // G5: el expediente, por cada rol que lo ve, y la progresión como la ven asesor y recepción.
+    for (const c of [m.admin, m.asesorNorte, m.recepcion, m.maestroA]) await ver(c.get(`/api/alumnos/${a.alumnoId}/expediente`));
+    const comoAsesor = JSON.stringify((await m.asesorNorte.get(`/api/alumnos/${a.alumnoId}/progresion`)).cuerpo);
+    const comoRecepcion = JSON.stringify((await m.recepcion.get(`/api/alumnos/${a.alumnoId}/progresion`)).cuerpo);
+    const comoAdmin = JSON.stringify((await m.admin.get(`/api/alumnos/${a.alumnoId}/progresion`)).cuerpo);
+
+    assert.ok(respuestas.length >= 19, `se vieron ${respuestas.length} respuestas`);
+    assert.deepEqual(fugas(respuestas.join("\n")), [], "respuestas de la API: ningún centinela de salud");
+    assert.deepEqual([comoAsesor.includes(OBSERVACION), comoRecepcion.includes(OBSERVACION), comoAdmin.includes(OBSERVACION)], [false, false, true], "las observaciones solo las ven el administrador y el maestro (control positivo con el administrador)");
+    assert.ok(respuestas.filter((r) => r.includes(OBSERVACION)).length === 0, "ni el expediente ni ninguna respuesta de los flujos las repite");
+    void otorgado;
+    colector.detener();
+  assert.deepEqual(fugas(colector.texto()), [], "logs");
+  assert.ok(!colector.texto().includes(OBSERVACION), "las observaciones no van a los logs");
+  const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
+  await cliente.connect();
+  try {
+    let filas = 0;
+    for (const tabla of ["asistencia", "nivel_progresion", "alumno_progresion", "evento", "evento_alumno", "tarea_asesor", "registro_cambio", "interaccion", "mensaje"]) {
+      const r = await cliente.query<{ j: string }>(`SELECT row_to_json(t)::text AS j FROM "${tabla}" t WHERE organizacion_id = $1`, [m.org.organizacionId]);
+      for (const fila of r.rows) {
+        filas++;
+        assert.deepEqual(fugas(fila.j), [], `tabla ${tabla}: centinelas de salud`);
+        // Las observaciones viven SOLO en la fila donde se escribieron (alumno_progresion); en ningún registro de cambios ni tarea.
+        if (tabla !== "alumno_progresion") assert.ok(!fila.j.includes(OBSERVACION), `tabla ${tabla}: las observaciones no se copian`);
+      }
+    }
+    assert.ok(filas > 10, `se revisaron ${filas} filas`);
+    const lecturas = await cliente.query(`SELECT 1 FROM acceso_dato_sensible WHERE organizacion_id = $1 AND sujeto_id = $2 AND accion = 'leer'`, [m.org.organizacionId, (await prisma.alumno.findFirstOrThrow({ where: { organizacion_id: m.org.organizacionId, nombre: "Elena" } })).id]);
+    assert.equal(lecturas.rowCount, 0, "ningún flujo de G1 a G5 LEYÓ la ficha de salud: solo se escribió");
+  } finally {
+    await cliente.end();
+  }
+  }
 });
