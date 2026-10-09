@@ -220,6 +220,9 @@ test("D4: volver a agendar a quien no llegó da por recuperado al prospecto: se 
 
 test("D4 recuperación: el primer intento sale 2 h después de marcarlo (por plantilla, con el alumno y la clase); el segundo, 48 h después; no hay más (tope)", async () => {
   const m = await mundo();
+  // EG-05: la recuperación es marketing por su clase y el tope por omisión es 1 cada 7 días. Esta prueba trata del ESPACIADO (48 h) y del tope de INTENTOS, así que la organización permite
+  // 2 por ventana (el tope es configurable); con la configuración por omisión el segundo intento se bloquea: lo prueba la siguiente.
+  await fijarConfiguracion(prisma, m.org.organizacionId, { max_marketing_por_ventana: 2 });
   const f = await m.familia();
   const claseId = await m.agendar(f.prospectoId);
   const marcada = new Date("2026-11-02T23:00:00Z"); // lunes 17:00 locales
@@ -237,6 +240,19 @@ test("D4 recuperación: el primer intento sale 2 h después de marcarlo (por pla
   assert.equal((await m.corre(new Date("2026-11-20T01:00:00Z"))).enviadas, 0);
   assert.equal(m.enviados().length, 2);
   assert.deepEqual((await m.recuperacion(claseId)).map((x) => x.estatus), ["enviado", "enviado"]);
+});
+
+test("EG-05: con el tope de marketing por omisión (1 cada 7 días) el segundo intento de la recuperación se bloquea con tope_frecuencia y queda omitido", async () => {
+  const m = await mundo();
+  const f = await m.familia();
+  const claseId = await m.agendar(f.prospectoId);
+  await m.marcar(claseId, "no_asistio", new Date("2026-11-02T23:00:00Z"));
+  assert.equal((await m.corre(new Date("2026-11-03T01:00:00Z"))).enviadas, 1);
+  assert.equal((await m.corre(new Date("2026-11-05T01:00:00Z"))).enviadas, 0, "a las 48 h el segundo choca con el tope de 7 días");
+  assert.equal(m.enviados().length, 1);
+  assert.deepEqual((await m.recuperacion(claseId)).map((x) => [x.estatus, x.motivo_omision]), [["enviado", null], ["omitido", "tope_frecuencia"]]);
+  // Pasados los 7 días no se reintenta: el intento ya quedó omitido y no hay un tercero (tope de 2 intentos).
+  assert.equal((await m.corre(new Date("2026-11-20T01:00:00Z"))).enviadas, 0);
 });
 
 test("D4 recuperación: con tope de 1 intento sale uno solo", async () => {

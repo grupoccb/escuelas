@@ -354,3 +354,17 @@ test("INV-6: la precedencia del resto no cambia (baja antes que ventana, ventana
   assert.equal(evaluarReglas(entrada({ ...base, conv: { estado: "en_atencion_humana", ventana_servicio_hasta: VENCIDA, dado_de_baja: true } })), "opt_out");
   assert.equal(evaluarReglas(entrada({ ...base, conv: { estado: "en_atencion_humana", ventana_servicio_hasta: VENCIDA } })), "fuera_de_horario");
 });
+
+test("EG-05 (decisión de Eduardo): el tope de marketing se aplica por la CLASE declarada de la plantilla, no por la categoría de Meta", () => {
+  const m = (plantilla: NonNullable<EntradaReglas["plantilla"]>, extra: Partial<EntradaReglas> = {}) => entrada({ plantilla, limiteFrecuencia: 3, limiteMarketing: 1, marketingRecientes: 1, ...extra });
+  // Reenganche y recuperación: `utility` para Meta, marketing para el negocio. Antes se saltaban el tope.
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: "marketing" })), "tope_frecuencia");
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: "marketing" }, { marketingRecientes: 0 })), null, "el primero sale");
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: "marketing" }, { marketingRecientes: 0, limiteMarketing: 0 })), "tope_frecuencia", "0 apaga el marketing también para ellos");
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: "marketing" }, { marketingRecientes: 1, limiteMarketing: 2 })), null, "el tope sigue siendo configurable por organización");
+  // Un aviso de servicio (utility) no se frena por el marketing reciente, sea cual sea.
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: "servicio" }, { marketingRecientes: 9 })), null);
+  // Lo ausente o raro es marketing (lo conservador).
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: undefined as never })), "tope_frecuencia");
+  assert.equal(evaluarReglas(m({ enviable: true, categoria: "utility", clase: "otra" as never })), "tope_frecuencia");
+});

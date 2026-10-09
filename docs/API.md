@@ -454,7 +454,7 @@ puede ser de categoría `marketing` (CHECK `plantilla_mensaje_servicio_no_market
 
 **Dónde vive:** solo en `MessagingProvider` (`evaluarReglas` / `pasaConAtencionHumana` en `src/mensajeria/reglas.ts`); ninguna automatización pregunta por el estado (hay un test que lo impide). Un aviso de servicio
 con una persona atendiendo sigue sujeto a plantilla aprobada, ventana de servicio, horario 09:00–20:00 de la sucursal, baja TOTAL, frecuencia diaria e idempotencia. La **baja de marketing** bloquea lo
-que declara marketing (aunque su categoría Meta sea `utility`) y no los avisos de servicio; la baja total bloquea todo. Tope de marketing (1 cada 7 días) sigue contando por categoría Meta `marketing`.
+que declara marketing (aunque su categoría Meta sea `utility`) y no los avisos de servicio; la baja total bloquea todo. **Tope de marketing (EG-05, decisión de Eduardo):** 1 cada 7 días por teléfono (configurable: `max_marketing_por_ventana` y `ventana_marketing_dias`) y se aplica por la **CLASE declarada** de la plantilla (`clase_mensaje = marketing`), no por la categoría de Meta: el reenganche, la recuperación de quien no llegó, el lead frío y la promoción por vencer (categoría `utility`, clase `marketing`) cuentan y se frenan igual que cualquier otro marketing; un aviso de servicio ni cuenta ni se frena. Consecuencia: con la configuración por omisión el segundo intento del reenganche o de la recuperación (a las 48–50 h) queda `omitido`/`tope_frecuencia`.
 
 ## Webhooks y landing: un dato inesperado nunca es un 500 (WH, regla 5 de Eduardo)
 

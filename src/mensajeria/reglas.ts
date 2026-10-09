@@ -11,7 +11,7 @@
 // 5. horario (invariante 14): lo iniciado por el sistema solo sale de 09:00 a 20:00, hora local
 //    de la sucursal. Contestar a quien acaba de escribir no tiene restricción de horario;
 // 6. frecuencia (configurable por organización): tope diario de mensajes iniciados por el
-//    sistema por teléfono y tope de mensajes de marketing en su ventana de días.
+//    sistema por teléfono y tope de mensajes de marketing en su ventana de días (EG-05: marketing es la CLASE declarada de la plantilla, no su categoría de Meta).
 //
 // "Iniciado por el sistema" NO depende de la etiqueta que ponga quien llama (F1-04): es todo
 // saliente con origen distinto de `respuesta` y `confirmacion_baja`, y también el que lleva
@@ -139,7 +139,9 @@ export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
   }
   // El marketing tiene además su propio tope, en cualquier caso: una plantilla de marketing nunca
   // es "responder" a nadie, aunque la ventana de servicio esté abierta.
-  if (plantilla?.categoria === "marketing" && (e.marketingRecientes ?? 0) >= (e.limiteMarketing ?? Number.POSITIVE_INFINITY)) {
+  // EG-05 (decisión de Eduardo): el tope se aplica por la CLASE declarada de la plantilla (`clase_mensaje = marketing`), no por la categoría de Meta: el reenganche y la recuperación de quien
+  // no llegó son `utility` para Meta pero marketing para el negocio, y cuentan igual que cualquier otro marketing. Lo ausente o raro es marketing (lo conservador, como en `esDeServicio`).
+  if (plantilla && !esDeServicio(plantilla) && (e.marketingRecientes ?? 0) >= (e.limiteMarketing ?? Number.POSITIVE_INFINITY)) {
     return "tope_frecuencia";
   }
   return null;

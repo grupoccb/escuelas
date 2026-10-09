@@ -368,7 +368,8 @@ export class MessagingProvider {
       let motivo: MotivoBloqueo | "envio_previo_fallido" | null;
       if (falloPrevio) motivo = "envio_previo_fallido";
       else {
-        const esMarketing = plantilla?.enviable === true && plantilla.categoria === "marketing";
+        // EG-05: marketing es la CLASE declarada de la plantilla, no su categoría de Meta (lo que no es `servicio` cuenta como marketing).
+        const esMarketing = plantilla?.enviable === true && plantilla.clase !== "servicio";
         const conteo = iniciadoPorSistema || esMarketing ? await config() : null;
         motivo = evaluarReglas({
           conv,
@@ -422,7 +423,7 @@ export class MessagingProvider {
   /**
    * Cuántos mensajes iniciados por el sistema se le mandaron a este teléfono desde `desde`, en
    * TODA la organización (cualquier conversación o vertical): los de automatización y cualquiera
-   * que llevara plantilla. Con `soloMarketing`, solo los de plantillas de categoría marketing.
+   * que llevara plantilla. Con `soloMarketing`, solo los de plantillas de CLASE marketing (EG-05: la clase declarada, no la categoría de Meta).
    * Cuentan también los envíos inciertos (pudieron haber salido) y los que están en curso
    * (`enviando`): lo conservador. El candado del teléfono hace que contar y reclamar sea una sola cosa.
    */
@@ -432,7 +433,7 @@ export class MessagingProvider {
       where: {
         id: { not: excluirId },
         direccion: "saliente",
-        ...(soloMarketing ? { plantilla: { categoria: "marketing" } } : { OR: [{ origen: "automatizacion" }, { plantilla_id: { not: null } }] }),
+        ...(soloMarketing ? { plantilla: { clase_mensaje: "marketing" as const } } : { OR: [{ origen: "automatizacion" }, { plantilla_id: { not: null } }] }),
         AND: [
           {
             OR: [

@@ -369,12 +369,23 @@ test("la variable del prospecto se llena cuando el bot ya la capturó", async ()
 
 test("hasta max_intentos, espaciados; después no hay más", async () => {
   const s = await escenario({ maxIntentos: 2 });
+  // EG-05: el reenganche es marketing por su clase y el tope por omisión es 1 cada 7 días. Esta prueba trata del ESPACIADO y del tope de INTENTOS, así que la organización permite 2 por
+  // ventana (el tope es configurable); lo que pasa con la configuración por omisión lo prueba la siguiente.
+  await fijarConfiguracion(prisma, s.o.organizacionId, { max_marketing_por_ventana: 2 });
   assert.equal((await s.motor(en(T0, 26))).enviadas, 1);
   assert.equal((await s.motor(en(T0, 40))).enviadas, 0); // aún no toca el segundo
   assert.equal((await s.motor(en(T0, 51))).enviadas, 1); // 2 × 25 h = 50 h
   assert.equal((await s.motor(en(T0, 80))).programadas, 0);
   assert.equal(s.plantillasEnviadas().length, 2);
   assert.deepEqual((await s.ejecuciones()).map((e) => [e.ocurrencia, e.estatus]), [[1, "enviado"], [2, "enviado"]]);
+});
+
+test("EG-05: con el tope de marketing por omisión (1 cada 7 días) el segundo intento del reenganche se bloquea con tope_frecuencia y queda omitido: no sale", async () => {
+  const s = await escenario({ maxIntentos: 2 });
+  assert.equal((await s.motor(en(T0, 26))).enviadas, 1);
+  assert.equal((await s.motor(en(T0, 51))).enviadas, 0, "a las 50 h el segundo choca con el tope de 7 días");
+  assert.equal(s.plantillasEnviadas().length, 1);
+  assert.deepEqual((await s.ejecuciones()).map((e) => [e.ocurrencia, e.estatus, e.motivo_omision]), [[1, "enviado", null], [2, "omitido", "tope_frecuencia"]]);
 });
 
 test("si el contacto contesta después del reenganche, el bot sigue la captura donde se quedó", async () => {

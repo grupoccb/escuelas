@@ -279,3 +279,24 @@ test("EA-11: un mensaje en `enviando` (en curso) cuenta para el tope de quien ll
   });
   assert.deepEqual(await s.mandar([s.auto()], T0), [tope]);
 });
+
+test("EG-05: el reenganche y la recuperación (categoría utility, clase marketing) cuentan en el tope de marketing: 1 cada 7 días por teléfono, compartido con cualquier otro marketing", async () => {
+  const s = await escenario();
+  const utilidadDeMarketing = await s.db.plantilla_mensaje.create({
+    data: altaConAlcance({ codigo: "recuperacion", content_sid: "HX00000000000000000000000000000000", categoria: "utility" as const, clase_mensaje: "marketing" as const, estado_aprobacion: "aprobada" as const, cuerpo_referencia: "recuperacion" }),
+  });
+  const recuperacion = (): Saliente => s.auto("recuperación", utilidadDeMarketing.id);
+  assert.deepEqual(await s.mandar([recuperacion()], T0), [ok], "el primero sale");
+  assert.deepEqual(await s.mandar([recuperacion()], en(T0, 2 * DIA)), [tope], "el segundo, a los 2 días, se bloquea");
+  assert.deepEqual(await s.mandar([s.promo()], en(T0, 3 * DIA)), [tope], "un marketing de categoría marketing también cuenta lo que mandó la recuperación");
+  assert.deepEqual(await s.mandar([s.auto()], en(T0, 3 * DIA)), [ok], "un aviso de servicio no se frena");
+  assert.deepEqual(await s.mandar([recuperacion()], en(T0, 7 * DIA + HORA)), [ok], "a los 7 días se abre una ventana nueva");
+  // El tope sigue siendo de la organización: con 2 por ventana, el segundo pasa y el tercero no.
+  const otra = await escenario();
+  await fijarConfiguracion(prisma, otra.o.organizacionId, { max_marketing_por_ventana: 2 });
+  const rec2 = await otra.db.plantilla_mensaje.create({
+    data: altaConAlcance({ codigo: "reenganche", content_sid: "HX00000000000000000000000000000000", categoria: "utility" as const, clase_mensaje: "marketing" as const, estado_aprobacion: "aprobada" as const, cuerpo_referencia: "reenganche" }),
+  });
+  const re = (): Saliente => otra.auto("reenganche", rec2.id);
+  assert.deepEqual(await otra.mandar([re(), re(), re()], T0), [ok, ok, tope]);
+});
