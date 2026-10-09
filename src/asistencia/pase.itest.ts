@@ -224,3 +224,35 @@ test("G1 no-fuga entre organizaciones: el pase de un grupo de otra organización
     await otra.cerrar();
   }
 });
+
+test("EG-03: una inscripción que cambió de grupo no se ofrece en el grupo NUEVO para una fecha en que el viejo ya pasó lista (antes: 500 por el índice único); el viejo la sigue mostrando y la puede corregir", async () => {
+  // Dos grupos del mismo programa, sin instructor (no chocan con los de las demás pruebas), que sesionan los lunes y miércoles a las 11:40.
+  const grupo = async (nombre: string) => {
+    const g = await prisma.grupo.create({ data: { organizacion_id: m.org.organizacionId, programa_id: m.programaNorteId, nombre: `${nombre} ${randomUUID().slice(0, 6)}`, cupo_maximo: 40 } });
+    for (const dia of [1, 3]) await prisma.grupo_horario.create({ data: { organizacion_id: m.org.organizacionId, grupo_id: g.id, dia_semana: dia, hora_inicio_min: 700, hora_fin_min: 750 } });
+    return g.id;
+  };
+  const viejo = await grupo("Viejo");
+  const nuevo = await grupo("Nuevo");
+  const a = await m.inscribir(viejo, { nombre: "Cambia" });
+  const b = await m.inscribir(viejo, { nombre: "Se queda" });
+  const delNuevo = await m.inscribir(nuevo, { nombre: "Ya estaba" });
+  assert.equal((await m.admin.pedir("PUT", `/api/grupos/${viejo}/pase`, poner(viejo, LUNES, [{ inscripcion_id: a.inscripcionId, estatus: "presente" }, { inscripcion_id: b.inscripcionId, estatus: "falta" }]))).estado, 200);
+  assert.equal((await m.admin.post(`/api/inscripciones/${a.inscripcionId}/cambiar-grupo`, { grupo_id: nuevo })).estado, 200);
+  // El grupo NUEVO, para el lunes anterior al cambio: `a` ya tiene su fila de ese día en el viejo, así que no está en su lista…
+  const enNuevo = (await m.admin.get<Pase>(`/api/grupos/${nuevo}/pase?fecha=${LUNES}`)).cuerpo;
+  assert.ok(!enNuevo.lista.some((f) => f.inscripcion_id === a.inscripcionId), "no se ofrece en el grupo nuevo");
+  assert.ok(enNuevo.lista.some((f) => f.inscripcion_id === delNuevo.inscripcionId), "los del grupo nuevo sí");
+  // …y guardarla ahí es un rechazo claro (400), nunca un 500.
+  const r = await m.admin.pedir<{ error: { detalles: { campo: string }[] } }>("PUT", `/api/grupos/${nuevo}/pase`, poner(nuevo, LUNES, [{ inscripcion_id: a.inscripcionId, estatus: "falta" }]));
+  assert.equal(r.estado, 400);
+  assert.equal(r.cuerpo.error.detalles[0]!.campo, "asistencias[0].inscripcion_id");
+  assert.equal(await prisma.asistencia.count({ where: { inscripcion_id: a.inscripcionId, fecha: new Date(`${LUNES}T00:00:00.000Z`) } }), 1, "sigue habiendo UNA fila de ese día");
+  // El grupo viejo la sigue mostrando, con lo que se registró, y se puede corregir.
+  const enViejo = (await m.admin.get<Pase>(`/api/grupos/${viejo}/pase?fecha=${LUNES}`)).cuerpo;
+  assert.equal(enViejo.lista.find((f) => f.inscripcion_id === a.inscripcionId)?.estatus, "presente");
+  assert.equal((await m.admin.pedir("PUT", `/api/grupos/${viejo}/pase`, poner(viejo, LUNES, [{ inscripcion_id: a.inscripcionId, estatus: "falta" }]))).estado, 200);
+  // Una fecha en que NO tiene fila en otro grupo sí es del grupo nuevo (donde ahora está).
+  const otroLunes = (await m.admin.get<Pase>(`/api/grupos/${nuevo}/pase?fecha=2026-11-09`)).cuerpo;
+  assert.ok(otroLunes.lista.some((f) => f.inscripcion_id === a.inscripcionId), "una fecha sin fila en otro grupo sí se ofrece");
+});

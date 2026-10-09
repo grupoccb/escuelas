@@ -78,8 +78,11 @@ export function rutasDeAsistencia(_deps: DepsApi): Router {
       const campo = (i: number) => `asistencias[${i}].inscripcion_id`;
       throw validacion(guardado.detalles.map((d) => ({ campo: campo(d.indice), mensaje: guardado.motivo === "inscripcion_repetida" ? "La inscripción viene repetida" : "La inscripción no está en la lista de este pase" })));
     }
-    // G2: con el pase ya confirmado se recalculan los derivados de lo que cambió (racha de faltas y su tarea).
-    const alertas = await recalcularDerivados(ctx.db, { organizacionId: ctx.organizacionId, inscripcionIds: guardado.inscripciones, ahora: ctx.ahora() });
+    // G2: con el pase ya confirmado se recalculan los derivados (racha de faltas y su tarea) de TODAS las inscripciones del pase, no solo de las que cambiaron (EG-04):
+    // si el proceso se cortó o el recálculo falló después de confirmar el pase, el reintento (que ya no cambia nada) tiene que poder terminar el trabajo. Es idempotente.
+    const cambiaron = new Set(guardado.inscripciones);
+    // Contrato de siempre: repetir un pase que no cambió nada no reporta «racha en el umbral» (sin acción) de nadie; solo lo que de verdad se hizo (una tarea creada o resuelta).
+    const alertas = (await recalcularDerivados(ctx.db, { organizacionId: ctx.organizacionId, inscripcionIds: cuerpo.asistencias.map((a) => a.inscripcion_id), ahora: ctx.ahora() })).filter((x) => cambiaron.has(x.inscripcion_id) || x.accion !== null);
     const { lista } = await listaDelPase(ctx.db, grupo.id, cuerpo.fecha);
     res.json({
       grupo_id: grupo.id,

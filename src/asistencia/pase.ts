@@ -84,11 +84,17 @@ export async function listaDelPase(db: Consultas, grupoId: string, fecha: string
   const dia = fechaADate(fecha);
   const filas = await db.asistencia.findMany({ where: { grupo_id: grupoId, fecha: dia }, select: { inscripcion_id: true, estatus: true, metodo: true } });
   const registradas = new Map(filas.map((f) => [f.inscripcion_id, f]));
-  const inscripciones = await db.inscripcion.findMany({
+  const candidatas = await db.inscripcion.findMany({
     where: { OR: [{ grupo_id: grupoId, estatus: "activa", fecha_inicio: { lte: dia } }, { id: { in: [...registradas.keys()] } }] },
     select: { id: true, estatus: true, alumno_id: true, alumno: { select: { nombre: true, apellidos: true } } },
     orderBy: [{ alumno: { apellidos: "asc" } }, { alumno: { nombre: "asc" } }, { id: "asc" }],
   });
+  // EG-03: una inscripción que ese día ya pasó lista en OTRO grupo (cambió de grupo después) no es de este pase: su fila de ese día es única por (inscripción,
+  // fecha) y guardarla otra vez reventaba el índice. El grupo donde sí la tiene la sigue mostrando para corregirla.
+  const yaPasaronEnOtroGrupo = new Set(
+    (await db.asistencia.findMany({ where: { fecha: dia, grupo_id: { not: grupoId }, inscripcion_id: { in: candidatas.map((i) => i.id) } }, select: { inscripcion_id: true } })).map((f) => f.inscripcion_id),
+  );
+  const inscripciones = candidatas.filter((i) => !yaPasaronEnOtroGrupo.has(i.id));
   return {
     paseTomado: filas.length > 0,
     lista: inscripciones.map((i) => {

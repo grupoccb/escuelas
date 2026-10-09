@@ -242,3 +242,22 @@ test("G2 consultable por API: el historial de una inscripción con su porcentaje
 });
 
 const randomUuid = (): string => crypto.randomUUID();
+
+test("EG-04: si el pase se guardó pero el recálculo no llegó a correr (el proceso murió), repetir el MISMO pase termina el trabajo y la tarea nace", async () => {
+  const a = await m.inscribir(m.grupoA, { nombre: "Lalo" });
+  for (const f of [L19, M21]) assert.equal((await pasar(m, m.grupoA, f, [[a.inscripcionId, "falta"]])).estado, 200);
+  // La tercera falta se guarda como lo hace el pase, pero SIN recalcular (lo que queda si el proceso muere entre los dos pasos).
+  const { guardarPase } = await import("./pase.ts");
+  const guardado = await guardarPase(m.db, { organizacionId: m.org.organizacionId, grupoId: m.grupoA, fecha: L26, usuarioId: null, entradas: [{ inscripcionId: a.inscripcionId, estatus: "falta", metodo: "manual" }] });
+  assert.equal(guardado.ok && guardado.creadas, 1);
+  assert.equal((await tareasDe(a.inscripcionId)).length, 0, "el recálculo no corrió");
+  // El reintento del mismo pase no cambia ninguna fila, pero recalcula: la tarea nace.
+  const reintento = await pasar(m, m.grupoA, L26, [[a.inscripcionId, "falta"]]);
+  assert.equal(reintento.estado, 200);
+  assert.deepEqual((reintento.cuerpo as unknown as { creadas: number; sin_cambio: number }).creadas, 0);
+  assert.equal((await tareasDe(a.inscripcionId)).length, 1);
+  assert.deepEqual(reintento.cuerpo.alertas.map((x) => [x.inscripcion_id, x.accion]), [[a.inscripcionId, "tarea_creada"]]);
+  // Y repetirlo otra vez no la duplica.
+  assert.equal((await pasar(m, m.grupoA, L26, [[a.inscripcionId, "falta"]])).estado, 200);
+  assert.equal((await tareasDe(a.inscripcionId)).length, 1);
+});
