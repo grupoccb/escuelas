@@ -26,6 +26,8 @@ export const CAMPOS_AUDITABLES = {
   precio: ["programa_id", "costo_inscripcion", "costo_mensualidad", "moneda", "vigencia_desde", "vigencia_hasta"],
   promocion: ["nombre", "codigo", "vigencia_desde", "vigencia_hasta", "condicion_tipo", "condicion_valor", "cupo_maximo", "acumulable", "prioridad", "activo", "verticales", "sucursales", "programas"],
   promocion_beneficio: ["promocion_id", "tipo", "modo", "valor", "producto_id", "descripcion", "momento_disparo"],
+  // V3: un niño de la ficha del lead. NADA identificable (ni nombre ni fecha de nacimiento): `campos` dice qué se tocó, no con qué valores.
+  prospecto: ["lead_id", "vertical_interes_id", "origen", "campos"],
   lista_espera: ["grupo_id", "prospecto_id", "lead_id", "estatus", "posicion"],
   cotizacion: ["lead_id", "prospecto_id", "programa_id", "sucursal_id", "grupo_elegido_id", "origen", "estatus", "fecha", "vigente_hasta", "hermanos_inscritos", "meses_pagados"],
   // `notas` y `motivo_cancelacion` NO se auditan (ED-03): son texto libre, pueden llevar datos de salud («está enfermo») y el registro de

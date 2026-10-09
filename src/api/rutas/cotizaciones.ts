@@ -130,9 +130,11 @@ export function rutasDeCotizaciones(deps: DepsApi): Router {
     const lead = await leadVisible(ctx, id);
     if (!lead) throw noEncontrado();
 
-    const prospecto = await ctx.db.prospecto.findFirst({ where: { id: e.prospecto_id, lead_id: id }, select: { id: true, edad_declarada: true, vertical_interes_id: true } });
+    const prospecto = await ctx.db.prospecto.findFirst({ where: { id: e.prospecto_id, lead_id: id }, select: { id: true, edad_declarada: true, fecha_nacimiento: true, vertical_interes_id: true } });
     if (!prospecto) throw validacion([{ campo: "prospecto_id", mensaje: "El prospecto no es de este lead" }]);
-    if (prospecto.edad_declarada === null) throw validacion([{ campo: "prospecto_id", mensaje: "El prospecto no tiene edad: captúrala antes de cotizar" }]);
+    // V3: si el asesor capturó su fecha de nacimiento, el cotizador cuenta los años a la fecha de corte del programa (como en el asistente de inscripción).
+    const nacimiento = prospecto.fecha_nacimiento ? deFecha(prospecto.fecha_nacimiento) : null;
+    if (prospecto.edad_declarada === null && nacimiento === null) throw validacion([{ campo: "prospecto_id", mensaje: "El prospecto no tiene edad: captúrala antes de cotizar" }]);
     const programa = await ctx.db.programa.findFirst({ where: { id: e.programa_id, activo: true }, select: { id: true, vertical_id: true, sucursal_id: true, sucursal: { select: { zona_horaria: true } } } });
     if (!programa || !veSucursal(await ctx.alcance(), programa.sucursal_id)) throw validacion([{ campo: "programa_id", mensaje: "El programa no existe o no es de tus sucursales" }]);
     if (programa.vertical_id !== prospecto.vertical_interes_id) throw validacion([{ campo: "programa_id", mensaje: "El programa es de otra vertical que el prospecto" }]);
@@ -144,6 +146,7 @@ export function rutasDeCotizaciones(deps: DepsApi): Router {
       verticalId: programa.vertical_id,
       sucursalId: programa.sucursal_id,
       edadDeclarada: prospecto.edad_declarada,
+      fechaNacimiento: nacimiento,
       hermanosInscritos: e.hermanos_inscritos ?? 0,
       mesesPagadosPorAdelantado: e.meses_pagados ?? 0,
     }).programas.find((p) => p.programaId === programa.id);

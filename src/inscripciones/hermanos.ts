@@ -24,3 +24,18 @@ export async function hermanosInscritos(tx: Consultas, alumnoId: string): Promis
 export async function contarHermanosInscritos(tx: Consultas, alumnoId: string): Promise<number> {
   return (await hermanosInscritos(tx, alumnoId)).length;
 }
+
+/**
+ * EF-11 (V3): el candado de la FAMILIA. Los hermanos de un alumno se cuentan por los adultos que comparten (`tutor_alumno`), y dos hermanos que se inscriben a la vez en
+ * transacciones separadas no se veían entre sí (cada una contaba 0 hermanos inscritos y ninguno recibía la promoción). Quien inscribe toma antes el candado de los adultos del
+ * alumno —una fila de `tutor` cada uno, siempre en orden de id, todos de una vez— y cuenta después: la segunda inscripción ya ve la primera. Orden de candados de TODO el
+ * sistema: lead → adultos → grupo (cupo). Con los candados tomados en ese orden, nadie se interbloquea.
+ */
+export async function bloquearTutores(tx: Consultas, tutorIds: readonly string[]): Promise<void> {
+  for (const id of [...new Set(tutorIds)].sort()) await tx.tutor.updateMany({ where: { id }, data: { actualizado_en: new Date() } });
+}
+
+/** Los adultos de un alumno (ids). */
+export async function tutoresDeAlumno(tx: Consultas, alumnoId: string): Promise<string[]> {
+  return (await tx.tutor_alumno.findMany({ where: { alumno_id: alumnoId, eliminado_en: null }, select: { tutor_id: true } })).map((t) => t.tutor_id);
+}

@@ -483,8 +483,14 @@ model prospecto {
   lead_id              String           @db.Uuid
   vertical_interes_id  String           @db.Uuid
   nombre               String?
-  /// Lo que dice el adulto ("como 6"). La fecha de nacimiento se captura en la inscripción.
+  /// Lo que dice el adulto ("como 6"). Si el asesor captura la fecha de nacimiento, es la edad cumplida ese día (V3).
   edad_declarada       Int?
+  /// V3: lo que el asesor captura al agregar otro niño. Los apellidos y la fecha de nacimiento son lo que la conversión usaría de todos modos (cero recaptura);
+  /// la fecha del acta que captura el maestro en su registro (D5) manda sobre esta.
+  apellidos            String?          @db.VarChar(120)
+  fecha_nacimiento     DateTime?        @db.Date
+  /// V3: con la clave, reintentar el alta del mismo niño no lo duplica (índice único parcial en la migración).
+  clave_idempotencia   String?          @db.VarChar(120)
   /// El programa que le corresponde o que eligió en el bot cuando hay varios para su edad (C6). Es una sugerencia,
   /// no una inscripción.
   programa_sugerido_id String?          @db.Uuid

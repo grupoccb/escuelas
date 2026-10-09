@@ -30,7 +30,7 @@ import { consumirCupo, liberarCupo } from "../promociones/cupo.ts";
 import { resolverPromociones, type PromocionDef, type ResultadoPromociones } from "../promociones/resolver.ts";
 import { diaDeCortePorOmision, esDiaDeCorteValido } from "./corte.ts";
 import { programarBienvenida } from "./bienvenida.ts";
-import { contarHermanosInscritos } from "./hermanos.ts";
+import { bloquearTutores, contarHermanosInscritos, tutoresDeAlumno } from "./hermanos.ts";
 
 export interface EntradaDeInscripcion {
   alumnoId: string;
@@ -185,6 +185,8 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
 
   // ED-08: el lead antes que el grupo (el bot, al agendar una clase muestra, toma el lead y luego el grupo).
   if (prospecto.lead_id) await bloquearLead(tx, prospecto.lead_id);
+  // EF-11: los adultos del alumno antes que el grupo (lead → adultos → grupo): dos hermanos que se inscriben a la vez se forman en fila y el segundo ve al primero.
+  await bloquearTutores(tx, await tutoresDeAlumno(tx, alumno.id));
   // El candado del cupo y, DESPUÉS, la cuenta (contar y tomar el lugar son una sola cosa).
   await bloquearCupoDeGrupo(tx, grupo.id);
   const previa = await tx.inscripcion.findFirst({ where: { alumno_id: alumno.id, grupo_id: grupo.id, estatus: "activa" }, select: { id: true } });

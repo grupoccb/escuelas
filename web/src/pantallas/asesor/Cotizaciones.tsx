@@ -72,28 +72,36 @@ function TarjetaDeCotizacion({ c, prospectos }: { c: Cotizacion; prospectos: Lea
   );
 }
 
-function CotizarAMano({ lead, alCotizar }: { lead: LeadDetalle; alCotizar: () => void }) {
-  const conEdad = lead.prospectos.filter((p) => p.edad_declarada !== null && p.alumno_id === null);
-  const [prospectoId, setProspectoId] = useState("");
+function CotizarAMano({ lead, alCotizar, prospectoInicial }: { lead: LeadDetalle; alCotizar: () => void; prospectoInicial: string | null }) {
+  const conEdad = lead.prospectos.filter((p) => (p.edad !== null || p.fecha_nacimiento !== null) && p.alumno_id === null);
+  const [prospectoId, setProspectoId] = useState(prospectoInicial ?? "");
   const [programaId, setProgramaId] = useState("");
-  const [hermanos, setHermanos] = useState("");
+  // null = el sugerido (los niños que van antes en la ficha, suponiendo que se inscriben juntos); si la persona escribe, vale lo escrito.
+  const [hermanos, setHermanos] = useState<string | null>(null);
   const [meses, setMeses] = useState("");
   const accion = useAccion();
   const elegido = conEdad.find((p) => p.id === prospectoId) ?? conEdad[0];
-  const edad = elegido?.edad_declarada ?? null;
+  const sugeridos = elegido ? lead.prospectos.findIndex((p) => p.id === elegido.id) : 0;
+  const textoHermanos = hermanos ?? String(sugeridos);
   const sucursalId = lead.sucursal?.id ?? null;
-  // Los programas de esa edad, vertical y sucursal los calcula el cotizador del servidor (con precio y promociones de hoy).
-  const oferta = useCarga((senal) => api.get<{ programas: ProgramaCotizado[] }>("/api/cotizador", { vertical_id: lead.vertical.id, sucursal_id: sucursalId ?? undefined, edad: edad ?? undefined }, senal), [lead.vertical.id, sucursalId, edad], sucursalId !== null && edad !== null);
+  const verticalId = elegido?.vertical.id ?? lead.vertical.id;
+  // Los programas de esa edad (o fecha de nacimiento), disciplina y sucursal los calcula el cotizador del servidor (con precio y promociones de hoy).
+  const oferta = useCarga(
+    (senal) => api.get<{ programas: ProgramaCotizado[] }>("/api/cotizador", { vertical_id: verticalId, sucursal_id: sucursalId ?? undefined, ...(elegido?.fecha_nacimiento ? { fecha_nacimiento: elegido.fecha_nacimiento } : { edad: elegido?.edad ?? undefined }), hermanos_inscritos: (textoHermanos.trim() === "" ? 0 : aEntero(textoHermanos)) ?? undefined }, senal),
+    [verticalId, sucursalId, elegido?.id, elegido?.fecha_nacimiento, elegido?.edad, textoHermanos],
+    sucursalId !== null && elegido !== undefined,
+  );
   const programas = oferta.datos?.programas ?? [];
   const programa = programas.find((p) => p.programa_id === programaId) ?? programas[0];
-  const nHermanos = hermanos.trim() === "" ? 0 : aEntero(hermanos);
+  const nHermanos = textoHermanos.trim() === "" ? 0 : aEntero(textoHermanos);
   const nMeses = meses.trim() === "" ? 0 : aEntero(meses);
 
   if (sucursalId === null) return <Aviso tono="alerta">Este lead todavía no eligió sucursal: sin ella no se puede cotizar. Pídele que la elija.</Aviso>;
-  if (conEdad.length === 0) return <Aviso>No hay alumnos con edad por cotizar (los ya inscritos no se cotizan).</Aviso>;
+  if (conEdad.length === 0) return <Aviso>No hay niños con edad por cotizar (los ya inscritos no se cotizan).</Aviso>;
   return (
     <form
       className="formulario"
+      data-prueba="cotizar-a-mano"
       onSubmit={(e) => {
         e.preventDefault();
         if (!elegido || !programa || nHermanos === null || nMeses === null) return;
@@ -103,15 +111,20 @@ function CotizarAMano({ lead, alCotizar }: { lead: LeadDetalle; alCotizar: () =>
         });
       }}
     >
-      <CampoSelect etiqueta="Alumno" value={elegido?.id ?? ""} onChange={(e) => { setProspectoId(e.target.value); setProgramaId(""); }} opciones={conEdad.map((p) => ({ valor: p.id, texto: `${p.nombre ?? "Sin nombre"} (${p.edad_declarada} años)` }))} />
+      <CampoSelect etiqueta="Niño" value={elegido?.id ?? ""} onChange={(e) => { setProspectoId(e.target.value); setProgramaId(""); setHermanos(null); }} opciones={conEdad.map((p) => ({ valor: p.id, texto: `${p.nombre ?? "Sin nombre"} (${p.edad ?? "?"} años)` }))} />
       {oferta.cargando ? <Cargando texto="Buscando programas…" /> : null}
       {oferta.error ? <ErrorDeCarga error={oferta.error} alReintentar={oferta.recargar} /> : null}
       {oferta.datos && programas.length === 0 ? <Aviso tono="alerta">No hay programas para esa edad en esta sucursal.</Aviso> : null}
       {programas.length > 0 ? (
         <CampoSelect etiqueta="Programa" value={programa?.programa_id ?? ""} onChange={(e) => setProgramaId(e.target.value)} opciones={programas.map((p) => ({ valor: p.programa_id, texto: p.precio ? `${p.nombre} · ${formatear(p.precio.costo_mensualidad)} al mes` : `${p.nombre} · sin precio`, deshabilitada: p.sin_precio }))} />
       ) : null}
+      {programa?.promociones ? (
+        <p data-prueba="precio-con-promociones">
+          Con lo que aplica hoy: inscripción {formatear(programa.promociones.inscripcion.final_ahora)} · mensualidad {formatear(programa.promociones.mensualidad.final_ahora)}
+        </p>
+      ) : null}
       <div className="rejilla rejilla-2">
-        <CampoTexto etiqueta="Hermanos ya inscritos (opcional)" inputMode="numeric" value={hermanos} onChange={(e) => setHermanos(e.target.value)} error={nHermanos === null ? "Escribe un número entero" : undefined} ayuda="Habilita la promoción por hermanos en la cotización." />
+        <CampoTexto etiqueta="Hermanos ya inscritos (opcional)" inputMode="numeric" value={textoHermanos} onChange={(e) => setHermanos(e.target.value)} error={nHermanos === null ? "Escribe un número entero" : undefined} ayuda={sugeridos > 0 ? "Se supone que se inscriben juntos, contando a los niños que van antes en la ficha. Habilita la promoción por hermanos." : "Habilita la promoción por hermanos en la cotización."} />
         <CampoTexto etiqueta="Meses pagados por adelantado (opcional)" inputMode="numeric" value={meses} onChange={(e) => setMeses(e.target.value)} error={nMeses === null ? "Escribe un número entero" : undefined} />
       </div>
       <ErrorDeAccion error={accion.error} />
@@ -124,9 +137,15 @@ function CotizarAMano({ lead, alCotizar }: { lead: LeadDetalle; alCotizar: () =>
   );
 }
 
-export function Cotizaciones({ lead, puedeEscribir }: { lead: LeadDetalle; puedeEscribir: boolean }) {
+export function Cotizaciones({ lead, puedeEscribir, cotizarA }: { lead: LeadDetalle; puedeEscribir: boolean; cotizarA: { id: string; vez: number } | null }) {
   const carga = useCarga((senal) => api.get<Pagina<Cotizacion>>(`/api/leads/${lead.id}/cotizaciones`, { limite: 20 }, senal), [lead.id]);
   const [formulario, setFormulario] = useState(false);
+  // «Cotizar» en la fila de un niño abre el formulario ya con ese niño elegido.
+  const [vistoVez, setVistoVez] = useState(0);
+  if (cotizarA && cotizarA.vez !== vistoVez) {
+    setVistoVez(cotizarA.vez);
+    setFormulario(true);
+  }
   return (
     <Tarjeta
       titulo="Cotizaciones"
@@ -134,6 +153,8 @@ export function Cotizaciones({ lead, puedeEscribir }: { lead: LeadDetalle; puede
     >
       {formulario ? (
         <CotizarAMano
+          key={cotizarA?.vez ?? 0}
+          prospectoInicial={cotizarA?.id ?? null}
           lead={lead}
           alCotizar={() => {
             setFormulario(false);

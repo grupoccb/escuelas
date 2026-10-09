@@ -26,8 +26,10 @@ import { bloquearCupoDeGrupo } from "../catalogo/cupo.ts";
 import { precioVigente } from "../catalogo/precios.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
+import { bloquearLead } from "../embudo/etapas.ts";
 import { crearAlumno, encontrarOCrearTutor, vincularTutor, type DatosDeAlumno } from "../familias/familia.ts";
 import { inscribirAlumno, type EntradaDeInscripcion, type InscripcionCreada, type MotivoDeRechazoDeInscripcion } from "../inscripciones/inscribir.ts";
+import { bloquearTutores, contarHermanosInscritos, tutoresDeAlumno } from "../inscripciones/hermanos.ts";
 import { instantaneaDeCreada } from "../inscripciones/presentar.ts";
 import { problemasDeReglamentoVigente } from "../legal/aceptaciones.ts";
 import { fechaLocal } from "../lib/horario.ts";
@@ -81,6 +83,14 @@ interface ProspectoPlaneado {
   inscripcion: ProspectoComplemento["inscripcion"] | null;
   inscripcionActivaId: string | null;
   tieneInscripcion: boolean;
+  /**
+   * V3: cuántos hermanos tendrá YA inscritos cuando le toque su turno en esta operación: los que la familia ya tiene inscritos más los hermanos que se inscriben antes que él
+   * en la misma operación (en el orden de captura). Es exactamente lo que cuenta `inscribirAlumno` al resolver la promoción por hermanos, así que la cotización que se
+   * enseña antes de confirmar coincide con lo que se cobra.
+   */
+  hermanosPrevistos: number;
+  /** V3: el reglamento vigente de la disciplina del niño todavía no está aceptado por la familia (informativo: lo que de verdad bloquea es la falta `reglamento` que sale al elegir el grupo). */
+  reglamentoPendiente: boolean;
 }
 
 export interface Plan {
@@ -120,13 +130,36 @@ async function registroDe(tx: Consultas | BaseDatos, prospectoId: string) {
 }
 
 /**
+ * V3: los adultos de la familia según otro niño del mismo lead (el primero, en orden de captura, que ya es alumno o que tiene registro del maestro con adultos). Así el
+ * segundo hijo no vuelve a pedir parentesco ni datos del adulto: la familia ya se capturó con el primero. `null` si ningún otro niño aporta adultos.
+ */
+async function tutoresDeLaFamilia(tx: Consultas | BaseDatos, prospectos: readonly { id: string; alumno_id: string | null }[], excepto: string): Promise<TutorPlaneado[] | null> {
+  for (const o of prospectos) {
+    if (o.id === excepto) continue;
+    if (o.alumno_id) {
+      const vinculos = await tx.tutor_alumno.findMany({ where: { alumno_id: o.alumno_id }, orderBy: [{ es_responsable_pago: "desc" }, { id: "asc" }] });
+      const tutores = await tx.tutor.findMany({ where: { id: { in: vinculos.map((v) => v.tutor_id) } } });
+      const planeados = vinculos.flatMap((v): TutorPlaneado[] => {
+        const t = tutores.find((x) => x.id === v.tutor_id);
+        return t ? [{ nombre: t.nombre, apellidos: t.apellidos, telefono: t.telefono, correo: t.correo, parentesco: v.parentesco, es_responsable_pago: v.es_responsable_pago, lo_lleva: v.lo_lleva, puede_recoger: v.puede_recoger }] : [];
+      });
+      if (planeados.length > 0) return planeados;
+    } else {
+      const reg = await registroDe(tx, o.id);
+      if (reg && reg.tutores.length > 0) return reg.tutores.map((t) => ({ ...t }));
+    }
+  }
+  return null;
+}
+
+/**
  * Junta lo ya capturado y calcula lo que falta. SOLO LEE. La usan la vista previa y la conversión (esta, dentro de su candado), así que
  * lo que la vista previa dice que falta es exactamente lo que la conversión exigirá.
  */
 export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada: EntradaDeConversion, ahora: Date, alcance: AlcanceDeConversion = {}): Promise<Plan | null> {
   const lead = await tx.lead.findFirst({
     where: { id: leadId },
-    select: { id: true, nombre_contacto: true, telefono: true, tutor_id: true, sucursal_interes_id: true, prospectos: { where: { eliminado_en: null }, select: { id: true, nombre: true, alumno_id: true }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] } },
+    select: { id: true, nombre_contacto: true, telefono: true, tutor_id: true, sucursal_interes_id: true, prospectos: { where: { eliminado_en: null }, select: { id: true, nombre: true, apellidos: true, fecha_nacimiento: true, alumno_id: true, vertical_interes_id: true }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] } },
   });
   if (!lead) return null;
   const faltantes: Falta[] = [];
@@ -139,6 +172,8 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
   const prospectos: ProspectoPlaneado[] = [];
   const telefonoLead = lead.telefono ? normalizarTelefono(lead.telefono) : null;
   const hoyUTC = ahora.toISOString().slice(0, 10);
+  /** Los adultos de otro niño de la misma familia (se busca una sola vez por conversión). `undefined` = todavía no se ha buscado. */
+  let apoyo: TutorPlaneado[] | null | undefined;
 
   for (const p of elegidos) {
     const comp = peticion?.get(p.id);
@@ -149,6 +184,9 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
     let alumno: DatosDeAlumno | null = null;
     if (!yaAlumno) {
       const m = { ...(reg?.alumno ?? {}), ...(reg?.antecedentes ?? {}), ...(comp?.alumno ?? {}) } as Partial<DatosDeAlumno>;
+      // V3: lo que el asesor capturó al agregar al niño (apellidos y fecha de nacimiento) vale mientras el maestro no capture el acta: no se pide otra vez.
+      if (!m.apellidos && p.apellidos) m.apellidos = p.apellidos;
+      if (!m.fecha_nacimiento && p.fecha_nacimiento) m.fecha_nacimiento = iso(p.fecha_nacimiento)!;
       const nombre = comp?.alumno?.nombre ?? m.nombre ?? p.nombre ?? null;
       if (!nombre) faltantes.push(falta(ruta(p.id, "alumno.nombre"), "Falta el nombre del alumno"));
       if (!m.apellidos) faltantes.push(falta(ruta(p.id, "alumno.apellidos"), "Faltan los apellidos del alumno"));
@@ -165,6 +203,10 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
     if (!yaAlumno) {
       if (reg && reg.tutores.length > 0) {
         tutores = reg.tutores.map((t) => ({ ...t }));
+        if (!tutores.some((t) => t.es_responsable_pago)) tutores[0]!.es_responsable_pago = true;
+      } else if ((apoyo ??= await tutoresDeLaFamilia(tx, lead.prospectos, p.id)) !== null) {
+        // V3: el niño no tiene registro propio pero su hermano sí (o ya es alumno): los adultos son los mismos, no se piden otra vez.
+        tutores = apoyo.map((t) => ({ ...t }));
         if (!tutores.some((t) => t.es_responsable_pago)) tutores[0]!.es_responsable_pago = true;
       } else {
         const c = entrada.tutor ?? {};
@@ -221,10 +263,40 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
       inscripcion: grupoId ? (comp?.inscripcion ?? {}) : null,
       inscripcionActivaId,
       tieneInscripcion,
+      hermanosPrevistos: 0,
+      reglamentoPendiente: !yaAlumno && (await problemasDeReglamentoVigente(tx, p.id, p.vertical_interes_id, ahora)).length > 0,
     });
   }
+  await calcularHermanosPrevistos(tx, prospectos, { telefono: telefonoLead, tutorId: lead.tutor_id });
   if (lead.prospectos.length === 0) faltantes.push(falta("prospectos", "El lead no tiene a nadie que convertir: falta el alumno"));
+  // El adulto es UNO para toda la familia: lo que falta de él se dice una sola vez, aunque varios niños lo necesiten (cero recaptura con los hermanos).
+  for (let i = faltantes.length - 1; i >= 0; i--) if (faltantes[i]!.campo.startsWith("tutor.") && faltantes.findIndex((f) => f.campo === faltantes[i]!.campo) !== i) faltantes.splice(i, 1);
   return { leadId: lead.id, leadTelefono: telefonoLead, leadTutorId: lead.tutor_id, sucursalDelLead: lead.sucursal_interes_id, prospectos, faltantes };
+}
+
+/**
+ * Llena `hermanosPrevistos` de cada niño (ver `ProspectoPlaneado`). Solo lee. Mientras falta el adulto de un niño (la vista previa todavía no sabe su parentesco), se usa el
+ * contacto del lead: los hijos de un mismo lead son de la misma familia, y es el adulto con el que `convertirLead` los va a ligar.
+ */
+async function calcularHermanosPrevistos(tx: Consultas | BaseDatos, prospectos: ProspectoPlaneado[], contacto: { telefono: string | null; tutorId: string | null }): Promise<void> {
+  const telefonosDe = (p: ProspectoPlaneado): string[] => (p.tutores.length > 0 ? p.tutores.map((t) => t.telefono) : contacto.telefono ? [contacto.telefono] : []);
+  const telefonos = [...new Set(prospectos.flatMap(telefonosDe))];
+  const existentes = telefonos.length > 0 ? await tx.tutor.findMany({ where: { telefono: { in: telefonos } }, select: { id: true, telefono: true } }) : [];
+  const idDe = new Map(existentes.map((t) => [t.telefono, t.id]));
+  const enLaOperacion: ProspectoPlaneado[] = [];
+  for (const p of prospectos) {
+    if (p.alumnoId) {
+      p.hermanosPrevistos = await contarHermanosInscritos(tx, p.alumnoId);
+    } else {
+      const ids = [...telefonosDe(p).flatMap((t) => idDe.get(t) ?? []), ...(p.tutores.length === 0 && contacto.tutorId ? [contacto.tutorId] : [])];
+      const ya = ids.length > 0 ? await tx.alumno.count({ where: { tutores: { some: { eliminado_en: null, tutor_id: { in: [...new Set(ids)] } } }, inscripciones: { some: { estatus: "activa", eliminado_en: null } } } }) : 0;
+      const mios = telefonosDe(p);
+      const antes = enLaOperacion.filter((o) => telefonosDe(o).some((t) => mios.includes(t))).length;
+      p.hermanosPrevistos = ya + antes;
+    }
+    // Cuentan para los siguientes los niños que esta operación inscribe (el asistente exige un grupo para cada marcado, así que aquí aún no importa cuál).
+    if (p.inscripcionActivaId === null && !p.tieneInscripcion) enLaOperacion.push(p);
+  }
 }
 
 /** Lo que limita a quien convierte. `filtroDeGrupos` es una condición de Prisma sobre `grupo` (su alcance de sucursales); sin ella, todos. */
@@ -240,7 +312,7 @@ export interface VistaPrevia {
   yaConvertido: boolean;
   /** SOLO lo que falta por capturar. */
   faltantes: Falta[];
-  prospectos: { prospectoId: string; yaConvertido: boolean }[];
+  prospectos: { prospectoId: string; yaConvertido: boolean; hermanosPrevistos: number; reglamentoPendiente: boolean }[];
 }
 
 /** Lo que falta por capturar para convertir al lead (nada de lo ya capturado). null si el lead no existe. */
@@ -248,7 +320,7 @@ export async function vistaPreviaDeConversion(db: BaseDatos, leadId: string, ent
   const plan = await planear(db, leadId, entrada, ahora, alcance);
   if (!plan) return null;
   const hayTrabajo = plan.prospectos.some((p) => !p.alumnoId || (p.grupoId !== null && p.inscripcionActivaId === null));
-  return { leadId, listo: plan.faltantes.length === 0, yaConvertido: !hayTrabajo && plan.faltantes.length === 0, faltantes: plan.faltantes, prospectos: plan.prospectos.map((p) => ({ prospectoId: p.prospectoId, yaConvertido: p.alumnoId !== null })) };
+  return { leadId, listo: plan.faltantes.length === 0, yaConvertido: !hayTrabajo && plan.faltantes.length === 0, faltantes: plan.faltantes, prospectos: plan.prospectos.map((p) => ({ prospectoId: p.prospectoId, yaConvertido: p.alumnoId !== null, hermanosPrevistos: p.hermanosPrevistos, reglamentoPendiente: p.reglamentoPendiente })) };
 }
 
 export interface ResultadoDeConversion {
@@ -285,6 +357,8 @@ export async function convertirLead(db: BaseDatos, ctx: Pick<ContextoApi, "usuar
   let cierres: InscripcionCreada["listaDeEspera"][] = [];
   try {
     const resultado = await transaccionConBloqueo(db, ctx.organizacionId, claveDeCandado(leadId), async (tx): Promise<ResultadoDeConversion> => {
+      // Orden de candados de todo el sistema: lead → adultos de la familia → grupos. El lead primero, como el bot al agendar y `inscribirAlumno` (ED-08).
+      await bloquearLead(tx, leadId);
       const plan = await planear(tx, leadId, entrada, ahora, { filtroDeGrupos: opciones.filtroDeGrupos });
       if (!plan) throw new ConversionAbortada({ motivo: "lead_inexistente" });
       if (plan.faltantes.length > 0) throw new ConversionAbortada({ motivo: "faltan_datos", faltantes: plan.faltantes });
@@ -346,6 +420,10 @@ export async function convertirLead(db: BaseDatos, ctx: Pick<ContextoApi, "usuar
       // Dos cosas distintas (EK-I01). 1) Los candados de cupo de TODOS los grupos, siempre en orden de id: dos conversiones con los mismos grupos no se estorban en orden
       // inverso. 2) Las inscripciones, en el orden de CAPTURA de los prospectos (el del plan: `creado_en`, `id`): quién recibe el descuento por hermanos depende de quién se
       // inscribe después, y eso no puede decidirlo el orden de unos UUID aleatorios (el mismo lead daba precios distintos según los ids de sus grupos).
+      // EF-11: los adultos de TODOS los niños que se inscriben, de una vez y en orden de id (dos conversiones de familias que comparten un adulto no se interbloquean).
+      const adultos: string[] = [];
+      for (const i of porInscribir) adultos.push(...(await tutoresDeAlumno(tx, i.alumnoId)));
+      await bloquearTutores(tx, adultos);
       for (const g of [...new Set(porInscribir.map((i) => i.entrada.grupoId))].sort()) await bloquearCupoDeGrupo(tx, g);
       for (const i of porInscribir) {
         const r = await inscribirAlumno(tx, { ahora, usuarioId: ctx.usuario.id }, i.entrada);

@@ -2,12 +2,14 @@
 // solo hay campos para lo que `GET /api/leads/:id/conversion` dice que FALTA. Corregir algo ya capturado es una acción explícita («Corregir»).
 
 import type { ReactNode } from "react";
+import { api } from "../../api/cliente.ts";
 import { Link } from "react-router-dom";
 import type { LeadDetalle, ProgramaCotizado } from "../../api/tipos.ts";
 import { formatear } from "../../lib/dinero.ts";
 import { ESTATUS_DE_CLASE, MOTIVOS_DE_CLASE, SEXOS, TURNOS } from "../../lib/etiquetas.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
-import { Aviso, Boton, Insignia, Tarjeta } from "../../ui/basicos.tsx";
+import { Aviso, Boton, ErrorDeAccion, Insignia, Tarjeta } from "../../ui/basicos.tsx";
+import { useAccion } from "../../ui/hooks.ts";
 import { CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Aceptaciones } from "../maestro/Aceptaciones.tsx";
 import type { CapturadoDeProspecto, Oferta } from "./datos.ts";
@@ -25,6 +27,8 @@ export interface ContextoDePasos {
   pendientes: readonly string[];
   capturado: Record<string, CapturadoDeProspecto>;
   ofertas: Record<string, Oferta | null>;
+  /** V3: por niño, los hermanos que tendrá ya inscritos cuando le toque y si falta el reglamento (de la vista previa del servidor). */
+  previsiones: Record<string, { hermanos: number; reglamentoPendiente: boolean }>;
   entrada: Entrada;
   opciones: Record<string, Opciones>;
   ponerTutor: (campo: keyof Entrada["tutor"], valor: string) => void;
@@ -130,9 +134,9 @@ export function PasoAlumnos({ c }: { c: ContextoDePasos }) {
           <Tarjeta key={id} titulo={nombreDeProspecto(c, id)} className="pila">
             <div className="pila" data-prueba={`alumno-${id}`}>
               <Dato etiqueta="Nombre" capturado={reg?.alumno.nombre ?? prospecto?.nombre} escrito={e?.nombre} falta={rutas("nombre")} alEscribir={(v) => c.ponerAlumno(id, { nombre: v })} />
-              <Dato etiqueta="Apellidos" capturado={reg?.alumno.apellidos} escrito={e?.apellidos} falta={rutas("apellidos")} alEscribir={(v) => c.ponerAlumno(id, { apellidos: v })} />
-              <Dato etiqueta="Fecha de nacimiento" tipo="date" capturado={reg?.alumno.fecha_nacimiento} escrito={e?.fecha_nacimiento} falta={rutas("fecha_nacimiento")} alEscribir={(v) => c.ponerAlumno(id, { fecha_nacimiento: v })} />
-              {prospecto?.edad_declarada !== null && prospecto?.edad_declarada !== undefined && !reg?.alumno.fecha_nacimiento ? <p className="muted">Edad que dijo la familia: {prospecto.edad_declarada} años.</p> : null}
+              <Dato etiqueta="Apellidos" capturado={reg?.alumno.apellidos ?? prospecto?.apellidos} escrito={e?.apellidos} falta={rutas("apellidos")} alEscribir={(v) => c.ponerAlumno(id, { apellidos: v })} />
+              <Dato etiqueta="Fecha de nacimiento" tipo="date" capturado={reg?.alumno.fecha_nacimiento ?? prospecto?.fecha_nacimiento} escrito={e?.fecha_nacimiento} falta={rutas("fecha_nacimiento")} alEscribir={(v) => c.ponerAlumno(id, { fecha_nacimiento: v })} />
+              {prospecto?.edad_declarada !== null && prospecto?.edad_declarada !== undefined && !reg?.alumno.fecha_nacimiento && !prospecto?.fecha_nacimiento ? <p className="muted">Edad que dijo la familia: {prospecto.edad_declarada} años.</p> : null}
               {reg ? (
                 <dl className="datos" data-prueba="capturado-del-maestro">
                   {textoDe(SEXOS, reg.alumno.sexo) ? (<><dt>Sexo</dt><dd>{textoDe(SEXOS, reg.alumno.sexo)}</dd></>) : null}
@@ -203,7 +207,7 @@ export function PasoGrupo({ c }: { c: ContextoDePasos }) {
 export function PasoPrecio({ c }: { c: ContextoDePasos }) {
   return (
     <div className="pila">
-      <p className="muted">Los importes los calcula el servidor con el precio vigente y las promociones que aplican hoy. La promoción por hermanos se aplica sola al inscribir.</p>
+      <p className="muted">Los importes los calcula el servidor con el precio vigente y las promociones que aplican hoy. La promoción por hermanos se aplica sola: cada niño se cotiza contando a los que se inscriben antes que él en esta misma operación, y es lo que se cobra.</p>
       {c.pendientes.map((id) => {
         const grupoId = grupoEfectivo(c, id);
         const programa = grupoId ? programaDeGrupo(c, id, grupoId) : null;
@@ -217,6 +221,11 @@ export function PasoPrecio({ c }: { c: ContextoDePasos }) {
                   <p>
                     <strong>{programa.nombre}</strong> · {grupo?.horario_texto} ({grupo?.nombre})
                   </p>
+                  {(c.previsiones[id]?.hermanos ?? 0) > 0 ? (
+                    <p className="muted" data-prueba={`hermanos-${id}`}>
+                      Se cotiza con {c.previsiones[id]!.hermanos} {c.previsiones[id]!.hermanos === 1 ? "hermano ya inscrito" : "hermanos ya inscritos"} (contando a los que se inscriben antes en esta operación).
+                    </p>
+                  ) : null}
                   {programa.precio === null || programa.promociones === null ? (
                     <Aviso tono="peligro">Este programa no tiene un precio vigente: no se puede inscribir hasta que el administrador lo publique.</Aviso>
                   ) : (
@@ -262,16 +271,46 @@ export function PasoPrecio({ c }: { c: ContextoDePasos }) {
   );
 }
 
+/** V3: la familia que ya aceptó el reglamento por un hermano lo acepta por este niño con un clic (queda registrado de dónde salió). */
+function AceptarComoElHermano({ c, id, desde }: { c: ContextoDePasos; id: string; desde: string }) {
+  const accion = useAccion();
+  return (
+    <div className="pila" data-prueba={`reglamento-del-hermano-${id}`}>
+      <p className="muted">La misma persona, por el mismo medio y con el reglamento vigente. Queda como una aceptación nueva de este niño, con la nota de que se extendió de su hermano.</p>
+      <div>
+        <Boton
+          variante="primario"
+          cargando={accion.ocupado}
+          onClick={() =>
+            void accion.ejecutar(async () => {
+              await api.post(`/api/leads/${c.lead.id}/prospectos/${id}/aceptaciones-del-hermano`, { desde_prospecto_id: desde });
+              c.recargarVista();
+            })
+          }
+        >
+          Aceptan lo mismo que por {nombreDeProspecto(c, desde)}
+        </Boton>
+      </div>
+      <ErrorDeAccion error={accion.error} />
+    </div>
+  );
+}
+
 export function PasoReglamento({ c }: { c: ContextoDePasos }) {
   return (
     <div className="pila">
       {c.pendientes.map((id) => {
         const clase = c.capturado[id]?.clase ?? null;
-        const aceptado = !hayFalta(c, `prospectos.${id}.reglamento`);
+        const pendiente = hayFalta(c, `prospectos.${id}.reglamento`) || c.previsiones[id]?.reglamentoPendiente === true;
+        const aceptado = !pendiente;
+        // Un hermano de esta misma operación que ya tiene el reglamento aceptado: su aceptación se puede extender.
+        // También uno que ya es alumno (un hermano tardío): el servidor comprueba que de verdad haya aceptado la versión vigente.
+        const hermano = c.pendientes.find((o) => o !== id && c.previsiones[o]?.reglamentoPendiente === false && !hayFalta(c, `prospectos.${o}.reglamento`)) ?? c.lead.prospectos.find((o) => o.id !== id && o.alumno_id !== null)?.id;
         return (
           <Tarjeta key={id} titulo={`Reglamento e imagen de ${nombreDeProspecto(c, id)}`}>
             <div className="pila" data-prueba={`reglamento-${id}`}>
               {aceptado ? <Aviso tono="exito">La familia ya aceptó el reglamento vigente.</Aviso> : <Aviso tono="alerta">Falta que la familia acepte el reglamento vigente.</Aviso>}
+              {!aceptado && hermano ? <AceptarComoElHermano c={c} id={id} desde={hermano} /> : null}
               {clase ? (
                 <>
                   <p className="muted">
@@ -279,11 +318,11 @@ export function PasoReglamento({ c }: { c: ContextoDePasos }) {
                   </p>
                   <Aceptaciones claseId={clase.id} tutores={c.capturado[id]?.registro?.tutores ?? []} bloqueado={false} alCambiar={c.recargarVista} />
                 </>
-              ) : (
+              ) : !hermano || aceptado ? (
                 <Aviso tono="alerta">
                   Para registrar la aceptación hace falta una clase muestra de este alumno: agéndala desde <Link to={`/leads/${c.lead.id}`}>la ficha del lead</Link>.
                 </Aviso>
-              )}
+              ) : null}
             </div>
           </Tarjeta>
         );
@@ -321,7 +360,7 @@ export function PasoConfirmar({ c, quedan, alIrAlPaso, children }: { c: Contexto
             const g = grupoEfectivo(c, id);
             const programa = g ? programaDeGrupo(c, id, g) : null;
             const grupo = programa?.grupos.find((x) => x.grupo_id === g);
-            const apellidos = c.entrada.alumnos[id]?.apellidos || c.capturado[id]?.registro?.alumno.apellidos || "";
+            const apellidos = c.entrada.alumnos[id]?.apellidos || c.capturado[id]?.registro?.alumno.apellidos || c.lead.prospectos.find((p) => p.id === id)?.apellidos || "";
             return (
               <p key={id} data-prueba={`resumen-${id}`}>
                 <strong>

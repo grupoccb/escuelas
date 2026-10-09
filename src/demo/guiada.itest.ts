@@ -46,7 +46,7 @@ test("la demo guiada recorre los doce pasos, termina con la cuadratura en verde 
   assert.match(una.salida, /✓ cuadra — \d+ cargos/);
   assert.match(una.salida, /Cuadratura: en verde\./);
   // Los hitos del recorrido, dichos con lo que salió de las tablas:
-  for (const hito of [/atribuyó a la campaña/, /bot de tres preguntas/i, /Cotización vigente/, /clase muestra de .* en «/i, /plantilla «aviso_maestro_agendada»/, /plantilla «recordatorio_clase_muestra»/, /asistió/, /precio CONGELADO/, /repartido entre los cargos|propone el reparto/, /Por entregar: /, /Estado de cuenta/]) assert.match(una.salida, hito);
+  for (const hito of [/atribuyó a la campaña/, /bot de tres preguntas/i, /Cotización vigente/, /clase muestra de .* en «/i, /plantilla «aviso_maestro_agendada»/, /plantilla «recordatorio_clase_muestra»/, /asistió/, /precio CONGELADO/, /agrega a Valentina/, /ya estaba \(no la duplica\)/, /La promoción por hermanos se aplicó sola a Valentina/, /Coincide con la cotización previa/, /dos alumnos y dos inscripciones/, /repartido entre los cargos|propone el reparto/, /Por entregar: /, /Estado de cuenta/]) assert.match(una.salida, hito);
   assert.match(una.salida, /Interfaz: +http:\/\/127\.0\.0\.1:\d+\//, "el resumen trae las ligas locales a la interfaz");
   assert.match(una.salida, /Estado de cuenta: +http:\/\/127\.0\.0\.1:\d+\/cuenta\//);
   // Sin términos que dependan de la escuela en el código: todo lo nombrado sale de las tablas, así que el relato cambia con el catálogo, no con el script.

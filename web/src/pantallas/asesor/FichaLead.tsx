@@ -15,6 +15,7 @@ import { ClasesMuestraDeLead } from "./ClasesMuestraDeLead.tsx";
 import { Cotizaciones } from "./Cotizaciones.tsx";
 import { FUENTES } from "./Embudo.tsx";
 import { MoverEtapa } from "./MoverEtapa.tsx";
+import { Ninos } from "./Ninos.tsx";
 import { TarjetaDeTarea } from "./Tareas.tsx";
 
 interface Historial {
@@ -54,6 +55,8 @@ export default function FichaLead() {
   const historial = useCarga((senal) => api.get<Historial>(`/api/leads/${id}/historial`, undefined, senal), [id]);
   const tareas = useCarga((senal) => (puede("tareas:leer") ? api.get<Pagina<Tarea>>("/api/tareas", { lead_id: id, estado: "pendiente", limite: 20 }, senal) : Promise.resolve(null)), [id]);
   const [moviendo, setMoviendo] = useState(false);
+  // V3: el niño al que se le abre el formulario de cotizar (desde su fila en «Niños»).
+  const [cotizandoA, setCotizandoA] = useState<{ id: string; vez: number } | null>(null);
   const d = lead.datos;
   useTitulo(d?.nombre_contacto ?? "Lead");
   const escribir = puede("leads:escribir");
@@ -68,6 +71,8 @@ export default function FichaLead() {
   if (!d) return <Marco titulo="Lead"><Cargando /></Marco>;
   const nombre = d.nombre_contacto ?? "Sin nombre";
   const inscrito = d.etapa.tipo_sistema === "inscrito" || d.etapa.es_ganado;
+  // V3: un lead ya inscrito que recibe a otro hijo vuelve a tener a quién inscribir.
+  const hayPorInscribir = d.prospectos.some((p) => p.alumno_id === null);
   const atribucion = Object.entries(d.atribucion ?? {}).filter(([k, v]) => k in CLAVES_DE_ATRIBUCION && typeof v === "string");
 
   return (
@@ -77,9 +82,9 @@ export default function FichaLead() {
       acciones={
         <>
           <EnlaceAChatwoot lead={d} />
-          {puede("conversion:ejecutar") && escribir && !inscrito ? (
+          {puede("conversion:ejecutar") && escribir && (!inscrito || hayPorInscribir) ? (
             <EnlaceBoton to={`/leads/${d.id}/convertir`} variante="primario">
-              Convertir e inscribir
+              {d.prospectos.filter((p) => p.alumno_id === null).length > 1 ? "Inscribir a los niños" : "Convertir e inscribir"}
             </EnlaceBoton>
           ) : null}
         </>
@@ -106,20 +111,7 @@ export default function FichaLead() {
         </dl>
       </Tarjeta>
 
-      <Tarjeta titulo="Alumnos">
-        {d.prospectos.length === 0 ? <Vacio titulo="Todavía no hay alumnos registrados" /> : null}
-        <ul className="lista-tarjetas">
-          {d.prospectos.map((p) => (
-            <li key={p.id} className="fila fila-entre" data-prueba={`prospecto-${p.id}`}>
-              <span>
-                <strong>{p.nombre ?? "Sin nombre"}</strong>
-                {p.edad_declarada !== null ? ` · ${p.edad_declarada} años` : ""}
-              </span>
-              {p.alumno_id ? <Insignia tono="exito">Ya es alumno</Insignia> : <Insignia>Por inscribir</Insignia>}
-            </li>
-          ))}
-        </ul>
-      </Tarjeta>
+      <Ninos key={d.id} lead={d} puedeEscribir={escribir} cotizadorEncendido={moduloEncendido("cotizador")} alCambiar={recargar} alCotizar={(id) => setCotizandoA({ id, vez: Date.now() })} />
 
       <Tarjeta titulo="De dónde llegó">
         <dl className="datos">
@@ -142,7 +134,7 @@ export default function FichaLead() {
         </dl>
       </Tarjeta>
 
-      {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} /> : null}
+      {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} cotizarA={cotizandoA} /> : null}
       {moduloEncendido("clase_muestra") ? <ClasesMuestraDeLead lead={d} puedeEscribir={puede("clases_muestra:escribir")} alCambiar={recargar} /> : null}
 
       {tareas.datos && tareas.datos.datos.length > 0 ? (

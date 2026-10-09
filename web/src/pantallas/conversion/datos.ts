@@ -11,6 +11,8 @@ export interface Vista {
   ya_convertido: boolean;
   faltantes: Falta[];
   prospectos: { prospecto_id: string; ya_convertido: boolean }[];
+  /** V3: por niño, cuántos hermanos tendrá ya inscritos cuando le toque (para cotizarle lo que se le va a cobrar) y si falta el reglamento. */
+  previsiones: { prospecto_id: string; hermanos_previstos: number; reglamento_pendiente: boolean }[];
 }
 
 export interface ResultadoDeConversion {
@@ -54,7 +56,8 @@ export async function cargarCapturado(leadId: string, prospectoIds: readonly str
 }
 
 /** Los programas de la edad (o de la fecha de nacimiento, si ya se conoce) en la sucursal del lead, con grupos, lugares reales, precio y promociones. */
-export async function cargarOferta(lead: LeadDetalle, p: { edad: number | null; nacimiento: string | null }, senal: AbortSignal, modulos: Modulos): Promise<Oferta | null> {
+export async function cargarOferta(lead: LeadDetalle, p: { edad: number | null; nacimiento: string | null; verticalId: string; hermanos: number }, senal: AbortSignal, modulos: Modulos): Promise<Oferta | null> {
   if (!modulos.cotizador || !lead.sucursal || (p.edad === null && !p.nacimiento)) return null;
-  return api.get<Oferta>("/api/cotizador", { vertical_id: lead.vertical.id, sucursal_id: lead.sucursal.id, ...(p.nacimiento ? { fecha_nacimiento: p.nacimiento } : { edad: p.edad ?? undefined }) }, senal);
+  // V3: la disciplina es la del niño (puede ser otra que la del lead) y los hermanos son los que tendrá ya inscritos cuando le toque: el precio que se enseña es el que se cobra.
+  return api.get<Oferta>("/api/cotizador", { vertical_id: p.verticalId, sucursal_id: lead.sucursal.id, hermanos_inscritos: p.hermanos, ...(p.nacimiento ? { fecha_nacimiento: p.nacimiento } : { edad: p.edad ?? undefined }) }, senal);
 }

@@ -68,6 +68,7 @@ import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeConversion } from "./rutas/conversion.ts";
 import { rutasDeInterfaz } from "./rutas/interfaz.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
+import { rutasDeProspectos } from "./rutas/prospectos.ts";
 import { rutasDeMotivosBaja } from "./rutas/motivos-baja.ts";
 import { rutasDeLegal } from "./rutas/legal.ts";
 import { rutasDeListaEspera } from "./rutas/lista-espera.ts";
@@ -166,6 +167,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeEmbudo(deps));
   api.use(rutasDeConversion(deps));
   api.use(rutasDeLeads(deps));
+  api.use(rutasDeProspectos(deps));
   api.use(rutasDeCotizaciones(deps));
   api.use(rutasDeInterfaz(deps));
   api.use(rutasDeListaEspera(deps));

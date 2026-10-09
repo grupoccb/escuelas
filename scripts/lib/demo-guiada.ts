@@ -21,6 +21,7 @@ import { InscripcionesActivas } from "../../src/catalogo/cupo.ts";
 import { procesarEntrante } from "../../src/captacion/entrante.ts";
 import { correrCiclo } from "../../src/ciclo.ts";
 import { cuadratura } from "../../src/finanzas/cuadratura.ts";
+import { aTexto, deTexto } from "../../src/lib/dinero.ts";
 import { ProveedorEconomicoDeFinanzas } from "../../src/finanzas/estado-cuenta.ts";
 import { ProveedorProductosDeFinanzas } from "../../src/finanzas/productos.ts";
 import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, MessagingProvider, TransporteFalso, registrarEstadoEntrega } from "../../src/mensajeria/index.ts";
@@ -386,25 +387,44 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
 
   // ── 8. La conversión ──────────────────────────────────────────────────────────────────────────────
   reloj.ahora = new Date(clase.fecha_hora.getTime() + 2 * 3_600_000);
-  paso("El asesor convierte al lead: familia, alumno e inscripción sin volver a capturar nada");
+  paso("El asesor agrega a la hermana y convierte al lead: familia, dos alumnos e inscripción en UNA operación, sin volver a capturar nada");
+  // V3: el bot capturó a un niño; el asesor agrega a los demás desde la ficha (o por la API). Lo que escribe aquí es lo que la conversión usa: no se vuelve a pedir.
+  const nacimientoHermana = `${2026 - programa.edad_min}-06-15`;
+  const claveHermana = "demo-guiada-hermana-0001";
+  const hermana = exigir(await asesor.post(`/api/leads/${leadId}/prospectos`, { nombre: "Valentina", apellidos: "Mena Ruiz", fecha_nacimiento: nacimientoHermana, clave_idempotencia: claveHermana }), [201], "alta de la hermana");
+  const reintento = await asesor.post(`/api/leads/${leadId}/prospectos`, { nombre: "Valentina", apellidos: "Mena Ruiz", fecha_nacimiento: nacimientoHermana, clave_idempotencia: claveHermana });
+  dato(`El asesor agrega a ${hermana.nombre} ${hermana.apellidos} (${hermana.edad} años, nacida el ${nacimientoHermana}) desde la ficha: otro niño del mismo lead, con sus datos estructurados. Si la respuesta se pierde y reintenta con la misma clave, el sistema responde ${reintento.estado === 200 && reintento.cuerpo.repetido ? "que ya estaba (no la duplica)" : "otra cosa: revisa la idempotencia"}.`);
+  exigir(await asesor.post(`/api/leads/${leadId}/prospectos/${hermana.id}/aceptaciones-del-hermano`, { desde_prospecto_id: prospecto.id }), [200, 201], "reglamento de la hermana");
+  dato("La madre acepta el reglamento por la hermana con el mismo medio que por su hermano: queda como una aceptación nueva, con la nota de que se extendió de él.");
   const previa = exigir(await asesor.get(`/api/leads/${leadId}/conversion`), [200], "vista previa de la conversión");
-  dato(`La vista previa solo pide lo que falta: ${previa.faltantes.length === 0 ? "nada" : previa.faltantes.map((f: { campo: string }) => f.campo.replace(/^prospectos\.[0-9a-f-]+\./, "")).join(", ")}.`);
+  dato(`La vista previa solo pide lo que falta: ${previa.faltantes.length === 0 ? "nada" : previa.faltantes.map((f: { campo: string }) => f.campo.replace(/^prospectos\.[0-9a-f-]+\./, "")).join(", ")}. El adulto no se pregunta de nuevo: la madre ya está en el registro del maestro.`);
+  const hermanosPrevistos = (previa.previsiones as { prospecto_id: string; hermanos_previstos: number }[]).find((x) => x.prospecto_id === hermana.id)?.hermanos_previstos ?? 0;
+  const cotizadaPrevia = exigir(await asesor.get(`/api/cotizador?vertical_id=${vertical.id}&sucursal_id=${sucursal.id}&fecha_nacimiento=${nacimientoHermana}&hermanos_inscritos=${hermanosPrevistos}`), [200], "cotización previa de la hermana").programas.find((x: { programa_id: string }) => x.programa_id === programa.id);
+  dato(`Antes de confirmar, la cotización de la hermana cuenta ${hermanosPrevistos} hermano ya inscrito (el que se inscribe antes, en esta misma operación): inscripción ${dinero(cotizadaPrevia.promociones.inscripcion.final_ahora)}, mensualidad ${dinero(cotizadaPrevia.promociones.mensualidad.final_ahora)}.`);
   const conversion = exigir(
     await asesor.post(`/api/leads/${leadId}/convertir`, {
       tutor: { parentesco: "madre" },
-      prospectos: [{ prospecto_id: prospecto.id, alumno: {}, inscripcion: { grupo_id: grupo.id } }],
+      prospectos: [
+        { prospecto_id: prospecto.id, alumno: {}, inscripcion: { grupo_id: grupo.id } },
+        { prospecto_id: hermana.id, inscripcion: { grupo_id: grupo.id } },
+      ],
     }),
     [200, 201],
     "conversión",
   );
-  const alumnoId = conversion.alumnos[0].alumno_id as string;
-  const inscripcionId = conversion.alumnos[0].inscripcion.id as string;
+  const delPrimero = conversion.alumnos.find((a: { prospecto_id: string }) => a.prospecto_id === prospecto.id);
+  const delaHermana = conversion.alumnos.find((a: { prospecto_id: string }) => a.prospecto_id === hermana.id);
+  const alumnoId = delPrimero.alumno_id as string;
+  const inscripcionId = delPrimero.inscripcion.id as string;
   const tutorId = conversion.tutor_id as string;
   const inscripcion = exigir(await asesor.get(`/api/inscripciones/${inscripcionId}`), [200], "inscripción");
-  dato(`Se crearon la familia (un tutor por teléfono), el alumno y la inscripción en «${grupo.nombre}» con el precio CONGELADO: inscripción ${dinero(inscripcion.precio_inscripcion_aplicado)}, mensualidad ${dinero(inscripcion.precio_mensualidad_aplicado)}.`);
-  const aplicadas = (inscripcion.promociones ?? inscripcion.promocion_aplicaciones ?? []) as { promocion?: { nombre?: string }; nombre?: string; estatus?: string }[];
-  if (aplicadas.length > 0) dato(`Promociones aplicadas: ${aplicadas.map((a) => `${a.promocion?.nombre ?? a.nombre ?? "promoción"} (${a.estatus ?? "aplicada"})`).join("; ")}.`);
+  const inscripcionHermana = exigir(await asesor.get(`/api/inscripciones/${delaHermana.inscripcion.id}`), [200], "inscripción de la hermana");
+  dato(`En una sola operación se crearon la familia (un tutor por teléfono, el mismo para los dos), dos alumnos y dos inscripciones en «${grupo.nombre}» con el precio CONGELADO: la de ${prospecto.nombre} con inscripción ${dinero(inscripcion.precio_inscripcion_aplicado)} y mensualidad ${dinero(inscripcion.precio_mensualidad_aplicado)}.`);
+  const aplicadas = (inscripcion.promociones ?? inscripcion.promocion_aplicaciones ?? []) as { promocion?: string; nombre?: string; estatus?: string }[];
+  if (aplicadas.length > 0) dato(`Promociones aplicadas al primero: ${aplicadas.map((a) => `${a.promocion ?? a.nombre ?? "promoción"} (${a.estatus ?? "aplicada"})`).join("; ")}.`);
   else dato(`Descuento de inscripción congelado: ${dinero(inscripcion.descuento_inscripcion_aplicado ?? "0")}; meses gratis: ${inscripcion.meses_gratis_aplicados ?? 0}.`);
+  const aplicadasHermana = (inscripcionHermana.promociones ?? []) as { promocion?: string; estatus?: string }[];
+  dato(`La promoción por hermanos se aplicó sola a ${hermana.nombre}: descuento en la mensualidad ${dinero(inscripcionHermana.descuento_mensualidad_aplicado)} (mensualidad de ${dinero(inscripcionHermana.precio_mensualidad_aplicado)} a ${dinero(aTexto(deTexto(inscripcionHermana.precio_mensualidad_aplicado) - deTexto(inscripcionHermana.descuento_mensualidad_aplicado)))}); promociones: ${aplicadasHermana.map((a) => `${a.promocion ?? "promoción"} (${a.estatus ?? "aplicada"})`).join("; ") || "ninguna"}. Coincide con la cotización previa.`);
   const etapaFinal = await db.lead.findFirstOrThrow({ where: { id: leadId }, include: { etapa: true } });
   dato(`El lead quedó en «${etapaFinal.etapa.nombre}».`);
 
@@ -457,7 +477,7 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   narrar("══════════════════════════════════════════════════════════════════════════════");
   narrar(" Resumen");
   narrar("══════════════════════════════════════════════════════════════════════════════");
-  narrar(` Recorrido: anuncio simulado → landing y WhatsApp → bot → cotización → clase muestra → aviso al maestro y recordatorios → registro y asistencia → conversión → inscripción con promoción → primer pago repartido → beneficio por entregar → estado de cuenta.`);
+  narrar(` Recorrido: anuncio simulado → landing y WhatsApp → bot → cotización → clase muestra → aviso al maestro y recordatorios → registro y asistencia → segundo hijo en la ficha → conversión de los dos hermanos en una operación → inscripción con promoción por hermanos → primer pago repartido → beneficio por entregar → estado de cuenta.`);
   narrar(` Cuadratura: ${cu.ok ? "en verde" : "CON DISCREPANCIAS"}.`);
   const ligas = [
     `Interfaz:               ${origen}/            (usuarios de la demo: admin@demo.test, asesor@demo.test, maestro@demo.test, recepcion@demo.test; contraseña ${CLAVE_DEMO})`,

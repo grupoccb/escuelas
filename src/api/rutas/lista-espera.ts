@@ -1,6 +1,7 @@
 // Lista de espera de los grupos llenos (C9), para el asesor.
 //
 //   GET    /api/lista-espera?grupo_id=&prospecto_id=&estatus=&limite=&pagina=   (lista_espera:leer)
+//   POST   /api/lista-espera        { grupo_id, prospecto_id }                   (lista_espera:escribir)  apuntar a un niño (V3: cuando al inscribir a la familia un grupo se llena)
 //   PATCH  /api/lista-espera/:id   { posicion }                                  (lista_espera:escribir)  mover
 //   DELETE /api/lista-espera/:id                                                  (lista_espera:escribir)  quitar
 //
@@ -11,8 +12,8 @@
 
 import { Router } from "express";
 import express from "express";
-import { cerrarEntrada, moverEnListaEspera, type AlCambiar, type EntradaDeLista, type ResultadoDeCambio } from "../../lista-espera/lista-espera.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { altaConCandado, cerrarEntrada, moverEnListaEspera, type AlCambiar, type EntradaDeLista, type ResultadoDeCambio } from "../../lista-espera/lista-espera.ts";
+import { condicionDeLead, filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -75,6 +76,7 @@ const instantanea = (e: EntradaDeLista): Instantanea => ({ grupo_id: e.grupoId, 
 const esquemaId = objeto({ id: uuid() });
 const esquemaListado = objeto({ ...esquemaPaginacion, grupo_id: opcional(uuid()), prospecto_id: opcional(uuid()), estatus: opcional(enumerado(ESTATUS)) });
 const esquemaMover = objeto({ posicion: entero({ min: 1, max: 10_000 }) });
+const esquemaAlta = objeto({ grupo_id: uuid(), prospecto_id: uuid() });
 
 export function rutasDeListaEspera(_deps: DepsApi): Router {
   const r = Router();
@@ -116,6 +118,26 @@ export function rutasDeListaEspera(_deps: DepsApi): Router {
         async (saltar, tomar) => (await ctx.db.lista_espera.findMany({ where, select: SELECCION, orderBy: [{ grupo_id: "asc" }, { posicion: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentar(f as Fila)),
       ),
     );
+  });
+
+  // V3: al inscribir a una familia con varios niños, si un grupo se llena el asesor puede dejar a ese niño en la lista de espera y seguir con los demás. Idempotente:
+  // si el niño ya está esperando en ese grupo, devuelve la entrada que tiene (200). Alcance: el grupo y el lead tienen que ser de quien lo pide (404 si no).
+  r.post("/lista-espera", requierePermiso("lista_espera:escribir"), json, async (req, res) => {
+    const ctx = contextoDe(res);
+    const e = parsear(esquemaAlta, req.body);
+    const filtro = filtroDeSucursal(await ctx.alcance());
+    if (!(await ctx.db.grupo.findFirst({ where: { id: e.grupo_id, ...(filtro ? { programa: { sucursal_id: filtro } } : {}) }, select: { id: true } }))) throw noEncontrado("No se encontró el grupo");
+    const nino = await ctx.db.prospecto.findFirst({ where: { id: e.prospecto_id, alumno_id: null, lead: condicionDeLead(await ctx.alcance()) ?? {} }, select: { id: true, lead_id: true } });
+    if (!nino) throw noEncontrado("No se encontró al niño");
+    const h = await altaConCandado(ctx.db, { grupoId: e.grupo_id, prospectoId: nino.id, leadId: nino.lead_id });
+    if (!h.ok) {
+      if (h.motivo === "sin_lista_de_espera") throw conflicto("Ese grupo no tiene lista de espera");
+      throw noEncontrado();
+    }
+    if (h.creada) {
+      await ctx.db.$transaction((tx) => registrarCambio(tx, ctx, { entidad: "lista_espera", entidadId: h.entrada.id, accion: "crear", despues: instantanea(h.entrada) }));
+    }
+    res.status(h.creada ? 201 : 200).json(presentar((await ctx.db.lista_espera.findFirstOrThrow({ where: { id: h.entrada.id }, select: SELECCION })) as Fila));
   });
 
   r.patch("/lista-espera/:id", requierePermiso("lista_espera:escribir"), json, async (req, res) => {

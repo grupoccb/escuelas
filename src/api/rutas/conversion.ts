@@ -22,10 +22,12 @@ import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { ErrorApi, conflicto, noEncontrado, prohibido, validacion } from "../errores.ts";
 import { MOTIVOS_DE_CLASE, SEXOS, TURNOS_ESCOLARES } from "../../clases-muestra/registro.ts";
-import { booleano, correo, entero, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, texto, uuid } from "../validar.ts";
+import { booleano, correo, entero, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const textoONulo = (max: number) => opcional(nulable(texto({ max })));
 const esquemaId = objeto({ id: uuid() });
+/** V3: `prospectos` = los niños que se van a inscribir ahora, separados por comas. Sin él, todos los que aún no son alumnos. */
+const esquemaVista = objeto({ prospectos: opcional(texto({ max: 400 })) });
 const esquemaConversion = objeto({
   tutor: opcional(objeto({ parentesco: opcional(texto({ max: 60 })), nombre: opcional(texto({ max: 120 })), apellidos: textoONulo(120), correo: opcional(nulable(correo())) })),
   prospectos: opcional(
@@ -134,9 +136,15 @@ export function rutasDeConversion(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const propios = await acceso(ctx, id);
-    const v = await vistaPreviaDeConversion(ctx.db, id, propios ? { prospectos: propios.map((prospectoId) => ({ prospectoId })) } : {}, ctx.ahora(), { filtroDeGrupos: await filtroDeGrupos(ctx) });
+    const marcados = parsearQuery(esquemaVista, req.query).prospectos?.split(",").map((x) => x.trim()).filter(Boolean);
+    if (marcados && (marcados.length > 10 || marcados.some((m) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m)))) throw validacion([{ campo: "prospectos", mensaje: "Debe ser una lista de hasta 10 identificadores separados por comas" }]);
+    const elegidos = propios ? propios.filter((p) => !marcados || marcados.includes(p)) : marcados;
+    const v = await vistaPreviaDeConversion(ctx.db, id, elegidos ? { prospectos: elegidos.map((prospectoId) => ({ prospectoId })) } : {}, ctx.ahora(), { filtroDeGrupos: await filtroDeGrupos(ctx) });
     if (!v) throw noEncontrado();
-    res.json({ lead_id: v.leadId, listo: v.listo, ya_convertido: v.yaConvertido, faltantes: v.faltantes, prospectos: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, ya_convertido: p.yaConvertido })) });
+    res.json({ lead_id: v.leadId, listo: v.listo, ya_convertido: v.yaConvertido, faltantes: v.faltantes, prospectos: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, ya_convertido: p.yaConvertido })),
+      // V3: por niño, lo que el asistente enseña antes de confirmar: cuántos hermanos tendrá ya inscritos cuando le toque (para cotizarle EXACTAMENTE lo que se le va a cobrar) y si falta el reglamento.
+      previsiones: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, hermanos_previstos: p.hermanosPrevistos, reglamento_pendiente: p.reglamentoPendiente })),
+    });
   });
 
   r.post("/leads/:id/convertir", requierePermiso("conversion:ejecutar"), json, async (req, res) => {

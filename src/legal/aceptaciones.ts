@@ -212,3 +212,31 @@ export async function problemasDeReglamentoVigente(tx: Consultas | BaseDatos, pr
   if (ultima.documentoId !== vigente.id) return [{ campo: "reglamento", mensaje: `La familia aceptó una versión anterior del reglamento: debe aceptar la versión vigente (v${vigente.version})` }];
   return [];
 }
+
+export type ResultadoDeExtension = { ok: true; aceptacion: FilaDeAceptacion; creada: boolean } | { ok: false; motivo: "sin_aceptacion" | "version_no_vigente" | "documento_no_aplica" | "prospecto_inexistente" };
+
+/**
+ * V3 (segundo hijo): la familia que acepta el reglamento por un niño lo acepta por su hermano en el mismo momento, sin volver a leerlo ni a firmarlo. Se registra una aceptación
+ * NUEVA del niño (la evidencia es de solo anexar) con el mismo adulto, el mismo canal y la misma versión, y la marca `extendida_de_prospecto` que dice de dónde salió. Solo
+ * se extiende lo que sigue vigente: si el reglamento cambió, o el del niño es otro (documento propio de otra disciplina), la familia lo acepta de verdad. Quien llama es una
+ * persona (el asesor) y lo hace a propósito: no ocurre por sí solo al convertir.
+ */
+export async function extenderAceptacionDeReglamento(db: BaseDatos, organizacionId: string, e: { desdeProspectoId: string; haciaProspectoId: string; usuarioId: string | null; ahora: Date }): Promise<ResultadoDeExtension> {
+  const origen = await ultimaAceptacion(db, e.desdeProspectoId, "reglamento");
+  if (!origen || origen.resultado !== "aceptada") return { ok: false, motivo: "sin_aceptacion" };
+  const r = await registrarAceptacion(db, organizacionId, {
+    prospectoId: e.haciaProspectoId,
+    documentoId: origen.documentoId,
+    version: origen.versionAceptada,
+    resultado: "aceptada",
+    aceptante: { nombre: origen.aceptanteNombre, parentesco: origen.aceptanteParentesco },
+    canal: origen.canal,
+    usuarioId: e.usuarioId,
+    evidencia: { extendida_de_prospecto: e.desdeProspectoId },
+    ahora: e.ahora,
+  });
+  if (r.ok) return r;
+  if (r.motivo === "version_no_vigente") return { ok: false, motivo: "version_no_vigente" };
+  if (r.motivo === "documento_no_aplica") return { ok: false, motivo: "documento_no_aplica" };
+  return { ok: false, motivo: "prospecto_inexistente" };
+}

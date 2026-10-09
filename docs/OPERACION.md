@@ -49,6 +49,23 @@ Las organizaciones que ya existían (la demo incluida) tienen todo encendido; un
 - **Dar de baja un usuario** lo desconecta al instante. Nunca queda la organización sin administrador activo.
 - Qué NO se edita a mano: un precio ya cobrado (se congela en cada inscripción), un pago (se cancela y se registra otro), el historial de etapas, las aceptaciones legales (solo se anexan; el texto nuevo es una versión nueva).
 
+## Tarea del asesor: agregar otro niño (V3)
+
+La familia que escribe trae a un niño; muchas traen a dos o más. Cuando el asesor lo sepa (en la llamada, en el chat o en persona), lo anota en la ficha del lead, sin cerrar nada y sin volver a preguntar lo del adulto:
+
+1. En la ficha del lead, sección **Niños**, botón **Agregar otro niño**.
+2. Escribe el **nombre** y la **fecha de nacimiento** (si no la saben, la **edad**). Los apellidos son opcionales pero evitan que la inscripción los pida después. Si la escuela tiene más de una disciplina en esa sucursal, aparece **Disciplina de interés**.
+3. **Guardar**, o **Guardar y agregar otro** si hay más hermanos: el formulario se queda abierto y limpio. En celular funciona igual (fecha con el selector del teléfono, edad con el teclado numérico).
+4. Si por su edad no hay un programa en esa disciplina y sucursal, la ficha lo avisa en amarillo: el niño se guarda igual; revísalo con la familia.
+5. En la fila de cada niño: **Corregir** (nombre, fecha, disciplina) y **Quitar** (pide confirmación; no se quita a quien ya es alumno ni a quien tiene una clase muestra agendada o está en una lista de espera). Una familia puede tener hasta **10 niños** en la ficha.
+6. **Cotizar** (solo si el cotizador está encendido) abre el formulario con ese niño; propone contar como hermanos ya inscritos a los niños que van antes en la ficha, suponiendo que se inscriben juntos, y enseña el precio con la promoción por hermanos. Con el cotizador apagado la ficha no muestra nada de cotización.
+
+**Inscribir a los hermanos (botón «Inscribir a los niños»).** El asistente se abre con todos los niños que aún no son alumnos marcados; desmarca a quien se inscribirá después (se queda en la ficha). Se inscriben **todos juntos en una sola operación: entran todos o ninguno**. El adulto se pregunta una sola vez; lo que el asesor ya escribió de cada niño se ve como «Capturado» y no se pide. En «Precio», cada niño se cotiza contando a los que se inscriben antes que él, así que el precio con la promoción por hermanos que se ve antes de confirmar es el que se cobra (el primero paga completo; el segundo recibe la promoción de 2 hermanos, y así). En «Reglamento e imagen», si un hermano ya tiene el reglamento aceptado, el botón **Aceptan lo mismo que por (nombre)** lo registra para este niño (mismo adulto y medio, solo la versión vigente; queda anotado de dónde salió): úsalo solo si la familia de verdad aceptó por ambos.
+
+**Si a uno no le alcanza el lugar.** No se inscribe a nadie y la pantalla lo dice: «No se inscribió a nadie: (niño) se quedó sin lugar…». Elige **Dejar fuera a (niño)** (se inscribe a los demás y él se queda en la ficha para después) o **Ponerlo en lista de espera** (se apunta en la fila del grupo y se inscribe a los demás); o vuelve al paso «Grupo y horario» y elige otro. Un hermano que llega después, con el lead ya inscrito, se inscribe igual: el botón **Convertir e inscribir** sigue en la ficha mientras haya un niño por inscribir y no pide nada del adulto.
+
+**Después de inscribir.** Cada hijo tiene sus cargos (inscripción y primera mensualidad) a nombre del mismo responsable de pago: recepción ve a la familia en **Estado de cuenta** con los dos hijos y su saldo.
+
 ## Qué hacer con cada tarea del asesor
 
 | Tarea | Qué pasó | Qué hacer |

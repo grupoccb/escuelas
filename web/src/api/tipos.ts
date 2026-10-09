@@ -59,12 +59,18 @@ export interface LeadResumen {
   creado_en: string;
 }
 
+/** Un niño del lead (V3). `edad` es la cumplida hoy si se capturó su fecha de nacimiento; `programa_sugerido` solo viene con el cotizador encendido. */
 export interface ProspectoDeLead {
   id: string;
   nombre: string | null;
+  apellidos: string | null;
+  fecha_nacimiento: string | null;
+  edad: number | null;
   edad_declarada: number | null;
   origen: string;
   alumno_id: string | null;
+  vertical: { id: string; nombre: string };
+  programa_sugerido?: { id: string; nombre: string } | null;
 }
 
 export interface LeadDetalle extends LeadResumen {

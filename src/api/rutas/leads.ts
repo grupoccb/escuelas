@@ -8,7 +8,9 @@
 // `normalizarTelefono()` (invariante 7): se busca igual que se guarda.
 
 import { Router } from "express";
+import { hoyDelLead, presentarNino, SELECCION_DE_NINO, type FilaDeNino } from "../../captacion/prospectos.ts";
 import { normalizarTelefono } from "../../lib/telefono.ts";
+import { leerModulos } from "../../modulos/index.ts";
 import { fuenteDe } from "../../reportes/fuente.ts";
 import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -100,7 +102,8 @@ export function rutasDeLeads(_deps: DepsApi): Router {
         vertical_interes: { select: { id: true, nombre: true } },
         sucursal_interes: { select: { id: true, nombre: true } },
         motivo_perdida: { select: { id: true, nombre: true } },
-        prospectos: { where: { eliminado_en: null }, select: { id: true, nombre: true, edad_declarada: true, origen: true, alumno_id: true }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] },
+        // V3: los niños con todo lo que la ficha y el asistente de conversión necesitan (la misma forma que `GET /api/leads/:id/prospectos`).
+        prospectos: { where: { eliminado_en: null }, select: SELECCION_DE_NINO, orderBy: [{ creado_en: "asc" }, { id: "asc" }] },
         // J3: el enlace a la conversación en Chatwoot se arma en la interfaz con estos ids y la URL pública configurada.
         conversaciones: {
           where: { eliminado_en: null },
@@ -110,13 +113,17 @@ export function rutasDeLeads(_deps: DepsApi): Router {
       },
     });
     if (!lead) throw noEncontrado();
-    const { conversaciones, vertical_interes, sucursal_interes, ...resto } = lead as unknown as FilaLead & {
+    const { conversaciones, vertical_interes, sucursal_interes, prospectos, ...resto } = lead as unknown as FilaLead & {
+      prospectos: FilaDeNino[];
       conversaciones: { id: string; estado: string; chatwoot_conversacion_id: number; bandeja_chatwoot: { chatwoot_account_id: number | null; chatwoot_inbox_id: number | null } }[];
       vertical_interes: { id: string; nombre: string };
       sucursal_interes: { id: string; nombre: string } | null;
     };
+    const hoy = await hoyDelLead(ctx.db, sucursal_interes?.id ?? null, ctx.ahora());
+    const cotizador = (await leerModulos(ctx.db)).cotizador;
     res.json({
       ...presentarLead(resto as FilaLead),
+      prospectos: prospectos.map((p) => presentarNino(p, { hoy, cotizador })),
       atribucion: atribucionVisible((resto as FilaLead).atribucion),
       vertical: vertical_interes,
       sucursal: sucursal_interes,

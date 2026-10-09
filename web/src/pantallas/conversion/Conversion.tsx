@@ -10,16 +10,18 @@ import { hoyLocal } from "../../lib/fechas.ts";
 import { aEntero } from "../../lib/numeros.ts";
 import { useSesion, useYo } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
+import { CampoCasilla } from "../../ui/campos.tsx";
+import { formatear, restar } from "../../lib/dinero.ts";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { cargarCapturado, cargarOferta, type Oferta, type ResultadoDeConversion, type Vista } from "./datos.ts";
 import { cuerpoDeConversion, type Falta, delPaso, entradaVacia, etiquetaDeFalta, nacimientoValido, PASOS, pasoDe, restantes, type Entrada, type Paso } from "./faltantes.ts";
-import { PasoAlumnos, PasoConfirmar, PasoFamilia, PasoGrupo, PasoPrecio, PasoReglamento, grupoEfectivo, programaDeGrupo, type ContextoDePasos, type Opciones } from "./Pasos.tsx";
+import { PasoAlumnos, PasoConfirmar, PasoFamilia, PasoGrupo, PasoPrecio, PasoReglamento, grupoEfectivo, nombreDeProspecto, programaDeGrupo, type ContextoDePasos, type Opciones } from "./Pasos.tsx";
 
 const INDICE_DE: Record<Paso, number> = { familia: 0, alumnos: 1, grupo: 2, precio: 3, reglamento: 4, otros: 5 };
 /** Qué paso corrige un rechazo de la inscripción (`detalles[motivo]`). */
 const PASO_DEL_RECHAZO: Record<string, Paso> = { grupo_lleno: "grupo", fuera_de_edad: "grupo", ya_inscrito: "grupo", sin_precio: "precio", reglamento: "reglamento" };
 
-function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista; recargar: () => void }) {
+function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle; vista: Vista; recargar: () => void; alDejarFuera: (prospectoId: string) => void }) {
   const { puede } = useSesion();
   const { modulos } = useYo();
   const hoy = hoyLocal();
@@ -30,6 +32,8 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
   const [paso, setPaso] = useState(0);
   const [resultado, setResultado] = useState<ResultadoDeConversion | null>(null);
   const confirmar = useAccion();
+  const espera = useAccion();
+  const previsiones = Object.fromEntries(vista.previsiones.map((p) => [p.prospecto_id, { hermanos: p.hermanos_previstos, reglamentoPendiente: p.reglamento_pendiente }]));
 
   const capturado = useCarga((senal) => cargarCapturado(lead.id, pendientes, senal, modulos), [lead.id, clave]);
   const tareas = useCarga((senal) => (puede("tareas:leer") ? api.get<Pagina<Tarea>>("/api/tareas", { lead_id: lead.id, tipo: "listo_para_cerrar", estado: "pendiente", limite: 1 }, senal) : Promise.resolve(null)), [lead.id]);
@@ -38,13 +42,16 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
   const nacimiento = (id: string): string | null => {
     const e = entrada.alumnos[id]?.fecha_nacimiento;
     if (e && nacimientoValido(e, hoy)) return e;
-    return capturado.datos?.[id]?.registro?.alumno.fecha_nacimiento ?? null;
+    return capturado.datos?.[id]?.registro?.alumno.fecha_nacimiento ?? lead.prospectos.find((p) => p.id === id)?.fecha_nacimiento ?? null;
   };
-  const claveDeOferta = pendientes.map((id) => `${id}:${nacimiento(id) ?? ""}`).join("|");
+  const claveDeOferta = pendientes.map((id) => `${id}:${nacimiento(id) ?? ""}:${previsiones[id]?.hermanos ?? 0}`).join("|");
   const ofertas = useCarga(
     async (senal) => {
       const salida: Record<string, Oferta | null> = {};
-      for (const id of pendientes) salida[id] = await cargarOferta(lead, { edad: lead.prospectos.find((p) => p.id === id)?.edad_declarada ?? null, nacimiento: nacimiento(id) }, senal, modulos);
+      for (const id of pendientes) {
+        const nino = lead.prospectos.find((p) => p.id === id);
+        salida[id] = await cargarOferta(lead, { edad: nino?.edad ?? nino?.edad_declarada ?? null, nacimiento: nacimiento(id), verticalId: nino?.vertical.id ?? lead.vertical.id, hermanos: previsiones[id]?.hermanos ?? 0 }, senal, modulos);
+      }
       return salida;
     },
     [lead.id, claveDeOferta],
@@ -62,6 +69,7 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
     pendientes,
     capturado: capturado.datos,
     ofertas: ofertas.datos,
+    previsiones,
     entrada,
     opciones,
     ponerTutor: (campo, valor) => setEntrada((e) => ({ ...e, tutor: { ...e.tutor, [campo]: valor } })),
@@ -91,6 +99,7 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
   }
 
   const rechazo = confirmar.error?.detalles.find((d) => d.campo === "motivo")?.mensaje;
+  const idDelLleno = confirmar.error?.detalles.find((d) => d.campo === "prospecto_id")?.mensaje;
   const pasoDelError: Paso | null = confirmar.error ? (rechazo === "faltan_datos" ? (pasoDe(confirmar.error.detalles.find((d) => d.campo && d.campo !== "motivo")?.campo ?? "") ?? "otros") : (PASO_DEL_RECHAZO[rechazo ?? ""] ?? null)) : null;
 
   return (
@@ -126,6 +135,42 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
                       <li key={d.campo}>{etiquetaDeFalta(d.campo ?? "")}</li>
                     ))}
                   </ul>
+                ) : null}
+                {rechazo === "grupo_lleno" && idDelLleno ? (
+                  <div className="pila" data-prueba="salida-grupo-lleno">
+                    <p>
+                      No se inscribió a nadie: {nombreDeProspecto(ctx, idDelLleno)} se quedó sin lugar y la operación se rechaza completa. Puedes dejarlo fuera
+                      {pendientes.length > 1 ? " e inscribir a los demás" : ""} o apuntarlo en la lista de espera de ese grupo.
+                    </p>
+                    <div className="fila">
+                      {pendientes.length > 1 ? (
+                        <Boton
+                          onClick={() => {
+                            confirmar.limpiar();
+                            alDejarFuera(idDelLleno);
+                          }}
+                        >
+                          Dejar fuera a {nombreDeProspecto(ctx, idDelLleno)}
+                        </Boton>
+                      ) : null}
+                      {puede("lista_espera:escribir") ? (
+                        <Boton
+                          cargando={espera.ocupado}
+                          onClick={() =>
+                            void espera.ejecutar(async () => {
+                              await api.post("/api/lista-espera", { grupo_id: grupoEfectivo(ctx, idDelLleno), prospecto_id: idDelLleno });
+                              confirmar.limpiar();
+                              if (pendientes.length > 1) alDejarFuera(idDelLleno);
+                              else recargar();
+                            })
+                          }
+                        >
+                          Ponerlo en lista de espera
+                        </Boton>
+                      ) : null}
+                    </div>
+                    <ErrorDeAccion error={espera.error} />
+                  </div>
                 ) : null}
                 {pasoDelError ? (
                   <Boton
@@ -169,6 +214,29 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
   );
 }
 
+/** Lo que quedó de UNA inscripción: el programa y lo que de verdad se cobra, con la promoción por hermanos si la hubo. */
+function LineaDeResultado({ a, nombre }: { a: ResultadoDeConversion["alumnos"][number]; nombre: string }) {
+  const insc = useCarga(
+    (senal) => (a.inscripcion ? api.get<InscripcionResumen>(`/api/inscripciones/${a.inscripcion.id}`, undefined, senal) : Promise.resolve(null)),
+    [a.inscripcion?.id],
+  );
+  const i = insc.datos;
+  return (
+    <li data-prueba={`resultado-${a.prospecto_id}`}>
+      <strong>{nombre}</strong>: {a.creado ? "Alumno creado" : "El alumno ya existía"} · {a.inscripcion ? (a.inscripcion.creada ? "inscrito" : "ya estaba inscrito en ese grupo") : "sin inscripción"}
+      {i ? (
+        <>
+          <br />
+          <span className="muted">
+            {i.programa} · inscripción {formatear(restar(i.precio_inscripcion_aplicado, i.descuento_inscripcion_aplicado))} · mensualidad {formatear(restar(i.precio_mensualidad_aplicado, i.descuento_mensualidad_aplicado))}
+            {i.promociones.length > 0 ? ` · ${[...new Set(i.promociones.map((x) => x.promocion))].join(", ")}` : ""}
+          </span>
+        </>
+      ) : null}
+    </li>
+  );
+}
+
 function Resultado({ r, lead }: { r: ResultadoDeConversion; lead: LeadDetalle }) {
   const { puede } = useSesion();
   return (
@@ -176,9 +244,7 @@ function Resultado({ r, lead }: { r: ResultadoDeConversion; lead: LeadDetalle })
       <div className="pila" data-prueba="conversion-lista">
         <ul>
           {r.alumnos.map((a) => (
-            <li key={a.prospecto_id}>
-              {a.creado ? "Alumno creado" : "El alumno ya existía"} · {a.inscripcion ? (a.inscripcion.creada ? "inscrito" : "ya estaba inscrito en ese grupo") : "sin inscripción"}
-            </li>
+            <LineaDeResultado key={a.prospecto_id} a={a} nombre={lead.prospectos.find((p) => p.id === a.prospecto_id)?.nombre ?? "Alumno"} />
           ))}
         </ul>
         <div className="fila">
@@ -192,22 +258,51 @@ function Resultado({ r, lead }: { r: ResultadoDeConversion; lead: LeadDetalle })
   );
 }
 
+interface InscripcionResumen {
+  programa: string;
+  precio_inscripcion_aplicado: string;
+  descuento_inscripcion_aplicado: string;
+  precio_mensualidad_aplicado: string;
+  descuento_mensualidad_aplicado: string;
+  promociones: { promocion: string }[];
+}
+
 export default function Conversion() {
   useTitulo("Convertir e inscribir");
   const { id = "" } = useParams();
   const lead = useCarga((senal) => api.get<LeadDetalle>(`/api/leads/${id}`, undefined, senal), [id]);
-  const vista = useCarga((senal) => api.get<Vista>(`/api/leads/${id}/conversion`, undefined, senal), [id]);
+  // V3: los niños que se inscriben ahora. Por omisión, todos los que aún no son alumnos; quien los marca puede dejar a alguno para después.
+  const [fuera, setFuera] = useState<string[]>([]);
+  const porInscribir = (lead.datos?.prospectos ?? []).filter((p) => p.alumno_id === null);
+  const marcados = porInscribir.filter((p) => !fuera.includes(p.id)).map((p) => p.id);
+  const clave = marcados.join(",");
+  // Deps solo [id]: marcar o desmarcar recarga la vista sin desmontar el asistente (lo ya escrito se conserva).
+  const vista = useCarga((senal) => api.get<Vista>(`/api/leads/${id}/conversion`, porInscribir.length > 1 && marcados.length > 0 ? { prospectos: clave } : undefined, senal), [id], lead.datos !== null);
+  const marcar = (pid: string, si: boolean) => {
+    setFuera((f) => (si ? f.filter((x) => x !== pid) : [...f, pid]));
+    vista.recargar();
+  };
   const error = lead.error ?? vista.error;
   return (
     <Marco titulo="Convertir e inscribir" subtitulo={<Link to={`/leads/${id}`}>← Volver a la ficha{lead.datos ? ` de ${lead.datos.nombre_contacto ?? "este lead"}` : ""}</Link>}>
       {error ? <ErrorDeCarga error={error} alReintentar={() => { lead.recargar(); vista.recargar(); }} /> : null}
       {!error && (!lead.datos || !vista.datos) ? <Cargando /> : null}
+      {lead.datos && porInscribir.length > 1 ? (
+        <Tarjeta titulo="¿A quiénes se inscribe ahora?">
+          <div className="pila" data-prueba="marcar-ninos">
+            <p className="muted">Se inscriben todos juntos, en una sola operación: entran todos o ninguno. Los que no marques se quedan en la ficha para después.</p>
+            {porInscribir.map((p) => (
+              <CampoCasilla key={p.id} data-prueba={`marcar-${p.id}`} etiqueta={[p.nombre ?? "Sin nombre", p.apellidos].filter(Boolean).join(" ")} checked={marcados.includes(p.id)} disabled={marcados.includes(p.id) && marcados.length === 1} onChange={(e) => marcar(p.id, e.target.checked)} />
+            ))}
+          </div>
+        </Tarjeta>
+      ) : null}
       {lead.datos && vista.datos && vista.datos.ya_convertido ? (
         <Aviso tono="exito" titulo="Todo está convertido e inscrito">
           <p>No queda nada por hacer en este lead.</p>
         </Aviso>
       ) : null}
-      {lead.datos && vista.datos && !vista.datos.ya_convertido ? <Asistente lead={lead.datos} vista={vista.datos} recargar={vista.recargar} /> : null}
+      {lead.datos && vista.datos && !vista.datos.ya_convertido ? <Asistente lead={lead.datos} vista={vista.datos} recargar={vista.recargar} alDejarFuera={(pid) => marcar(pid, false)} /> : null}
     </Marco>
   );
 }
