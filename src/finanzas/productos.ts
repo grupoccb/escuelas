@@ -85,6 +85,8 @@ export async function venderProducto(tx: Consultas, ctx: ContextoDeVenta, e: { a
   }
   const sucursalId = e.sucursalId ?? (await sucursalDelAlumno(tx, alumno));
   if (!sucursalId) throw new RechazoDeVenta("sin_sucursal", "No se sabe en qué sucursal se vende: indica la sucursal");
+  // EH-05: la sucursal que manda quien vende (el administrador no pasa por el filtro de alcance) tiene que existir en ESTA organización; si no, la llave foránea compuesta daba un 500.
+  if (!(await tx.sucursal.findFirst({ where: { id: sucursalId }, select: { id: true } }))) throw new RechazoDeVenta("sin_sucursal", "No existe esa sucursal");
   if (producto.stock < e.cantidad) throw new RechazoDeVenta("sin_stock", `No hay existencias suficientes de ${nombreDelProducto(producto)} (quedan ${producto.stock})`);
   const precio = deDecimal(producto.precio);
   const total = multiplicar(precio, e.cantidad);

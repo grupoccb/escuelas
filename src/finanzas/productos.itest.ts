@@ -316,3 +316,22 @@ test("CONCURRENCIA: el último uniforme para dos beneficios → entrega uno; el 
     await apagar();
   }
 });
+
+test("EH-05: vender con una sucursal que no existe, o que es de OTRA organización, es 400 (no 500), y no mueve stock ni deja venta ni cargo", async () => {
+  const p = await producto({ stock: 5 });
+  const al = await m.alumno();
+  const otra = await mundoDeFinanzas(prisma, "Productos otra org");
+  try {
+    for (const sucursal of [randomUUID(), otra.norte]) {
+      const r = await vender(m.admin, al.alumnoId, p.id, 1, { sucursal_id: sucursal });
+      assert.equal(r.estado, 400, JSON.stringify(r.cuerpo));
+    }
+    assert.equal(await stockDe(p.id), 5);
+    assert.equal(await prisma.venta.count({ where: { producto_id: p.id } }), 0);
+    // La sucursal propia sigue sirviendo.
+    assert.equal((await vender(m.admin, al.alumnoId, p.id, 1, { sucursal_id: m.sur })).estado, 201);
+    assert.equal(await stockDe(p.id), 4);
+  } finally {
+    await otra.cerrar();
+  }
+});
