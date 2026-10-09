@@ -1,12 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { AddressInfo } from "node:net";
 import { crearApp, type AppDeps } from "./app.ts";
 import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
 import { readFileSync } from "node:fs";
 import { EstadosEntregaChatwoot, type CambioDeEstado, type EventoEntrante, type EventoTomaDeConversacion } from "../mensajeria/index.ts";
 import { payloadMensajeEntrante } from "../mensajeria/chatwoot/fixtures.ts";
-import { escucharSinReuso } from "../testutil/servidor.ts";
+import { escucharSinReuso, puertoDe } from "../testutil/servidor.ts";
 
 const SECRETO = "secreto-de-prueba";
 const AHORA = new Date("2026-10-07T18:00:00Z");
@@ -48,7 +47,7 @@ async function pedir(
 ): Promise<{ status: number; body: unknown }> {
   const server = escucharSinReuso(crearApp(d));
   try {
-    const { port } = server.address() as AddressInfo;
+    const port = await puertoDe(server);
     const res = await fetch(`http://127.0.0.1:${port}${ruta}`, {
       method: metodo,
       headers: { "content-type": "application/json", ...encabezados },
@@ -236,7 +235,7 @@ test("B5: quitar el asesor, firmado, registra la desasignación; sin el manejado
 async function cabecera(extra: Partial<AppDeps>, nombre: string): Promise<string | null> {
   const server = escucharSinReuso(crearApp(deps(extra)));
   try {
-    const { port } = server.address() as AddressInfo;
+    const port = await puertoDe(server);
     const res = await fetch(`http://127.0.0.1:${port}/salud`);
     await res.arrayBuffer();
     return res.headers.get(nombre);

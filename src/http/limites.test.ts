@@ -5,12 +5,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import type { AddressInfo } from "node:net";
 import { crearApp, type AppDeps } from "./app.ts";
 import { limitesDesdeEntorno } from "./config-limites.ts";
 import { LimitadorDeTasa, perfilPorMinuto } from "./limite.ts";
 import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
-import { escucharSinReuso } from "../testutil/servidor.ts";
+import { escucharSinReuso, puertoDe } from "../testutil/servidor.ts";
 
 const TOKEN = "token-de-prueba";
 const BASE = "https://escuela.example.test";
@@ -35,7 +34,7 @@ interface Opciones {
   confiarEnProxy?: AppDeps["confiarEnProxy"];
 }
 
-function montar(o: Opciones = {}) {
+async function montar(o: Opciones = {}) {
   let borde = 0;
   let entrantes = 0;
   const limites = { ...limitesDesdeEntorno({}), webhookFallos: perfilPorMinuto(o.fallos ?? 5), webhook: perfilPorMinuto(o.techo ?? 6000) };
@@ -68,7 +67,7 @@ function montar(o: Opciones = {}) {
     },
   });
   const server = escucharSinReuso(app);
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const base = `http://127.0.0.1:${await puertoDe(server)}`;
   const twilio = async (ip: string | null, valida: boolean, ruta = "/webhooks/twilio/entrantes") => {
     const res = await fetch(`${base}${ruta}`, {
       method: "POST",
@@ -92,7 +91,7 @@ function montar(o: Opciones = {}) {
 }
 
 test("ráfaga de webhooks FIRMADOS legítimos (200 seguidos desde una IP): ninguno se rechaza por el límite", async () => {
-  const m = montar({ fallos: 5 });
+  const m = await montar({ fallos: 5 });
   try {
     for (let i = 0; i < 200; i++) assert.equal((await m.twilio(null, true)).estado, 200, `twilio ${i}`);
     for (let i = 0; i < 100; i++) assert.equal((await m.chatwoot(null, true)).estado, 200, `chatwoot ${i}`);
@@ -103,7 +102,7 @@ test("ráfaga de webhooks FIRMADOS legítimos (200 seguidos desde una IP): ningu
 });
 
 test("firmas inválidas en ráfaga: tras el cupo, 429 con Retry-After y sin cuerpo, y ya no llegan ni al borde", async () => {
-  const m = montar({ fallos: 5 });
+  const m = await montar({ fallos: 5 });
   try {
     for (let i = 0; i < 5; i++) assert.equal((await m.twilio(null, false)).estado, 403, `intento ${i + 1}`);
     const r = await m.twilio(null, false);
@@ -119,7 +118,7 @@ test("firmas inválidas en ráfaga: tras el cupo, 429 con Retry-After y sin cuer
 });
 
 test("el cupo de fallos es por IP: otra IP (detrás de un proxy de confianza) no se afecta, y lo firmado legítimo pasa aunque la IP ya agotó sus fallos", async () => {
-  const m = montar({ fallos: 3, confiarEnProxy: 1 });
+  const m = await montar({ fallos: 3, confiarEnProxy: 1 });
   try {
     const atacante = "203.0.113.66";
     const legitima = "198.51.100.10";
@@ -134,7 +133,7 @@ test("el cupo de fallos es por IP: otra IP (detrás de un proxy de confianza) no
 });
 
 test("sin `trust proxy`, X-Forwarded-For NO sirve para esquivar el límite (la IP es la de la conexión)", async () => {
-  const m = montar({ fallos: 3 });
+  const m = await montar({ fallos: 3 });
   try {
     for (let i = 0; i < 3; i++) assert.equal((await m.twilio(`10.0.0.${i + 1}`, false)).estado, 403);
     assert.equal((await m.twilio("10.9.9.9", false)).estado, 429, "cambiar la cabecera no da cupo nuevo");
@@ -144,7 +143,7 @@ test("sin `trust proxy`, X-Forwarded-For NO sirve para esquivar el límite (la I
 });
 
 test("el techo de webhooks por IP frena una inundación aunque esté bien firmada, con Retry-After", async () => {
-  const m = montar({ techo: 20 });
+  const m = await montar({ techo: 20 });
   try {
     const estados: number[] = [];
     for (let i = 0; i < 25; i++) estados.push((await m.twilio(null, true)).estado);
@@ -157,7 +156,7 @@ test("el techo de webhooks por IP frena una inundación aunque esté bien firmad
 });
 
 test("las dos rutas de Twilio y la de Chatwoot llevan cupos separados", async () => {
-  const m = montar({ fallos: 2 });
+  const m = await montar({ fallos: 2 });
   try {
     for (let i = 0; i < 2; i++) await m.twilio(null, false);
     assert.equal((await m.twilio(null, false)).estado, 429);
@@ -169,7 +168,7 @@ test("las dos rutas de Twilio y la de Chatwoot llevan cupos separados", async ()
 });
 
 test("tope de cuerpo por ruta: 413 si lo pasa (Twilio 100 KB, Chatwoot 1 MB)", async () => {
-  const m = montar();
+  const m = await montar();
   try {
     const grande = await fetch(`${m.base}/webhooks/twilio/entrantes`, {
       method: "POST",
@@ -195,7 +194,7 @@ test("sin límites configurados (los demás tests de la app) nada se limita", as
   });
   const server = escucharSinReuso(app);
   try {
-    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const base = `http://127.0.0.1:${await puertoDe(server)}`;
     for (let i = 0; i < 40; i++) {
       const r = await fetch(`${base}/webhooks/chatwoot`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       await r.arrayBuffer();
@@ -207,7 +206,7 @@ test("sin límites configurados (los demás tests de la app) nada se limita", as
 });
 
 test("EB-04: 31 firmas inválidas de otra gente (misma IP, p. ej. un balanceador sin TRUST_PROXY) NO agotan el límite del tráfico firmado legítimo", async () => {
-  const m = montar({ fallos: 30 });
+  const m = await montar({ fallos: 30 });
   try {
     for (let i = 0; i < 30; i++) assert.equal((await m.twilio(null, false)).estado, 403);
     assert.equal((await m.twilio(null, false)).estado, 429, "el atacante agotó SU cupo de fallos");
@@ -219,7 +218,7 @@ test("EB-04: 31 firmas inválidas de otra gente (misma IP, p. ej. un balanceador
   } finally {
     m.cerrar();
   }
-  const m2 = montar({ fallos: 100, techo: 10 });
+  const m2 = await montar({ fallos: 100, techo: 10 });
   try {
     for (let i = 0; i < 40; i++) await m2.twilio(null, false);
     const estados: number[] = [];

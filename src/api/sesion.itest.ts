@@ -208,6 +208,7 @@ test("CSRF: un método que cambia algo sin JSON ni X-Requested-With se rechaza (
 
 test("CSRF: con ORIGEN_PUBLICO configurado solo ese origen vale", async () => {
   const fijo = levantarApi(prisma, { origenesPermitidos: ["https://app.escuela.example"] });
+  await fijo.listo;
   try {
     const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor" });
     const cuerpo = { organizacion: org.slug, correo: u.correo, contrasena: u.contrasena };

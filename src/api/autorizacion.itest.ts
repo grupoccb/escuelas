@@ -5,7 +5,6 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import { randomInt, randomUUID } from "node:crypto";
-import type { AddressInfo } from "node:net";
 import { PARAMETROS_PRUEBA } from "../auth/contrasena.ts";
 import { ROLES, type Rol } from "../auth/roles.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
@@ -19,7 +18,7 @@ import { PERMISOS_ACORDADOS } from "../testutil/permisos-acordados.ts";
 import { MATRIZ_DE_PERMISOS, PERMISOS } from "./permisos.ts";
 import { soloSesion } from "./autorizar.ts";
 import { contextoDe } from "./contexto.ts";
-import { escucharSinReuso } from "../testutil/servidor.ts";
+import { escucharSinReuso, puertoDe } from "../testutil/servidor.ts";
 
 let prisma: PrismaPruebas;
 let api: ApiLevantada;
@@ -156,7 +155,7 @@ test("cada permiso de la matriz × cada rol → 200 si lo tiene y 403 si no, con
   router.use(manejadorDeErroresApi);
   app.use("/api", router);
   const server = escucharSinReuso(app);
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const base = `http://127.0.0.1:${await puertoDe(server)}`;
   try {
     let comprobaciones = 0;
     for (const rol of ROLES) {
@@ -195,7 +194,7 @@ test("una ruta con sesión pero SIN declarar su acceso responde 500 y no toca la
   router.use(manejadorDeErroresApi);
   app.use("/api", router);
   const server = escucharSinReuso(app);
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const base = `http://127.0.0.1:${await puertoDe(server)}`;
   try {
     const cookie = `sesion=${como("asesor").cookieDeSesion!}`;
     const sin = await fetch(`${base}/api/sin-declarar`, { headers: { cookie } });

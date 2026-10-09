@@ -311,6 +311,7 @@ test("E1 anti-abuso: el campo trampa, el tope de cuerpo y el límite de peticion
   await json.text();
   // Límite por IP: con 3 por minuto, la cuarta petición recibe 429 con Retry-After y una página (GET y POST comparten cupo).
   const limitado = levantarApi(prisma, {}, { limites: limitesDesdeEntorno({ LIMITE_LANDING_POR_MINUTO: "3" }), limitador: new LimitadorDeTasa() });
+  await limitado.listo;
   try {
     for (let i = 0; i < 3; i++) assert.equal((await fetch(`${limitado.base}${m.ruta}`).then(async (x) => (await x.text(), x.status))), 200);
     const cuarta = await fetch(`${limitado.base}${m.ruta}`);
@@ -442,6 +443,7 @@ test("E1 concurrencia FORZADA: ocho envíos del mismo teléfono llegan al mismo 
   // La barrera va justo antes de la transacción: los ocho piden la misma sección crítica a la vez (sin ella, un Promise.all puede no intercalarse).
   const raiz = conGanchos(prisma, { modelo: "etapa_pipeline", operacion: "findFirst", despues: async () => barrera.esperar(3000) });
   const forzada = levantarApi(prisma, {}, { landing: { prisma: raiz } });
+  await forzada.listo;
   try {
     const rs = await Promise.all(Array.from({ length: 8 }, () => enviar(forzada.base, m.ruta, campos(m, { telefono: "55 9999 0001" }))));
     for (const r of rs) await r.text();
@@ -473,6 +475,7 @@ test("EE-02 concurrencia FORZADA: ocho leads distintos usan a la vez un código 
   // La barrera va entre la lectura del código y su consumo: los ocho leen «queda un uso» y luego compiten de verdad.
   const raiz = conGanchos(prisma, { modelo: "codigo_rastreo", operacion: "findFirst", cuando: (a) => (a["where"] as Record<string, unknown> | undefined)?.["AND"] !== undefined, despues: async () => barrera.esperar(3000) });
   const forzada = levantarApi(prisma, {}, { landing: { prisma: raiz } });
+  await forzada.listo;
   try {
     const rs = await Promise.all(Array.from({ length: 8 }, (_, i) => enviar(forzada.base, m.ruta, campos(m, { telefono: `55 7000 000${i}`, c: "QR7M2KXA" }))));
     for (const r of rs) await r.text();
@@ -597,6 +600,7 @@ test("EE-08: un envío que no viene de la propia página (otro sitio) se rechaza
 test("EE-08: con orígenes públicos configurados, solo esos valen (ni el propio host)", async () => {
   const m = await mundo();
   const fijo = levantarApi(prisma, {}, { landing: { prisma, origenesPermitidos: ["https://app.escuela.example"] } });
+  await fijo.listo;
   try {
     const propio = await enviar(fijo.base, m.ruta, campos(m, { telefono: "55 8400 0001" }), { origin: fijo.base });
     assert.equal(propio.status, 403, "ni el propio host si no es el configurado");

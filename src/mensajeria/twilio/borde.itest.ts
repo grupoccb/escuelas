@@ -4,7 +4,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, randomInt } from "node:crypto";
-import type { AddressInfo } from "node:net";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../testutil/prisma-pruebas.ts";
 import { altaConAlcance, conAlcance } from "../../datos/alcance.ts";
 import { crearApp } from "../../http/app.ts";
@@ -12,7 +11,7 @@ import { sembrarOrganizacion, type OrganizacionDePrueba } from "../../testutil/s
 import { Barrera, conGanchos, soloOrganizaciones } from "../../testutil/carrera.ts";
 import { MAX_INTENTOS_REENVIO, RECLAMO_TWILIO_VENCE_MS, crearBordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso } from "./reenviador.ts";
-import { escucharSinReuso } from "../../testutil/servidor.ts";
+import { escucharSinReuso, puertoDe } from "../../testutil/servidor.ts";
 
 const TOKEN = "token-de-prueba";
 const BASE = "https://escuela.example.test";
@@ -43,7 +42,7 @@ async function escuela(numero = `whatsapp:+1555${randomInt(1_000_000, 9_999_999)
   return { ...o, numero };
 }
 
-function entorno(opciones: { normalizarFromAlReenviar?: boolean; reenviarSinOrganizacion?: boolean; reloj?: () => Date; prisma?: PrismaPruebas } = {}) {
+async function entorno(opciones: { normalizarFromAlReenviar?: boolean; reenviarSinOrganizacion?: boolean; reloj?: () => Date; prisma?: PrismaPruebas } = {}) {
   const reenviador = new ReenviadorTwilioFalso();
   const borde = crearBordeTwilio({ reenviador, ...opciones, prisma: opciones.prisma ?? prisma });
   const app = crearApp({
@@ -56,7 +55,7 @@ function entorno(opciones: { normalizarFromAlReenviar?: boolean; reenviarSinOrga
     twilio: { authToken: TOKEN, publicBaseUrl: BASE, borde },
   });
   const server = escucharSinReuso(app);
-  const { port } = server.address() as AddressInfo;
+  const port = await puertoDe(server);
   /** POST firmado (o con la firma que se diga) a la ruta; devuelve el estado HTTP. */
   const enviar = async (ruta: string, cuerpo: Buffer, firma: string | null = firmar(`${BASE}${ruta}`, cuerpo)) => {
     const res = await fetch(`http://127.0.0.1:${port}${ruta}`, {
@@ -102,7 +101,7 @@ const sidNuevo = () => `SM${randomInt(100_000_000, 999_999_999)}${randomInt(100_
 
 test("firma válida: pasa y se reenvía el cuerpo BYTE A BYTE, con los Referral* y From sin tocar", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const cuerpo = entrante(o, sidNuevo());
     assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
@@ -123,7 +122,7 @@ test("firma válida: pasa y se reenvía el cuerpo BYTE A BYTE, con los Referral*
 
 test("firma inválida, ausente o de otro cuerpo: 403 y nada se reenvía ni se guarda", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -139,7 +138,7 @@ test("firma inválida, ausente o de otro cuerpo: 403 y nada se reenvía ni se gu
 
 test("un reintento de Twilio (mismo MessageSid) llega a Chatwoot UNA sola vez", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const cuerpo = entrante(o, sidNuevo());
     assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
@@ -153,7 +152,7 @@ test("un reintento de Twilio (mismo MessageSid) llega a Chatwoot UNA sola vez", 
 
 test("reintentos simultáneos: uno solo reenvía y los demás no reenvían (duplicado o en curso)", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     for (let vuelta = 0; vuelta < 4; vuelta++) {
       e.reenviador.demoraMs = 30;
@@ -171,7 +170,7 @@ test("reintentos simultáneos: uno solo reenvía y los demás no reenvían (dupl
 
 test("estados: cada MessageStatus de un mismo MessageSid se reenvía una vez, y un estado repetido no", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const sid = sidNuevo();
     for (const s of ["sent", "delivered", "delivered", "read", "sent"]) assert.equal(await e.enviar(ESTADOS, estado(o, sid, s)), 200);
@@ -191,7 +190,7 @@ test("estados: cada MessageStatus de un mismo MessageSid se reenvía una vez, y 
 test("la organización sale del número de la escuela: entrantes por To, estados por From; con +521 en el número también", async () => {
   const nacional = String(randomInt(1_000_000_000, 9_999_999_999)); // 10 dígitos
   const mx = await escuela(`whatsapp:+52${nacional}`);
-  const e = entorno();
+  const e = await entorno();
   try {
     const sidA = sidNuevo();
     // El receptor llega con el 1 de móvil: normalizarTelefono() lo colapsa.
@@ -213,7 +212,7 @@ test("la organización sale del número de la escuela: entrantes por To, estados
 test("aislamiento: el evento queda en la organización dueña del número, no en otra", async () => {
   const a = await escuela();
   const b = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const sid = sidNuevo();
     assert.equal(await e.enviar(ENTRANTES, entrante(b, sid)), 200);
@@ -226,7 +225,7 @@ test("aislamiento: el evento queda en la organización dueña del número, no en
 
 test("EA-05: número receptor desconocido: se reenvía IGUAL a Chatwoot (sin registro) y queda una alerta visible; el mensaje no se pierde", async () => {
   await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const cuerpo = entrante({ numero: "whatsapp:+15559990000" }, sidNuevo());
     assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
@@ -250,7 +249,7 @@ test("EA-05: número receptor desconocido: se reenvía IGUAL a Chatwoot (sin reg
 
 test("EA-05: sin destino de reenvío (opción apagada) el receptor desconocido solo alerta: 200 y no se reenvía", async () => {
   await escuela();
-  const e = entorno({ reenviarSinOrganizacion: false });
+  const e = await entorno({ reenviarSinOrganizacion: false });
   try {
     assert.equal(await e.enviar(ENTRANTES, entrante({ numero: "whatsapp:+15559990000" }, sidNuevo())), 200);
     assert.equal(e.reenviador.enviados.length, 0);
@@ -268,7 +267,7 @@ const SEG = 1000;
 test("EA-03: el cuerpo y las cabeceras se guardan al reclamar y se borran al reenviar", async () => {
   const o = await escuela();
   let ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => ahora });
+  const e = await entorno({ reloj: () => ahora });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -293,7 +292,7 @@ test("EA-03: el cuerpo y las cabeceras se guardan al reclamar y se borran al ree
 test("EA-03: un reenvío fallido se reintenta SOLO (barrido), sin que Twilio vuelva a llamar; el reintento de Twilio después es un duplicado", async () => {
   const o = await escuela();
   let ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => ahora, prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  const e = await entorno({ reloj: () => ahora, prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -327,7 +326,7 @@ test("EA-03: un reenvío fallido se reintenta SOLO (barrido), sin que Twilio vue
 test("EA-03: el reclamo de un proceso que murió (`procesando` vencido) también lo reenvía el barrido", async () => {
   const o = await escuela();
   const ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  const e = await entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -356,7 +355,7 @@ test("EA-03: el reclamo de un proceso que murió (`procesando` vencido) también
 test("EA-03: un reclamo reciente (en curso) y lo ya reenviado no se tocan", async () => {
   const o = await escuela();
   const ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => new Date(ahora.getTime() + 30 * SEG), prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  const e = await entorno({ reloj: () => new Date(ahora.getTime() + 30 * SEG), prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
   try {
     const db = conAlcance(prisma, o.organizacionId);
     const base = { tipo: "entrante" as const, estado_mensaje: "", reclamado_en: ahora, cuerpo: new Uint8Array(Buffer.from("MessageSid=x")), cabeceras: {} };
@@ -372,7 +371,7 @@ test("EA-03: un reclamo reciente (en curso) y lo ya reenviado no se tocan", asyn
 test("EA-03: tras MAX_INTENTOS_REENVIO el evento queda `abandonado`, con alerta, y ya no se reintenta", async () => {
   const o = await escuela();
   let ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => ahora, prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
+  const e = await entorno({ reloj: () => ahora, prisma: soloOrganizaciones(prisma, [o.organizacionId]) });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -411,7 +410,7 @@ test("EA-03 (carrera real): dos barridos a la vez sobre el mismo evento pendient
     operacion: "findMany",
     despues: () => barrera.esperar(),
   });
-  const e = entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: raiz });
+  const e = await entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: raiz });
   try {
     const sid = sidNuevo();
     const db = conAlcance(prisma, o.organizacionId);
@@ -440,7 +439,7 @@ test("EA-03/EA-07: el barrido sigue aunque una organización falle", async () =>
       if (consultas++ === 0) throw new Error("falló la consulta de la primera organización");
     },
   });
-  const e = entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: raiz });
+  const e = await entorno({ reloj: () => new Date(ahora.getTime() + 2 * RECLAMO_TWILIO_VENCE_MS), prisma: raiz });
   try {
     const sid = sidNuevo();
     await conAlcance(prisma, b.organizacionId).evento_twilio.create({
@@ -456,7 +455,7 @@ test("EA-03/EA-07: el barrido sigue aunque una organización falle", async () =>
 
 test("sin MessageSid no hay cómo descartar reintentos: no se reenvía; WH: se responde 200 (antes 400) y queda constancia (ver inesperados.itest.ts)", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const cuerpo = Buffer.from(`Body=hola&To=${encodeURIComponent(o.numero)}&From=whatsapp%3A%2B5215512345678`);
     assert.equal(await e.enviar(ENTRANTES, cuerpo), 200);
@@ -468,7 +467,7 @@ test("sin MessageSid no hay cómo descartar reintentos: no se reenvía; WH: se r
 
 test("si el reenvío falla: 502, el evento NO queda procesado y el reintento de Twilio sí llega; después, ya no", async () => {
   const o = await escuela();
-  const e = entorno();
+  const e = await entorno();
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -497,7 +496,7 @@ test("si el reenvío falla: 502, el evento NO queda procesado y el reintento de 
 test("un reclamo de un proceso que murió (más de 60 s en `procesando`) se reclama de nuevo; uno reciente no", async () => {
   const o = await escuela();
   let ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => ahora });
+  const e = await entorno({ reloj: () => ahora });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -527,7 +526,7 @@ test("EA-08 (A7l): varios reintentos que encuentran el MISMO reclamo vencido a l
     operacion: "findFirst",
     despues: () => barrera.esperar(),
   });
-  const e = entorno({ reloj: () => new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 5000), prisma: raiz });
+  const e = await entorno({ reloj: () => new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 5000), prisma: raiz });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -548,7 +547,7 @@ test("EA-08 (A7l): varios reintentos que encuentran el MISMO reclamo vencido a l
 test("EA-20: un reclamo vencido cuya hora se escribió por SQL con microsegundos también se reclama de nuevo (el candado compara un contador)", async () => {
   const o = await escuela();
   const ahora = new Date("2026-10-08T18:00:00Z");
-  const e = entorno({ reloj: () => new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 5000) });
+  const e = await entorno({ reloj: () => new Date(ahora.getTime() + RECLAMO_TWILIO_VENCE_MS + 5000) });
   try {
     const sid = sidNuevo();
     const cuerpo = entrante(o, sid);
@@ -568,8 +567,8 @@ test("EA-20: un reclamo vencido cuya hora se escribió por SQL con microsegundos
 
 test("`From` se normaliza antes de reenviar SOLO si se enciende la opción (apagada por defecto)", async () => {
   const o = await escuela();
-  const apagada = entorno();
-  const encendida = entorno({ normalizarFromAlReenviar: true });
+  const apagada = await entorno();
+  const encendida = await entorno({ normalizarFromAlReenviar: true });
   try {
     const cuerpo = entrante(o, sidNuevo(), "whatsapp:+5215512345678");
     assert.equal(await apagada.enviar(ENTRANTES, cuerpo), 200);

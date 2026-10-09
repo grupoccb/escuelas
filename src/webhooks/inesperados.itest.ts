@@ -7,11 +7,10 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, randomBytes, randomInt } from "node:crypto";
-import type { AddressInfo } from "node:net";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { crearPrisma } from "../datos/prisma.ts";
 import { crearApp, type AppDeps } from "../http/app.ts";
-import { escucharSinReuso } from "../testutil/servidor.ts";
+import { escucharSinReuso, puertoDe } from "../testutil/servidor.ts";
 import { conGanchos, soloOrganizaciones } from "../testutil/carrera.ts";
 import { sembrarDocumentosLegales, sembrarOrganizacion, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { procesarEntrante } from "../captacion/entrante.ts";
@@ -49,7 +48,7 @@ interface Opciones {
   prismaLanding?: PrismaPruebas;
 }
 
-function montar(o: Opciones = {}) {
+async function montar(o: Opciones = {}) {
   const transporte = new TransporteFalso();
   const mensajeria = new MessagingProvider({ transporte });
   const reenviador = o.reenviador ?? new ReenviadorTwilioFalso();
@@ -67,7 +66,7 @@ function montar(o: Opciones = {}) {
     landing: { prisma: o.prismaLanding ?? prisma },
   });
   const server = escucharSinReuso(app);
-  const { port } = server.address() as AddressInfo;
+  const port = await puertoDe(server);
   const url = `http://127.0.0.1:${port}`;
 
   /** POST a Chatwoot, firmado con el secreto (o con la firma que se diga). */
@@ -116,7 +115,7 @@ const sinContenido = (valor: unknown, quien: string): void => {
 // ── Chatwoot ────────────────────────────────────────────────────────────────────────────────────────────
 
 test("WH Chatwoot: JSON roto, cuerpo vacío y JSON que no es un objeto, con firma válida → nunca 500; 200 con UNA constancia (sin organización) aunque se repita", async () => {
-  const m = montar();
+  const m = await montar();
   try {
     const marca = unico();
     const cuerpos = [`{"event": "message_created", "content": "CENTINELA ${marca}`, `[1, 2, "CENTINELA ${marca}"]`, `null`, `"CENTINELA ${marca}"`, `${randomInt(10_000, 99_999)}`];
@@ -148,7 +147,7 @@ test("WH Chatwoot: JSON roto, cuerpo vacío y JSON que no es un objeto, con firm
 
 test("WH Chatwoot: un mensaje entrante ILEGIBLE (tipos erróneos, números enormes, campos nulos o ausentes) no se pierde en silencio: 200, constancia con la organización y tarea para el asesor, una sola vez", async () => {
   const o = await sembrarOrganizacion(prisma, "WH ilegible");
-  const m = montar();
+  const m = await montar();
   try {
     const n0 = randomInt(100_000_000, 900_000_000);
     const base = (id: unknown) => ({ ...payloadMensajeEntrante({ id: 1, cuenta: o.chatwootAccountId, bandeja: o.chatwootInboxId, conversacion: 5, content: "CENTINELA Soto" }), id });
@@ -194,7 +193,7 @@ test("WH Chatwoot: un mensaje entrante ILEGIBLE (tipos erróneos, números enorm
 
 test("WH Chatwoot, procesamiento real: un identificador con NUL, números fuera de rango, nombres enormes y unicode raro → nunca 500; lo que la base rechaza deja constancia y tarea una sola vez", async () => {
   const o = await sembrarOrganizacion(prisma, "WH real");
-  const m = montar();
+  const m = await montar();
   try {
     const conv = randomInt(10_000_000, 90_000_000);
     const evento = (extra: Record<string, unknown>) => payloadMensajeEntrante({ id: randomInt(10_000_000, 900_000_000), cuenta: o.chatwootAccountId, bandeja: o.chatwootInboxId, conversacion: conv, ...extra });
@@ -263,7 +262,7 @@ test("WH Chatwoot: la bandeja sin aprovisionar y las demás fallas por datos del
   let id = randomInt(100_000_000, 900_000_000);
   for (const [nombre, falla, estado, causa] of casos) {
     const evento = ++id;
-    const m = montar({ procesarEntrante: async () => { await falla(); return { resultado: "procesado" }; } });
+    const m = await montar({ procesarEntrante: async () => { await falla(); return { resultado: "procesado" }; } });
     try {
       const r = await m.chatwoot(cuerpo(evento));
       assert.equal(r.estado, estado, nombre);
@@ -292,7 +291,7 @@ test("WH Chatwoot: la bandeja de la conversación sin aprovisionar (BandejaSinAp
   const lead = await prisma.lead.create({ data: { organizacion_id: o.organizacionId, vertical_interes_id: o.verticalId, etapa_id: o.etapaInicialId, telefono: "+5255" + randomInt(10_000_000, 99_999_999) } });
   const conv = await prisma.conversacion.create({ data: { organizacion_id: o.organizacionId, bandeja_chatwoot_id: sinCuenta.id, lead_id: lead.id, chatwoot_conversacion_id: 4242 } });
   const mensajeria = new MessagingProvider({ transporte: new TransporteFalso() });
-  const m = montar({
+  const m = await montar({
     procesarEntrante: async () => {
       // Lo que haría procesarEntrante después de registrar el mensaje: despachar lo pendiente de ESA conversación.
       await mensajeria.despachar(((await import("../datos/alcance.ts")).conAlcance)(prisma, o.organizacionId), conv.id);
@@ -318,7 +317,7 @@ test("WH Chatwoot: la base INALCANZABLE de verdad (no simulada) es una falla del
   const o = await sembrarOrganizacion(prisma, "WH base caída");
   // Un cliente apuntado a un puerto cerrado: sus consultas fallan como lo haría una base caída.
   const caida = crearPrisma("postgresql://inscripciones:inscripciones@127.0.0.1:1/inexistente_pruebas?connect_timeout=2");
-  const m = montar({ procesarEntrante: (e) => procesarEntrante({ prisma: caida, mensajeria: new MessagingProvider({ transporte: new TransporteFalso() }) }, e) });
+  const m = await montar({ procesarEntrante: (e) => procesarEntrante({ prisma: caida, mensajeria: new MessagingProvider({ transporte: new TransporteFalso() }) }, e) });
   try {
     const evento = randomInt(100_000_000, 900_000_000);
     const r = await m.chatwoot(JSON.stringify(payloadMensajeEntrante({ id: evento, cuenta: o.chatwootAccountId, bandeja: o.chatwootInboxId, conversacion: 9 })));
@@ -343,7 +342,7 @@ const entrante = (o: { numero: string }, sid: string, extra = ""): Buffer =>
 
 test("WH Twilio entrantes: sin MessageSid, cuerpo vacío, MessageSid con NUL o gigante, con firma válida → nunca 500; 200 + constancia + tarea; el mensaje de la familia se reenvía igual a Chatwoot", async () => {
   const o = await escuela();
-  const m = montar();
+  const m = await montar();
   try {
     const ruta = "/webhooks/twilio/entrantes";
     // Sin MessageSid: no se puede deduplicar ni reenviar con garantías → constancia + tarea (la escuela se resuelve por `To`), 200 TwiML, sin reenviar.
@@ -394,7 +393,7 @@ test("WH Twilio entrantes: sin MessageSid, cuerpo vacío, MessageSid con NUL o g
 
 test("WH Twilio estados: un MessageStatus raro y un MessageSid inválido → nunca 500; una falla del momento del borde → 503 sin constancia", async () => {
   const o = await escuela();
-  const m = montar();
+  const m = await montar();
   try {
     const ruta = "/webhooks/twilio/estados";
     for (const status of ["delivered", "", "x".repeat(5000), "\u0000", "💥"]) {
@@ -411,7 +410,7 @@ test("WH Twilio estados: un MessageStatus raro y un MessageSid inválido → nun
   // Falla del momento: el borde lanza lo que lanzaría la base saturada.
   const sid = `SM${unico()}`;
   const roto: BordeTwilio = { ...crearBordeTwilio({ prisma, reenviador: new ReenviadorTwilioFalso() }), procesar: async () => { throw DEL_MOMENTO(); } };
-  const m2 = montar({ borde: roto });
+  const m2 = await montar({ borde: roto });
   try {
     for (const ruta of ["/webhooks/twilio/entrantes", "/webhooks/twilio/estados"]) {
       const r = await m2.twilio(ruta, Buffer.from(`MessageSid=${sid}&MessageStatus=sent&To=${encodeURIComponent(o.numero)}`));
@@ -492,7 +491,7 @@ const enviarLanding = (url: string, slug: string, cuerpo: string) =>
 
 test("WH landing: campos hostiles (NUL, enormes, unicode raro, tipos repetidos) → nunca 500", async () => {
   const w = await mundoLanding();
-  const m = montar();
+  const m = await montar();
   try {
     const hostiles: Record<string, string>[] = [
       { nombre_alumno: "Ana\u0000María" },
@@ -534,7 +533,7 @@ test("WH landing, falla por datos al registrar el envío: 422 con el formulario 
       },
     });
 
-  const porDatos = montar({ prismaLanding: lanzar(() => Object.assign(new Error("Unique constraint failed on the fields: (`telefono`)"), { code: "P2002" })) });
+  const porDatos = await montar({ prismaLanding: lanzar(() => Object.assign(new Error("Unique constraint failed on the fields: (`telefono`)"), { code: "P2002" })) });
   try {
     const cuerpo = formulario(w, { nombre_alumno: "Mateo Soto CENTINELA" });
     for (let i = 0; i < 3; i++) {
@@ -554,7 +553,7 @@ test("WH landing, falla por datos al registrar el envío: 422 con el formulario 
   }
 
   const w2 = await mundoLanding();
-  const delMomento = montar({ prismaLanding: lanzar(DEL_MOMENTO) });
+  const delMomento = await montar({ prismaLanding: lanzar(DEL_MOMENTO) });
   try {
     const r = await enviarLanding(delMomento.url, w2.slug, formulario(w2));
     await r.arrayBuffer();
@@ -573,7 +572,7 @@ test("WH landing, falla por datos al registrar el envío: 422 con el formulario 
 
 test("WH tarea: la del evento que no se pudo atar a ningún lead (lead_id nulo) la lista y la resuelve el administrador; el asesor de una sucursal no la ve", async () => {
   const o = await sembrarOrganizacion(prisma, "WH tarea sin lead");
-  const m = montar();
+  const m = await montar();
   const api = levantarApi(prisma);
   try {
     // Un mensaje ilegible de una conversación que no existe: constancia + tarea sin lead.

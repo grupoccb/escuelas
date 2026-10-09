@@ -3,13 +3,12 @@
 
 import { randomUUID } from "node:crypto";
 import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { PARAMETROS_PRUEBA, hashContrasena } from "../auth/contrasena.ts";
 import type { Rol } from "../auth/roles.ts";
 import { crearApp, type AppDeps } from "../http/app.ts";
 import type { ApiDepsEntrada } from "../api/index.ts";
 import type { PrismaPruebas } from "./prisma-pruebas.ts";
-import { escucharSinReuso } from "./servidor.ts";
+import { escucharSinReuso, puertoDe } from "./servidor.ts";
 
 export const CONTRASENA_DE_PRUEBA = "contrasena-de-prueba-1";
 
@@ -51,12 +50,19 @@ export interface RespuestaApi<T = unknown> {
 
 /** Cliente con cookies. `cabecerasExtra` se manda en cada petición (p. ej. X-Forwarded-For). */
 export class ClienteApi {
-  readonly base: string;
+  private readonly origen: string | (() => string);
+  /** El servidor ya escucha (EG-08: el puerto se conoce hasta el evento `listening`). Cada petición lo espera. */
+  private readonly listo: Promise<unknown>;
   private cookies = new Map<string, string>();
   cabecerasExtra: Record<string, string> = {};
 
-  constructor(base: string) {
-    this.base = base;
+  constructor(base: string | (() => string), listo: Promise<unknown> = Promise.resolve()) {
+    this.origen = base;
+    this.listo = listo;
+  }
+
+  get base(): string {
+    return typeof this.origen === "string" ? this.origen : this.origen();
   }
 
   /** La cookie de sesión, se llame `sesion` o `__Host-sesion` (con cookie segura, EB-24). */
@@ -79,6 +85,7 @@ export class ClienteApi {
     } else if (metodo !== "GET") {
       h["x-requested-with"] ??= "prueba";
     }
+    await this.listo;
     const res = await fetch(`${this.base}${ruta}`, { method: metodo, headers: h, ...(body !== undefined ? { body } : {}) });
     for (const c of res.headers.getSetCookie()) {
       const [par = "", ...atributos] = c.split(";");
@@ -110,7 +117,10 @@ export class ClienteApi {
 }
 
 export interface ApiLevantada {
-  base: string;
+  /** El origen del servidor (`http://127.0.0.1:puerto`); solo existe cuando ya escucha: espera `listo` si lo lees justo después de levantarla. */
+  readonly base: string;
+  /** Se cumple cuando el servidor ya escucha. */
+  readonly listo: Promise<void>;
   server: Server;
   cliente(): ClienteApi;
   cerrar(): Promise<void>;
@@ -130,11 +140,15 @@ export function levantarApi(prisma: PrismaPruebas, api: Partial<ApiDepsEntrada> 
     ...deps,
   });
   const server = escucharSinReuso(app);
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const listo = puertoDe(server).then(() => undefined);
+  const base = (): string => `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   return {
-    base,
+    get base() {
+      return base();
+    },
+    listo,
     server,
-    cliente: () => new ClienteApi(base),
+    cliente: () => new ClienteApi(base, listo),
     cerrar: () => new Promise((resolver) => server.close(() => resolver())),
   };
 }

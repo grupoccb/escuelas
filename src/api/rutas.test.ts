@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { crearApp } from "../http/app.ts";
 import { declaracionDe, type DeclaracionDeAcceso } from "./autorizar.ts";
 import type { Permiso } from "./permisos.ts";
-import { escucharSinReuso } from "../testutil/servidor.ts";
+import { escucharSinReuso, puertoDe } from "../testutil/servidor.ts";
 
 type Esperado = Permiso | "sesion" | "publica";
 
@@ -248,7 +248,7 @@ test("el comparador SÍ detecta una ruta sin declaración, con otro permiso o au
 test("sin sesión, toda ruta que no es pública responde 401 (autenticar va una sola vez, antes de las rutas)", async () => {
   const app = appReal();
   const server = escucharSinReuso(app);
-  const { port } = server.address() as { port: number };
+  const port = await puertoDe(server);
   try {
     for (const [clave, esperado] of Object.entries(LAS_RUTAS)) {
       if (esperado === "publica") continue;
