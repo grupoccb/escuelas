@@ -6,6 +6,7 @@ import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { correrAutomatizaciones } from "../automatizaciones/motor.ts";
+import { conGanchos } from "../testutil/carrera.ts";
 import { barrerFinanzas } from "../finanzas/barrido.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
 import { guardarSensible } from "../sensibles/index.ts";
@@ -321,5 +322,34 @@ test("SIN datos de salud: ni el texto, ni las variables, ni el envío, ni la eje
   } finally {
     await c.apagar();
     m.reloj.ahora = new Date("2026-11-10T16:00:00Z");
+  }
+});
+
+test("EH-16: un pago que llega entre que el motor lee el cargo y que arma el mensaje cancela el recordatorio (no sale uno de un cargo ya pagado)", async () => {
+  const c = await cobranza({ vencido: false });
+  try {
+    const f = await familia();
+    await c.corre("2026-11-17T12:00:00Z"); // 06:00 locales: se programa para las 09:00
+    const ahora = new Date("2026-11-17T15:00:00Z");
+    m.reloj.ahora = ahora;
+    let pagado = false;
+    // Justo después de la PRIMERA lectura del cargo por el motor, la familia paga completo desde otra conexión.
+    const conPago = conGanchos(prisma, {
+      modelo: "cargo",
+      operacion: "findFirst",
+      despues: async () => {
+        if (pagado) return;
+        pagado = true;
+        assert.equal((await m.recepcion.post("/api/pagos", { tutor_id: f.tutorId, monto: "1000.00", metodo: "efectivo", aplicaciones: [{ cargo_id: f.mens.id, monto: "1000.00" }] })).estado, 201);
+      },
+    });
+    const r = await correrAutomatizaciones({ prisma: conPago, mensajeria: new MessagingProvider({ transporte: c.transporte, reloj: () => ahora }), reloj: () => ahora, organizacionId: m.org.organizacionId });
+    assert.ok(pagado, "el pago se cruzó");
+    assert.equal(r.enviadas, 0);
+    assert.equal(c.envios().length, 0, "no sale un recordatorio de un cargo ya pagado");
+    const [e] = await c.ejecuciones(f.mens.id);
+    assert.deepEqual([e!.estatus, e!.motivo_omision], ["omitido", "cargo_saldado"]);
+  } finally {
+    await c.apagar();
   }
 });

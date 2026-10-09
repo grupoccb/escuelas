@@ -428,7 +428,16 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const propia: VentanaHoraria = { inicioMin: e.automatizacion.hora_inicio_min, finMin: e.automatizacion.hora_fin_min, dias: e.automatizacion.dias_permitidos };
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
-  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso, inscr, cobro);
+  // EH-16: el cargo se leyó al empezar; entre eso y el envío pasa la búsqueda de la conversación, el horario y las variables. Una última lectura justo antes de armar el mensaje deja la
+  // ventana en los milisegundos de encolar y despachar (un pago en ese instante sigue pudiendo cruzarse; el texto de la plantilla dice «si ya pagaste, ignora este mensaje»), y el monto
+  // del mensaje es el saldo de AHORA, no el de hace un momento.
+  const cobroVigente = cobro ? await cargarCobro(db, cobro.id) : null;
+  if (cobro) {
+    if (!cobroVigente) return omitir("cargo_inexistente");
+    const rev = revalidarCobro(evento as EventoDeCobranza, { estatus: cobroVigente.estatus, vencimiento: cobroVigente.vencimiento, inscripcionEstatus: cobroVigente.inscripcionEstatus }, hoyDelCobro(cobroVigente, ahora));
+    if (!rev.ok) return omitir(rev.motivo);
+  }
+  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso, inscr, cobroVigente);
   if (typeof variables === "string") return omitirConTarea(variables);
   const cuerpo = (plantilla.cuerpo_referencia ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_, pos: string) => variables[pos] ?? "");
   if (cuerpo.trim() === "") return omitirConTarea("plantilla_sin_cuerpo");
