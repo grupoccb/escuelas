@@ -57,6 +57,7 @@ model organizacion {
   eventos_inesperados evento_inesperado[]
   eventos_entrega_pendientes evento_entrega_pendiente[]
   configuraciones            configuracion_organizacion[]
+  textos_bot                 texto_bot[]
   eventos_twilio             evento_twilio[]
   programas                  programa[]
   grupos                     grupo[]
@@ -167,6 +168,16 @@ model configuracion_organizacion {
   modulo_operacion          Boolean                        @default(true)
   modulo_finanzas           Boolean                        @default(true)
   modulo_tableros           Boolean                        @default(true)
+  /// V5: horario de envío de lo que inicia el sistema, en minutos desde la medianoche (hora local de la sucursal). La escuela puede ESTRECHARlo, nunca salir de 09:00–20:00 (540–1200; CHECK, invariante 14).
+  horario_envio_inicio_min  Int                            @default(540)
+  horario_envio_fin_min     Int                            @default(1200)
+  /// V5: minutos de silencio del contacto antes de avisar a los asesores que dejó la captura a medias. De 5 a 1440 (CHECK).
+  lead_a_medias_minutos     Int                            @default(30)
+  /// V5: respuestas que el bot no entiende antes de pasar la conversación a una persona. De 1 a 10 (CHECK).
+  bot_max_intentos          Int                            @default(3)
+  /// V5: ocupación (%) desde la que un grupo es «a reventar» y hasta la que es «vacío» en el tablero ejecutivo (CHECK: vacío < a reventar).
+  ocupacion_a_reventar_pct  Int                            @default(90)
+  ocupacion_vacio_pct       Int                            @default(25)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -3077,4 +3088,21 @@ model gasto_campana {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([campana_id, fecha])
+}
+
+/// V5: un mensaje del bot que la escuela personalizó. Solo guarda lo que CAMBIÓ (sin fila, el bot usa el texto por omisión del código). `clave` es del catálogo de
+/// src/captacion/textos.ts; `texto` lleva huecos como {nombre} que el servidor valida. A lo más una fila viva por (organización, clave): índice único parcial en la migración.
+model texto_bot {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  clave           String    @db.VarChar(60)
+  texto           String    @db.VarChar(600)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
 }

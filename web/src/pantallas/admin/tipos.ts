@@ -1,5 +1,7 @@
 // Lo que la API de administración devuelve (docs/API.md, J7 y J8). Los importes son TEXTO decimal exacto.
 
+import type { ModuloId } from "../../api/tipos.ts";
+
 export interface Vertical {
   id: string;
   nombre: string;
@@ -121,10 +123,29 @@ export interface CanalAdmin {
   bandeja: { id: string; nombre: string; chatwoot_account_id: number | null; chatwoot_inbox_id: number | null } | null;
 }
 
+/** Un ajuste numérico de la configuración, tal como lo describe el servidor (el mismo rango que impone la base). */
+export interface LimiteDeAjuste {
+  min: number;
+  max: number;
+  unidad: "dias" | "horas" | "minutos" | "mensajes" | "faltas" | "intentos" | "porcentaje" | "hora_del_dia";
+  grupo: string;
+  etiqueta: string;
+  ayuda: string;
+  /** Qué pasa si se cambia, en palabras de la escuela. */
+  efecto: string;
+  /** El módulo que usa el ajuste: apagado, se puede editar pero no hace nada. Nulo = la captación (siempre encendida). */
+  modulo: ModuloId | null;
+  por_omision: number;
+}
+
 export interface Configuracion {
+  horario_envio_inicio_min: number;
+  horario_envio_fin_min: number;
   max_automaticos_por_dia: number;
   max_marketing_por_ventana: number;
   ventana_marketing_dias: number;
+  lead_a_medias_minutos: number;
+  bot_max_intentos: number;
   cotizacion_vigencia_dias: number;
   lista_espera_oferta_horas: number;
   clase_muestra_anticipacion_min: number;
@@ -132,7 +153,9 @@ export interface Configuracion {
   clase_muestra_correccion_horas: number;
   umbral_faltas_consecutivas: number;
   umbral_dias_deuda: number;
+  ocupacion_a_reventar_pct: number;
+  ocupacion_vacio_pct: number;
   sucursal_sin_programa: "ofrecer_otra" | "avisar_asesor";
   modo_cierre: "asesor_whatsapp" | "maestro_en_sitio";
-  limites: Record<string, { min: number; max: number; etiqueta: string; ayuda: string }>;
+  limites: Record<string, LimiteDeAjuste>;
 }

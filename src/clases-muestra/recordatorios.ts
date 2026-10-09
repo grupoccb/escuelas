@@ -16,6 +16,7 @@
 //     en que empieza la clase ni después.
 
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { estrecharAutomatizaciones } from "../mensajeria/horario-envio.ts";
 import { siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 
 const MINUTO_MS = 60_000;
@@ -72,11 +73,13 @@ export async function programarRecordatoriosDeClase(tx: Consultas, claseId: stri
   });
   if (!clase) return { programados: 0, descartados: 0, existentes: 0 };
   const { vertical_id, sucursal_id, sucursal } = clase.grupo.programa;
-  const automatizaciones = await tx.automatizacion.findMany({
+  const cargadas = await tx.automatizacion.findMany({
     where: { activo: true, evento_disparador: "clase_muestra_proxima", AND: [{ OR: [{ vertical_id: null }, { vertical_id }] }, { OR: [{ sucursal_id: null }, { sucursal_id }] }] },
     select: { id: true, offset_minutos: true, hora_inicio_min: true, hora_fin_min: true, dias_permitidos: true },
     orderBy: [{ offset_minutos: "asc" }, { id: "asc" }],
   });
+  // V5: nada sale fuera del horario de envío de la escuela (que solo puede ser más estrecho que 09:00–20:00).
+  const automatizaciones = await estrecharAutomatizaciones(tx, cargadas);
   const plan = planearRecordatorios({ inicio: clase.fecha_hora, zonaHoraria: sucursal.zona_horaria, ahora, automatizaciones });
   if (plan.length === 0) return { programados: 0, descartados: 0, existentes: 0 };
   const r = await tx.automatizacion_ejecucion.createMany({

@@ -452,6 +452,8 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   // ── 10. Beneficio liberado y uniforme ─────────────────────────────────────────────────────────────
   paso("El beneficio se libera y el uniforme queda por entregar");
   const porEntregar = exigir(await recepcion.get("/api/beneficios/por-entregar"), [200], "beneficios por entregar").datos as { id: string; descripcion?: string; beneficio?: { descripcion?: string }; alumno?: { nombre?: string }; promocion?: { nombre?: string } }[];
+  // Los dos hermanos se inscriben en la misma operación (mismo instante): sin un orden propio el relato cambiaba entre corridas (hallazgo de V5, flaky desde V3).
+  porEntregar.sort((a, b) => (a.alumno?.nombre ?? "").localeCompare(b.alumno?.nombre ?? "", "es"));
   if (porEntregar.length === 0) dato("No hay beneficios por entregar con las promociones de este catálogo.");
   for (const b of porEntregar) dato(`Por entregar: ${b.beneficio?.descripcion ?? b.descripcion ?? "beneficio"}${b.alumno?.nombre ? ` — alumno ${b.alumno.nombre}` : ""}${b.promocion?.nombre ? ` (promoción «${b.promocion.nombre}»)` : ""}. Se liberó al pagar la primera mensualidad completa.`);
   const aEntregar = porEntregar[0];

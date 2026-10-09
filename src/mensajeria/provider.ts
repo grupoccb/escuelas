@@ -20,6 +20,7 @@ import { OPCIONES_BLOQUEO, transaccionConBloqueoDeTelefono } from "../datos/bloq
 import type { OrigenMensaje } from "../datos/tipos.ts";
 import { log } from "../lib/log.ts";
 import { estaDadoDeBaja } from "./consentimiento.ts";
+import { acotado, ventanaDeLaOrganizacion } from "./horario-envio.ts";
 import { barrerEventosEntrega, conciliarEventosPendientes } from "./estados.ts";
 import { zonaHorariaDeContacto } from "./zona-horaria.ts";
 import { esIniciadoPorSistema, evaluarReglas, ventanaServicioAbierta, type MotivoBloqueo, type PlantillaParaReglas, type TipoSaliente } from "./reglas.ts";
@@ -380,6 +381,8 @@ export class MessagingProvider {
           vigenciaMs: this.vigenciaPendienteMs,
           plantilla: plantilla ? { enviable: plantilla.enviable, categoria: plantilla.categoria, clase: plantilla.clase } : m.plantilla_id ? { enviable: false, categoria: "servicio", clase: "marketing" } : null,
           zonaHoraria: conv.zonaHoraria,
+          // V5: el horario de envío de la escuela (siempre dentro de 09:00–20:00).
+          ...(conteo ? { horario: ventanaDeLaOrganizacion(acotado({ inicioMin: conteo.horarioEnvioInicioMin, finMin: conteo.horarioEnvioFinMin })) } : {}),
           automaticosRecientes: iniciadoPorSistema && conteo ? await this.enviadosAlTelefono(tx, conv.lead.telefono, m.id, new Date(ahora.getTime() - DIA_MS)) : 0,
           limiteFrecuencia: conteo?.maxAutomaticosPorDia ?? Number.POSITIVE_INFINITY,
           marketingRecientes:

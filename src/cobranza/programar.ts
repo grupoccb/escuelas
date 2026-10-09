@@ -8,6 +8,7 @@
 import { aFecha } from "../catalogo/precios.ts";
 import { altaConAlcance, type BaseDatos } from "../datos/alcance.ts";
 import { diasQueCubren } from "../lib/periodo.ts";
+import { estrechar, horarioDeEnvio } from "../mensajeria/horario-envio.ts";
 import { recorrerODescartar, siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { deFecha } from "../catalogo/precios.ts";
 import { atrasoMaximoDias, DIA_MS, limiteDeRecordatorioPorVencer, nominalDeRecordatorio, ocurrenciaPorProgramar, type EventoDeCobranza } from "./plan.ts";
@@ -35,7 +36,9 @@ export async function programarCobranza(db: BaseDatos, a: AutomatizacionDeCobran
   if (!esEventoDeCobranza(a.evento_disparador)) return 0;
   const evento = a.evento_disparador;
   const atraso = atrasoMaximoDias(a.condiciones);
-  const ventana: VentanaHoraria = { inicioMin: a.hora_inicio_min, finMin: a.hora_fin_min, dias: a.dias_permitidos };
+  // V5: la ventana de la automatización, recortada al horario de envío de la escuela.
+  const propia = estrechar(a, await horarioDeEnvio(db));
+  const ventana: VentanaHoraria = { inicioMin: propia.hora_inicio_min, finMin: propia.hora_fin_min, dias: a.dias_permitidos };
   // Ventana de vencimientos candidatos (holgada en ±2 días por las zonas horarias; el cálculo exacto lo hace `ocurrenciaPorProgramar` con la zona de cada cargo).
   const hoyUtc = ahora.toISOString().slice(0, 10);
   const dia = (n: number): Date => new Date(aFecha(hoyUtc).getTime() + n * DIA_MS);

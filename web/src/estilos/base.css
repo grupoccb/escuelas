@@ -226,3 +226,7 @@ table.tabla td.derecha, table.tabla th.derecha { text-align: right; }
 .indicador { display: flex; flex-direction: column; gap: 0.15rem; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 0.7rem 0.85rem; }
 .indicador-valor { font-size: 1.5rem; line-height: 1.2; }
 .filtros { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); align-items: end; }
+
+/* Administración: textos del asistente (V5) */
+.lista-simple { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.vista-previa { background: var(--superficie-2); border-radius: 8px; padding: 0.75rem; margin: 0; overflow-wrap: anywhere; }

@@ -2,17 +2,20 @@
 // pero NO se crean ni se borran desde aquí: cada evento disparador tiene su motor y su alta vive en el seed del cliente.
 //
 //   GET   /api/automatizaciones?evento_disparador=&activo=   (catalogo:escribir) — con su plantilla (y su clase), vertical y sucursal
-//   PATCH /api/automatizaciones/:id   { activo?, offset_minutos?, max_intentos?, espaciado_minutos?|null, hora_inicio_min?, hora_fin_min?, dias_permitidos?, plantilla_id?|null }
+//   PATCH /api/automatizaciones/:id   { activo?, offset_minutos?, max_intentos?, espaciado_minutos?|null, hora_inicio_min?, hora_fin_min?, dias_permitidos?, plantilla_id?|null, max_atraso_dias? }
 //
 // Reglas (todas en palabras; la base repite las del horario y los días con CHECK):
 //   · INVARIANTE 14: el horario de envío nunca sale de 09:00–20:00 (hora local de la sucursal) y empieza antes de terminar; lo que caiga fuera se recorre o se descarta;
 //   · el desfase respeta el sentido del evento (un recordatorio «antes» de la clase es negativo; uno «después» del vencimiento, positivo);
 //   · intentos de 1 a 10 y espaciado de al menos 60 minutos; días de 0 (domingo) a 6;
+//   · `max_atraso_dias` (V5): hasta cuántos días de atraso se persigue — solo en el lead frío (1 a 90: se enfrió hace menos) y en el pago atrasado (1 a 365: venció hace menos); vive en `condiciones`;
 //   · la plantilla debe existir. Apagar una automatización impide que se programen envíos NUEVOS; lo que ya estaba programado sigue su curso (EF-14, pendiente).
 
 import { Router } from "express";
 import express from "express";
 import { EVENTOS_DISPARADORES, ESPACIADO_MINIMO_MIN, problemaDeClase, problemaDeDesfase, problemaDeDias, problemaDeHorario } from "../../automatizaciones/ajustes.ts";
+import { atrasoMaximoDias as atrasoDeLeadFrio } from "../../automatizaciones/seguimiento.ts";
+import { atrasoMaximoDias as atrasoDeCobranza } from "../../cobranza/plan.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -34,6 +37,7 @@ const SELECCION = {
   hora_inicio_min: true,
   hora_fin_min: true,
   dias_permitidos: true,
+  condiciones: true,
   activo: true,
   plantilla: { select: { codigo: true, clase_mensaje: true, estado_aprobacion: true, activo: true } },
   vertical: { select: { nombre: true } },
@@ -52,13 +56,20 @@ interface Fila {
   hora_inicio_min: number;
   hora_fin_min: number;
   dias_permitidos: number[];
+  condiciones: unknown;
   activo: boolean;
   plantilla: { codigo: string; clase_mensaje: string; estado_aprobacion: string; activo: boolean } | null;
   vertical: { nombre: string } | null;
   sucursal: { nombre: string } | null;
 }
-const presentar = ({ vertical, sucursal, ...f }: Fila) => ({ ...f, vertical: vertical?.nombre ?? null, sucursal: sucursal?.nombre ?? null });
-const instantanea = (f: Fila): Instantanea => ({ nombre: f.nombre, vertical_id: f.vertical_id, sucursal_id: f.sucursal_id, evento_disparador: f.evento_disparador, offset_minutos: f.offset_minutos, plantilla_id: f.plantilla_id, max_intentos: f.max_intentos, espaciado_minutos: f.espaciado_minutos, hora_inicio_min: f.hora_inicio_min, hora_fin_min: f.hora_fin_min, dias_permitidos: f.dias_permitidos, activo: f.activo });
+/** Hasta cuántos días de atraso se persigue (V5): solo los avisos que lo usan; los demás, nulo. */
+const TOPES_DE_ATRASO = { lead_frio: { max: 90, leer: atrasoDeLeadFrio }, cargo_vencido: { max: 365, leer: atrasoDeCobranza } } as const;
+const atrasoDe = (f: Pick<Fila, "evento_disparador" | "condiciones">): number | null => {
+  const t = (TOPES_DE_ATRASO as Record<string, { leer: (c: unknown) => number }>)[f.evento_disparador];
+  return t ? t.leer(f.condiciones) : null;
+};
+const presentar = ({ vertical, sucursal, condiciones, ...f }: Fila) => ({ ...f, max_atraso_dias: atrasoDe({ evento_disparador: f.evento_disparador, condiciones }), vertical: vertical?.nombre ?? null, sucursal: sucursal?.nombre ?? null });
+const instantanea = (f: Fila): Instantanea => ({ nombre: f.nombre, vertical_id: f.vertical_id, sucursal_id: f.sucursal_id, evento_disparador: f.evento_disparador, offset_minutos: f.offset_minutos, plantilla_id: f.plantilla_id, max_intentos: f.max_intentos, espaciado_minutos: f.espaciado_minutos, hora_inicio_min: f.hora_inicio_min, hora_fin_min: f.hora_fin_min, dias_permitidos: f.dias_permitidos, max_atraso_dias: atrasoDe(f), activo: f.activo });
 
 const esquemaListado = objeto({ ...esquemaPaginacion, evento_disparador: opcional(enumerado(EVENTOS_DISPARADORES)), activo: opcional(booleanoDeTexto()) });
 const esquemaId = objeto({ id: uuid() });
@@ -71,6 +82,7 @@ const esquemaCambio = objeto({
   hora_fin_min: opcional(entero({ min: 1, max: 1440 })),
   dias_permitidos: opcional(listaDe(entero({ min: 0, max: 6 }), { max: 7 })),
   plantilla_id: opcional(nulable(uuid())),
+  max_atraso_dias: opcional(entero()),
 });
 
 export function rutasDeAutomatizaciones(_deps: DepsApi): Router {
@@ -117,8 +129,19 @@ export function rutasDeAutomatizaciones(_deps: DepsApi): Router {
           if (clase) e.push({ campo: "plantilla_id", mensaje: clase });
         }
       }
+      const { max_atraso_dias: atraso, ...cambios } = c;
+      let condiciones: Record<string, unknown> | undefined;
+      if (atraso !== undefined) {
+        const tope = (TOPES_DE_ATRASO as Record<string, { max: number }>)[antes.evento_disparador];
+        if (!tope) e.push({ campo: "max_atraso_dias", mensaje: "Este aviso no tiene tope de días de atraso: solo el de lead frío y el de pago atrasado." });
+        else if (atraso < 1 || atraso > tope.max) e.push({ campo: "max_atraso_dias", mensaje: `Escribe un número entero de 1 a ${tope.max}.` });
+        else {
+          const previas = typeof antes.condiciones === "object" && antes.condiciones !== null && !Array.isArray(antes.condiciones) ? (antes.condiciones as Record<string, unknown>) : {};
+          condiciones = { ...previas, max_atraso_dias: atraso };
+        }
+      }
       if (e.length > 0) throw validacion(e);
-      const despues = (await tx.automatizacion.update({ where: { id }, data: c, select: SELECCION })) as unknown as Fila;
+      const despues = (await tx.automatizacion.update({ where: { id }, data: { ...cambios, ...(condiciones ? { condiciones: condiciones as never } : {}) }, select: SELECCION })) as unknown as Fila;
       await registrarCambio(tx, ctx, { entidad: "automatizacion", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(despues) });
       return despues;
     });

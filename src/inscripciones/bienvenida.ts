@@ -11,18 +11,21 @@
 // atendiendo la conversación (`en_atencion_humana`) SÍ sale: MessagingProvider solo frena el bot y el marketing.
 
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { estrecharAutomatizaciones } from "../mensajeria/horario-envio.ts";
 import { siguienteHorarioValido } from "../mensajeria/reglas.ts";
 
 const MINUTO_MS = 60_000;
 
 /** Programa la bienvenida de una inscripción recién creada. Devuelve cuántas ejecuciones nuevas dejó (0 si ya estaban). */
 export async function programarBienvenida(tx: Consultas, i: { inscripcionId: string; verticalId: string; sucursalId: string; zonaHoraria: string; ahora: Date }): Promise<number> {
-  const automatizaciones = await tx.automatizacion.findMany({
+  const cargadas = await tx.automatizacion.findMany({
     where: { activo: true, evento_disparador: "inscripcion_creada", AND: [{ OR: [{ vertical_id: null }, { vertical_id: i.verticalId }] }, { OR: [{ sucursal_id: null }, { sucursal_id: i.sucursalId }] }] },
     select: { id: true, offset_minutos: true, hora_inicio_min: true, hora_fin_min: true, dias_permitidos: true },
     orderBy: [{ creado_en: "asc" }, { id: "asc" }],
   });
-  if (automatizaciones.length === 0) return 0;
+  if (cargadas.length === 0) return 0;
+  // V5: nada sale fuera del horario de envío de la escuela (que solo puede ser más estrecho que 09:00–20:00).
+  const automatizaciones = await estrecharAutomatizaciones(tx, cargadas);
   const r = await tx.automatizacion_ejecucion.createMany({
     data: automatizaciones.map((a) =>
       altaConAlcance({

@@ -21,6 +21,8 @@ Una escuela nueva trabaja solo con la captación. Cuando esté lista para más, 
 
 ## 3. Todo lo demás, desde Administración (con el administrador)
 
+Qué se puede cambiar, quién lo cambia y con qué comando cuando no hay pantalla: **`docs/CONFIGURACION-INVENTARIO.md`** (el inventario de V5). Una escuela nueva nace con los valores de siempre en todo (horario de 09:00 a 20:00, 3 mensajes al día, 30 minutos para avisar de un lead a medias, 3 respuestas sin entender, textos del asistente de siempre): solo hay que tocarlos si la escuela lo pide.
+
 En este orden, porque cada paso usa el anterior. «API» es el recurso de `docs/API.md`:
 
 | # | Qué | Notas |
@@ -39,7 +41,7 @@ En este orden, porque cada paso usa el anterior. «API» es el recurso de `docs/
 | 12 | **Plantillas y automatizaciones** | Las plantillas se registran y aprueban en Twilio/Meta con el MISMO código; cada una declara si es de servicio o de marketing. Las automatizaciones (reenganche, recordatorios, cobranza…) hoy las crea un paso técnico (seed) y desde Administración se encienden, se apagan y se ajustan por vertical y sucursal (EK-I02: pendiente decidir si nacen sembradas o con alta por API) |
 | 13 | **Usuarios y roles** | Asesores (por sucursal), maestros (con su instructor), recepción (por sucursal), administradores. Vincular cada asesor con su agente de Chatwoot |
 | 14 | **Campañas y códigos QR** | Una campaña por fuente (anuncio, QR de sucursal…); el QR lleva el código de rastreo; los gastos de campaña se capturan a mano para el costo por alumno |
-| 15 | **Catálogos editables** | Motivos de pérdida y de baja, niveles de progresión, límites de frecuencia, modo de cierre de la inscripción (`maestro_en_sitio` o con asesor) |
+| 15 | **Catálogos y ajustes editables** | Administración → **Configuración** (horario de envío —solo se puede estrechar 09:00–20:00—, límites de frecuencia, tiempos del asistente, vigencias, umbrales, modo de cierre de la inscripción), **Textos del asistente**, **Etapas del embudo** y **Motivos de pérdida y de baja** (V5). Niveles de progresión, eventos, productos y documentos legales: por API (`docs/CONFIGURACION-INVENTARIO.md`, que lista TODO lo configurable con su pantalla, comando o variable) |
 
 ## 4. Verificación antes de abrir
 

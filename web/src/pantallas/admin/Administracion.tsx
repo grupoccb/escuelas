@@ -30,7 +30,10 @@ export const GRUPOS_DE_ADMINISTRACION: { titulo: string; areas: Area[] }[] = [
     areas: [
       { ruta: "/admin/canales", titulo: "Canales de WhatsApp", ayuda: "Números y bandejas de Chatwoot.", permiso: "catalogo:escribir" },
       { ruta: "/admin/modulos", titulo: "Módulos", ayuda: "Qué partes del sistema tiene encendidas la escuela: cotizador, clase muestra, inscripción, operación, finanzas y tableros.", permiso: "catalogo:escribir" },
-      { ruta: "/admin/configuracion", titulo: "Configuración", ayuda: "Topes de mensajes, vigencias, umbrales y modo de cierre.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/configuracion", titulo: "Configuración", ayuda: "Horario de los mensajes automáticos, topes de mensajes, tiempos del asistente, vigencias, umbrales y modo de cierre.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/textos", titulo: "Textos del asistente", ayuda: "Lo que el asistente de WhatsApp dice en cada paso, a la manera de la escuela.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/etapas", titulo: "Etapas del embudo", ayuda: "Nombres, orden y días sin movimiento de cada etapa; agrega las tuyas.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/motivos", titulo: "Motivos de pérdida y de baja", ayuda: "Por qué se va una familia, en tus palabras.", permiso: "catalogo:escribir" },
     ],
   },
   {

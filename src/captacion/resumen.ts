@@ -7,6 +7,7 @@ import { deFecha } from "../catalogo/precios.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { entradasVivasDe } from "../lista-espera/lista-espera.ts";
 import { leerModulos } from "../modulos/index.ts";
+import { leerConfiguracion } from "../configuracion/index.ts";
 import { textos, type MotivoPaseAsesor } from "./maquina.ts";
 
 export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: MotivoPaseAsesor): Promise<string> {
@@ -57,5 +58,6 @@ export async function resumenParaAsesor(tx: Consultas, leadId: string, motivo: M
     telefono: lead.telefono,
     contacto: lead.nombre_contacto,
     origen,
+    maxIntentos: (await leerConfiguracion(tx)).botMaxIntentos,
   });
 }

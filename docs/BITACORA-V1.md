@@ -9,7 +9,7 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 | V2 | HECHO | ver `git log` (`V2:`) | Decisiones 4 a 7: aviso a la familia por un cambio de clase, leads sin sucursal, promociones no acumulables, orígenes locales |
 | V3 | HECHO | ver `git log` (`V3:`) | Segundo hijo: niños del lead por API y ficha, conversión de hermanos en una operación, promoción por hermanos con la cotización previa exacta, EF-11 resuelto, `demo:guiada` |
 | V4 | HECHO | ver `git log` (`V4:`) | Cierre con el maestro en sitio probado en navegador (EK-15 resuelto): confirmación con el grupo, grupo lleno con siguiente paso, 9 pruebas en Chromium (celular y escritorio) |
-| V5 | PENDIENTE | | Configuración sin SQL |
+| V5 | HECHO (parcial: niveles, eventos, productos, documentos legales y campañas quedan por API, sin pantalla) | ver `git log` (`V5:`) | Configuración sin SQL: inventario completo (`docs/CONFIGURACION-INVENTARIO.md`); horario de envío de la escuela, tiempos y umbrales del asistente, 31 textos del asistente, etapas del embudo, motivos de pérdida y de baja y tope de atraso de las automatizaciones pasan a Administración |
 | V6 | PENDIENTE | | Carga del catálogo real |
 | V7 | PENDIENTE | | Recorrido por rol |
 | V8 | PENDIENTE | | Guías de una página por rol |
@@ -166,3 +166,34 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 - Con el módulo de clase muestra apagado y el de inscripción encendido el maestro no tiene «Hoy», así que el cierre en sitio no existe (es lo esperado: el cierre en sitio vive en la clase muestra).
 - «Avisar al asesor» crea la misma tarea de «listo para cerrar»: su texto no dice que el grupo estaba lleno. Si quieres que lo diga, es un cambio de texto de la tarea.
 - Una vez inscrito, el maestro ve «Este alumno ya está inscrito» y nada más; no hay forma de deshacerlo desde su pantalla (a propósito).
+
+## V5. Configuración sin SQL
+
+**Qué se hizo**
+- **Inventario** (`docs/CONFIGURACION-INVENTARIO.md`): todo lo configurable de `schema.prisma`, `src/configuracion`, las constantes y números sueltos de `src/**`, los seeds y el entorno, con qué es, dónde vive, quién lo cambia, con qué frecuencia y una de cuatro decisiones (pasa a administración / ya estaba / por API-comando-entorno con ejemplo / no se cambia y por qué). Enlazado desde `docs/OPERACION.md` y `docs/ALTA-DE-CLIENTE.md`; rutas nuevas en `docs/API.md`.
+- **Migración `20261028000000_v5_configuracion`**: seis columnas nuevas en `configuracion_organizacion`, cada una con el valor de la constante que reemplaza y su CHECK (`horario_envio_inicio_min` 540–1199 y `horario_envio_fin_min` 541–1200 con inicio < fin: la escuela **estrecha** 09:00–20:00 y nunca lo amplía, invariante 14; `lead_a_medias_minutos` 5–1440; `bot_max_intentos` 1–10; `ocupacion_a_reventar_pct` 1–100 y `ocupacion_vacio_pct` 0–99 con vacío < a reventar) y la tabla `texto_bot` (una fila viva por mensaje y organización, índice único parcial, baja lógica).
+- **Horario de envío de la escuela** (`src/mensajeria/horario-envio.ts`): `MessagingProvider` lo aplica como último filtro (también los avisos al maestro) y todo lo que programa (reenganche, lead frío, promoción por vencer, cobranza, bienvenida, recordatorios, recuperación, avisos de cambio de clase y el reproceso del motor) usa la **intersección** del horario de la escuela y el de cada automatización. Responder a quien acaba de escribir sigue sin horario.
+- **Tiempos del asistente**: `lead_a_medias_minutos` (antes `TIEMPO_ESPERA_MS`; el barrido lo lee por organización) y `bot_max_intentos` (antes `MAX_INTENTOS`; viaja en el contexto de la máquina; la nota al asesor dice el número real). **Umbrales de ocupación** del tablero (antes `UMBRAL_A_REVENTAR` / `UMBRAL_VACIO`).
+- **Textos del asistente** (`src/captacion/textos.ts`, `textos-bot.ts`, `GET|PUT|DELETE /api/textos-bot`): 31 mensajes con huecos (`{nombre}`, `{lista}`…). El texto por omisión vive en el código (genérico); la tabla guarda solo lo que la escuela cambió. Validación en servidor: solo los huecos del mensaje, obligatorios (`{lista}` donde hay opciones), 600 caracteres, sin enlaces ni caracteres de control; un texto guardado que ya no valida nunca llega a una familia. La máquina sigue pura y determinista: `textosDe(ctx)` solo cambia la redacción, no pasos, efectos ni pase al asesor. Quedan en código la cotización, los cierres con piezas condicionales y la confirmación de baja.
+- **Etapas del embudo** (`src/api/rutas/etapas.ts`): `POST`, `PATCH`, `PUT /orden`, `DELETE`. Las de sistema se renombran y ajustan su aviso pero no se quitan ni cambian de orden entre sí; las de cierre van al final; una etapa con leads no se quita. (El orden es único entre las vivas: el recorrido usa un lugar provisional.) **Motivos de pérdida y de baja**: pantalla nueva sobre la API que ya existía. **Automatizaciones**: `max_atraso_dias` (lead frío 1–90, pago atrasado 1–365; vive en `condiciones` sin pisar lo demás).
+- **Pantallas** (Administración): Configuración rehecha desde la tabla del servidor (grupos, rango, «de siempre», «qué pasa si lo cambias», aviso de módulo apagado), Textos del asistente (vista previa, huecos a un clic, volver al de siempre), Etapas del embudo (subir / bajar, agregar, quitar) y Motivos. Capturas en `docs/capturas/v1/v5-01` … `v5-15`.
+
+**Verificación**
+- `npm run validar` → exit 0 (732 tests de backend + 70 de la interfaz, 0 fallas; antes 719 + 65).
+- `npm run test:int` → exit 0 (`ℹ tests 1283 / ℹ pass 1283 / ℹ fail 0`; antes 1248). Corrido sobre su propia base `v5_inscripciones_pruebas`.
+- `npm run test:navegador` → exit 0 (`148 passed`, 3.4 min; antes 134). Corrido sobre `v5_inscripciones_navegador_pruebas` y el puerto 4350. Pruebas nuevas: `web/e2e/v5-configuracion.spec.ts` (14, escritorio y 390 px).
+- Pruebas nuevas por ajuste: unitaria del valor por omisión (`src/configuracion/v5.test.ts`: cada columna = la constante que reemplaza; cada texto por omisión = la redacción anterior a V5, copiada literal en `src/captacion/textos.test.ts`); límites, solo administrador, no-fuga, registro y efecto real en `src/configuracion/v5.itest.ts`, `src/captacion/v5-bot.itest.ts`, `src/api/etapas.itest.ts` y `src/api/automatizaciones-atraso.itest.ts` (horario bloquea / deja pasar con el de la escuela, el barrido avisa a los 61 min y no a los 31 con 60, el bot pasa a una persona al 2.º intento con 2, el saludo personalizado sale en el siguiente mensaje, tablero con los umbrales de la escuela, módulo apagado editable sin efecto). Mutación comprobada: quitar el horario de `MessagingProvider` hace fallar la prueba de efecto.
+
+**Decisiones que tomé**
+- **Textos por omisión en el código, no sembrados.** Alternativa descartada: sembrar los 31 en cada organización (migrar filas al cambiar un default y una organización sin seed se quedaría sin bot).
+- **Horario: intersección** con el de cada automatización; si no se tocan, manda el de la escuela. Alternativa descartada: ignorar el de la automatización.
+- **El ajuste de un módulo apagado se guarda y no hace nada** (la pantalla lo avisa), en lugar de bloquearlo.
+- **Etapas: sin «apagar»**; se quitan solo las propias sin leads. No hay columna `activo` y apagar una etapa con leads los dejaría en un limbo.
+- **El `PATCH` de configuración valida las reglas entre ajustes con el resultado final** (lo que quedaría), no con lo que llegó.
+- Quedan por API, sin pantalla (documentado con ejemplo): niveles de progresión, eventos, productos, documentos legales, campañas y códigos de rastreo; la matriz de transiciones y el alta de automatizaciones siguen por SQL (EK-I02).
+- **Hallazgo corregido de paso**: `demo:guiada` contaba en otro orden a los dos hermanos entre corridas (flaky desde V3: empate de instante en «Por entregar»); el script ahora los ordena por nombre.
+
+**Para Eduardo**
+- ¿La escuela querrá palabras propias en la **página de registro** (landing)? Hoy sus textos están en el código; es lo más visible para las familias.
+- ¿Pantallas para niveles, productos, eventos y documentos legales? Están detrás de módulos apagados el primer día; si el recorrido por rol (V7) muestra que se cambian seguido, se hacen.
+- El horario de la escuela por **sucursal** (no solo por organización) no se hizo: la zona horaria sí es por sucursal. Si dos sucursales abren a horas distintas, es una decisión de producto.

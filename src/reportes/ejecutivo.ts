@@ -13,6 +13,7 @@
 // `reporteDeOcupacion`, sin importes, de SUS grupos.
 
 import { deFecha, type FechaISO } from "../catalogo/precios.ts";
+import { leerConfiguracion } from "../configuracion/index.ts";
 import type { FuenteOcupacion } from "../catalogo/cupo.ts";
 import type { BaseDatos } from "../datos/alcance.ts";
 import { antiguedadDe, antiguedadATexto, atrasoEn, totalDeAntiguedad } from "../finanzas/estado-cuenta.ts";
@@ -22,7 +23,10 @@ import { fechaLocal } from "../lib/horario.ts";
 import { partesDePeriodo, periodoDe, type Periodo } from "../lib/periodo.ts";
 import { porcentajeConUnDecimal } from "../lib/razon.ts";
 
-/** `[SUPUESTO]` Ocupación a partir de la cual un grupo está «a reventar» (abrir otro) y hasta la cual está «vacío» (promoverlo o cerrarlo). En porcentaje entero. */
+/**
+ * `[SUPUESTO]` Ocupación a partir de la cual un grupo está «a reventar» (abrir otro) y hasta la cual está «vacío» (promoverlo o cerrarlo). En porcentaje entero. Son los valores POR OMISIÓN:
+ * desde V5 cada escuela los ajusta en Administración → Configuración (`ocupacion_a_reventar_pct` y `ocupacion_vacio_pct`) y el tablero los lee de ahí.
+ */
 export const UMBRAL_A_REVENTAR = 90;
 export const UMBRAL_VACIO = 25;
 
@@ -60,9 +64,9 @@ export interface ReporteEjecutivo {
 }
 
 /** El estado de una ocupación (porcentaje entero de `ocupados * 100 / cupo`). PURA. */
-export function estadoDeOcupacion(ocupados: number, cupo: number): "a_reventar" | "vacio" | "normal" {
-  if (cupo > 0 && ocupados * 100 >= UMBRAL_A_REVENTAR * cupo) return "a_reventar";
-  if (ocupados * 100 <= UMBRAL_VACIO * cupo) return "vacio";
+export function estadoDeOcupacion(ocupados: number, cupo: number, umbrales: { aReventarPct: number; vacioPct: number } = { aReventarPct: UMBRAL_A_REVENTAR, vacioPct: UMBRAL_VACIO }): "a_reventar" | "vacio" | "normal" {
+  if (cupo > 0 && ocupados * 100 >= umbrales.aReventarPct * cupo) return "a_reventar";
+  if (ocupados * 100 <= umbrales.vacioPct * cupo) return "vacio";
   return "normal";
 }
 
@@ -145,9 +149,11 @@ export async function ocupacionPorGrupo(db: BaseDatos, fuente: FuenteOcupacion, 
     select: { id: true, nombre: true, cupo_maximo: true, programa: { select: { nombre: true, vertical: { select: { id: true, nombre: true } }, sucursal: { select: { id: true, nombre: true } } } } },
   });
   const filas: FilaDeOcupacion[] = [];
+  const config = await leerConfiguracion(db);
+  const umbrales = { aReventarPct: config.ocupacionAReventarPct, vacioPct: config.ocupacionVacioPct };
   for (const g of grupos) {
     const ocupados = await fuente.ocupados(db, g.id);
-    filas.push({ grupo: { id: g.id, nombre: g.nombre }, programa: g.programa.nombre, vertical: g.programa.vertical, sucursal: g.programa.sucursal, ocupados, cupo_maximo: g.cupo_maximo, ocupacion: porcentajeConUnDecimal(ocupados, g.cupo_maximo) ?? "0.0", estado: estadoDeOcupacion(ocupados, g.cupo_maximo) });
+    filas.push({ grupo: { id: g.id, nombre: g.nombre }, programa: g.programa.nombre, vertical: g.programa.vertical, sucursal: g.programa.sucursal, ocupados, cupo_maximo: g.cupo_maximo, ocupacion: porcentajeConUnDecimal(ocupados, g.cupo_maximo) ?? "0.0", estado: estadoDeOcupacion(ocupados, g.cupo_maximo, umbrales) });
   }
   // Los más llenos primero (comparación cruzada con enteros: ocupados/cupo sin flotantes).
   return filas.sort((a, b) => b.ocupados * a.cupo_maximo - a.ocupados * b.cupo_maximo || (a.grupo.nombre < b.grupo.nombre ? -1 : a.grupo.nombre > b.grupo.nombre ? 1 : a.grupo.id < b.grupo.id ? -1 : 1));

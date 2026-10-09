@@ -16,8 +16,10 @@ import { descripcionDePromociones, opcionesDeHorario, vigenteHasta, type OpcionH
 import { cotizar, sucursalesConPrograma } from "../cotizador/cotizar.ts";
 import type { CatalogoCotizable, GrupoCotizado, ProgramaCotizado } from "../cotizador/tipos.ts";
 import { formatear } from "../lib/dinero.ts";
+import { crearTextos, type TextosPersonalizados } from "./textos.ts";
 import type { PasoCaptacion } from "../datos/tipos.ts";
 
+/** Respuestas sin entender antes de pasar a una persona, POR OMISIÓN. Desde V5 cada escuela lo ajusta (`bot_max_intentos`); `ctx.maxIntentos` manda. */
 export const MAX_INTENTOS = 3;
 
 /**
@@ -96,6 +98,10 @@ export interface ContextoCaptacion {
    * sigue desde lo que falta en vez de volver a preguntar (cero recaptura). Solo aplica en el primer mensaje (`inicio`).
    */
   datosDeLanding?: boolean;
+  /** V5: los mensajes que la escuela personalizó (`texto_bot`). Ausente = los de siempre. */
+  textosPersonalizados?: TextosPersonalizados;
+  /** V5: respuestas sin entender antes de pasar a una persona (`bot_max_intentos`). Ausente = `MAX_INTENTOS`. */
+  maxIntentos?: number;
 }
 
 export interface EstadoCaptacion {
@@ -144,36 +150,11 @@ export const ESTADO_INICIAL: EstadoCaptacion = {
 // ---------------------------------------------------------------------------------------------
 // Textos. Genéricos: lo que cambia por vertical o sucursal llega en el contexto.
 
-export const textos = {
-  saludo: (vertical: string) =>
-    `¡Hola! Gracias por escribir a ${vertical}. Para darte horarios y costos exactos te hago tres preguntas rápidas.`,
-  /** E1: el contacto ya llenó el cuestionario de la landing; no se le pregunta otra vez lo que ya dio. */
-  saludoConDatos: (vertical: string, nombre: string) => `¡Hola! Gracias por escribir a ${vertical}. Ya tenemos los datos que nos dejaste para ${nombre}.`,
-  preguntaNombre: "¿Cómo se llama la persona que tomaría las clases?",
-  preguntaEdad: (nombre: string) => `Mucho gusto. ¿Qué edad tiene ${nombre}?`,
-  preguntaSucursal: (sucursales: OpcionSucursal[]) =>
-    `¿Qué sucursal te queda mejor? Responde con el número:\n${listar(sucursales)}`,
-  cierre: (nombre: string, sucursal: string | null) =>
-    sucursal
-      ? `¡Gracias! Ya tengo los datos de ${nombre} para la sucursal ${sucursal}. Un asesor te escribe por aquí en unos minutos con horarios y costos.`
-      : `¡Gracias! Ya tengo los datos de ${nombre}. Un asesor te escribe por aquí en unos minutos con horarios y costos.`,
-  reintentoNombre: "No alcancé a leer el nombre. ¿Me lo escribes de nuevo? Solo el nombre, por favor.",
-  reintentoEdad: "¿Me compartes la edad con número? Por ejemplo: 8",
-  reintentoSucursal: (sucursales: OpcionSucursal[]) => `Responde solo con el número de la sucursal:\n${listar(sucursales)}`,
-  preguntaPrograma: (nombre: string, edad: number, programas: OpcionPrograma[]) =>
-    `Para ${nombre} (${edad} años) tenemos estas opciones. ¿Cuál te interesa? Responde con el número:\n${listarProgramas(programas)}`,
-  reintentoPrograma: (programas: OpcionPrograma[]) => `Responde solo con el número del programa:\n${listarProgramas(programas)}`,
-  /** C7: la sucursal elegida no tiene programa para su edad y hay una sola alternativa. */
-  ofrecerOtraSucursal: (nombre: string, edad: number, sucursalElegida: string, otra: OpcionSucursal) =>
-    `En la sucursal ${sucursalElegida} por ahora no tenemos clases para ${nombre} (${edad} años), pero en la sucursal ${descripcionDeSucursal(otra)} sí. ¿Quieres que te cotice ahí? Responde sí o no.`,
-  /** C7: hay varias sucursales con programa. */
-  ofrecerOtrasSucursales: (nombre: string, edad: number, sucursalElegida: string, otras: OpcionSucursal[]) =>
-    `En la sucursal ${sucursalElegida} por ahora no tenemos clases para ${nombre} (${edad} años), pero sí en estas sucursales. Responde con el número de la que prefieras, o «no» para que te atienda un asesor:\n${listarConDireccion(otras)}`,
-  reintentoOtraSucursal: (otras: OpcionSucursal[]) =>
-    otras.length === 1 ? `Responde sí o no: ¿te cotizo en la sucursal ${otras[0]!.nombre}?` : `Responde con el número de la sucursal, o «no» para que te atienda un asesor:\n${listarConDireccion(otras)}`,
-  /** C7: sin programa para su edad y nada que ofrecer (o prefiere a una persona): pasa al asesor. */
-  sinPrograma: (nombre: string, edad: number, sucursal: string) =>
-    `Por ahora no encontré un programa para ${nombre} (${edad} años) en la sucursal ${sucursal}. Te comunico con un asesor para revisar opciones; te escribe por aquí en unos minutos.`,
+/**
+ * Lo que el bot dice y NO se personaliza desde la pantalla: la cotización (arma precios y promociones: dinero exacto), los cierres con piezas condicionales (con o sin sucursal, con o sin
+ * lista de espera), la confirmación de baja (su redacción es parte del consentimiento) y la nota interna para el asesor. El resto vive en `textos.ts` (V5).
+ */
+const fijos = {
   /** C8: la cotización completa. Todo sale de las tablas (programa, grupos, precios, promociones). */
   cotizacion: (nombre: string, edad: number, sucursal: string, p: ProgramaCotizado, opciones: OpcionHorario[]): string => {
     const moneda = p.precio?.moneda ?? "MXN";
@@ -197,43 +178,17 @@ export const textos = {
     lineas.push("", opciones.length > 0 ? "Responde con el número del horario que prefieras, o escribe «asesor» para hablar con una persona." : "Un asesor te escribe por aquí en unos minutos.");
     return lineas.join("\n");
   },
-  reintentoHorario: (opciones: OpcionHorario[]) =>
-    `Responde con el número del horario, o escribe «asesor» para hablar con una persona:\n${opciones.map((o, i) => `${i + 1}. ${o.nombre}: ${o.horarioTexto}`).join("\n")}`,
   cierreConHorario: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
     `¡Listo! Anotamos a ${nombre} en ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}${o.oferta === "lista_de_espera" ? ", en lista de espera" : ""}. Un asesor te escribe por aquí en unos minutos para confirmar y resolver tus dudas.`,
-  pidioAsesor: "Claro, te comunico con un asesor. Te escribe por aquí en unos minutos.",
-  /** D1: se le proponen las próximas sesiones de clase muestra del grupo que eligió. */
-  proponerFechasMuestra: (nombre: string, o: OpcionHorario, fechas: OpcionFechaMuestra[]) =>
-    `Para ${nombre} podemos agendar una clase muestra en ${o.nombre} (${o.horarioTexto}). Estas son las próximas fechas con lugar; responde con el número de la que prefieras, o escribe «asesor» para hablar con una persona:\n${listarFechas(fechas)}`,
-  reintentoFechaMuestra: (fechas: OpcionFechaMuestra[]) => `Responde con el número de la fecha, o escribe «asesor» para hablar con una persona:\n${listarFechas(fechas)}`,
-  /** D1: la fecha que eligió ya no tiene lugar; quedan estas. */
-  fechaMuestraSinLugar: (fechas: OpcionFechaMuestra[]) => `Esa fecha ya no tiene lugar. Estas son las que quedan; responde con el número de la que prefieras:\n${listarFechas(fechas)}`,
-  /** D1: ninguna sesión tiene lugar (o el grupo no tiene más): lo atiende una persona. */
-  sinFechasMuestra: "Por ahora no hay fechas con lugar para la clase muestra. Te comunico con un asesor para ofrecerte otra opción; te escribe por aquí en unos minutos.",
   muestraAgendada: (nombre: string, grupo: string, fecha: OpcionFechaMuestra, sucursal: string | null) =>
     `¡Listo! Agendamos la clase muestra de ${nombre} en ${grupo}${sucursal ? `, sucursal ${sucursal}` : ""}: ${fecha.nombre}. Te mandamos un recordatorio antes de la clase. Si necesitas cambiar la fecha, escríbenos por aquí.`,
-  /** D1: ya tenía una clase muestra vigente en ese grupo (la agendó una persona mientras tanto). */
-  muestraYaAgendada: (nombre: string, fecha: OpcionFechaMuestra) => `${nombre} ya tiene agendada su clase muestra: ${fecha.nombre}. Si quieres cambiarla, escribe «asesor».`,
-  /** EC-02 / EC-01: lo que el contacto vio ya no vale; se le manda la cotización de hoy. */
-  cotizacionVencida: "Tu cotización anterior ya venció; te mando una actualizada.",
-  horarioNoDisponible: "Ese horario ya no está disponible; te mando las opciones actualizadas.",
   /** EC-04: eligió un horario que se llenó mientras contestaba (y no tiene lista de espera). */
   cierreConHorarioLleno: (nombre: string, o: OpcionHorario, programa: string, sucursal: string | null) =>
     `Anotamos tu preferencia por ${o.nombre} (${o.horarioTexto}) de ${programa}${sucursal ? `, sucursal ${sucursal}` : ""}, pero en este momento ese grupo ya no tiene lugar disponible. Un asesor te escribe por aquí en unos minutos para ofrecerte otra opción para ${nombre}.`,
-  /** C9: eligió un horario lleno que permite lista de espera. */
-  preguntaListaEspera: (o: OpcionHorario) =>
-    `El grupo ${o.nombre} (${o.horarioTexto}) está lleno por ahora. ¿Quieres que te apuntemos en la lista de espera? Si se libera un lugar, un asesor te avisa. Responde sí o no.`,
-  reintentoListaEspera: (o: OpcionHorario) => `Responde sí o no: ¿te apuntamos en la lista de espera de ${o.nombre}?`,
-  cierreListaEspera: (nombre: string, o: OpcionHorario, programa: string) =>
-    `Listo, ${nombre} quedó en la lista de espera de ${o.nombre} (${o.horarioTexto}) de ${programa}. Si se libera un lugar, un asesor te escribe por aquí. Mientras tanto te atiende un asesor para ver otras opciones.`,
-  /** C9: no quiso la lista de espera; se le vuelven a mostrar los horarios. */
-  otroHorario: (opciones: OpcionHorario[]) =>
-    `Sin problema. ¿Cuál otro horario prefieres? Responde con el número, o escribe «asesor» para hablar con una persona:\n${opciones.map((o, i) => `${i + 1}. ${o.nombre}: ${o.horarioTexto} · ${o.oferta === "lugar" ? (o.lugares === 1 ? "1 lugar" : `${o.lugares} lugares`) : "lista de espera"}`).join("\n")}`,
   cierreConPrograma: (nombre: string, programa: string, sucursal: string | null) =>
     `¡Gracias! Ya tengo los datos de ${nombre} para ${programa}${sucursal ? ` en la sucursal ${sucursal}` : ""}. Un asesor te escribe por aquí en unos minutos con horarios y costos.`,
   /** Única respuesta a una baja: sale una sola vez y es lo último que el sistema le manda. */
   confirmacionBaja: "Listo, ya no recibirás más mensajes de nuestra parte. Gracias por tu tiempo.",
-  sinEntender: "Te comunico con un asesor para ayudarte mejor. En unos minutos te escribe por aquí.",
   /** Nota interna para el asesor al pasarle la conversación. */
   resumenAsesor: (
     motivo: MotivoPaseAsesor,
@@ -250,6 +205,8 @@ export const textos = {
       contacto?: string | null;
       /** Anuncio y campaña de origen; null = entró directo, sin anuncio. */
       origen?: string | null;
+      /** V5: respuestas sin entender que aguanta el bot en esta escuela (`bot_max_intentos`). Ausente = `MAX_INTENTOS`. */
+      maxIntentos?: number;
     },
   ) =>
     [
@@ -263,7 +220,7 @@ export const textos = {
             ? "El contacto pidió hablar con una persona. Datos capturados:"
             : motivo === "sin_programa"
             ? "La sucursal elegida no tiene programa para la edad y el contacto no pasó a otra sucursal (no hay otra con programa, no quiso, o la política de la organización es avisar al asesor). Datos capturados:"
-            : `El bot no pudo completar la captura (${MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
+            : `El bot no pudo completar la captura (${datos.maxIntentos ?? MAX_INTENTOS} respuestas sin entender). Datos parciales:`,
       `• Nombre: ${datos.nombre ?? "—"}`,
       `• Edad: ${datos.edad ?? "—"}`,
       `• Sucursal: ${datos.sucursal ?? "—"}`,
@@ -273,31 +230,26 @@ export const textos = {
       ...(datos.contacto !== undefined ? [`• Contacto: ${datos.contacto ?? "—"}`] : []),
       ...(datos.origen !== undefined ? [`• Origen: ${datos.origen ?? "directo, sin anuncio"}`] : []),
     ].join("\n"),
+
 };
 
-function listar(sucursales: OpcionSucursal[]): string {
-  return sucursales.map((s, i) => `${i + 1}. ${s.nombre}`).join("\n");
-}
+/** Los textos de siempre (sin personalización de ninguna escuela). Los usan las pruebas y quien no tiene contexto. */
+export const textos = { ...crearTextos(), ...fijos };
 
-function descripcionDeSucursal(s: OpcionSucursal): string {
-  return s.direccion ? `${s.nombre} (${s.direccion})` : s.nombre;
+/** Los textos de ESTA escuela: lo que personalizó encima de lo de siempre (V5). */
+export function textosDe(ctx: Pick<ContextoCaptacion, "textosPersonalizados">): typeof textos {
+  const p = ctx.textosPersonalizados;
+  if (!p || Object.keys(p).length === 0) return textos;
+  let t = enCache.get(p);
+  if (!t) enCache.set(p, (t = { ...crearTextos(p), ...fijos }));
+  return t;
 }
-
-function listarConDireccion(sucursales: OpcionSucursal[]): string {
-  return sucursales.map((s, i) => `${i + 1}. ${descripcionDeSucursal(s)}`).join("\n");
-}
-
-function listarFechas(fechas: OpcionFechaMuestra[]): string {
-  return fechas.map((f, i) => `${i + 1}. ${f.nombre} · ${f.lugares === 1 ? "1 lugar" : `${f.lugares} lugares`}`).join("\n");
-}
-
-function listarProgramas(programas: OpcionPrograma[]): string {
-  return programas.map((p, i) => `${i + 1}. ${p.nombre}${p.descripcionPublica ? ` — ${p.descripcionPublica}` : ""}`).join("\n");
-}
+const enCache = new WeakMap<object, typeof textos>();
 
 // ---------------------------------------------------------------------------------------------
 
 export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoCaptacion): ResultadoCaptacion {
+  const T = textosDe(ctx);
   switch (estado.paso) {
     case "inicio":
       if (ctx.datosDeLanding && estado.nombre && estado.edad !== null) {
@@ -306,64 +258,64 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
         const siguiente: ResultadoCaptacion =
           estado.sucursalId !== null || ctx.sucursales.length <= 1
             ? conSucursal({ ...base, sucursalId: estado.sucursalId ?? ctx.sucursales[0]?.id ?? null }, ctx)
-            : { estado: { ...base, paso: "sucursal" }, respuestas: [textos.preguntaSucursal(ctx.sucursales)], pasarAAsesor: null };
-        return { ...siguiente, respuestas: [textos.saludoConDatos(ctx.nombreVertical, estado.nombre), ...siguiente.respuestas] };
+            : { estado: { ...base, paso: "sucursal" }, respuestas: [T.preguntaSucursal(ctx.sucursales)], pasarAAsesor: null };
+        return { ...siguiente, respuestas: [T.saludoConDatos(ctx.nombreVertical, estado.nombre), ...siguiente.respuestas] };
       }
       return {
         estado: { ...estado, paso: "nombre", intentosFallidos: 0 },
-        respuestas: [textos.saludo(ctx.nombreVertical), textos.preguntaNombre],
+        respuestas: [T.saludo(ctx.nombreVertical), T.preguntaNombre],
         pasarAAsesor: null,
       };
 
     case "nombre": {
       const nombre = extraerNombre(entrada);
-      if (!nombre) return fallo(estado, textos.reintentoNombre);
+      if (!nombre) return fallo(estado, T.reintentoNombre, ctx);
       return {
         estado: { ...estado, paso: "edad", intentosFallidos: 0, nombre },
-        respuestas: [textos.preguntaEdad(nombre)],
+        respuestas: [T.preguntaEdad(nombre)],
         pasarAAsesor: null,
       };
     }
 
     case "edad": {
       const edad = extraerEdad(entrada);
-      if (edad === null) return fallo(estado, textos.reintentoEdad);
+      if (edad === null) return fallo(estado, T.reintentoEdad, ctx);
       const conEdad: EstadoCaptacion = { ...estado, edad, intentosFallidos: 0 };
       // Con una sola sucursal (o ninguna) no hay nada que preguntar.
       if (ctx.sucursales.length <= 1) return conSucursal({ ...conEdad, sucursalId: ctx.sucursales[0]?.id ?? null }, ctx);
       return {
         estado: { ...conEdad, paso: "sucursal" },
-        respuestas: [textos.preguntaSucursal(ctx.sucursales)],
+        respuestas: [T.preguntaSucursal(ctx.sucursales)],
         pasarAAsesor: null,
       };
     }
 
     case "sucursal": {
       const sucursal = elegirSucursal(entrada, ctx.sucursales);
-      if (!sucursal) return fallo(estado, textos.reintentoSucursal(ctx.sucursales));
+      if (!sucursal) return fallo(estado, T.reintentoSucursal(ctx.sucursales), ctx);
       return conSucursal({ ...estado, sucursalId: sucursal.id, intentosFallidos: 0 }, ctx);
     }
 
     case "horario": {
       // EC-03: sin cotizador (se apagó con la conversación a medias) no hay nada que elegir: cierra como la captura de siempre.
       if (!ctx.cotizador) return completar(estado, ctx);
-      if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado);
+      if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado, ctx);
       // EC-02: la cotización que vio ya no vale; no se interpreta un número contra una lista que no vio.
-      if (ctx.cotizador.cotizacionVencida) return cotizarDeNuevo(estado, ctx, textos.cotizacionVencida);
+      if (ctx.cotizador.cotizacionVencida) return cotizarDeNuevo(estado, ctx, T.cotizacionVencida);
       const opciones = opcionesVigentes(estado, ctx);
       if (opciones.length === 0) return completar(estado, ctx); // EC-03: nada que ofrecer (ya no hay lugar en ningún grupo)
       const elegida = elegirOpcion(entrada, opciones);
-      if (!elegida) return fallo(estado, textos.reintentoHorario(opciones));
+      if (!elegida) return fallo(estado, T.reintentoHorario(opciones), ctx);
       const hoy = grupoDeHoy(estado, ctx, elegida.grupoId);
       // EC-01: el grupo que eligió ya no existe en el catálogo (se dio de baja o se desactivó).
-      if (!hoy) return cotizarDeNuevo(estado, ctx, textos.horarioNoDisponible);
+      if (!hoy) return cotizarDeNuevo(estado, ctx, T.horarioNoDisponible);
       // EC-04: se llenó mientras contestaba y no tiene lista de espera: se anota su preferencia, pero se le dice la verdad.
       if (hoy.cupo.oferta === "sin_lugar") {
         const programaLleno = ctx.cotizador.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
         const sucursalLlena = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
         return {
           estado: { ...estado, paso: "completo", intentosFallidos: 0 },
-          respuestas: [textos.cierreConHorarioLleno(estado.nombre ?? "", elegida, programaLleno, sucursalLlena)],
+          respuestas: [T.cierreConHorarioLleno(estado.nombre ?? "", elegida, programaLleno, sucursalLlena)],
           pasarAAsesor: "captura_completa",
           efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
         };
@@ -374,7 +326,7 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       if (aElegir.oferta === "lista_de_espera") {
         return {
           estado: { ...estado, paso: "lista_espera", intentosFallidos: 0 },
-          respuestas: [textos.preguntaListaEspera(aElegir)],
+          respuestas: [T.preguntaListaEspera(aElegir)],
           pasarAAsesor: null,
           efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
         };
@@ -386,7 +338,7 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
       return {
         estado: { ...estado, paso: "completo", intentosFallidos: 0 },
-        respuestas: [textos.cierreConHorario(estado.nombre ?? "", elegida, programa, sucursal)],
+        respuestas: [T.cierreConHorario(estado.nombre ?? "", elegida, programa, sucursal)],
         pasarAAsesor: "captura_completa",
         efectos: [{ tipo: "elegir_grupo", grupoId: elegida.grupoId }],
       };
@@ -394,19 +346,19 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
 
     case "lista_espera": {
       if (!ctx.cotizador) return completar(estado, ctx); // EC-03
-      if (ctx.cotizador.cotizacionVencida) return pidePersona(entrada) ? pidioAsesor(estado) : cotizarDeNuevo({ ...estado, paso: "horario" }, ctx, textos.cotizacionVencida); // EC-02
+      if (ctx.cotizador.cotizacionVencida) return pidePersona(entrada) ? pidioAsesor(estado, ctx) : cotizarDeNuevo({ ...estado, paso: "horario" }, ctx, T.cotizacionVencida); // EC-02
       const opciones = opcionesVigentes(estado, ctx);
       if (opciones.length === 0) return completar(estado, ctx); // EC-03
       const grupoId = ctx.cotizador.cotizacionGuardada?.grupoElegidoId ?? null;
       const elegida = opciones.find((o) => o.grupoId === grupoId);
-      if (!elegida) return fallo({ ...estado, paso: "horario" }, textos.reintentoHorario(opciones)); // no hay a qué lista: vuelve a los horarios
+      if (!elegida) return fallo({ ...estado, paso: "horario" }, T.reintentoHorario(opciones), ctx); // no hay a qué lista: vuelve a los horarios
       if (esAfirmativa(entrada)) {
         // EC-01: el grupo ya no existe: no se le dice que quedó en una lista que no existe.
-        if (!grupoDeHoy(estado, ctx, elegida.grupoId)) return cotizarDeNuevo({ ...estado, paso: "horario" }, ctx, textos.horarioNoDisponible);
+        if (!grupoDeHoy(estado, ctx, elegida.grupoId)) return cotizarDeNuevo({ ...estado, paso: "horario" }, ctx, T.horarioNoDisponible);
         const programa = ctx.cotizador?.catalogo.programas.find((p) => p.id === estado.programaId)?.nombre ?? "";
         return {
           estado: { ...estado, paso: "completo", intentosFallidos: 0 },
-          respuestas: [textos.cierreListaEspera(estado.nombre ?? "", elegida, programa)],
+          respuestas: [T.cierreListaEspera(estado.nombre ?? "", elegida, programa)],
           pasarAAsesor: "captura_completa",
           efectos: [{ tipo: "entrar_lista_espera", grupoId: elegida.grupoId }],
         };
@@ -415,13 +367,13 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
         // Dijo que no: se descarta el horario tentativo y se le vuelven a mostrar los demás.
         return {
           estado: { ...estado, paso: "horario", intentosFallidos: 0 },
-          respuestas: [textos.otroHorario(opciones)],
+          respuestas: [T.otroHorario(opciones)],
           pasarAAsesor: null,
           efectos: [{ tipo: "elegir_grupo", grupoId: null }],
         };
       }
-      if (pidePersona(entrada)) return pidioAsesor(estado);
-      return fallo(estado, textos.reintentoListaEspera(elegida));
+      if (pidePersona(entrada)) return pidioAsesor(estado, ctx);
+      return fallo(estado, T.reintentoListaEspera(elegida), ctx);
     }
 
     case "otra_sucursal": {
@@ -430,7 +382,7 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       if (otras.length === 0) return sinPrograma(estado, ctx); // el catálogo cambió: ya no hay nada que ofrecer
       const respuesta = interpretarOtraSucursal(entrada, otras);
       if (respuesta === "no") return sinPrograma({ ...estado, intentosFallidos: 0 }, ctx);
-      if (respuesta === null) return fallo(estado, textos.reintentoOtraSucursal(otras));
+      if (respuesta === null) return fallo(estado, T.reintentoOtraSucursal(otras), ctx);
       return conSucursal({ ...estado, sucursalId: respuesta.id, intentosFallidos: 0 }, ctx, true);
     }
 
@@ -438,13 +390,13 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       if (!ctx.cotizador) return completar(estado, ctx); // EC-03
       const opciones = programasDeLaEdad(estado, ctx);
       const elegido = elegirOpcion(entrada, opciones);
-      if (!elegido) return fallo(estado, textos.reintentoPrograma(opciones));
+      if (!elegido) return fallo(estado, T.reintentoPrograma(opciones), ctx);
       return conPrograma({ ...estado, intentosFallidos: 0 }, elegido.id, ctx);
     }
 
     case "fecha_muestra": {
       if (!ctx.cotizador || !ctx.claseMuestra) return completar(estado, ctx); // el interruptor se apagó con la propuesta pendiente (como EC-03)
-      if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado);
+      if (esNegativa(entrada) || pidePersona(entrada)) return pidioAsesor(estado, ctx);
       const propuesta = ctx.claseMuestra.ofrecida;
       const grupoId = propuesta?.grupoId ?? ctx.cotizador.cotizacionGuardada?.grupoElegidoId ?? null;
       if (!grupoId) return completar(estado, ctx);
@@ -453,11 +405,11 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
       const proximas = ctx.claseMuestra.proximasPorGrupo[grupoId] ?? [];
       const opciones = propuesta?.opciones ?? [];
       // Sin propuesta guardada no hay a qué número responder: se le manda una nueva.
-      if (opciones.length === 0) return reproponerFechas(estado, grupoId, proximas, textos.fechaMuestraSinLugar);
+      if (opciones.length === 0) return reproponerFechas(estado, ctx, grupoId, proximas, T.fechaMuestraSinLugar);
       const elegida = elegirOpcion(entrada, opciones);
-      if (!elegida) return fallo(estado, textos.reintentoFechaMuestra(opciones));
+      if (!elegida) return fallo(estado, T.reintentoFechaMuestra(opciones), ctx);
       // Se llenó (o ya no alcanza la anticipación) mientras contestaba: las que quedan.
-      if (elegida.lugares < 1) return reproponerFechas(estado, grupoId, proximas, textos.fechaMuestraSinLugar);
+      if (elegida.lugares < 1) return reproponerFechas(estado, ctx, grupoId, proximas, T.fechaMuestraSinLugar);
       return agendada(estado, ctx, grupoId, elegida, true);
     }
 
@@ -469,10 +421,11 @@ export function avanzar(estado: EstadoCaptacion, entrada: string, ctx: ContextoC
 }
 
 function completar(estado: EstadoCaptacion, ctx: ContextoCaptacion, programa?: OpcionPrograma): ResultadoCaptacion {
+  const T = textosDe(ctx);
   const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
   return {
     estado: { ...estado, paso: "completo" },
-    respuestas: [programa ? textos.cierreConPrograma(estado.nombre ?? "", programa.nombre, sucursal) : textos.cierre(estado.nombre ?? "", sucursal)],
+    respuestas: [programa ? T.cierreConPrograma(estado.nombre ?? "", programa.nombre, sucursal) : T.cierre(estado.nombre ?? "", sucursal)],
     pasarAAsesor: "captura_completa",
     ...(programa ? { efectos: [{ tipo: "programa_sugerido" as const, programaId: programa.id }] } : {}),
   };
@@ -493,6 +446,7 @@ function programasDeLaEdad(estado: EstadoCaptacion, ctx: ContextoCaptacion): Opc
  * aun así no hubiera programa, no se ofrece otra vez (nada de ciclos), se pasa al asesor.
  */
 function conSucursal(estado: EstadoCaptacion, ctx: ContextoCaptacion, yaOfrecida = false): ResultadoCaptacion {
+  const T = textosDe(ctx);
   if (!ctx.cotizador || estado.sucursalId === null || estado.edad === null) return completar(estado, ctx);
   const programas = programasDeLaEdad(estado, ctx);
   if (programas.length === 0) {
@@ -504,14 +458,14 @@ function conSucursal(estado: EstadoCaptacion, ctx: ContextoCaptacion, yaOfrecida
     const elegida = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? "";
     return {
       estado: { ...estado, paso: "otra_sucursal", intentosFallidos: 0 },
-      respuestas: [otras.length === 1 ? textos.ofrecerOtraSucursal(nombre, estado.edad, elegida, otras[0]!) : textos.ofrecerOtrasSucursales(nombre, estado.edad, elegida, otras)],
+      respuestas: [otras.length === 1 ? T.ofrecerOtraSucursal(nombre, estado.edad, elegida, otras[0]!) : T.ofrecerOtrasSucursales(nombre, estado.edad, elegida, otras)],
       pasarAAsesor: null,
     };
   }
   if (programas.length === 1) return conPrograma(estado, programas[0]!.id, ctx);
   return {
     estado: { ...estado, paso: "programa", intentosFallidos: 0 },
-    respuestas: [textos.preguntaPrograma(estado.nombre ?? "", estado.edad, programas)],
+    respuestas: [T.preguntaPrograma(estado.nombre ?? "", estado.edad, programas)],
     pasarAAsesor: null,
   };
 }
@@ -525,10 +479,11 @@ function otrasSucursalesConPrograma(estado: EstadoCaptacion, ctx: ContextoCaptac
 
 /** Sin programa y sin otra sucursal que ofrecer (o el contacto prefiere a una persona): pasa al asesor con nota. */
 function sinPrograma(estado: EstadoCaptacion, ctx: ContextoCaptacion): ResultadoCaptacion {
+  const T = textosDe(ctx);
   const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? "";
   return {
     estado: { ...estado, paso: "completo" },
-    respuestas: [textos.sinPrograma(estado.nombre ?? "", estado.edad ?? 0, sucursal)],
+    respuestas: [T.sinPrograma(estado.nombre ?? "", estado.edad ?? 0, sucursal)],
     pasarAAsesor: "sin_programa",
   };
 }
@@ -538,6 +493,7 @@ function sinPrograma(estado: EstadoCaptacion, ctx: ContextoCaptacion): Resultado
  * y promoción de hoy, y se queda esperando que elija horario. Lo cotizado se guarda con `guardar_cotizacion`.
  */
 function conPrograma(estado: EstadoCaptacion, programaId: string, ctx: ContextoCaptacion): ResultadoCaptacion {
+  const T = textosDe(ctx);
   const programa = programasDeLaEdad(estado, ctx).find((p) => p.id === programaId);
   if (!programa || !ctx.cotizador || estado.sucursalId === null || estado.edad === null) return completar(estado, ctx);
   const cotizado = cotizar(ctx.cotizador.catalogo, { verticalId: ctx.cotizador.verticalId, sucursalId: estado.sucursalId, edadDeclarada: estado.edad }).programas.find((p) => p.programaId === programaId);
@@ -550,7 +506,7 @@ function conPrograma(estado: EstadoCaptacion, programaId: string, ctx: ContextoC
     { tipo: "programa_sugerido", programaId },
     { tipo: "guardar_cotizacion", programaId, cotizado, fecha, vigenteHasta: vigenteHasta(cotizado, fecha, ctx.cotizador.vigenciaDias) },
   ];
-  const mensaje = textos.cotizacion(estado.nombre ?? "", estado.edad, sucursal, cotizado, opciones);
+  const mensaje = T.cotizacion(estado.nombre ?? "", estado.edad, sucursal, cotizado, opciones);
   // Sin horarios que ofrecer, la cotización se manda igual y una persona sigue desde ahí.
   if (opciones.length === 0) return { estado: { ...estado, programaId, paso: "completo" }, respuestas: [mensaje], pasarAAsesor: "captura_completa", efectos };
   return { estado: { ...estado, programaId, paso: "horario", intentosFallidos: 0 }, respuestas: [mensaje], pasarAAsesor: null, efectos };
@@ -589,6 +545,7 @@ function cotizarDeNuevo(estado: EstadoCaptacion, ctx: ContextoCaptacion, aviso: 
  * fechas con lugar: entonces se cierra como antes y un asesor lo resuelve).
  */
 function proponerClaseMuestra(estado: EstadoCaptacion, ctx: ContextoCaptacion, elegida: OpcionHorario): ResultadoCaptacion | null {
+  const T = textosDe(ctx);
   if (!ctx.claseMuestra || elegida.oferta !== "lugar") return null;
   const ya = ctx.claseMuestra.yaAgendada[elegida.grupoId];
   if (ya) return agendada(estado, ctx, elegida.grupoId, ya, false);
@@ -596,7 +553,7 @@ function proponerClaseMuestra(estado: EstadoCaptacion, ctx: ContextoCaptacion, e
   if (fechas.length === 0) return null;
   return {
     estado: { ...estado, paso: "fecha_muestra", intentosFallidos: 0 },
-    respuestas: [textos.proponerFechasMuestra(estado.nombre ?? "", elegida, fechas)],
+    respuestas: [T.proponerFechasMuestra(estado.nombre ?? "", elegida, fechas)],
     pasarAAsesor: null,
     efectos: [
       { tipo: "elegir_grupo", grupoId: elegida.grupoId },
@@ -606,8 +563,9 @@ function proponerClaseMuestra(estado: EstadoCaptacion, ctx: ContextoCaptacion, e
 }
 
 /** La propuesta ya no sirve (se llenó o no hay propuesta): las fechas con lugar de hoy, o a una persona si no queda ninguna. */
-function reproponerFechas(estado: EstadoCaptacion, grupoId: string, fechas: OpcionFechaMuestra[], texto: (f: OpcionFechaMuestra[]) => string): ResultadoCaptacion {
-  if (fechas.length === 0) return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [textos.sinFechasMuestra], pasarAAsesor: "captura_completa", efectos: [{ tipo: "elegir_grupo", grupoId }] };
+function reproponerFechas(estado: EstadoCaptacion, ctx: ContextoCaptacion, grupoId: string, fechas: OpcionFechaMuestra[], texto: (f: OpcionFechaMuestra[]) => string): ResultadoCaptacion {
+  const T = textosDe(ctx);
+  if (fechas.length === 0) return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [T.sinFechasMuestra], pasarAAsesor: "captura_completa", efectos: [{ tipo: "elegir_grupo", grupoId }] };
   return {
     estado: { ...estado, paso: "fecha_muestra", intentosFallidos: 0 },
     respuestas: [texto(fechas)],
@@ -621,24 +579,28 @@ function reproponerFechas(estado: EstadoCaptacion, grupoId: string, fechas: Opci
  * (aviso de SERVICIO) salen aunque una persona la atienda (invariante 6 reformulado, INV-6).
  */
 function agendada(estado: EstadoCaptacion, ctx: ContextoCaptacion, grupoId: string, fecha: OpcionFechaMuestra, nueva: boolean): ResultadoCaptacion {
+  const T = textosDe(ctx);
   const grupo = ctx.claseMuestra?.nombresDeGrupo[grupoId] ?? "";
   const sucursal = ctx.sucursales.find((s) => s.id === estado.sucursalId)?.nombre ?? null;
   return {
     estado: { ...estado, paso: "completo", intentosFallidos: 0 },
-    respuestas: [nueva ? textos.muestraAgendada(estado.nombre ?? "", grupo, fecha, sucursal) : textos.muestraYaAgendada(estado.nombre ?? "", fecha)],
+    respuestas: [nueva ? T.muestraAgendada(estado.nombre ?? "", grupo, fecha, sucursal) : T.muestraYaAgendada(estado.nombre ?? "", fecha)],
     pasarAAsesor: "muestra_agendada",
     ...(nueva ? { efectos: [{ tipo: "agendar_muestra" as const, grupoId, fechaHora: fecha.fechaHora }] } : {}),
   };
 }
 
-function pidioAsesor(estado: EstadoCaptacion): ResultadoCaptacion {
-  return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [textos.pidioAsesor], pasarAAsesor: "pidio_asesor" };
+function pidioAsesor(estado: EstadoCaptacion, ctx: ContextoCaptacion): ResultadoCaptacion {
+  const T = textosDe(ctx);
+  return { estado: { ...estado, paso: "completo", intentosFallidos: 0 }, respuestas: [T.pidioAsesor], pasarAAsesor: "pidio_asesor" };
 }
 
-function fallo(estado: EstadoCaptacion, reintento: string): ResultadoCaptacion {
+function fallo(estado: EstadoCaptacion, reintento: string, ctx: ContextoCaptacion): ResultadoCaptacion {
+  const T = textosDe(ctx);
   const intentosFallidos = estado.intentosFallidos + 1;
-  if (intentosFallidos >= MAX_INTENTOS) {
-    return { estado: { ...estado, intentosFallidos }, respuestas: [textos.sinEntender], pasarAAsesor: "sin_entender" };
+  // V5: cuántas respuestas sin entender aguanta el bot es de la escuela (`bot_max_intentos`; 3 por omisión).
+  if (intentosFallidos >= (ctx.maxIntentos ?? MAX_INTENTOS)) {
+    return { estado: { ...estado, intentosFallidos }, respuestas: [T.sinEntender], pasarAAsesor: "sin_entender" };
   }
   return { estado: { ...estado, intentosFallidos }, respuestas: [reintento], pasarAAsesor: null };
 }

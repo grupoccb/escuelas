@@ -37,6 +37,7 @@ import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import { eventosEncendidos, leerModulos, moduloDeEvento, type ModulosEncendidos } from "../modulos/index.ts";
 import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, asegurarTareaAsesor, type MessagingProvider } from "../mensajeria/index.ts";
+import { estrechar, horarioDeEnvio, ventanaDeLaOrganizacion, type HorarioDeEnvio } from "../mensajeria/horario-envio.ts";
 import { dentroDeHorario, recorrerODescartar, siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { zonaHorariaDeContacto } from "../mensajeria/zona-horaria.ts";
 import { asegurarTareaDeLeadFrio, fechaLarga, programarAvisosDePromocion, programarLeadsFrios, revalidarAvisoDePromocion, revalidarLeadFrio, type AvisoCargado } from "./seguimiento.ts";
@@ -147,8 +148,15 @@ async function programarReenganches(db: BaseDatos, ahora: Date, resumen: Resumen
 
 type AutomatizacionParaProgramar = Awaited<ReturnType<BaseDatos["automatizacion"]["findMany"]>>[number];
 
+/** La ventana de la automatización recortada al horario de envío de la escuela (V5). */
+const ventanaDe = (a: { hora_inicio_min: number; hora_fin_min: number; dias_permitidos: number[] }, h: HorarioDeEnvio): VentanaHoraria => {
+  const e = estrechar(a, h);
+  return { inicioMin: e.hora_inicio_min, finMin: e.hora_fin_min, dias: a.dias_permitidos };
+};
+
 async function programarUna(db: BaseDatos, a: AutomatizacionParaProgramar, ahora: Date, resumen: ResumenMotor): Promise<number> {
   let programadas = 0;
+  const horario = await horarioDeEnvio(db);
   const corte = new Date(ahora.getTime() - a.offset_minutos * MINUTO_MS);
   const conversaciones = await db.conversacion.findMany({
     where: {
@@ -191,10 +199,8 @@ async function programarUna(db: BaseDatos, a: AutomatizacionParaProgramar, ahora
       if (nominal.getTime() > ahora.getTime()) return;
 
       const zona = await zonaHorariaDeContacto(db, c.lead.sucursal_interes_id, c.bandeja_chatwoot.canal_whatsapp.sucursal_id, c.lead.vertical_interes_id);
-      // Dentro del horario de la propia automatización, que solo puede ser más estrecho que 09:00–20:00.
-      const programado = zona
-        ? siguienteHorarioValido(nominal, zona, { inicioMin: a.hora_inicio_min, finMin: a.hora_fin_min, dias: a.dias_permitidos })
-        : nominal;
+      // Dentro del horario de la propia automatización y del de la escuela (V5), que solo pueden ser más estrechos que 09:00–20:00.
+      const programado = zona ? siguienteHorarioValido(nominal, zona, ventanaDe(a, horario)) : nominal;
 
       const r = await db.automatizacion_ejecucion.createMany({
         data: [altaConAlcance({ automatizacion_id: a.id, entidad_tipo: "conversacion", entidad_id: c.id, ocurrencia: n, programado_para: programado })],
@@ -438,7 +444,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
 
   const zona = cobro ? cobro.zona : await zonaHorariaDeContacto(db, conv.lead.sucursal_interes_id, conv.bandeja_chatwoot.canal_whatsapp.sucursal_id, conv.lead.vertical_interes_id);
   // Lo programado fuera de rango se recorre; si con eso llegaría después del evento, se descarta.
-  const reprogramarODescartar = async (ventana?: VentanaHoraria): Promise<void> => {
+  const horarioEscuela = await horarioDeEnvio(db);
+  const reprogramarODescartar = async (ventana: VentanaHoraria = ventanaDeLaOrganizacion(horarioEscuela)): Promise<void> => {
     // Un recordatorio tiene la clase como evento: llegar a su hora o después ya no sirve (límite exclusivo). La recuperación de quien no llegó y
     // el reenganche no tienen un evento al cual llegar tarde.
     // Una promoción por vencer tiene también un evento al cual no se debe llegar tarde: el instante en que ya no vale (límite exclusivo).
@@ -463,8 +470,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     }
   };
 
-  // La ventana propia de la automatización puede ser más estrecha que 09:00–20:00 (nunca más ancha).
-  const propia: VentanaHoraria = { inicioMin: e.automatizacion.hora_inicio_min, finMin: e.automatizacion.hora_fin_min, dias: e.automatizacion.dias_permitidos };
+  // La ventana propia de la automatización puede ser más estrecha que 09:00–20:00 (nunca más ancha), y el horario de la escuela también (V5): vale la intersección.
+  const propia: VentanaHoraria = ventanaDe(e.automatizacion, horarioEscuela);
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
   // EH-16: el cargo se leyó al empezar; entre eso y el envío pasa la búsqueda de la conversación, el horario y las variables. Una última lectura justo antes de armar el mensaje deja la

@@ -20,6 +20,7 @@ import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance
 import { OPCIONES_BLOQUEO, transaccionConBloqueo, transaccionConBloqueoDeTelefono } from "../datos/bloqueos.ts";
 import { log } from "../lib/log.ts";
 import { estaDadoDeBaja } from "./consentimiento.ts";
+import { acotado, ventanaDeLaOrganizacion } from "./horario-envio.ts";
 import { evaluarReglas, recorrerODescartar, type MotivoBloqueo } from "./reglas.ts";
 import { EnvioIncierto, type DestinoConversacion, type TransporteConversaciones } from "./transporte.ts";
 
@@ -146,6 +147,7 @@ export class EnvioAInstructores {
         select: { codigo: true, idioma: true, content_sid: true, categoria: true, clase_mensaje: true, variables: true, cuerpo_referencia: true },
       });
       const config = await leerConfiguracion(tx);
+      const horario = ventanaDeLaOrganizacion(acotado({ inicioMin: config.horarioEnvioInicioMin, finMin: config.horarioEnvioFinMin }));
       const motivo = evaluarReglas({
         // `en_atencion_humana` no aplica a un instructor: la conversación es siempre del sistema.
         conv: { estado: "bot", ventana_servicio_hasta: ci?.ventana_servicio_hasta ?? null, dado_de_baja: await estaDadoDeBaja(tx, telefono, "todo"), dado_de_baja_marketing: false },
@@ -154,12 +156,13 @@ export class EnvioAInstructores {
         ahora,
         plantilla: plantilla ? { enviable: true, categoria: plantilla.categoria, clase: plantilla.clase_mensaje } : null,
         zonaHoraria: zona,
+        horario,
         automaticosRecientes: await this.enviadosAlTelefono(tx, telefono, a.id, new Date(ahora.getTime() - DIA_MS)),
         limiteFrecuencia: config.maxAutomaticosPorDia,
       });
       if (motivo === "fuera_de_horario") {
         // Se recorre al siguiente horario válido; si con eso llegaría a la hora de la clase o después, se descarta (invariante 14).
-        const siguiente = recorrerODescartar(ahora, zona, clase.fecha_hora, undefined, true);
+        const siguiente = recorrerODescartar(ahora, zona, clase.fecha_hora, horario, true);
         if (siguiente) await tx.aviso_maestro.updateMany({ where: { id: a.id, entrega: "enviando" }, data: { entrega: "pendiente", programado_para: siguiente } });
         else await tx.aviso_maestro.updateMany({ where: { id: a.id, entrega: "enviando" }, data: { entrega: "descartado", motivo_entrega: "evento_pasado" } });
         return { estado: "frenado" as const, resultado: siguiente ? ({ resultado: "pendiente", motivo: "fuera_de_horario" } as const) : ({ resultado: "descartado", motivo: "evento_pasado" } as const) };

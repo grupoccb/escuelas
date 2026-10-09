@@ -16,6 +16,7 @@
 //   · Si la escuela no tiene la automatización (la plantilla de una organización nueva no las trae) no sale nada: es una configuración, no un olvido.
 
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { estrecharAutomatizaciones } from "../mensajeria/horario-envio.ts";
 import { siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { leerModulos } from "../modulos/index.ts";
 import { describirSesion } from "./sesiones.ts";
@@ -137,11 +138,13 @@ export async function programarAvisoDeCambio(tx: Consultas, e: { claseId: string
   const clase = await cargarClaseParaAviso(tx, e.claseId);
   if (!clase) return nada;
   const { vertical_id, sucursal_id, sucursal } = clase.grupo.programa;
-  const automatizaciones = await tx.automatizacion.findMany({
+  const cargadas = await tx.automatizacion.findMany({
     where: { activo: true, evento_disparador: EVENTO_DE_CAMBIO[e.tipo], AND: [{ OR: [{ vertical_id: null }, { vertical_id }] }, { OR: [{ sucursal_id: null }, { sucursal_id }] }] },
     select: { id: true, offset_minutos: true, hora_inicio_min: true, hora_fin_min: true, dias_permitidos: true },
     orderBy: [{ offset_minutos: "asc" }, { id: "asc" }],
   });
+  // V5: nada sale fuera del horario de envío de la escuela (que solo puede ser más estrecho que 09:00–20:00).
+  const automatizaciones = await estrecharAutomatizaciones(tx, cargadas);
   const plan = planearAvisosDeCambio({ inicio: clase.fecha_hora, zonaHoraria: sucursal.zona_horaria, ahora: e.ahora, automatizaciones });
   if (plan.length === 0) return nada;
   const r = await tx.automatizacion_ejecucion.createMany({

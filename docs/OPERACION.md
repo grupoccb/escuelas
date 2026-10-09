@@ -19,6 +19,20 @@ Lo que pasa con un módulo apagado: su sección no aparece en la barra y su dire
 
 Las organizaciones que ya existían (la demo incluida) tienen todo encendido; una escuela nueva nace con solo la captación (`docs/ALTA-DE-CLIENTE.md`).
 
+## Configuración sin SQL (V5)
+
+Todo lo que la escuela cambia en la operación normal se edita en **Administración** (solo el administrador), sin reiniciar nada y sin tocar la base. Cada cambio queda en el registro de cambios.
+
+| Pantalla | Qué cambia |
+|---|---|
+| **Configuración** | Horario de los mensajes automáticos (la escuela puede **estrecharlo**, nunca pasar de 09:00 a 20:00), topes de mensajes, minutos de silencio antes de avisar de un lead a medias, respuestas que el asistente no entiende antes de pasar con una persona, vigencia de cotizaciones, lista de espera, clase muestra, umbrales de faltas y de cobranza, umbrales «a reventar» y «vacío» del tablero y modo de cierre. Cada ajuste dice su rango, su valor de siempre y qué pasa si se cambia; si pertenece a un módulo apagado, avisa que no hace nada hasta encenderlo |
+| **Textos del asistente** | Lo que el asistente de WhatsApp dice en cada paso (31 mensajes), con vista previa. Los huecos como `{nombre}` los llena el sistema; no se aceptan huecos que no existen, enlaces ni más de 600 caracteres. «Volver al texto de siempre» restablece |
+| **Etapas del embudo** | Nombre, orden y días sin movimiento que avisan; agregar etapas propias y quitarlas si no tienen leads. Las del sistema (Nuevo, Contactado, Clase muestra…, Inscrito, Perdido) se renombran pero no se quitan ni cambian de orden entre sí |
+| **Motivos de pérdida y de baja** | Las dos listas de motivos: agregar, renombrar, ordenar, apagar (lo ya registrado se conserva) y quitar |
+| **Automatizaciones** | Desfase, intentos, espaciado, horario, días, plantilla y, en el lead frío y el pago atrasado, hasta cuántos días de atraso se persigue |
+
+Lo que no tiene pantalla (niveles de progresión, eventos, productos, documentos legales, campañas, la matriz de transiciones de etapa, el alta de automatizaciones y las variables de entorno) está en **`docs/CONFIGURACION-INVENTARIO.md`**, con su comando o su variable y un ejemplo. Ahí también está lo que **no** se cambia a propósito (ventanas de 24 y 72 h, el piso y techo de 09:00 a 20:00, palabras de baja, etc.) y por qué.
+
 ## Por rol
 
 ### Recepción (inicio: Registrar pago)

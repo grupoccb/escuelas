@@ -27,6 +27,8 @@ interface AutomatizacionAdmin {
   hora_inicio_min: number;
   hora_fin_min: number;
   dias_permitidos: number[];
+  /** Hasta cuántos días de atraso se persigue (solo lead frío y pago atrasado); nulo en los demás avisos. */
+  max_atraso_dias: number | null;
   activo: boolean;
   plantilla: { codigo: string; clase_mensaje: string; estado_aprobacion: string; activo: boolean } | null;
 }
@@ -46,6 +48,8 @@ function Formulario({ auto, plantillas, alGuardar, alCerrar }: { auto: Automatiz
   const [fin, setFin] = useState(horaDeMinutos(auto.hora_fin_min));
   const [dias, setDias] = useState<number[]>(auto.dias_permitidos);
   const [plantillaId, setPlantillaId] = useState(auto.plantilla_id ?? "");
+  const topeDeAtraso = auto.evento_disparador === "lead_frio" ? 90 : auto.evento_disparador === "cargo_vencido" ? 365 : null;
+  const [atraso, setAtraso] = useState(auto.max_atraso_dias === null ? "" : String(auto.max_atraso_dias));
   const [local, setLocal] = useState<Record<string, string>>({});
   const guardar = useAccion();
   const servidor = guardar.error?.porCampo() ?? {};
@@ -66,12 +70,14 @@ function Formulario({ auto, plantillas, alGuardar, alCerrar }: { auto: Automatiz
         else if (evento?.sentido === "despues" && offsetN < 0) e["offset_minutos"] = "Este aviso sale DESPUÉS del evento: el desfase es cero o positivo";
         if (intentosN === null) e["max_intentos"] = "Escribe un número de 1 a 10";
         if (espaciado.trim() !== "" && esp === null) e["espaciado_minutos"] = "Escribe al menos 60 minutos";
+        const atrasoN = topeDeAtraso === null ? null : enteroDe(atraso, 1, topeDeAtraso);
+        if (topeDeAtraso !== null && atrasoN === null) e["max_atraso_dias"] = `Escribe un número de 1 a ${topeDeAtraso}`;
         if (typeof h === "string") e["hora_inicio_min"] = h;
         if (dias.length === 0) e["dias_permitidos"] = "Elige al menos un día";
         setLocal(e);
         if (Object.keys(e).length > 0 || typeof h === "string" || offsetN === null || intentosN === null) return;
         void guardar.ejecutar(async () => {
-          await api.patch(`/api/automatizaciones/${auto.id}`, { offset_minutos: offsetN, max_intentos: intentosN, espaciado_minutos: esp, hora_inicio_min: h.inicio, hora_fin_min: h.fin, dias_permitidos: [...dias].sort(), plantilla_id: plantillaId === "" ? null : plantillaId });
+          await api.patch(`/api/automatizaciones/${auto.id}`, { offset_minutos: offsetN, max_intentos: intentosN, espaciado_minutos: esp, hora_inicio_min: h.inicio, hora_fin_min: h.fin, dias_permitidos: [...dias].sort(), plantilla_id: plantillaId === "" ? null : plantillaId, ...(atrasoN !== null ? { max_atraso_dias: atrasoN } : {}) });
           alGuardar();
         });
       }}
@@ -86,11 +92,25 @@ function Formulario({ auto, plantillas, alGuardar, alCerrar }: { auto: Automatiz
         <CampoTexto etiqueta="Intentos" inputMode="numeric" value={intentos} onChange={(e) => setIntentos(e.target.value)} error={err("max_intentos")} />
         <CampoTexto etiqueta="Minutos entre intentos (opcional)" inputMode="numeric" value={espaciado} onChange={(e) => setEspaciado(e.target.value)} error={err("espaciado_minutos")} ayuda="Mínimo 60." />
       </div>
+      {topeDeAtraso !== null ? (
+        <CampoTexto
+          etiqueta="Máximo de días de atraso que se persigue"
+          inputMode="numeric"
+          value={atraso}
+          onChange={(e) => setAtraso(e.target.value)}
+          error={err("max_atraso_dias")}
+          ayuda={
+            auto.evento_disparador === "lead_frio"
+              ? `Solo se avisa de los leads que se enfriaron hace menos de estos días (de 1 a ${topeDeAtraso}); a los más viejos se les ve en «Estancados», pero no se les escribe.`
+              : `No se manda recordatorio de un pago vencido hace más de estos días (de 1 a ${topeDeAtraso}); esos los ve el asesor en su tarea de cobranza.`
+          }
+        />
+      ) : null}
       <div className="rejilla rejilla-2">
         <CampoTexto etiqueta="Envía desde" type="time" min="09:00" max="20:00" value={inicio} onChange={(e) => setInicio(e.target.value)} error={err("hora_inicio_min")} />
         <CampoTexto etiqueta="Envía hasta" type="time" min="09:00" max="20:00" value={fin} onChange={(e) => setFin(e.target.value)} />
       </div>
-      <Aviso>Los mensajes que inicia el sistema nunca salen fuera de las 09:00 a 20:00 (hora de la sucursal). Lo que caiga fuera se recorre al siguiente horario válido; si con eso llegaría después del evento, se descarta y se registra.</Aviso>
+      <Aviso>Los mensajes que inicia el sistema nunca salen fuera de las 09:00 a 20:00 (hora de la sucursal). Lo que caiga fuera se recorre al siguiente horario válido; si con eso llegaría después del evento, se descarta y se registra. También vale el horario de toda la escuela (Administración → Configuración): cuenta el más corto de los dos.</Aviso>
       <fieldset className="pila sin-borde">
         <legend>
           <strong>Días en que puede salir</strong>

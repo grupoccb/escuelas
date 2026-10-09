@@ -1,6 +1,7 @@
 // Lógica pura de las pantallas de administración (con su prueba): horas, formularios y textos. Sin React ni red.
 
 import { horaDeMinutos } from "../../lib/fechas.ts";
+import type { LimiteDeAjuste } from "./tipos.ts";
 
 export const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"] as const;
 
@@ -80,4 +81,16 @@ export function horarioDeEnvio(inicio: string, fin: string): { inicio: number; f
   if (i < ENVIO_MIN || f > ENVIO_MAX) return "Los mensajes solo salen entre las 09:00 y las 20:00";
   if (i >= f) return "La hora de inicio debe ser antes que la de fin";
   return { inicio: i, fin: f };
+}
+
+/** Un ajuste de la configuración tal como lo escribió la escuela: su valor, o lo que debe corregir (con el mismo rango que impone el servidor y la base). */
+export function problemaDeAjuste(l: Pick<LimiteDeAjuste, "min" | "max" | "unidad">, texto: string): { valor: number } | { error: string } {
+  if (l.unidad === "hora_del_dia") {
+    const m = minutosDeHora(texto);
+    if (m === null) return { error: "Escribe la hora completa, por ejemplo 09:00" };
+    if (m < l.min || m > l.max) return { error: `Los mensajes automáticos solo pueden salir entre las 09:00 y las 20:00. Elige una hora de ${horaDeMinutos(l.min)} a ${horaDeMinutos(l.max)}.` };
+    return { valor: m };
+  }
+  const n = enteroDe(texto, l.min, l.max);
+  return n === null ? { error: `Escribe un número de ${l.min} a ${l.max}` } : { valor: n };
 }

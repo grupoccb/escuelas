@@ -19,6 +19,7 @@
 import { altaConAlcance, type BaseDatos } from "../datos/alcance.ts";
 import { esViolacionUnica } from "../datos/prisma.ts";
 import { fechaLocal } from "../lib/horario.ts";
+import { estrechar, horarioDeEnvio, type HorarioDeEnvio } from "../mensajeria/horario-envio.ts";
 import { instanteLocal, recorrerODescartar, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { zonaHorariaDeContacto } from "../mensajeria/zona-horaria.ts";
 
@@ -39,7 +40,11 @@ export interface AutomatizacionDeSeguimiento {
   dias_permitidos: number[];
 }
 
-const ventanaDe = (a: AutomatizacionDeSeguimiento): VentanaHoraria => ({ inicioMin: a.hora_inicio_min, finMin: a.hora_fin_min, dias: a.dias_permitidos });
+/** La ventana de la automatización recortada al horario de envío de la escuela (V5): nunca sale fuera de ninguna de las dos. */
+const ventanaDe = (a: AutomatizacionDeSeguimiento, h: HorarioDeEnvio): VentanaHoraria => {
+  const e = estrechar(a, h);
+  return { inicioMin: e.hora_inicio_min, finMin: e.hora_fin_min, dias: a.dias_permitidos };
+};
 
 /** `condiciones.max_atraso_dias` (1 a 90) o el valor por omisión. */
 export function atrasoMaximoDias(condiciones: unknown): number {
@@ -84,6 +89,7 @@ const ETAPAS_DE_CIERRE = ["inscrito", "perdido"] as const;
 /** Programa las ejecuciones de lead frío de UNA automatización. Devuelve cuántas creó. Idempotente (índice único de la ejecución). */
 export async function programarLeadsFrios(db: BaseDatos, a: AutomatizacionDeSeguimiento, ahora: Date): Promise<number> {
   const atraso = atrasoMaximoDias(a.condiciones);
+  const ventana = ventanaDe(a, await horarioDeEnvio(db));
   const etapas = await db.etapa_pipeline.findMany({
     where: { dias_alerta_sin_movimiento: { not: null }, es_ganado: false, es_perdido: false, OR: [{ tipo_sistema: null }, { tipo_sistema: { notIn: [...ETAPAS_DE_CIERRE] } }] },
     select: { id: true, dias_alerta_sin_movimiento: true },
@@ -122,7 +128,7 @@ export async function programarLeadsFrios(db: BaseDatos, a: AutomatizacionDeSegu
       const zona = await zonaHorariaDeContacto(db, l.sucursal_interes_id, null, l.vertical_interes_id);
       const nominal = momentoDeFrio({ ultimaInteraccionEn: l.ultima_interaccion_en, creadoEn: l.creado_en }, dias, a.offset_minutos);
       // Fuera de horario se recorre al siguiente horario válido (invariante 14); sin evento al cual llegar tarde, nunca se descarta.
-      const programado = zona ? recorrerODescartar(nominal, zona, null, ventanaDe(a)) : nominal;
+      const programado = zona ? recorrerODescartar(nominal, zona, null, ventana) : nominal;
       const r = await db.automatizacion_ejecucion.createMany({
         // `creado_en` es el reloj del motor: con él se sabe si el lead se movió DESPUÉS de detectado este episodio.
         data: [altaConAlcance({ automatizacion_id: a.id, entidad_tipo: "lead", entidad_id: l.id, ocurrencia, programado_para: programado ?? nominal, creado_en: ahora })],
@@ -214,6 +220,7 @@ const aIsoDia = (d: Date): string => d.toISOString().slice(0, 10);
 
 /** Crea los avisos de promoción por vencer de UNA automatización y sus ejecuciones. Devuelve cuántos avisos nuevos creó. */
 export async function programarAvisosDePromocion(db: BaseDatos, a: AutomatizacionDeSeguimiento, ahora: Date): Promise<number> {
+  const ventana = ventanaDe(a, await horarioDeEnvio(db));
   // Un día de margen sobre la fecha UTC: la fecha local de cada sucursal se comprueba abajo.
   const ayer = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate() - 1));
   const cotizaciones = await db.cotizacion.findMany({
@@ -245,7 +252,7 @@ export async function programarAvisosDePromocion(db: BaseDatos, a: Automatizacio
       const venceEl = promociones.get(promocionId);
       const llave = `${c.lead_id}|${promocionId}`;
       if (!venceEl || yaAvisado.has(llave)) continue;
-      const plan = planearAvisoDePromocion({ venceEl, zona, offsetMinutos: a.offset_minutos, ventana: ventanaDe(a), ahora });
+      const plan = planearAvisoDePromocion({ venceEl, zona, offsetMinutos: a.offset_minutos, ventana, ahora });
       if (plan.estado === "aun_no" || plan.estado === "vencida") continue;
       yaAvisado.add(llave);
       try {

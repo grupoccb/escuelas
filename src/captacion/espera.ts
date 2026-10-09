@@ -15,6 +15,7 @@
 // conversación, así que dos barridos simultáneos (o dos seguidos) no avisan dos veces. Si abrirla
 // en Chatwoot falla, el aviso ya salió y solo se reintenta la apertura.
 
+import { leerConfiguracion } from "../configuracion/index.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
@@ -24,11 +25,13 @@ import { PASOS_A_MEDIAS } from "./maquina.ts";
 import { resumenParaAsesor } from "./resumen.ts";
 
 /**
- * Cuánto espera el bot una respuesta antes de avisar a los asesores. Es mucho menor que el
+ * Cuánto espera el bot una respuesta antes de avisar a los asesores, POR OMISIÓN (V5: cada escuela lo ajusta con `lead_a_medias_minutos`; este valor es el de la columna
+ * y el que usan las organizaciones sin fila de configuración). Es mucho menor que el
  * reenganche (25 h) a propósito: avisar no bloquea el reenganche porque la conversación sigue
  * en `bot`.
  */
 export const TIEMPO_ESPERA_MS = 30 * 60 * 1000;
+const MINUTO_MS = 60 * 1000;
 
 /**
  * Cuánto se espera antes de reintentar abrir una conversación que ya se avisó. Quien avisa la abre
@@ -67,7 +70,6 @@ export async function barrerTiemposDeEspera(deps: DepsEspera): Promise<number> {
  */
 export async function barrerEspera(deps: DepsEspera): Promise<ResumenEspera> {
   const ahora = deps.reloj?.() ?? new Date();
-  const corte = new Date(ahora.getTime() - (deps.esperaMs ?? TIEMPO_ESPERA_MS));
   const resumen: ResumenEspera = { avisadas: 0, errores: 0 };
   const fallo = (donde: Record<string, unknown>, e: unknown): void => {
     resumen.errores++;
@@ -79,7 +81,7 @@ export async function barrerEspera(deps: DepsEspera): Promise<ResumenEspera> {
   );
   for (const org of organizaciones) {
     try {
-      await barrerOrganizacion(deps, org.id, ahora, corte, resumen, fallo);
+      await barrerOrganizacion(deps, org.id, ahora, resumen, fallo);
     } catch (e) {
       fallo({ organizacionId: org.id }, e);
     }
@@ -91,11 +93,13 @@ async function barrerOrganizacion(
   deps: DepsEspera,
   organizacionId: string,
   ahora: Date,
-  corte: Date,
   resumen: ResumenEspera,
   fallo: (donde: Record<string, unknown>, e: unknown) => void,
 ): Promise<void> {
   const db = conAlcance(deps.prisma, organizacionId);
+  // V5: cuánto espera el bot es de la escuela (`lead_a_medias_minutos`, 30 por omisión). `esperaMs` de las dependencias solo lo usan las pruebas.
+  const esperaMs = deps.esperaMs ?? (await leerConfiguracion(db)).leadAMediasMinutos * MINUTO_MS;
+  const corte = new Date(ahora.getTime() - esperaMs);
 
   // 1. Avisar: nota con los datos parciales + abrir la conversación. Una sola vez.
   // Un lead borrado (eliminado_en) ya no existe para el sistema: no se avisa de él (EA-01).

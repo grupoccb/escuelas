@@ -40,6 +40,7 @@ import {
   type Saliente,
 } from "../mensajeria/index.ts";
 import { resumenParaAsesor } from "./resumen.ts";
+import { leerTextosPersonalizados } from "./textos-bot.ts";
 import { avanzar, esPalabraDeBaja, textos, type ContextoCaptacion, type EfectoCaptacion, type EstadoCaptacion, type OpcionFechaMuestra, type OpcionSucursal } from "./maquina.ts";
 
 // Un conflicto de versión o de unicidad vuelve a correr la transacción con el estado nuevo. Con varias familias entrando a la
@@ -198,7 +199,7 @@ async function registrarYAvanzar(
   }
 
   const prospecto = await tx.prospecto.findFirst({ where: { lead_id: conv.lead.id, origen: "bot" } });
-  const ctx = await contextoCaptacion(tx, bandeja.vertical_id, {
+  const base = await contextoCaptacion(tx, bandeja.vertical_id, {
     paso: conv.paso_captacion,
     sucursalDelLead: conv.lead.sucursal_interes_id,
     fuente,
@@ -208,6 +209,9 @@ async function registrarYAvanzar(
     muestraOfrecida: conv.muestra_ofrecida,
     deLanding: esDeLanding(conv.lead.atribucion),
   });
+  // V5: lo que la escuela ajustó del bot se lee en cada mensaje (sin caché): los textos que personalizó y cuántas respuestas sin entender aguanta.
+  const textosPersonalizados = await leerTextosPersonalizados(tx);
+  const ctx: ContextoCaptacion = { ...base, maxIntentos: (await leerConfiguracion(tx)).botMaxIntentos, ...(Object.keys(textosPersonalizados).length > 0 ? { textosPersonalizados } : {}) };
   const estado: EstadoCaptacion = {
     paso: conv.paso_captacion,
     intentosFallidos: conv.intentos_fallidos,

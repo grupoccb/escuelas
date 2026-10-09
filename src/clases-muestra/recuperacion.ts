@@ -9,6 +9,7 @@
 // no ha contestado desde entonces. Marcar asistencia por error, o volver a agendar, cancela las pendientes.
 
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { estrecharAutomatizaciones } from "../mensajeria/horario-envio.ts";
 import { siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 
 const MINUTO_MS = 60_000;
@@ -54,11 +55,13 @@ export async function programarRecuperacionDeClase(tx: Consultas, claseId: strin
   });
   if (!clase) return 0;
   const { vertical_id, sucursal_id, sucursal } = clase.grupo.programa;
-  const automatizaciones = await tx.automatizacion.findMany({
+  const cargadas = await tx.automatizacion.findMany({
     where: { activo: true, evento_disparador: "clase_muestra_no_asistio", AND: [{ OR: [{ vertical_id: null }, { vertical_id }] }, { OR: [{ sucursal_id: null }, { sucursal_id }] }] },
     select: { id: true, offset_minutos: true, espaciado_minutos: true, max_intentos: true, hora_inicio_min: true, hora_fin_min: true, dias_permitidos: true },
     orderBy: [{ offset_minutos: "asc" }, { id: "asc" }],
   });
+  // V5: nada sale fuera del horario de envío de la escuela (que solo puede ser más estrecho que 09:00–20:00).
+  const automatizaciones = await estrecharAutomatizaciones(tx, cargadas);
   let creadas = 0;
   for (const a of automatizaciones) {
     const plan = planearRecuperacion({ marcadaEn, zonaHoraria: sucursal.zona_horaria, automatizacion: a });

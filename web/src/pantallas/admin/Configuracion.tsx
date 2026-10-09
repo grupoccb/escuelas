@@ -1,27 +1,29 @@
-// Configuración de la organización: los topes, vigencias y umbrales que antes eran valores fijos, y quién cierra la inscripción. Los rangos salen del servidor (los mismos
-// que impone la base). Cada cambio queda en el registro de cambios.
+// Configuración de la organización: el horario de los mensajes automáticos, los topes de mensajes, los tiempos del asistente, las vigencias y los umbrales que antes eran valores fijos, y quién
+// cierra la inscripción. Cada ajuste muestra su rango, su valor de siempre y qué pasa si se cambia. Los rangos salen del servidor (los mismos que impone la base). Cada cambio queda en el
+// registro de cambios y surte efecto en la siguiente petición, sin reiniciar.
 
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
+import { horaDeMinutos } from "../../lib/fechas.ts";
+import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { enteroDe } from "./ayudas.ts";
+import { problemaDeAjuste } from "./ayudas.ts";
 import { Regreso } from "./comunes.tsx";
-import type { Configuracion as Datos } from "./tipos.ts";
+import { NOMBRE_DE_MODULO } from "./mensajeria.ts";
+import type { Configuracion as Datos, LimiteDeAjuste } from "./tipos.ts";
 
-const NUMERICOS = ["max_automaticos_por_dia", "max_marketing_por_ventana", "ventana_marketing_dias", "cotizacion_vigencia_dias", "lista_espera_oferta_horas", "clase_muestra_anticipacion_min", "clase_muestra_horizonte_dias", "clase_muestra_correccion_horas", "umbral_faltas_consecutivas", "umbral_dias_deuda"] as const;
-type Clave = (typeof NUMERICOS)[number];
+const UNIDAD: Record<LimiteDeAjuste["unidad"], string> = { dias: "días", horas: "horas", minutos: "minutos", mensajes: "mensajes", faltas: "faltas", intentos: "intentos", porcentaje: "%", hora_del_dia: "" };
 
-const GRUPOS: { titulo: string; claves: Clave[] }[] = [
-  { titulo: "Frecuencia de mensajes", claves: ["max_automaticos_por_dia", "max_marketing_por_ventana", "ventana_marketing_dias"] },
-  { titulo: "Cotizaciones y lista de espera", claves: ["cotizacion_vigencia_dias", "lista_espera_oferta_horas"] },
-  { titulo: "Clase muestra", claves: ["clase_muestra_anticipacion_min", "clase_muestra_horizonte_dias", "clase_muestra_correccion_horas"] },
-  { titulo: "Avisos al asesor", claves: ["umbral_faltas_consecutivas", "umbral_dias_deuda"] },
-];
+type Clave = Exclude<keyof Datos, "limites" | "sucursal_sin_programa" | "modo_cierre">;
+
+const verValor = (l: LimiteDeAjuste, n: number): string => (l.unidad === "hora_del_dia" ? horaDeMinutos(n) : String(n));
 
 function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) => void }) {
-  const [valores, setValores] = useState<Record<Clave, string>>(() => Object.fromEntries(NUMERICOS.map((k) => [k, String(datos[k])])) as Record<Clave, string>);
+  const { moduloEncendido } = useSesion();
+  const claves = Object.keys(datos.limites) as Clave[];
+  const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(claves.map((k) => [k, verValor(datos.limites[k]!, datos[k])])));
   const [modo, setModo] = useState<string>(datos.modo_cierre);
   const [politica, setPolitica] = useState<string>(datos.sucursal_sin_programa);
   const [local, setLocal] = useState<Record<string, string>>({});
@@ -30,19 +32,66 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
   const servidor = guardar.error?.porCampo() ?? {};
   const err = (k: string) => local[k] ?? servidor[k];
 
+  // Los grupos, en el orden en que los trae el servidor.
+  const grupos: { titulo: string; claves: Clave[] }[] = [];
+  for (const k of claves) {
+    const t = datos.limites[k]!.grupo;
+    const g = grupos.find((x) => x.titulo === t);
+    if (g) g.claves.push(k);
+    else grupos.push({ titulo: t, claves: [k] });
+  }
+
+  const campo = (k: Clave) => {
+    const l = datos.limites[k]!;
+    const horaDelDia = l.unidad === "hora_del_dia";
+    const apagado = l.modulo !== null && !moduloEncendido(l.modulo);
+    return (
+      <CampoTexto
+        key={k}
+        etiqueta={l.etiqueta}
+        {...(horaDelDia ? { type: "time", min: "09:00", max: "20:00" } : { inputMode: "numeric" as const })}
+        value={valores[k] ?? ""}
+        onChange={(e) => setValores((v) => ({ ...v, [k]: e.target.value }))}
+        error={err(k)}
+        ayuda={
+          <>
+            {l.ayuda} {horaDelDia ? `(de ${horaDeMinutos(l.min)} a ${horaDeMinutos(l.max)})` : `(de ${l.min} a ${l.max}${UNIDAD[l.unidad] ? ` ${UNIDAD[l.unidad]}` : ""})`} De siempre: {verValor(l, l.por_omision)}
+            {horaDelDia ? "" : UNIDAD[l.unidad] ? ` ${UNIDAD[l.unidad]}` : ""}.
+            <br />
+            <strong>Qué pasa si lo cambias:</strong> {l.efecto}
+            {apagado ? (
+              <>
+                <br />
+                <strong>Ojo:</strong> el módulo «{NOMBRE_DE_MODULO[l.modulo!]}» está apagado. Puedes dejar este valor listo, pero no hace nada hasta que lo enciendas.
+              </>
+            ) : null}
+          </>
+        }
+      />
+    );
+  };
+
   return (
     <form
       className="pila"
+      data-prueba="formulario-configuracion"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
         const cuerpo: Record<string, unknown> = { modo_cierre: modo, sucursal_sin_programa: politica };
-        for (const k of NUMERICOS) {
-          const l = datos.limites[k]!;
-          const n = enteroDe(valores[k], l.min, l.max);
-          if (n === null) e[k] = `Escribe un número de ${l.min} a ${l.max}`;
-          else if (n !== datos[k]) cuerpo[k] = n;
+        const nuevos: Record<string, number> = {};
+        for (const k of claves) {
+          const r = problemaDeAjuste(datos.limites[k]!, valores[k] ?? "");
+          if ("error" in r) e[k] = r.error;
+          else {
+            nuevos[k] = r.valor;
+            if (r.valor !== datos[k]) cuerpo[k] = r.valor;
+          }
         }
+        // Las reglas entre dos ajustes: el servidor también las juzga, pero aquí se avisa sin ir y volver.
+        if (!e["horario_envio_inicio_min"] && !e["horario_envio_fin_min"] && (nuevos["horario_envio_inicio_min"] ?? 0) >= (nuevos["horario_envio_fin_min"] ?? 0)) e["horario_envio_inicio_min"] = "La hora de inicio debe ser antes que la hora de fin. Cambia una de las dos.";
+        if (!e["ocupacion_vacio_pct"] && !e["ocupacion_a_reventar_pct"] && (nuevos["ocupacion_vacio_pct"] ?? 0) >= (nuevos["ocupacion_a_reventar_pct"] ?? 0)) e["ocupacion_vacio_pct"] = "El porcentaje de «vacío» debe ser menor que el de «a reventar». Baja uno o sube el otro.";
         setLocal(e);
         setGuardado(false);
         if (Object.keys(e).length > 0) return;
@@ -68,6 +117,7 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
       <Tarjeta titulo="Sucursal sin el programa buscado">
         <CampoSelect
           etiqueta="Qué hace el bot"
+          ayuda="Cuando la sucursal que eligió la familia no tiene programa para la edad. Con «ofrecer la otra sucursal», el asistente le propone la que sí lo tiene; con «avisar al asesor», pasa la conversación de inmediato."
           value={politica}
           opciones={[
             { valor: "ofrecer_otra", texto: "Ofrecer la otra sucursal que sí lo tiene" },
@@ -76,16 +126,16 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
           onChange={(e) => setPolitica(e.target.value)}
         />
       </Tarjeta>
-      {GRUPOS.map((g) => (
+      {grupos.map((g) => (
         <Tarjeta key={g.titulo} titulo={g.titulo}>
           <div className="pila">
-            {g.claves.map((k) => (
-              <CampoTexto key={k} etiqueta={datos.limites[k]!.etiqueta} inputMode="numeric" value={valores[k]} onChange={(e) => setValores((v) => ({ ...v, [k]: e.target.value }))} error={err(k)} ayuda={`${datos.limites[k]!.ayuda} (de ${datos.limites[k]!.min} a ${datos.limites[k]!.max})`} />
-            ))}
+            {g.titulo === "Horario de los mensajes automáticos" ? (
+              <Aviso>Puedes dejar el horario más corto, pero nunca más largo: los mensajes que inicia el sistema (recordatorios, reenganche, avisos de pago) jamás salen antes de las 09:00 ni después de las 20:00, hora de cada sucursal. Responder a quien acaba de escribir no tiene horario. La zona horaria se ajusta en cada sucursal.</Aviso>
+            ) : null}
+            {g.claves.map(campo)}
           </div>
         </Tarjeta>
       ))}
-      <Aviso>Los mensajes que inicia el sistema nunca salen fuera de las 09:00 a 20:00 de la sucursal: ese horario no se configura aquí.</Aviso>
       <ErrorDeAccion error={guardar.error} />
       {guardado ? <Aviso tono="exito">Configuración guardada.</Aviso> : null}
       <div>
@@ -101,7 +151,7 @@ export default function Configuracion() {
   useTitulo("Configuración");
   const carga = useCarga((senal) => api.get<Datos>("/api/configuracion", undefined, senal), []);
   return (
-    <Pagina titulo="Configuración de la escuela" subtitulo="Topes de mensajes, vigencias y umbrales." acciones={<Regreso />}>
+    <Pagina titulo="Configuración de la escuela" subtitulo="Horario de los mensajes automáticos, topes de mensajes, tiempos del asistente, vigencias y umbrales." acciones={<Regreso />}>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
       {carga.datos ? <Formulario datos={carga.datos} alGuardar={carga.poner} /> : null}

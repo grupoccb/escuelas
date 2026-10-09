@@ -81,10 +81,13 @@ export const CAMPOS_AUDITABLES = {
   canal_whatsapp: ["vertical_id", "sucursal_id", "numero_whatsapp", "nombre_publico", "calidad_meta", "activo"],
   bandeja_chatwoot: ["canal_whatsapp_id", "nombre", "chatwoot_account_id", "chatwoot_inbox_id"],
   // J7 (con la configuración de la organización, que usa J8 para sus topes).
-  configuracion_organizacion: ["max_automaticos_por_dia", "max_marketing_por_ventana", "ventana_marketing_dias", "cotizacion_vigencia_dias", "lista_espera_oferta_horas", "clase_muestra_anticipacion_min", "clase_muestra_horizonte_dias", "clase_muestra_correccion_horas", "umbral_faltas_consecutivas", "umbral_dias_deuda", "sucursal_sin_programa", "modo_cierre", "modulo_cotizador", "modulo_clase_muestra", "modulo_inscripcion", "modulo_operacion", "modulo_finanzas", "modulo_tableros"],
+  configuracion_organizacion: ["max_automaticos_por_dia", "max_marketing_por_ventana", "ventana_marketing_dias", "cotizacion_vigencia_dias", "lista_espera_oferta_horas", "clase_muestra_anticipacion_min", "clase_muestra_horizonte_dias", "clase_muestra_correccion_horas", "umbral_faltas_consecutivas", "umbral_dias_deuda", "horario_envio_inicio_min", "horario_envio_fin_min", "lead_a_medias_minutos", "bot_max_intentos", "ocupacion_a_reventar_pct", "ocupacion_vacio_pct", "sucursal_sin_programa", "modo_cierre", "modulo_cotizador", "modulo_clase_muestra", "modulo_inscripcion", "modulo_operacion", "modulo_finanzas", "modulo_tableros"],
+  // V5: los textos del bot que la escuela personalizó (los escribe la escuela; sin datos de personas) y las etapas del embudo (nombres y días de alerta).
+  texto_bot: ["clave", "texto"],
+  etapa_pipeline: ["nombre", "orden", "dias_alerta_sin_movimiento", "tipo_sistema", "es_ganado", "es_perdido"],
   // J8: las plantillas (sin su cuerpo de referencia) y las automatizaciones.
   plantilla_mensaje: ["codigo", "vertical_id", "categoria", "clase_mensaje", "tipo_content", "idioma", "estado_aprobacion", "activo"],
-  automatizacion: ["nombre", "vertical_id", "sucursal_id", "evento_disparador", "offset_minutos", "plantilla_id", "max_intentos", "espaciado_minutos", "hora_inicio_min", "hora_fin_min", "dias_permitidos", "activo"],
+  automatizacion: ["nombre", "vertical_id", "sucursal_id", "evento_disparador", "offset_minutos", "plantilla_id", "max_intentos", "espaciado_minutos", "hora_inicio_min", "hora_fin_min", "dias_permitidos", "max_atraso_dias", "activo"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

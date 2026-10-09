@@ -64,6 +64,11 @@ export interface EntradaReglas {
   plantilla: PlantillaParaReglas | null;
   /** Zona horaria IANA de la sucursal. Obligatoria para lo iniciado por el sistema. */
   zonaHoraria: string | null;
+  /**
+   * Horario de envío de la organización (V5): la escuela puede estrechar 09:00–20:00, nunca ampliarlo (CHECK en la base). Sin dato, el horario de siempre
+   * (`HORARIO_DE_ENVIO`). Lo pone `MessagingProvider` con `configuracion_organizacion`.
+   */
+  horario?: VentanaHoraria;
   /** Mensajes automáticos ya enviados a este teléfono en las últimas 24 h. */
   automaticosRecientes: number;
   /** Tope diario (`max_automaticos_por_dia` de la configuración de la organización). */
@@ -134,7 +139,7 @@ export function evaluarReglas(e: EntradaReglas): MotivoBloqueo | null {
 
   if (esIniciadoPorSistema({ origen, conLaPlantilla: plantilla !== null, ventanaAbierta })) {
     if (!e.zonaHoraria) return "sin_zona_horaria";
-    if (!dentroDeHorario(ahora, e.zonaHoraria)) return "fuera_de_horario";
+    if (!dentroDeHorario(ahora, e.zonaHoraria, e.horario ?? HORARIO_DE_ENVIO)) return "fuera_de_horario";
     if (e.automaticosRecientes >= e.limiteFrecuencia) return "tope_frecuencia";
   }
   // El marketing tiene además su propio tope, en cualquier caso: una plantilla de marketing nunca

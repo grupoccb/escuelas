@@ -29,6 +29,8 @@ import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeAutomatizaciones } from "./rutas/automatizaciones.ts";
 import { rutasDeCanales } from "./rutas/canales.ts";
 import { rutasDeConfiguracion } from "./rutas/configuracion.ts";
+import { rutasDeEtapas } from "./rutas/etapas.ts";
+import { rutasDeTextosBot } from "./rutas/textos-bot.ts";
 import { rutasDeGrupos } from "./rutas/grupos.ts";
 import { rutasDeModulos } from "./rutas/modulos.ts";
 import { rutasDeEventosInesperados } from "./rutas/eventos-inesperados.ts";
@@ -152,6 +154,8 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeProgramas(deps));
   api.use(rutasDeCanales(deps));
   api.use(rutasDeConfiguracion(deps));
+  api.use(rutasDeTextosBot(deps));
+  api.use(rutasDeEtapas(deps));
   api.use(rutasDeModulos(deps));
   api.use(rutasDePlantillas(deps));
   api.use(rutasDeAutomatizaciones(deps));
