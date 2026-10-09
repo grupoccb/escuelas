@@ -14,7 +14,7 @@
 
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
-import { moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
+import { bloquearLead, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
 import { describirSesion } from "./sesiones.ts";
 import { cancelarRecuperacionDeClase, programarRecuperacionDeClase } from "./recuperacion.ts";
 
@@ -55,6 +55,7 @@ export async function marcarAsistencia(tx: Consultas, e: { claseId: string; esta
     if (e.ahora.getTime() > desde.getTime() + config.claseMuestraCorreccionHoras * HORA_MS) return { ok: false, motivo: "fuera_de_la_ventana_de_correccion" };
   }
 
+  await bloquearLead(tx, clase.lead_id); // ED-08: lead → clase (reprogramar y cancelar toman el lead primero)
   // Condicional al estatus leído: si otra marca ganó primero, no se pisa.
   const cambio = await tx.clase_muestra.updateMany({ where: { id: clase.id, estatus: clase.estatus }, data: { estatus: e.estatus, asistencia_marcada_en: e.ahora, asistencia_marcada_por_usuario_id: e.usuarioId } });
   if (cambio.count !== 1) {

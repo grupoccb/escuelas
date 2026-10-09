@@ -15,7 +15,7 @@
 import { bloquearCupoDeGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
-import { etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
+import { bloquearLead, etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } from "../embudo/etapas.ts";
 import { crearAvisoMaestro } from "./avisos.ts";
 import { trasladarRegistroDeClase } from "./registro.ts";
 import { darPorRecuperadoAlProspecto } from "./asistencia.ts";
@@ -203,6 +203,7 @@ export interface EntradaDeAgenda {
 export async function agendarClaseMuestra(tx: Consultas, c: ContextoDeAgenda, entrada: EntradaDeAgenda): Promise<ResultadoDeAgenda> {
   const prospecto = await tx.prospecto.findFirst({ where: { id: entrada.prospectoId }, select: { id: true, lead_id: true, vertical_interes_id: true } });
   if (!prospecto) return { ok: false, motivo: "prospecto_inexistente" };
+  await bloquearLead(tx, prospecto.lead_id);
   if (!(await bloquearCupoDeGrupo(tx, entrada.grupoId))) return { ok: false, motivo: "grupo_inexistente" };
   const grupo = await cargarGrupoParaAgenda(tx, entrada.grupoId);
   if (!grupo) return { ok: false, motivo: "grupo_inexistente" };
@@ -239,6 +240,7 @@ export async function reprogramarClaseMuestra(tx: Consultas, c: ContextoDeAgenda
 
   const prospecto = await tx.prospecto.findFirst({ where: { id: vieja.prospecto_id }, select: { id: true, lead_id: true, vertical_interes_id: true } });
   if (!prospecto) return { ok: false, motivo: "prospecto_inexistente" };
+  await bloquearLead(tx, prospecto.lead_id);
   if (!(await bloquearGrupos(tx, [vieja.grupo_id, grupoId]))) return { ok: false, motivo: "grupo_inexistente" };
   // ED-07: con los candados en la mano, la clase se vuelve a leer: otra reprogramación o cancelación simultánea pudo cerrarla mientras esperábamos, y
   // entonces el motivo verdadero es que «ya no está agendada» (no que el prospecto «ya tiene una clase» en ese grupo, que es la que dejó la ganadora).
@@ -286,6 +288,7 @@ async function instructorDe(tx: Consultas, grupoId: string): Promise<string | nu
 export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motivo: string | null, ahora: Date): Promise<{ ok: true; clase: ClaseAnterior } | { ok: false; motivo: "clase_no_vigente" }> {
   const vieja = await tx.clase_muestra.findFirst({ where: { id: claseId }, select: { id: true, estatus: true, lead_id: true, prospecto_id: true, grupo_id: true, fecha_hora: true } });
   if (!vieja || vieja.estatus !== "agendada") return { ok: false, motivo: "clase_no_vigente" };
+  await bloquearLead(tx, vieja.lead_id); // ED-08: lead → clase, nunca al revés (reprogramar toma el lead y luego la clase)
   const cambio = await tx.clase_muestra.updateMany({ where: { id: vieja.id, estatus: "agendada" }, data: { estatus: "cancelada", motivo_cancelacion: motivo } });
   if (cambio.count !== 1) return { ok: false, motivo: "clase_no_vigente" };
   const otras = await tx.clase_muestra.count({ where: { lead_id: vieja.lead_id, estatus: "agendada" } });

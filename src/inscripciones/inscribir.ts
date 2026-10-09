@@ -19,7 +19,7 @@ import { InscripcionesActivas, bloquearCupoDeGrupo } from "../catalogo/cupo.ts";
 import { aFecha, deFecha, precioVigente, sumarDias, type FechaISO } from "../catalogo/precios.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { estatusEfectivo } from "../cotizador/cotizacion.ts";
-import { moverLeadAEtapa } from "../embudo/etapas.ts";
+import { bloquearLead, moverLeadAEtapa } from "../embudo/etapas.ts";
 import { problemasDeReglamentoVigente } from "../legal/aceptaciones.ts";
 import { edadCumplida } from "../lib/edad.ts";
 import { crearCargosAlInscribir, responsableDePago, type CargoCreado } from "../finanzas/cargos.ts";
@@ -183,6 +183,8 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
     cotizacionId = c?.id ?? null;
   }
 
+  // ED-08: el lead antes que el grupo (el bot, al agendar una clase muestra, toma el lead y luego el grupo).
+  if (prospecto.lead_id) await bloquearLead(tx, prospecto.lead_id);
   // El candado del cupo y, DESPUÉS, la cuenta (contar y tomar el lugar son una sola cosa).
   await bloquearCupoDeGrupo(tx, grupo.id);
   const previa = await tx.inscripcion.findFirst({ where: { alumno_id: alumno.id, grupo_id: grupo.id, estatus: "activa" }, select: { id: true } });

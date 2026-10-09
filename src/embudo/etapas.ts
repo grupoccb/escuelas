@@ -80,6 +80,16 @@ export async function moverLeadAEtapa(tx: Consultas, leadId: string, tipo: TipoS
 }
 
 /** El tipo de sistema de la etapa actual del lead (null si la etapa es propia de la escuela). */
+/**
+ * Orden de candados de la casa: LEAD → GRUPO → CLASE (ED-08). El bot toma el lead al registrar el mensaje del contacto y después el grupo al agendar; la API, la
+ * inscripción, la asistencia y el «listo para cerrar» tocan esas mismas filas. Si alguien las toma en otro orden, dos transacciones sobre el MISMO lead se esperan
+ * en cruz y Postgres aborta una (40P01). Quien vaya a tocar un grupo o una clase de un lead toma ANTES la fila del lead con esta función (una actualización sin
+ * efecto de `actualizado_en`: el candado dura hasta que termina la transacción).
+ */
+export async function bloquearLead(tx: Consultas, leadId: string): Promise<void> {
+  await tx.lead.updateMany({ where: { id: leadId }, data: { actualizado_en: new Date() } });
+}
+
 export async function tipoDeEtapaDelLead(tx: Consultas, leadId: string): Promise<TipoSistemaEtapa | null> {
   const lead = await tx.lead.findFirst({ where: { id: leadId }, select: { etapa: { select: { tipo_sistema: true } } } });
   return lead?.etapa.tipo_sistema ?? null;

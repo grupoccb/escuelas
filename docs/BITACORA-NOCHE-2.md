@@ -99,7 +99,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J9 | PENDIENTE | | Interfaz: tableros |
 | J10 | PENDIENTE | | Interfaz: recorridos en navegador |
 | K1 | PENDIENTE | | Prueba de fuego total |
-| K2 | PENDIENTE | | Concurrencia y ráfagas |
+| K2 | HECHO (parcial: EF-06, clases muestra vs inscripción, sigue siendo decisión de Eduardo; la ráfaga más grande probada es de 200 peticiones sobre un servidor y una base locales, no sobre AWS) | ver `git log` (`K2:`) | Ráfagas de 40 a 200 peticiones simultáneas contra el servidor HTTP real (cupo, conversión, cambio de grupo, pagos, webhooks de Chatwoot y Twilio, landing): 0 5xx, invariantes intactos, sin interbloqueos; resuelve ED-08, EH-12, EH-13 y EH-19 |
 | K3 | PENDIENTE | | Revisión de seguridad |
 | K4 | PENDIENTE | | Observabilidad |
 | K5 | PENDIENTE | | Respaldo y restauración |
@@ -2822,3 +2822,37 @@ scripts/test-navegador.ts         compila, recrea la base inscripciones_navegado
 **Componentes reutilizables** ya hechos: `BuscadorDeFamilia`, `Aceptaciones` (reglamento e imagen con evidencia), `MoverEtapa`, `TarjetaDeTarea`, `Cotizaciones`, `ClasesMuestraDeLead`, `GrupoDeOpciones` (botones táctiles), `Dialogo`.
 **Pantallas pendientes / salvedades**: J6 (familia y expediente), J7 (administración del catálogo: incluye la entrada de inventario), J8 (mensajería y usuarios: incluye cambiar el modo de cierre), J9 (tableros), J10 (recorridos). El modo `maestro_en_sitio` no tiene prueba en navegador (J4); la barra inferior del celular muestra 4 secciones y «Más» (si Eduardo prefiere otra jerarquía es un cambio de `navegacion.ts`).
 
+
+## K2. Concurrencia y ráfagas
+
+**Qué se hizo**
+- **Suite de ráfagas** `src/robustez/rafagas.itest.ts` (8 pruebas, en `test:int`): cada ráfaga sale por una `Barrera` del cliente (`src/testutil/carrera.ts`), contra la app de Express real en un puerto y Postgres real, y exige cero 5xx o conexiones rotas, los invariantes al final y latencia máxima por petición bajo 20 s. Cubre: **60 inscripciones** por el último lugar (1 gana con 201, 59 `grupo_lleno`); **40 conversiones** de leads distintos por 3 lugares (exactamente 3 inscritas); **30 cambios de grupo** hacia el último lugar y **40 cambios cruzados** A→B / B→A a la vez; **60 pagos** por todo el saldo de un cargo (1 entra) y **la misma clave de idempotencia 60 veces** (un solo pago, 59 respuestas 200 con el mismo id); **80 pagos cruzados** (repartos en orden opuesto sobre los mismos cargos de dos hermanos) con 4 barridos de finanzas a la vez; **200 webhooks de Chatwoot** (50 mensajes × 3 reintentos + 50 con firma inválida: un efecto por mensaje, el bot contesta una sola vez por contacto, 401 las inválidas); **200 webhooks de Twilio** (50 SID × 3, 25 estados, 25 firmas inválidas: UN reenvío por SID, 403 las inválidas); **150 envíos de la landing** (100 familias y 50 repeticiones del mismo teléfono: un lead por teléfono). Después de cada ráfaga con dinero o cupo se corre `cuadratura`.
+- **ED-08 resuelto** (el orden de candados que la etapa D dejó «razonado, no reproducido»). `src/robustez/candados.itest.ts` lo REPRODUCE: fuerza que el bot (que toma el lead al registrar el mensaje y luego el grupo al agendar) y la API (que tomaba el grupo y luego el lead) tengan cada uno su primer candado y esperen al otro; antes de la corrección Postgres abortaba una (`P2034`). Regla de la casa, ahora escrita en `bloquearLead` (`src/embudo/etapas.ts`): **LEAD → GRUPO → CLASE**. La toman `agendarClaseMuestra`, `reprogramarClaseMuestra`, `cancelarClaseMuestra`, `marcarAsistencia`, `marcarListoParaCerrar` y `inscribirAlumno`. Al corregirlo, la prueba D1 de «cancelar y reprogramar a la vez» detectó que mi primera versión (solo agendar y reprogramar) creaba un ciclo nuevo con cancelar (clase→lead contra lead→clase); por eso la regla se aplicó a todas las operaciones que tocan lead y clase.
+- **EH-12**: reintentar con la clave de un pago CANCELADO responde 409 `pago_cancelado` (antes 200 con el pago cancelado).
+- **EH-13**: la fecha de un pago no puede ser de hace más de 400 días (400 `fecha_muy_antigua`, además de la cota superior que ya había).
+- **EH-19**: `materializarVencidos` (el barrido que marca cargos como vencidos) actualiza una fila por sentencia, en orden de id, cada una confirmada sola: nunca sostiene un candado mientras espera otro, así que no puede formar un ciclo con un pago que reparte en otro orden. Prueba `src/robustez/pagos-bordes.itest.ts` (60 pagos contra 4 barridos).
+
+**Verificación** (copia limpia del árbol con solo los archivos de K2, base propia `inscripciones_k2_pruebas`)
+```
+$ npm run validar     → exit 0 · tests 625 · pass 625 · fail 0 (más los 31 de web)
+$ npm run test:int    → exit 0 · tests 1077 · pass 1077 · fail 0
+$ node --test src/robustez/rafagas.itest.ts
+  [rafaga] convertir: n=40 estados={"201":3,"409":37} p50=1086ms p95=1237ms max=1241ms
+  [rafaga] pagos al mismo cargo: n=60 estados={"201":1,"409":59} p50=357ms p95=472ms max=476ms
+  [rafaga] webhooks de Chatwoot: n=200 estados={"200":150,"401":50} p50=2970ms p95=3028ms max=3030ms
+  [rafaga] webhooks de Twilio: n=200 estados={"200":175,"403":25} p50=600ms p95=925ms max=967ms
+  [rafaga] landing: n=150 estados={"303":150} p50=2569ms p95=2900ms max=2979ms
+```
+Antes del arreglo, `candados.itest.ts` falla con «Transaction failed due to a write conflict or a deadlock» (P2034) en la llamada del bot.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El orden de candados es global (LEAD → GRUPO → CLASE), no un parche en un solo camino.** Alternativa descartada: invertir el orden del bot (grupo antes que lead): el bot actualiza el lead al registrar el mensaje, antes de saber que va a agendar.
+2. **EH-12 es 409, no 200.** Alternativa descartada: dejarlo en 200 (la caja lo lee como un cobro). Un reintento de un pago VIGENTE sigue devolviendo 200 con `repetido: true`.
+3. **EH-13: 400 días `[SUPUESTO]`** (un año con holgura para un pago que se registra tarde). Alternativa descartada: una columna de configuración por organización (más superficie para un dato que nadie va a cambiar).
+4. **EH-19 por sentencias de una fila**, no `FOR UPDATE SKIP LOCKED` (que habría exigido SQL crudo fuera de `src/datos/`). Costo: N sentencias en vez de una; el barrido corre cada 10 minutos y los vencidos nuevos son pocos.
+5. **Pool de 30 conexiones en las pruebas de ráfaga** (el de producción es 10 por omisión). La ráfaga mide los candados, no el tamaño del pool; con el pool de 10 las peticiones esperan su turno (latencia mayor) pero no fallan.
+
+**Para Eduardo**
+- **EF-06 (clase muestra e inscripción no se cuentan entre sí)** NO se resolvió: es una decisión de producto abierta, no un defecto («si es claro» no aplica). Sigue en `docs/SUPUESTOS-Y-DECISIONES.md`.
+- `[SUPUESTO]` 400 días como límite hacia atrás de la fecha de un pago (EH-13).
+- Lo que NO prueban estas ráfagas: el rendimiento con la base de la escuela (cientos de miles de filas) ni con varias tareas del backend a la vez; con una sola base y un solo proceso los candados de fila son los mismos que con diez procesos, pero el reparto de conexiones no.

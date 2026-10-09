@@ -48,7 +48,7 @@ const esquemaCancelar = objeto({ motivo: texto({ min: 3, max: 300 }) });
 function errorDePago(e: RechazoDePago): never {
   if (e.motivo === "tutor_inexistente" || e.motivo === "pago_inexistente") throw noEncontrado(e.message);
   if (e.motivo === "monto_invalido") throw validacion([{ campo: "monto", mensaje: e.message }]);
-  if (e.motivo === "fecha_futura") throw validacion([{ campo: "fecha", mensaje: e.message }]);
+  if (e.motivo === "fecha_futura" || e.motivo === "fecha_muy_antigua") throw validacion([{ campo: "fecha", mensaje: e.message }]);
   throw conflicto(e.message, [{ campo: "motivo", mensaje: e.motivo }, ...Object.entries(e.datos).map(([campo, valor]) => ({ campo, mensaje: Array.isArray(valor) ? valor.join(",") : String(valor) }))]);
 }
 

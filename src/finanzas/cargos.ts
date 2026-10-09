@@ -285,8 +285,15 @@ export async function materializarVencidos(db: BaseDatos, ahora: Date): Promise<
   let cambiados = 0;
   for (const s of await db.sucursal.findMany({ select: { id: true, zona_horaria: true } })) {
     const hoy = fechaLocal(ahora, s.zona_horaria);
-    const r = await db.cargo.updateMany({ where: { sucursal_id: s.id, estatus: "pendiente", fecha_vencimiento: { lt: aFecha(hoy) } }, data: { estatus: "vencido" } });
-    cambiados += r.count;
+    const donde = { sucursal_id: s.id, estatus: "pendiente" as const, fecha_vencimiento: { lt: aFecha(hoy) } };
+    // EH-19: UNA fila por sentencia, en orden de id, cada una confirmada sola. Un UPDATE masivo toma los candados de muchas filas a la vez, en el orden en que las
+    // encuentre, y un pago que reparte entre esos mismos cargos en otro orden podía interbloquearse con él (40P01). Así el barrido nunca sostiene un candado
+    // mientras espera otro: no puede formar un ciclo con nadie. La condición se repite por fila: si en el ínterin se pagó o se canceló, no se toca.
+    const ids = await db.cargo.findMany({ where: donde, select: { id: true }, orderBy: { id: "asc" } });
+    for (const { id } of ids) {
+      const r = await db.cargo.updateMany({ where: { ...donde, id }, data: { estatus: "vencido" } });
+      cambiados += r.count;
+    }
   }
   return cambiados;
 }

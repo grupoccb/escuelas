@@ -15,9 +15,12 @@ import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica } from "../datos/prisma.ts";
 import { aTexto, deDecimal, sumar, type Centavos } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
+import { diasEntre } from "../lib/periodo.ts";
 import { proponerDistribucion, validarDistribucion, type AplicacionPropuesta, type CargoAbierto, type ProblemaDeDistribucion } from "./distribucion.ts";
 
 export type MetodoDePago = "efectivo" | "tarjeta" | "transferencia";
+/** EH-13 [SUPUESTO]: lo más atrás que puede fechar un pago quien lo registra (un año y unos días de holgura). Una fecha de 1900 era un error de captura. */
+export const DIAS_MAXIMOS_DE_ANTIGUEDAD_DEL_PAGO = 400;
 export const METODOS_DE_PAGO = ["efectivo", "tarjeta", "transferencia"] as const;
 
 export type MotivoDeRechazoDePago =
@@ -28,6 +31,8 @@ export type MotivoDeRechazoDePago =
   | "saldo_cambio"
   | "clave_reutilizada"
   | "fecha_futura"
+  | "fecha_muy_antigua"
+  | "pago_cancelado"
   | "pago_inexistente"
   | "ya_cancelado";
 
@@ -110,11 +115,13 @@ export async function registrarPago(tx: Consultas, ctx: ContextoDePago, e: Entra
 
   // Idempotencia: lo que ya se registró con esta clave (ya con el candado de la familia, así que un reintento simultáneo ya espera a que el primero termine).
   if (e.clave) {
-    const previo = await tx.pago.findFirst({ where: { clave_idempotencia: e.clave }, select: { id: true, tutor_id: true, monto: true, metodo: true, aplicaciones: { select: { cargo_id: true, monto_aplicado: true }, orderBy: { creado_en: "asc" } } } });
+    const previo = await tx.pago.findFirst({ where: { clave_idempotencia: e.clave }, select: { id: true, tutor_id: true, monto: true, metodo: true, estatus: true, aplicaciones: { select: { cargo_id: true, monto_aplicado: true }, orderBy: { creado_en: "asc" } } } });
     if (previo) {
       if (previo.tutor_id !== e.tutorId || deDecimal(previo.monto) !== e.monto || previo.metodo !== e.metodo) {
         throw new RechazoDePago("clave_reutilizada", "Esa clave de idempotencia ya se usó con otro pago");
       }
+      // EH-12: repetir la clave de un pago que ya se CANCELÓ no es «el mismo cobro»: devolver 200 con ese pago invita a leerlo como cobrado. Es un conflicto: para cobrar de nuevo, otra clave.
+      if (previo.estatus === "cancelado") throw new RechazoDePago("pago_cancelado", "Ese pago ya se canceló: para cobrar de nuevo registra otro con una clave distinta");
       return { id: previo.id, repetido: true, tutorId: previo.tutor_id, aplicaciones: previo.aplicaciones.map((a) => ({ cargoId: a.cargo_id, monto: deDecimal(a.monto_aplicado) })), cargosSaldados: [] };
     }
   }
@@ -145,6 +152,8 @@ export async function registrarPago(tx: Consultas, ctx: ContextoDePago, e: Entra
   const hoy = fechaLocal(ctx.ahora, zona);
   const fecha = e.fecha ?? hoy;
   if (fecha > hoy) throw new RechazoDePago("fecha_futura", "La fecha del pago no puede ser futura");
+  // EH-13: tampoco una fecha de hace años (un 1900-01-01 es una captura equivocada y descuadra los reportes por periodo).
+  if (diasEntre(fecha, hoy) > DIAS_MAXIMOS_DE_ANTIGUEDAD_DEL_PAGO) throw new RechazoDePago("fecha_muy_antigua", `La fecha del pago no puede ser de hace más de ${DIAS_MAXIMOS_DE_ANTIGUEDAD_DEL_PAGO} días`);
 
   try {
     const pago = await tx.pago

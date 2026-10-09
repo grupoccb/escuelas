@@ -8,7 +8,7 @@
 // El modo vive en `configuracion_organizacion.modo_cierre`: cambiarlo cambia el comportamiento sin tocar código. La matriz de quién puede
 // convertir en cada modo es `puedeConvertir` (pura, con su tabla de pruebas); las rutas la consultan en cada petición.
 
-import { moverLeadAEtapa } from "../embudo/etapas.ts";
+import { bloquearLead, moverLeadAEtapa } from "../embudo/etapas.ts";
 import { altaConAlcance, type BaseDatos } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
 import type { ModoDeCierre } from "../configuracion/index.ts";
@@ -56,6 +56,7 @@ export async function marcarListoParaCerrar(db: BaseDatos, a: { organizacionId: 
     const pendiente = await tx.tarea_asesor.findFirst({ where: { lead_id: clase.lead_id, tipo: "listo_para_cerrar", estado: "pendiente" }, select: { id: true } });
     if (clase.listo_para_cerrar_en && pendiente) return { ok: true, creado: false, leadId: clase.lead_id, etapaMovida: false, tareaId: pendiente.id };
 
+    await bloquearLead(tx, clase.lead_id); // ED-08: lead → clase
     await tx.clase_muestra.updateMany({ where: { id: clase.id, listo_para_cerrar_en: null }, data: { listo_para_cerrar_en: a.ahora, listo_para_cerrar_por_usuario_id: a.usuarioId } });
     const mov = await moverLeadAEtapa(tx, clase.lead_id, "negociacion", { motivo: "listo_para_cerrar", ahora: a.ahora });
     let tareaId = pendiente?.id ?? null;
