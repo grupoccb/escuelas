@@ -7,6 +7,7 @@ import { InscripcionesActivas } from "../catalogo/cupo.ts";
 import { deDecimal, deTexto, sumar } from "../lib/dinero.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { OcupacionFija } from "../testutil/semilla.ts";
+import { materializarVencidos } from "../finanzas/cargos.ts";
 import { cuadratura } from "../finanzas/cuadratura.ts";
 import { estadoDeCuentaDeFamilia } from "../finanzas/estado-cuenta.ts";
 import { levantarApi, sembrarUsuario } from "../testutil/api.ts";
@@ -212,4 +213,25 @@ test("los bordes del mes: una alta o una baja del día 1 y del último día cuen
   } finally {
     await otro.cerrar();
   }
+});
+
+test("EK-I03: la cartera vencida es la MISMA antes y después de que el barrido marque los cargos como «vencido» (el barrido de producción los materializa)", async () => {
+  const antes = (await reporte("?mes=2026-11")).cuerpo.cartera_vencida;
+  assert.ok(deTexto(antes.total) > 0n);
+  const marcados = await materializarVencidos(m.db, m.reloj.ahora);
+  assert.ok(marcados > 0, "el barrido tenía cargos que pasar a «vencido»");
+  assert.ok((await prisma.cargo.count({ where: { organizacion_id: m.org.organizacionId, estatus: "vencido" } })) > 0);
+  const despues = (await reporte("?mes=2026-11")).cuerpo.cartera_vencida;
+  assert.deepEqual(despues, antes);
+});
+
+test("EK-I03: el total de ALUMNOS cuenta personas distintas; las inscripciones, cada inscripción (un alumno en dos programas es 1 alumno y 2 inscripciones)", async () => {
+  const antes = (await reporte("?mes=2026-11")).cuerpo.activos;
+  const otro = (await m.programa({ sucursalId: m.norte, cupo: 3, mensualidad: "1000.00" })).grupoId;
+  const a1 = await prisma.inscripcion.findFirstOrThrow({ where: { id: ids["A1"]! }, select: { alumno_id: true } });
+  const r = await m.admin.post("/api/inscripciones", { alumno_id: a1.alumno_id, grupo_id: otro });
+  assert.equal(r.estado, 201, JSON.stringify(r.cuerpo));
+  const despues = (await reporte("?mes=2026-11")).cuerpo.activos;
+  assert.equal(despues.total_inscripciones, antes.total_inscripciones + 1);
+  assert.equal(despues.total_alumnos, antes.total_alumnos, "el mismo alumno no suma otra vez");
 });

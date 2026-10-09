@@ -190,3 +190,14 @@ test("EK-I04: el alta de un gasto es idempotente con clave: el reintento y la ca
   assert.equal((await enviar("gasto-clave-0001")).estado, 201);
   assert.equal((await m.admin.post(`/api/campanas/${nueva}/gastos`, { fecha: "2026-10-03", monto: "1.00", clave_idempotencia: "corta" })).estado, 400, "clave inválida");
 });
+
+test("EK-I03: «clases asistidas» cuenta SOLO las que asistieron (no las no asistidas ni las agendadas) (las no asistidas, agendadas y canceladas sí cuentan como clases muestra; solo las reagendadas no)", async () => {
+  const nueva = (await prisma.campana.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Campaña de asistencias", origen: "tiktok" } })).id;
+  for (const estatus of ["asistio", "no_asistio", "agendada", "cancelada", "asistio", "reagendada"] as const) {
+    const fam = await sembrarFamilia(prisma, m.org, {});
+    await prisma.lead.update({ where: { id: fam.leadId }, data: { campana_id: nueva, creado_en: new Date("2026-10-07T16:00:00Z") } });
+    await prisma.clase_muestra.create({ data: { organizacion_id: m.org.organizacionId, lead_id: fam.leadId, prospecto_id: fam.prospectoId, grupo_id: grupo, fecha_hora: new Date("2026-10-07T18:00:00Z"), estatus, agendada_por: "usuario", agendada_por_usuario_id: m.adminId } });
+  }
+  const f = (await reporte(`?campana_id=${nueva}`)).cuerpo.filas[0]!;
+  assert.deepEqual([f.leads, f.clases_muestra, f.clases_asistidas], [6, 5, 2]);
+});
