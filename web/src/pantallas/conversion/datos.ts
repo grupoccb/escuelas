@@ -1,7 +1,7 @@
 // Lo que el asistente junta de la API para MOSTRAR lo ya capturado (el bot, la landing, el registro del maestro, la cotización). Solo lee.
 
 import { api, type Pagina } from "../../api/cliente.ts";
-import type { ClaseMuestra, LeadDetalle, ProgramaCotizado } from "../../api/tipos.ts";
+import type { ClaseMuestra, LeadDetalle, Modulos, ProgramaCotizado } from "../../api/tipos.ts";
 import type { Registro } from "../maestro/tipos.ts";
 import type { Falta } from "./faltantes.ts";
 
@@ -38,11 +38,12 @@ export interface Oferta {
   programas: ProgramaCotizado[];
 }
 
-export async function cargarCapturado(leadId: string, prospectoIds: readonly string[], senal: AbortSignal): Promise<Record<string, CapturadoDeProspecto>> {
-  const cotizaciones = await api.get<Pagina<CotizacionDeLead>>(`/api/leads/${leadId}/cotizaciones`, { limite: 50 }, senal);
+export async function cargarCapturado(leadId: string, prospectoIds: readonly string[], senal: AbortSignal, modulos: Modulos): Promise<Record<string, CapturadoDeProspecto>> {
+  // V1: lo que pertenece a un módulo apagado ni se pide (ni cotizaciones ni clases muestra): el asistente trabaja con lo que sí hay.
+  const cotizaciones: Pagina<CotizacionDeLead> = modulos.cotizador ? await api.get<Pagina<CotizacionDeLead>>(`/api/leads/${leadId}/cotizaciones`, { limite: 50 }, senal) : { datos: [], paginacion: { pagina: 1, limite: 50, total: 0 } };
   const salida: Record<string, CapturadoDeProspecto> = {};
   for (const id of prospectoIds) {
-    const clases = await api.get<Pagina<ClaseMuestra>>("/api/clases-muestra", { prospecto_id: id, limite: 20 }, senal);
+    const clases: Pagina<ClaseMuestra> = modulos.clase_muestra ? await api.get<Pagina<ClaseMuestra>>("/api/clases-muestra", { prospecto_id: id, limite: 20 }, senal) : { datos: [], paginacion: { pagina: 1, limite: 20, total: 0 } };
     const vigentes = clases.datos.filter((c) => c.estatus === "agendada" || c.estatus === "asistio" || c.estatus === "no_asistio");
     const clase = vigentes[vigentes.length - 1] ?? null;
     const registro = clase ? await api.get<Registro>(`/api/clases-muestra/${clase.id}/registro`, undefined, senal).catch(() => null) : null;
@@ -53,7 +54,7 @@ export async function cargarCapturado(leadId: string, prospectoIds: readonly str
 }
 
 /** Los programas de la edad (o de la fecha de nacimiento, si ya se conoce) en la sucursal del lead, con grupos, lugares reales, precio y promociones. */
-export async function cargarOferta(lead: LeadDetalle, p: { edad: number | null; nacimiento: string | null }, senal: AbortSignal): Promise<Oferta | null> {
-  if (!lead.sucursal || (p.edad === null && !p.nacimiento)) return null;
+export async function cargarOferta(lead: LeadDetalle, p: { edad: number | null; nacimiento: string | null }, senal: AbortSignal, modulos: Modulos): Promise<Oferta | null> {
+  if (!modulos.cotizador || !lead.sucursal || (p.edad === null && !p.nacimiento)) return null;
   return api.get<Oferta>("/api/cotizador", { vertical_id: lead.vertical.id, sucursal_id: lead.sucursal.id, ...(p.nacimiento ? { fecha_nacimiento: p.nacimiento } : { edad: p.edad ?? undefined }) }, senal);
 }

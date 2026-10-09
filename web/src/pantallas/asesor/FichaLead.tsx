@@ -47,7 +47,7 @@ function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
 
 export default function FichaLead() {
   const { id = "" } = useParams();
-  const { puede } = useSesion();
+  const { puede, moduloEncendido } = useSesion();
   const lead = useCarga((senal) => api.get<LeadDetalle>(`/api/leads/${id}`, undefined, senal), [id]);
   const etapas = useCarga((senal) => api.get<{ datos: Etapa[] }>("/api/etapas", undefined, senal).then((r) => r.datos), []);
   const motivos = useCarga((senal) => api.get<{ datos: MotivoPerdida[] }>("/api/motivos-perdida", { activo: true }, senal).then((r) => r.datos), []);
@@ -142,8 +142,8 @@ export default function FichaLead() {
         </dl>
       </Tarjeta>
 
-      <Cotizaciones lead={d} puedeEscribir={escribir} />
-      <ClasesMuestraDeLead lead={d} puedeEscribir={puede("clases_muestra:escribir")} alCambiar={recargar} />
+      {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} /> : null}
+      {moduloEncendido("clase_muestra") ? <ClasesMuestraDeLead lead={d} puedeEscribir={puede("clases_muestra:escribir")} alCambiar={recargar} /> : null}
 
       {tareas.datos && tareas.datos.datos.length > 0 ? (
         <Tarjeta titulo={`Tareas pendientes (${tareas.datos.paginacion.total})`}>

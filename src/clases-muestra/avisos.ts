@@ -11,6 +11,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { ValorJson } from "../datos/tipos.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
+import { leerModulos } from "../modulos/index.ts";
 import type { DatosDeAviso, MessagingProvider, TipoDeAviso } from "../mensajeria/index.ts";
 import { describirSesion } from "./sesiones.ts";
 
@@ -121,6 +122,9 @@ export async function barrerAvisosMaestro(deps: DepsAvisos): Promise<ResumenAvis
   for (const org of organizaciones) {
     try {
       const db = conAlcance(deps.prisma, org.id);
+      // V1: con la clase muestra apagada no se manda ningún aviso al maestro. Lo pendiente se queda como está (no se pierde ni se manda): al volver a encender,
+      // `avisarAInstructor` aplica sus reglas de siempre (descarta lo que ya pasó, recorre lo que cae fuera de horario).
+      if (!(await leerModulos(db)).clase_muestra) continue;
       resumen.recuperados += await deps.mensajeria.recuperarAvisosInciertos(db);
       const pendientes = await db.aviso_maestro.findMany({ where: { entrega: "pendiente", programado_para: { lte: ahora } }, select: { id: true }, orderBy: [{ programado_para: "asc" }, { id: "asc" }], take: POR_CORRIDA });
       for (const { id } of pendientes) {

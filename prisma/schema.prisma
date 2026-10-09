@@ -159,6 +159,14 @@ model configuracion_organizacion {
   umbral_faltas_consecutivas Int                           @default(3)
   /// Días de atraso con los que una familia con deuda vencida genera su tarea para el asesor (H6). Entre 1 y 365 (CHECK).
   umbral_dias_deuda         Int                            @default(15)
+  /// Módulos por organización (V1). La captación es el módulo base y NO tiene columna: nunca se apaga. Sin fila de configuración, todos encendidos.
+  /// Las dependencias entre módulos (inscripción necesita el cotizador; finanzas y operación necesitan inscripción; tableros necesita inscripción, finanzas y clase muestra) las impone un CHECK.
+  modulo_cotizador          Boolean                        @default(true)
+  modulo_clase_muestra      Boolean                        @default(true)
+  modulo_inscripcion        Boolean                        @default(true)
+  modulo_operacion          Boolean                        @default(true)
+  modulo_finanzas           Boolean                        @default(true)
+  modulo_tableros           Boolean                        @default(true)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)

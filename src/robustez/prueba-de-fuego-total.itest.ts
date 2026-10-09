@@ -69,6 +69,12 @@ before(async () => {
   );
   admin = api.cliente();
   assert.equal((await admin.login(SLUG, u.correo, u.contrasena)).estado, 201);
+  // 3. V1: la plantilla deja encendida SOLO la captación. Para operar de punta a punta, el administrador enciende los demás módulos desde Administración (la API), sin tocar código.
+  const modulos = await admin.get<{ modulos: { id: string; encendido: boolean }[] }>("/api/modulos");
+  assert.deepEqual(modulos.cuerpo.modulos.filter((x) => x.encendido).map((x) => x.id), ["captacion"], "la escuela nueva arranca con solo la captación");
+  assert.equal((await admin.get("/api/cargos")).estado, 404, "lo apagado no responde");
+  const encendidos = await admin.put("/api/modulos", { cotizador: true, clase_muestra: true, inscripcion: true, operacion: true, finanzas: true, tableros: true });
+  assert.equal(encendidos.estado, 200, motivo(encendidos));
 });
 after(async () => {
   await api.cerrar();

@@ -6,9 +6,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearApp } from "../http/app.ts";
-import { declaracionDe, type DeclaracionDeAcceso } from "./autorizar.ts";
 import type { Permiso } from "./permisos.ts";
+import { appReal, pilaDe, recorrer, type RutaReal } from "../testutil/rutas-reales.ts";
 import { escucharSinReuso, puertoDe } from "../testutil/servidor.ts";
 
 type Esperado = Permiso | "sesion" | "publica";
@@ -54,6 +53,8 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "DELETE /api/bandejas-chatwoot/:id": "catalogo:escribir",
   "GET /api/configuracion": "catalogo:escribir",
   "PATCH /api/configuracion": "catalogo:escribir",
+  "GET /api/modulos": "catalogo:escribir",
+  "PUT /api/modulos": "catalogo:escribir",
   "GET /api/plantillas": "catalogo:escribir",
   "POST /api/plantillas": "catalogo:escribir",
   "PATCH /api/plantillas/:id": "catalogo:escribir",
@@ -227,31 +228,6 @@ const LAS_RUTAS: Record<string, Esperado> = {
 // /l/:vertical es la landing pública (E1): sin sesión a propósito; su protección (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
 const FUERA_DE_API = ["GET /salud", "GET /salud/lista", "GET /metricas", "POST /webhooks/chatwoot", "POST /webhooks/twilio/entrantes", "POST /webhooks/twilio/estados", "GET /l/:vertical", "POST /l/:vertical"];
 
-interface RutaReal {
-  clave: string;
-  declaraciones: DeclaracionDeAcceso[];
-}
-
-/* eslint-disable @typescript-eslint/no-explicit-any -- internos de Express 5 */
-export function recorrer(stack: any[], prefijo = ""): RutaReal[] {
-  const salida: RutaReal[] = [];
-  for (const capa of stack) {
-    if (capa.route) {
-      for (const metodo of Object.keys(capa.route.methods)) {
-        salida.push({
-          clave: `${metodo.toUpperCase()} ${prefijo}${capa.route.path}`,
-          declaraciones: (capa.route.stack as any[]).map((c) => declaracionDe(c.handle)).filter((d): d is DeclaracionDeAcceso => d !== undefined),
-        });
-      }
-    } else if (capa.handle?.stack) {
-      const golpe = (capa.matchers as ((p: string) => { path?: string } | false)[]).map((m) => m("/api/yo") || m("/l/x") || m("/x")).find(Boolean);
-      salida.push(...recorrer(capa.handle.stack, prefijo + ((golpe && golpe.path) || "")));
-    }
-  }
-  return salida;
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
 /** Los problemas entre las rutas reales y la tabla acordada. Vacío = todo en orden. */
 export function comparar(reales: RutaReal[], acordado: Record<string, Esperado>): string[] {
   const problemas: string[] = [];
@@ -277,22 +253,6 @@ export function comparar(reales: RutaReal[], acordado: Record<string, Esperado>)
   for (const clave of Object.keys(acordado)) if (!vistas.has(clave)) problemas.push(`${clave}: está en la tabla pero no existe en el router`);
   return problemas;
 }
-
-function appReal() {
-  return crearApp({
-    pingDb: async () => {},
-    secretoWebhookChatwoot: "x",
-    procesarEntrante: async () => ({ resultado: "x" }),
-    registrarTomaDeConversacion: async () => "x",
-    estadosEntrega: { interpretar: () => null },
-    registrarEstadoEntrega: async () => "x",
-    api: { prisma: {} as never },
-    landing: { prisma: {} as never },
-  });
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pilaDe = (app: unknown): any[] => (app as { router: { stack: any[] } }).router.stack;
 
 test("las rutas de /api del router real son EXACTAMENTE las de la tabla acordada, cada una con su permiso", () => {
   const todas = recorrer(pilaDe(appReal()));

@@ -1,14 +1,28 @@
 // Textos y reglas puras de la administración de mensajería (J8): cómo se llama cada evento, cuánto es un desfase en palabras y qué significa cada origen y causa de un evento inesperado.
 
-export const EVENTOS: Record<string, { titulo: string; sentido: "antes" | "despues"; ayuda: string }> = {
-  lead_sin_respuesta: { titulo: "Reenganche de un contacto que dejó de contestar", sentido: "despues", ayuda: "Minutos después de su último mensaje." },
-  clase_muestra_proxima: { titulo: "Recordatorio de la clase muestra", sentido: "antes", ayuda: "Minutos antes de la clase (negativo). Si ya no alcanza, se descarta." },
-  clase_muestra_no_asistio: { titulo: "Recuperación de quien no llegó a la clase muestra", sentido: "despues", ayuda: "Minutos después de marcar que no asistió." },
-  lead_frio: { titulo: "Lead sin movimiento", sentido: "despues", ayuda: "Minutos extra después de cumplirse los días de su etapa." },
-  promocion_por_vencer: { titulo: "Promoción por vencer", sentido: "antes", ayuda: "Minutos antes de que acabe la promoción (negativo)." },
-  inscripcion_creada: { titulo: "Bienvenida de inscripción", sentido: "despues", ayuda: "Minutos después de inscribirse." },
-  cargo_por_vencer: { titulo: "Recordatorio de pago antes de vencer", sentido: "antes", ayuda: "Minutos antes del día de vencimiento (negativo)." },
-  cargo_vencido: { titulo: "Recordatorio de pago atrasado", sentido: "despues", ayuda: "Minutos después del vencimiento; los siguientes intentos salen cada «espaciado»." },
+import type { ModuloId } from "../../api/tipos.ts";
+
+/** Cada evento con el módulo al que pertenece: apagado el módulo, la automatización queda en pausa (no programa ni manda nada). */
+export const EVENTOS: Record<string, { titulo: string; sentido: "antes" | "despues"; ayuda: string; modulo: ModuloId }> = {
+  lead_sin_respuesta: { titulo: "Reenganche de un contacto que dejó de contestar", sentido: "despues", ayuda: "Minutos después de su último mensaje.", modulo: "captacion" },
+  clase_muestra_proxima: { titulo: "Recordatorio de la clase muestra", sentido: "antes", ayuda: "Minutos antes de la clase (negativo). Si ya no alcanza, se descarta.", modulo: "clase_muestra" },
+  clase_muestra_no_asistio: { titulo: "Recuperación de quien no llegó a la clase muestra", sentido: "despues", ayuda: "Minutos después de marcar que no asistió.", modulo: "clase_muestra" },
+  lead_frio: { titulo: "Lead sin movimiento", sentido: "despues", ayuda: "Minutos extra después de cumplirse los días de su etapa.", modulo: "captacion" },
+  promocion_por_vencer: { titulo: "Promoción por vencer", sentido: "antes", ayuda: "Minutos antes de que acabe la promoción (negativo).", modulo: "cotizador" },
+  inscripcion_creada: { titulo: "Bienvenida de inscripción", sentido: "despues", ayuda: "Minutos después de inscribirse.", modulo: "inscripcion" },
+  cargo_por_vencer: { titulo: "Recordatorio de pago antes de vencer", sentido: "antes", ayuda: "Minutos antes del día de vencimiento (negativo).", modulo: "finanzas" },
+  cargo_vencido: { titulo: "Recordatorio de pago atrasado", sentido: "despues", ayuda: "Minutos después del vencimiento; los siguientes intentos salen cada «espaciado».", modulo: "finanzas" },
+};
+
+/** El nombre del módulo, para decirle a la escuela por qué una automatización está en pausa. */
+export const NOMBRE_DE_MODULO: Record<ModuloId, string> = {
+  captacion: "Captación",
+  cotizador: "Cotizador",
+  clase_muestra: "Clase muestra",
+  inscripcion: "Inscripción",
+  operacion: "Operación diaria",
+  finanzas: "Finanzas",
+  tableros: "Tableros",
 };
 
 export const tituloDeEvento = (e: string): string => EVENTOS[e]?.titulo ?? e.replace(/_/g, " ");

@@ -2,7 +2,7 @@
 //
 //   POST   /api/sesion          { organizacion?, correo, contrasena }   → 201 + cookie
 //   DELETE /api/sesion                                                  → 204 (borra la cookie; exige el encabezado anti-CSRF como toda escritura)
-//   GET    /api/yo                                                      → el usuario de la sesión
+//   GET    /api/yo                                                      → el usuario de la sesión, sus permisos y los módulos encendidos de su organización
 //   POST   /api/yo/contrasena   { actual, nueva }                       → 204; cierra las demás sesiones
 
 import { Router, type Request, type Response } from "express";
@@ -16,10 +16,11 @@ import { ErrorApi, demasiadasPeticiones, validacion } from "../errores.ts";
 import { correo, objeto, opcional, parsear, texto, textoLiteral } from "../validar.ts";
 import { normalizarIp } from "../../http/ip.ts";
 import { soloSesion } from "../autorizar.ts";
-import { permisosDe } from "../permisos.ts";
+import { permisosEfectivos } from "../modulos-rutas.ts";
 import { registrarCambio } from "../registro.ts";
 import { LIMITE_CUERPO_LOGIN } from "../cuerpos.ts";
 import { leerConfiguracion } from "../../configuracion/index.ts";
+import { leerModulos } from "../../modulos/index.ts";
 
 const esquemaLogin = objeto({
   organizacion: opcional(texto({ max: 63, minusculas: true })),
@@ -84,13 +85,17 @@ export function rutasDeSesionPropia(deps: DepsApi): Router {
       select: { id: true, nombre: true },
       orderBy: [{ nombre: "asc" }, { id: "asc" }],
     });
+    const modulos = await leerModulos(ctx.db);
     res.json({
       usuario: { id: ctx.usuario.id, correo: ctx.usuario.correo, nombre: ctx.usuario.nombre, rol: ctx.usuario.rol },
       organizacion,
       sucursales,
-      permisos: permisosDe(ctx.usuario.rol),
+      // V1: los permisos EFECTIVOS: los del rol menos los de los módulos apagados (así la interfaz no muestra nada de lo que no está encendido).
+      permisos: permisosEfectivos(ctx.usuario.rol, modulos),
       // J1: lo que la interfaz necesita para armarse sin pedir más (quién cierra la inscripción y dónde está Chatwoot).
       configuracion: { modo_cierre: (await leerConfiguracion(ctx.db)).modoCierre, chatwoot_url_publica: deps.chatwootUrlPublica },
+      // V1: los módulos encendidos de la organización. La interfaz oculta lo apagado y no pide nada de ello.
+      modulos,
     });
   });
 

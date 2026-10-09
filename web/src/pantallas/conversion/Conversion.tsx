@@ -8,7 +8,7 @@ import { api, ErrorDeApi, type Pagina } from "../../api/cliente.ts";
 import type { LeadDetalle, Tarea } from "../../api/tipos.ts";
 import { hoyLocal } from "../../lib/fechas.ts";
 import { aEntero } from "../../lib/numeros.ts";
-import { useSesion } from "../../sesion/SesionContext.tsx";
+import { useSesion, useYo } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { cargarCapturado, cargarOferta, type Oferta, type ResultadoDeConversion, type Vista } from "./datos.ts";
@@ -21,6 +21,7 @@ const PASO_DEL_RECHAZO: Record<string, Paso> = { grupo_lleno: "grupo", fuera_de_
 
 function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista; recargar: () => void }) {
   const { puede } = useSesion();
+  const { modulos } = useYo();
   const hoy = hoyLocal();
   const pendientes = vista.prospectos.filter((p) => !p.ya_convertido).map((p) => p.prospecto_id);
   const clave = pendientes.join(",");
@@ -30,7 +31,7 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
   const [resultado, setResultado] = useState<ResultadoDeConversion | null>(null);
   const confirmar = useAccion();
 
-  const capturado = useCarga((senal) => cargarCapturado(lead.id, pendientes, senal), [lead.id, clave]);
+  const capturado = useCarga((senal) => cargarCapturado(lead.id, pendientes, senal, modulos), [lead.id, clave]);
   const tareas = useCarga((senal) => (puede("tareas:leer") ? api.get<Pagina<Tarea>>("/api/tareas", { lead_id: lead.id, tipo: "listo_para_cerrar", estado: "pendiente", limite: 1 }, senal) : Promise.resolve(null)), [lead.id]);
 
   // La fecha de nacimiento (la tecleada, si es válida, o la del registro) afina la oferta: la edad al corte del programa.
@@ -43,7 +44,7 @@ function Asistente({ lead, vista, recargar }: { lead: LeadDetalle; vista: Vista;
   const ofertas = useCarga(
     async (senal) => {
       const salida: Record<string, Oferta | null> = {};
-      for (const id of pendientes) salida[id] = await cargarOferta(lead, { edad: lead.prospectos.find((p) => p.id === id)?.edad_declarada ?? null, nacimiento: nacimiento(id) }, senal);
+      for (const id of pendientes) salida[id] = await cargarOferta(lead, { edad: lead.prospectos.find((p) => p.id === id)?.edad_declarada ?? null, nacimiento: nacimiento(id) }, senal, modulos);
       return salida;
     },
     [lead.id, claveDeOferta],

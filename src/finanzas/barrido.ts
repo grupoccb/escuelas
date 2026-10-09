@@ -10,6 +10,7 @@ import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
 import { barrerTareasDeCobranza } from "../cobranza/tareas.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
+import { leerModulos } from "../modulos/index.ts";
 import { generarMensualidades, materializarVencidos } from "./cargos.ts";
 
 export interface ResumenFinanzas {
@@ -29,6 +30,15 @@ export async function barrerFinanzas(deps: { prisma: PrismaRaiz; reloj?: () => D
     if (deps.organizacionId !== undefined && org.id !== deps.organizacionId) continue;
     resumen.organizaciones++;
     const db = conAlcance(deps.prisma, org.id);
+    // V1: con las finanzas apagadas no se genera ninguna mensualidad, no se vence ningún cargo y no se crea ninguna tarea de cobranza. Al encender, la mensualidad del mes en
+    // curso se genera una sola vez (idempotente por inscripción y periodo); los meses que pasaron durante el apagón NO se generan solos.
+    try {
+      if (!(await leerModulos(db)).finanzas) continue;
+    } catch (e) {
+      resumen.errores++;
+      log.error("finanzas_modulos_error", { organizacion: org.id, error: (e as Error).message });
+      continue;
+    }
     try {
       const g = await generarMensualidades(db, ahora);
       resumen.mensualidadesGeneradas += g.creados;

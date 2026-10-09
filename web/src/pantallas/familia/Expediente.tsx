@@ -175,52 +175,58 @@ function PanelOperativo({ o }: { o: Operativo }) {
   const a = o.asistencia;
   return (
     <div className="pila" data-prueba="panel-operativo">
-      <Tarjeta titulo="Asistencia">
-        <dl className="datos">
-          <dt>Últimos 30 días</dt>
-          <dd data-prueba="asistencia-30">
-            <strong>{a.porcentaje_30_dias === null ? "—" : `${a.porcentaje_30_dias} %`}</strong>
-          </dd>
-          <dt>Faltas seguidas</dt>
-          <dd data-prueba="racha-de-faltas">
-            {a.racha_de_faltas} {a.racha_de_faltas >= a.umbral_de_faltas ? <Insignia tono="alerta">En el umbral ({a.umbral_de_faltas})</Insignia> : null}
-          </dd>
-        </dl>
-      </Tarjeta>
-      <Tarjeta titulo="Eventos">
-        {o.eventos.length === 0 ? <p className="muted">Sin eventos todavía.</p> : null}
-        <ul className="lista-tarjetas">
-          {o.eventos.map((e) => (
-            <li key={e.evento.id} className="fila fila-entre">
-              <span>
-                {e.evento.nombre} · {formatearFecha(e.evento.fecha)}
-              </span>
-              <span className="muted">
-                {e.estatus}
-                {e.resultado ? ` · ${e.resultado}` : ""}
-                {e.nivel_otorgado ? ` · ${e.nivel_otorgado.nombre}` : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Tarjeta>
-      <Tarjeta titulo="Productos comprados">
-        {o.productos_comprados.disponible ? (
-          o.productos_comprados.productos.length === 0 ? (
-            <p className="muted">Sin compras.</p>
+      {a ? (
+        <Tarjeta titulo="Asistencia">
+          <dl className="datos">
+            <dt>Últimos 30 días</dt>
+            <dd data-prueba="asistencia-30">
+              <strong>{a.porcentaje_30_dias === null ? "—" : `${a.porcentaje_30_dias} %`}</strong>
+            </dd>
+            <dt>Faltas seguidas</dt>
+            <dd data-prueba="racha-de-faltas">
+              {a.racha_de_faltas} {a.racha_de_faltas >= a.umbral_de_faltas ? <Insignia tono="alerta">En el umbral ({a.umbral_de_faltas})</Insignia> : null}
+            </dd>
+          </dl>
+        </Tarjeta>
+      ) : null}
+      {o.eventos ? (
+        <Tarjeta titulo="Eventos">
+          {o.eventos.length === 0 ? <p className="muted">Sin eventos todavía.</p> : null}
+          <ul className="lista-tarjetas">
+            {o.eventos.map((e) => (
+              <li key={e.evento.id} className="fila fila-entre">
+                <span>
+                  {e.evento.nombre} · {formatearFecha(e.evento.fecha)}
+                </span>
+                <span className="muted">
+                  {e.estatus}
+                  {e.resultado ? ` · ${e.resultado}` : ""}
+                  {e.nivel_otorgado ? ` · ${e.nivel_otorgado.nombre}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Tarjeta>
+      ) : null}
+      {o.productos_comprados ? (
+        <Tarjeta titulo="Productos comprados">
+          {o.productos_comprados.disponible ? (
+            o.productos_comprados.productos.length === 0 ? (
+              <p className="muted">Sin compras.</p>
+            ) : (
+              <ul data-prueba="productos-comprados">
+                {o.productos_comprados.productos.map((p, i) => (
+                  <li key={i}>
+                    {p.cantidad} × {p.producto} · {formatearFecha(p.fecha)}
+                  </li>
+                ))}
+              </ul>
+            )
           ) : (
-            <ul data-prueba="productos-comprados">
-              {o.productos_comprados.productos.map((p, i) => (
-                <li key={i}>
-                  {p.cantidad} × {p.producto} · {formatearFecha(p.fecha)}
-                </li>
-              ))}
-            </ul>
-          )
-        ) : (
-          <p className="muted">No disponible todavía.</p>
-        )}
-      </Tarjeta>
+            <p className="muted">No disponible todavía.</p>
+          )}
+        </Tarjeta>
+      ) : null}
     </div>
   );
 }
@@ -289,7 +295,7 @@ export default function Expediente() {
   const pestanas: { id: Pestana; texto: string }[] = [
     { id: "trayectoria", texto: "Trayectoria" },
     ...(d.economico ? [{ id: "economico" as const, texto: "Económico" }] : []),
-    { id: "operativo", texto: "Operativo" },
+    ...(d.operativo.asistencia || d.operativo.eventos || d.operativo.productos_comprados ? [{ id: "operativo" as const, texto: "Operativo" }] : []),
     ...(d.comercial ? [{ id: "comercial" as const, texto: "Comercial" }] : []),
   ];
   const tutorResponsable = alumno.datos?.tutores.find((t) => t.es_responsable_pago) ?? alumno.datos?.tutores[0];

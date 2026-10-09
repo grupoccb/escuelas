@@ -5,6 +5,7 @@ import { conAlcance } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
+import { leerModulos } from "../modulos/index.ts";
 import { vencerCotizaciones } from "./guardar.ts";
 
 export interface ResumenVencimiento {
@@ -20,7 +21,9 @@ export async function vencerCotizacionesDeTodas(deps: { prisma: PrismaRaiz; relo
     if (deps.organizacionId !== undefined && org.id !== deps.organizacionId) continue;
     resumen.organizaciones++;
     try {
-      resumen.vencidas += await vencerCotizaciones(conAlcance(deps.prisma, org.id), ahora);
+      const db = conAlcance(deps.prisma, org.id);
+      if (!(await leerModulos(db)).cotizador) continue; // V1: con el cotizador apagado no corre nada de él
+      resumen.vencidas += await vencerCotizaciones(db, ahora);
     } catch (e) {
       resumen.errores++;
       log.error("cotizaciones_vencer_error", { organizacion: org.id, error: (e as Error).message });

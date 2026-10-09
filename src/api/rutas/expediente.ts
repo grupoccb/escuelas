@@ -9,12 +9,15 @@
 // proveedores.ts): hasta que la etapa H las enchufe responden `{ disponible: false, motivo }`.
 //
 // La SALUD no va aquí (decisión 12): se lee aparte con `GET /api/salud/alumno/:id` (permiso, motivo y registro de accesos); el expediente solo indica el camino.
+// V1: lo que pertenece a un módulo apagado no se consulta: sin operación, `asistencia` y `eventos` vienen en `null` y no hay niveles ni próximo examen; sin finanzas, `economico` y
+// `productos_comprados` vienen en `null`.
 // Alcance: el de los alumnos (`dondeAlumnoVisible`); el maestro solo ve a sus alumnos y SIN importes (EF-03): `economico` y `comercial` vienen en `null`.
 
 import { Router } from "express";
 import { dondeEventoVisible } from "../../eventos/alcance.ts";
 import { armarExpediente } from "../../expediente/expediente.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
+import { leerModulos } from "../../modulos/index.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { noEncontrado } from "../errores.ts";
@@ -29,7 +32,7 @@ export function rutasDeExpediente(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     if (!(await ctx.db.alumno.findFirst({ where: { id, ...(await dondeAlumnoVisible(ctx)) }, select: { id: true } }))) throw noEncontrado();
-    const expediente = await armarExpediente(ctx.db, id, { ahora: ctx.ahora(), rol: ctx.usuario.rol, proveedores: deps.expediente, dondeEvento: await dondeEventoVisible(ctx) });
+    const expediente = await armarExpediente(ctx.db, id, { ahora: ctx.ahora(), rol: ctx.usuario.rol, proveedores: deps.expediente, dondeEvento: await dondeEventoVisible(ctx), modulos: await leerModulos(ctx.db) });
     if (!expediente) throw noEncontrado();
     res.json(expediente);
   });

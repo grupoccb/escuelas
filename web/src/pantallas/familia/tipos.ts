@@ -70,10 +70,11 @@ export interface Economico {
   antiguedad_cartera_vencida: { dias: number | null; vencido: string } | { disponible: false; motivo: string };
 }
 
+/** Cada parte viene en `null` si su módulo está apagado: asistencia y eventos son de la operación; los productos comprados, de las finanzas. */
 export interface Operativo {
-  asistencia: { porcentaje_30_dias: string | null; racha_de_faltas: number; umbral_de_faltas: number; por_inscripcion: { inscripcion_id: string; grupo: string }[] };
-  eventos: { evento: { id: string; nombre: string; tipo: string; fecha: string }; estatus: string; resultado: string | null; nivel_otorgado: Nombrado | null }[];
-  productos_comprados: { disponible: true; productos: { producto: string; cantidad: number; fecha: string }[] } | { disponible: false; motivo: string };
+  asistencia: { porcentaje_30_dias: string | null; racha_de_faltas: number; umbral_de_faltas: number; por_inscripcion: { inscripcion_id: string; grupo: string }[] } | null;
+  eventos: { evento: { id: string; nombre: string; tipo: string; fecha: string }; estatus: string; resultado: string | null; nivel_otorgado: Nombrado | null }[] | null;
+  productos_comprados: { disponible: true; productos: { producto: string; cantidad: number; fecha: string }[] } | { disponible: false; motivo: string } | null;
 }
 
 export interface Comercial {
@@ -86,7 +87,7 @@ export interface Comercial {
 export interface Expediente {
   alumno: { id: string; nombre: string; apellidos: string; estatus: "activo" | "baja" | "congelado" };
   trayectoria: Trayectoria;
-  /** `null` para el maestro: sin importes. */
+  /** `null` para el maestro (sin importes) y cuando el módulo de finanzas está apagado. */
   economico: Economico | null;
   operativo: Operativo;
   comercial: Comercial | null;

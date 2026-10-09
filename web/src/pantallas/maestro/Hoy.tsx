@@ -63,7 +63,7 @@ function Avisos() {
 }
 
 function TarjetaDeClase({ clase, alCambiar }: { clase: ClaseMuestra; alCambiar: () => void }) {
-  const { puede } = useSesion();
+  const { puede, moduloEncendido } = useSesion();
   const accion = useAccion();
   const [listo, setListo] = useState<string | null>(null);
   const estatus = ESTATUS_DE_CLASE[clase.estatus] ?? { texto: clase.estatus, tono: "neutro" as const };
@@ -114,7 +114,7 @@ function TarjetaDeClase({ clase, alCambiar }: { clase: ClaseMuestra; alCambiar: 
             {!empezo ? <span className="muted">La asistencia se marca desde la hora de la clase.</span> : null}
           </div>
         ) : null}
-        {clase.estatus === "asistio" && puede("clases_muestra:listo_para_cerrar") ? (
+        {clase.estatus === "asistio" && puede("clases_muestra:listo_para_cerrar") && moduloEncendido("inscripcion") ? (
           <div className="pila">
             <Boton
               disabled={accion.ocupado}

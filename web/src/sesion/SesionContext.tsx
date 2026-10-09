@@ -3,7 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { alExpirarLaSesion, api, pedir } from "../api/cliente.ts";
-import type { Yo } from "../api/tipos.ts";
+import type { ModuloId, Yo } from "../api/tipos.ts";
 import { tiene } from "../lib/permisos.ts";
 
 export type EstadoDeSesion = { fase: "cargando" } | { fase: "anonima"; motivo: "nueva" | "expirada" | "salio" } | { fase: "activa"; yo: Yo };
@@ -15,6 +15,8 @@ interface Valor {
   salir(): Promise<void>;
   recargar(): Promise<void>;
   puede(permiso: string): boolean;
+  /** ¿Está encendido ese módulo en la escuela? (la captación siempre) */
+  moduloEncendido(modulo: ModuloId): boolean;
   /** Sucursal con la que se filtra (`null` = todas las que ves). Solo se recuerda mientras dure la pestaña. */
   sucursalId: string | null;
   elegirSucursal(id: string | null): void;
@@ -96,7 +98,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   // Una sucursal recordada que ya no es tuya (otro usuario en la misma pestaña) no se usa.
   const sucursalId = yo && sucursalElegida && yo.sucursales.some((s) => s.id === sucursalElegida) ? sucursalElegida : null;
 
-  const valor = useMemo<Valor>(() => ({ estado, yo, entrar, salir, recargar: cargar, puede: (p) => tiene(yo, p), sucursalId, elegirSucursal }), [estado, yo, entrar, salir, cargar, sucursalId, elegirSucursal]);
+  const valor = useMemo<Valor>(() => ({ estado, yo, entrar, salir, recargar: cargar, puede: (p) => tiene(yo, p), moduloEncendido: (m) => yo !== null && yo.modulos[m], sucursalId, elegirSucursal }), [estado, yo, entrar, salir, cargar, sucursalId, elegirSucursal]);
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
 

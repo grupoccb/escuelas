@@ -30,6 +30,13 @@ test("la plantilla de alta de una escuela crea la organización, las siete etapa
   assert.deepEqual(etapas.map((e) => e.tipo_sistema), ["nuevo", "contactado", "muestra_agendada", "muestra_asistida", "negociacion", "inscrito", "perdido"]);
   assert.deepEqual([etapas[5].es_ganado, etapas[6].es_perdido], [true, true]);
   assert.equal((await c.query("SELECT count(*)::int AS n FROM configuracion_organizacion WHERE organizacion_id = $1", [id])).rows[0].n, 1);
+  // V1 (decisión 3): la escuela nueva arranca con SOLO la captación (que no tiene columna: no se apaga); los demás módulos se encienden después, desde Administración.
+  const modulos = (await c.query("SELECT modulo_cotizador, modulo_clase_muestra, modulo_inscripcion, modulo_operacion, modulo_finanzas, modulo_tableros FROM configuracion_organizacion WHERE organizacion_id = $1", [id])).rows[0];
+  assert.deepEqual(Object.values(modulos), [false, false, false, false, false, false]);
+  // Volver a correr la plantilla nunca apaga ni enciende nada de una organización que ya tiene su fila.
+  await c.query("UPDATE configuracion_organizacion SET modulo_cotizador = true WHERE organizacion_id = $1", [id]);
+  await c.query(sql);
+  assert.equal((await c.query("SELECT modulo_cotizador FROM configuracion_organizacion WHERE organizacion_id = $1", [id])).rows[0].modulo_cotizador, true);
   assert.equal((await c.query("SELECT count(*)::int AS n FROM usuario WHERE organizacion_id = $1", [id])).rows[0].n, 0, "ninguna cuenta: ni las de la demo, con su contraseña pública");
   assert.ok(!/demo|Demo-local/.test(sql.replace(/--.*$/gm, "")), "la plantilla no lleva nada de la demo");
 });

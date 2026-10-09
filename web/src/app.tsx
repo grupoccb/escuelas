@@ -1,8 +1,9 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { INICIO_POR_ROL } from "./navegacion.ts";
+import type { ModuloId } from "./api/tipos.ts";
+import { inicioDe } from "./navegacion.ts";
 import { Acceso } from "./pantallas/acceso/Acceso.tsx";
-import { NoEncontrada, SinAcceso } from "./pantallas/acceso/Errores.tsx";
+import { NoDisponible, NoEncontrada, SinAcceso } from "./pantallas/acceso/Errores.tsx";
 import { Mas } from "./pantallas/acceso/Mas.tsx";
 import { SesionProvider, useSesion } from "./sesion/SesionContext.tsx";
 import { Cargando } from "./ui/basicos.tsx";
@@ -40,54 +41,60 @@ const AdminAutomatizaciones = lazy(() => import("./pantallas/admin/Automatizacio
 const AdminUsuarios = lazy(() => import("./pantallas/admin/Usuarios.tsx"));
 const Tableros = lazy(() => import("./pantallas/tableros/Tableros.tsx"));
 const AdminBandeja = lazy(() => import("./pantallas/admin/Bandeja.tsx"));
+const AdminModulos = lazy(() => import("./pantallas/admin/Modulos.tsx"));
 
-/** Una ruta que solo existe con el permiso. Sin él se muestra «Sin acceso» y la pantalla ni se monta: no pide nada a la API. */
-function RequierePermiso({ permiso, children }: { permiso: string; children: ReactNode }) {
-  const { puede } = useSesion();
+/**
+ * Una ruta que solo existe con el permiso y con el módulo al que pertenece encendido (V1). Sin el módulo se muestra «No disponible»; sin el permiso, «Sin acceso». En los dos casos la
+ * pantalla ni se monta: no pide nada a la API. Todas las rutas declaran su módulo (`navegacion.test.ts` lo comprueba).
+ */
+function RequierePermiso({ permiso, modulo, children }: { permiso: string; modulo: ModuloId; children: ReactNode }) {
+  const { puede, moduloEncendido } = useSesion();
+  if (!moduloEncendido(modulo)) return <NoDisponible />;
   return puede(permiso) ? <>{children}</> : <SinAcceso />;
 }
 
 function Rutas() {
   const { yo } = useSesion();
   if (!yo) return null;
-  const inicio = INICIO_POR_ROL[yo.usuario.rol];
+  const inicio = inicioDe(yo.usuario.rol, yo.permisos, yo.modulos);
   return (
     <Suspense fallback={<Cargando />}>
       <Routes>
         <Route path="/" element={<Navigate to={inicio} replace />} />
-        <Route path="/hoy" element={<RequierePermiso permiso="clases_muestra:leer"><Hoy /></RequierePermiso>} />
-        <Route path="/clases/:id/registro" element={<RequierePermiso permiso="registro_muestra:leer"><RegistroClase /></RequierePermiso>} />
-        <Route path="/pase" element={<RequierePermiso permiso="asistencia:registrar"><PaseDeLista /></RequierePermiso>} />
-        <Route path="/embudo" element={<RequierePermiso permiso="leads:escribir"><Embudo /></RequierePermiso>} />
-        <Route path="/tareas" element={<RequierePermiso permiso="tareas:leer"><Tareas /></RequierePermiso>} />
-        <Route path="/leads/:id" element={<RequierePermiso permiso="leads:leer"><FichaLead /></RequierePermiso>} />
-        <Route path="/leads/:id/convertir" element={<RequierePermiso permiso="leads:escribir"><Conversion /></RequierePermiso>} />
-        <Route path="/pagos" element={<RequierePermiso permiso="pagos:registrar"><RegistrarPago /></RequierePermiso>} />
-        <Route path="/cuenta" element={<RequierePermiso permiso="estado_cuenta:leer"><EstadoDeCuenta /></RequierePermiso>} />
-        <Route path="/cuenta/:tutorId" element={<RequierePermiso permiso="estado_cuenta:leer"><EstadoDeCuenta /></RequierePermiso>} />
-        <Route path="/uniformes" element={<RequierePermiso permiso="beneficios:entregar"><Uniformes /></RequierePermiso>} />
-        <Route path="/ventas" element={<RequierePermiso permiso="ventas:registrar"><Ventas /></RequierePermiso>} />
-        <Route path="/alumnos" element={<RequierePermiso permiso="alumnos:leer"><AlumnosLista /></RequierePermiso>} />
-        <Route path="/alumnos/:id" element={<RequierePermiso permiso="alumnos:leer"><Expediente /></RequierePermiso>} />
-        <Route path="/alumnos/:id/salud" element={<RequierePermiso permiso="salud:leer"><SaludDelAlumno /></RequierePermiso>} />
-        <Route path="/familias" element={<RequierePermiso permiso="tutores:leer"><Familias /></RequierePermiso>} />
-        <Route path="/familias/un-solo-hijo" element={<RequierePermiso permiso="tutores:leer"><Familias crucada /></RequierePermiso>} />
-        <Route path="/familias/:tutorId" element={<RequierePermiso permiso="tutores:leer"><FichaFamilia /></RequierePermiso>} />
-        <Route path="/admin" element={<RequierePermiso permiso="catalogo:escribir"><Administracion /></RequierePermiso>} />
-        <Route path="/admin/verticales" element={<RequierePermiso permiso="catalogo:escribir"><AdminVerticales /></RequierePermiso>} />
-        <Route path="/admin/sucursales" element={<RequierePermiso permiso="catalogo:escribir"><AdminSucursales /></RequierePermiso>} />
-        <Route path="/admin/programas" element={<RequierePermiso permiso="catalogo:escribir"><AdminProgramas /></RequierePermiso>} />
-        <Route path="/admin/grupos" element={<RequierePermiso permiso="catalogo:escribir"><AdminGrupos /></RequierePermiso>} />
-        <Route path="/admin/instructores" element={<RequierePermiso permiso="catalogo:escribir"><AdminInstructores /></RequierePermiso>} />
-        <Route path="/admin/precios" element={<RequierePermiso permiso="catalogo:escribir"><AdminPrecios /></RequierePermiso>} />
-        <Route path="/admin/promociones" element={<RequierePermiso permiso="catalogo:escribir"><AdminPromociones /></RequierePermiso>} />
-        <Route path="/admin/canales" element={<RequierePermiso permiso="catalogo:escribir"><AdminCanales /></RequierePermiso>} />
-        <Route path="/admin/configuracion" element={<RequierePermiso permiso="catalogo:escribir"><AdminConfiguracion /></RequierePermiso>} />
-        <Route path="/admin/plantillas" element={<RequierePermiso permiso="catalogo:escribir"><AdminPlantillas /></RequierePermiso>} />
-        <Route path="/admin/automatizaciones" element={<RequierePermiso permiso="catalogo:escribir"><AdminAutomatizaciones /></RequierePermiso>} />
-        <Route path="/admin/usuarios" element={<RequierePermiso permiso="usuarios:administrar"><AdminUsuarios /></RequierePermiso>} />
-        <Route path="/admin/bandeja" element={<RequierePermiso permiso="registro_cambios:leer"><AdminBandeja /></RequierePermiso>} />
-        <Route path="/tableros" element={<RequierePermiso permiso="reportes:clases_muestra"><Tableros /></RequierePermiso>} />
+        <Route path="/hoy" element={<RequierePermiso permiso="clases_muestra:leer" modulo="clase_muestra"><Hoy /></RequierePermiso>} />
+        <Route path="/clases/:id/registro" element={<RequierePermiso permiso="registro_muestra:leer" modulo="clase_muestra"><RegistroClase /></RequierePermiso>} />
+        <Route path="/pase" element={<RequierePermiso permiso="asistencia:registrar" modulo="operacion"><PaseDeLista /></RequierePermiso>} />
+        <Route path="/embudo" element={<RequierePermiso permiso="leads:escribir" modulo="captacion"><Embudo /></RequierePermiso>} />
+        <Route path="/tareas" element={<RequierePermiso permiso="tareas:leer" modulo="captacion"><Tareas /></RequierePermiso>} />
+        <Route path="/leads/:id" element={<RequierePermiso permiso="leads:leer" modulo="captacion"><FichaLead /></RequierePermiso>} />
+        <Route path="/leads/:id/convertir" element={<RequierePermiso permiso="leads:escribir" modulo="inscripcion"><Conversion /></RequierePermiso>} />
+        <Route path="/pagos" element={<RequierePermiso permiso="pagos:registrar" modulo="finanzas"><RegistrarPago /></RequierePermiso>} />
+        <Route path="/cuenta" element={<RequierePermiso permiso="estado_cuenta:leer" modulo="finanzas"><EstadoDeCuenta /></RequierePermiso>} />
+        <Route path="/cuenta/:tutorId" element={<RequierePermiso permiso="estado_cuenta:leer" modulo="finanzas"><EstadoDeCuenta /></RequierePermiso>} />
+        <Route path="/uniformes" element={<RequierePermiso permiso="beneficios:entregar" modulo="finanzas"><Uniformes /></RequierePermiso>} />
+        <Route path="/ventas" element={<RequierePermiso permiso="ventas:registrar" modulo="finanzas"><Ventas /></RequierePermiso>} />
+        <Route path="/alumnos" element={<RequierePermiso permiso="alumnos:leer" modulo="inscripcion"><AlumnosLista /></RequierePermiso>} />
+        <Route path="/alumnos/:id" element={<RequierePermiso permiso="alumnos:leer" modulo="inscripcion"><Expediente /></RequierePermiso>} />
+        <Route path="/alumnos/:id/salud" element={<RequierePermiso permiso="salud:leer" modulo="inscripcion"><SaludDelAlumno /></RequierePermiso>} />
+        <Route path="/familias" element={<RequierePermiso permiso="tutores:leer" modulo="inscripcion"><Familias /></RequierePermiso>} />
+        <Route path="/familias/un-solo-hijo" element={<RequierePermiso permiso="tutores:leer" modulo="inscripcion"><Familias crucada /></RequierePermiso>} />
+        <Route path="/familias/:tutorId" element={<RequierePermiso permiso="tutores:leer" modulo="inscripcion"><FichaFamilia /></RequierePermiso>} />
+        <Route path="/admin" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><Administracion /></RequierePermiso>} />
+        <Route path="/admin/verticales" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminVerticales /></RequierePermiso>} />
+        <Route path="/admin/sucursales" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminSucursales /></RequierePermiso>} />
+        <Route path="/admin/programas" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminProgramas /></RequierePermiso>} />
+        <Route path="/admin/grupos" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminGrupos /></RequierePermiso>} />
+        <Route path="/admin/instructores" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminInstructores /></RequierePermiso>} />
+        <Route path="/admin/precios" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminPrecios /></RequierePermiso>} />
+        <Route path="/admin/promociones" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminPromociones /></RequierePermiso>} />
+        <Route path="/admin/canales" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminCanales /></RequierePermiso>} />
+        <Route path="/admin/configuracion" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminConfiguracion /></RequierePermiso>} />
+        <Route path="/admin/plantillas" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminPlantillas /></RequierePermiso>} />
+        <Route path="/admin/automatizaciones" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminAutomatizaciones /></RequierePermiso>} />
+        <Route path="/admin/usuarios" element={<RequierePermiso permiso="usuarios:administrar" modulo="captacion"><AdminUsuarios /></RequierePermiso>} />
+        <Route path="/admin/modulos" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminModulos /></RequierePermiso>} />
+        <Route path="/admin/bandeja" element={<RequierePermiso permiso="registro_cambios:leer" modulo="captacion"><AdminBandeja /></RequierePermiso>} />
+        <Route path="/tableros" element={<RequierePermiso permiso="reportes:clases_muestra" modulo="tableros"><Tableros /></RequierePermiso>} />
         <Route path="/mas" element={<Mas />} />
         <Route path="*" element={<NoEncontrada />} />
       </Routes>

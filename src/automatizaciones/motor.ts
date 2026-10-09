@@ -33,6 +33,7 @@ import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts"
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
+import { eventosEncendidos, leerModulos, moduloDeEvento, type ModulosEncendidos } from "../modulos/index.ts";
 import { ENVIO_INCIERTO, ENVIO_INCIERTO_MS, asegurarTareaAsesor, type MessagingProvider } from "../mensajeria/index.ts";
 import { dentroDeHorario, recorrerODescartar, siguienteHorarioValido, type VentanaHoraria } from "../mensajeria/reglas.ts";
 import { zonaHorariaDeContacto } from "../mensajeria/zona-horaria.ts";
@@ -84,13 +85,23 @@ export async function correrAutomatizaciones(deps: DepsMotor): Promise<ResumenMo
   );
   for (const org of organizaciones) {
     const db = conAlcance(deps.prisma, org.id);
+    // V1: los módulos encendidos de ESTA organización, leídos en cada corrida (encender o apagar surte efecto en el siguiente barrido, sin reiniciar). Si no se pueden
+    // leer, no se programa ni se manda nada de esa organización en esta corrida (más vale callar que mandar algo de un módulo que quizá está apagado).
+    let modulos: ModulosEncendidos;
+    try {
+      modulos = await leerModulos(db);
+    } catch (e) {
+      resumen.errores++;
+      log.error("motor_error", { organizacionId: org.id, fase: "modulos", error: (e as Error).message });
+      continue;
+    }
     // Cada fase va aislada (EA-07): si programar falla, la recuperación de lo que un proceso muerto
     // dejó a medias (F1-01) y el envío de lo ya programado corren igual, y otra organización también.
     await aislado(resumen, { organizacionId: org.id, fase: "recuperar" }, () => recuperarAbandonadas(deps, db, ahora, resumen));
     await aislado(resumen, { organizacionId: org.id, fase: "programar" }, async () => {
-      resumen.programadas += await programarReenganches(db, ahora, resumen);
+      resumen.programadas += await programarReenganches(db, ahora, resumen, modulos);
     });
-    await aislado(resumen, { organizacionId: org.id, fase: "ejecutar" }, () => ejecutarVencidas(deps, db, ahora, resumen));
+    await aislado(resumen, { organizacionId: org.id, fase: "ejecutar" }, () => ejecutarVencidas(deps, db, ahora, resumen, modulos));
   }
   return resumen;
 }
@@ -108,12 +119,15 @@ async function aislado(resumen: ResumenMotor, donde: Record<string, unknown>, tr
 // ---------------------------------------------------------------------------------------------
 // 1. Programar
 
-async function programarReenganches(db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<number> {
+async function programarReenganches(db: BaseDatos, ahora: Date, resumen: ResumenMotor, modulos: ModulosEncendidos): Promise<number> {
   let programadas = 0;
+  // V1: solo lo de los módulos encendidos. Lo que se apagó no programa nada; al volver a encenderlo programa lo que cumpla ENTONCES (lo que ya pasó lo descartan las reglas de
+  // siempre: `evento_pasado`, horario de envío y topes de frecuencia), nunca lo que quedó atrasado durante el apagón.
+  const eventos = eventosEncendidos(modulos).filter((e) => ["lead_sin_respuesta", "lead_frio", "promocion_por_vencer", "cargo_por_vencer", "cargo_vencido"].includes(e));
   // Una sola consulta para las automatizaciones que PROGRAMA el motor: el reenganche y, desde D8, el lead frío y la promoción por vencer.
   // (Las de la clase muestra las programa el alta de la clase.)
   const automatizaciones = await db.automatizacion.findMany({
-    where: { activo: true, evento_disparador: { in: ["lead_sin_respuesta", "lead_frio", "promocion_por_vencer", "cargo_por_vencer", "cargo_vencido"] } },
+    where: { activo: true, evento_disparador: { in: eventos } },
     orderBy: { creado_en: "asc" },
   });
 
@@ -210,7 +224,7 @@ interface Progreso {
   mensajeId?: string;
 }
 
-async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<void> {
+async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor, modulos: ModulosEncendidos): Promise<void> {
   for (const e of await leerVencidas(db, ahora)) {
     // Reclamar antes de actuar: solo quien gana el reclamo manda (invariante 8). Se guarda la hora
     // REAL del reclamo, no la del inicio de la corrida: con una corrida larga o con réplicas, un
@@ -222,7 +236,7 @@ async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, res
     if (reclamo.count !== 1) continue;
     const progreso: Progreso = {};
     try {
-      await ejecutarUna(deps, db, e, ahora, resumen, progreso);
+      await ejecutarUna(deps, db, e, ahora, resumen, progreso, modulos);
     } catch (err) {
       log.error("automatizacion_error", { ejecucionId: e.id, error: (err as Error).message });
       try {
@@ -244,7 +258,7 @@ async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, res
   }
 }
 
-async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Date, resumen: ResumenMotor, progreso: Progreso): Promise<void> {
+async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Date, resumen: ResumenMotor, progreso: Progreso, modulos: ModulosEncendidos): Promise<void> {
   const omitir = async (motivo: string): Promise<void> => {
     await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "omitido", motivo_omision: motivo } });
     resumen.omitidas++;
@@ -253,6 +267,9 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
 
   // K9 (EK-A2): «apagar» una automatización también frena lo que ya estaba programado (J8 expone el interruptor): se omite, no se manda.
   if (!e.automatizacion.activo) return omitir("automatizacion_apagada");
+  // V1: lo ya programado de un módulo que se apagó no se manda: se omite (queda registrado; encender el módulo después no lo revive).
+  const modulo = moduloDeEvento(e.automatizacion.evento_disparador);
+  if (modulo !== null && !modulos[modulo]) return omitir("modulo_apagado");
 
   const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion", "inscripcion", "cargo"];
   if (!entidadesSoportadas.includes(e.entidad_tipo)) return omitir("entidad_no_soportada");

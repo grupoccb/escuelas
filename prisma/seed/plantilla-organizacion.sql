@@ -7,7 +7,9 @@
 --     DATABASE_URL=<cuenta dueña> npx prisma db execute --file prisma/seed/mi-escuela.sql
 --
 -- Es idempotente (volver a correrlo no duplica nada). Crea la organización, las siete etapas del embudo con su papel para el sistema y la configuración con los valores
--- por omisión del contexto (3 mensajes automáticos al día y 1 de marketing cada 7 días). Todo lo demás —verticales, sucursales, programas, grupos, horarios, instructores,
+-- por omisión del contexto (3 mensajes automáticos al día y 1 de marketing cada 7 días) y con SOLO el módulo de captación encendido (V1, decisión 3 del plan): el bot de tres
+-- preguntas, el pase al asesor, las tareas, el embudo y el reporte de leads. Los demás módulos (cotizador, clase muestra, inscripción, operación, finanzas y tableros) se
+-- encienden después desde Administración → Módulos (`PUT /api/modulos`), cuando la escuela esté lista, sin tocar código ni reiniciar. Todo lo demás —verticales, sucursales, programas, grupos, horarios, instructores,
 -- precios, promociones, plantillas, automatizaciones, documentos legales, usuarios— se da de alta desde la administración (interfaz o API), sin tocar código ni seeds.
 -- NO incluye usuarios: el primer administrador se crea con `scripts/crear-usuario.ts` (las contraseñas de la demo son públicas y no deben existir en una escuela real).
 
@@ -36,7 +38,8 @@ BEGIN
   ) AS v(nombre, orden, ganado, perdido, dias, tipo)
   WHERE NOT EXISTS (SELECT 1 FROM etapa_pipeline e WHERE e.organizacion_id = org AND e.tipo_sistema = v.tipo::tipo_sistema_etapa AND e.eliminado_en IS NULL);
 
-  -- Configuración de la organización: los valores por omisión de la columna (editables desde administración).
-  INSERT INTO configuracion_organizacion (organizacion_id)
-  SELECT org WHERE NOT EXISTS (SELECT 1 FROM configuracion_organizacion c WHERE c.organizacion_id = org AND c.eliminado_en IS NULL);
+  -- Configuración de la organización: los valores por omisión de la columna (editables desde administración) y los módulos apagados salvo la captación, que no se apaga.
+  -- Si la organización ya tiene fila no se toca (volver a correr la plantilla nunca apaga ni enciende nada).
+  INSERT INTO configuracion_organizacion (organizacion_id, modulo_cotizador, modulo_clase_muestra, modulo_inscripcion, modulo_operacion, modulo_finanzas, modulo_tableros)
+  SELECT org, false, false, false, false, false, false WHERE NOT EXISTS (SELECT 1 FROM configuracion_organizacion c WHERE c.organizacion_id = org AND c.eliminado_en IS NULL);
 END $$;

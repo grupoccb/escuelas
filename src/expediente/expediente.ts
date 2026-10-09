@@ -10,6 +10,7 @@ import { calcularDerivados, presentarDerivados } from "../asistencia/derivados.t
 import { leerConfiguracion } from "../configuracion/index.ts";
 import type { Consultas } from "../datos/alcance.ts";
 import { hermanosInscritos } from "../inscripciones/hermanos.ts";
+import { TODOS_ENCENDIDOS, type ModulosEncendidos } from "../modulos/index.ts";
 import { proximoCorte } from "../inscripciones/corte.ts";
 import { aTexto, deDecimal, restar, sumar } from "../lib/dinero.ts";
 import { elegibilidadDe } from "../progresion/elegibilidad.ts";
@@ -35,6 +36,11 @@ export interface OpcionesDelExpediente {
   proveedores: ProveedoresDelExpediente;
   /** Condición de Prisma sobre `evento` (el alcance de quien consulta) para el próximo examen. */
   dondeEvento?: Record<string, unknown>;
+  /**
+   * V1: los módulos encendidos de la organización. Sin operación no hay niveles, próximo examen, asistencia ni eventos; sin finanzas no hay económico ni productos comprados. Lo que
+   * pertenece a un módulo apagado ni se consulta: la sección viene en `null` (o vacía, en la trayectoria). Por omisión, todo encendido.
+   */
+  modulos?: ModulosEncendidos;
 }
 
 /** El expediente del alumno, o null si no existe. El alcance (¿puede verlo?) lo decide quien llama antes. */
@@ -42,6 +48,7 @@ export async function armarExpediente(db: Consultas, alumnoId: string, o: Opcion
   const alumno = await db.alumno.findFirst({ where: { id: alumnoId }, select: { id: true, nombre: true, apellidos: true, fecha_nacimiento: true, estatus: true, sucursal_id: true } });
   if (!alumno) return null;
   const esMaestro = o.rol === "maestro";
+  const modulos = o.modulos ?? TODOS_ENCENDIDOS;
 
   const inscripciones = await db.inscripcion.findMany({
     where: { alumno_id: alumnoId },
@@ -79,7 +86,7 @@ export async function armarExpediente(db: Consultas, alumnoId: string, o: Opcion
   for (const i of inscripciones) verticales.set(i.grupo.programa.vertical_id, i.grupo.programa.vertical);
   const niveles = [];
   const proximos = [];
-  for (const v of verticales.values()) {
+  for (const v of modulos.operacion ? verticales.values() : []) {
     const actual = (await historialDeVertical(db, alumnoId, v.id))[0] ?? null;
     niveles.push({ vertical: { id: v.id, nombre: v.nombre, etiqueta_progresion: v.etiqueta_progresion }, nivel: actual ? { id: actual.nivel.id, nombre: actual.nivel.nombre, color_hex: actual.nivel.colorHex } : null, fecha_obtenido: actual?.fechaObtenido ?? null });
     // Próximo examen: el evento que sube de peldaño más cercano de esa vertical, en las sucursales donde el alumno tiene una inscripción activa.
@@ -118,26 +125,33 @@ export async function armarExpediente(db: Consultas, alumnoId: string, o: Opcion
   };
 
   // ── Operativo ────────────────────────────────────────────────────────────────────────────────────
-  const umbral = (await leerConfiguracion(db)).umbralFaltasConsecutivas;
-  const filas = await db.asistencia.findMany({ where: { inscripcion_id: { in: inscripciones.map((i) => i.id) } }, select: { inscripcion_id: true, fecha: true, estatus: true } });
-  const porInscripcion = new Map<string, { fecha: string; estatus: (typeof filas)[number]["estatus"] }[]>();
-  for (const f of filas) porInscripcion.set(f.inscripcion_id, [...(porInscripcion.get(f.inscripcion_id) ?? []), { fecha: iso(f.fecha), estatus: f.estatus }]);
-  const derivadosDe = vigentes.map((i) => ({ inscripcion_id: i.id, grupo: i.grupo.nombre, ...presentarDerivados(calcularDerivados(porInscripcion.get(i.id) ?? [], hoy), umbral) }));
-  const juntas = calcularDerivados(vigentes.flatMap((i) => porInscripcion.get(i.id) ?? []), hoy);
-  const participaciones = await db.evento_alumno.findMany({
-    where: { alumno_id: alumnoId },
-    select: { estatus: true, resultado: true, evento: { select: { id: true, nombre: true, tipo: true, fecha: true } }, nivel_otorgado: { select: { id: true, nombre: true } } },
-    orderBy: [{ evento: { fecha: "desc" } }, { id: "desc" }],
-  });
-  const productos = await o.proveedores.productos.productosComprados(db, alumnoId);
-  const operativo = {
-    asistencia: {
+  // V1: la asistencia y los eventos son del módulo de operación; los productos comprados, del de finanzas. Lo de un módulo apagado no se consulta y viene en `null`.
+  let asistencia = null;
+  if (modulos.operacion) {
+    const umbral = (await leerConfiguracion(db)).umbralFaltasConsecutivas;
+    const filas = await db.asistencia.findMany({ where: { inscripcion_id: { in: inscripciones.map((i) => i.id) } }, select: { inscripcion_id: true, fecha: true, estatus: true } });
+    const porInscripcion = new Map<string, { fecha: string; estatus: (typeof filas)[number]["estatus"] }[]>();
+    for (const f of filas) porInscripcion.set(f.inscripcion_id, [...(porInscripcion.get(f.inscripcion_id) ?? []), { fecha: iso(f.fecha), estatus: f.estatus }]);
+    const derivadosDe = vigentes.map((i) => ({ inscripcion_id: i.id, grupo: i.grupo.nombre, ...presentarDerivados(calcularDerivados(porInscripcion.get(i.id) ?? [], hoy), umbral) }));
+    const juntas = calcularDerivados(vigentes.flatMap((i) => porInscripcion.get(i.id) ?? []), hoy);
+    asistencia = {
       porcentaje_30_dias: juntas.porcentaje,
       racha_de_faltas: Math.max(0, ...derivadosDe.map((d) => d.racha_de_faltas)),
       umbral_de_faltas: umbral,
       por_inscripcion: derivadosDe,
-    },
-    eventos: participaciones.map((p) => ({ evento: { id: p.evento.id, nombre: p.evento.nombre, tipo: p.evento.tipo, fecha: iso(p.evento.fecha) }, estatus: p.estatus, resultado: p.resultado, nivel_otorgado: p.nivel_otorgado })),
+    };
+  }
+  const participaciones = modulos.operacion
+    ? await db.evento_alumno.findMany({
+        where: { alumno_id: alumnoId },
+        select: { estatus: true, resultado: true, evento: { select: { id: true, nombre: true, tipo: true, fecha: true } }, nivel_otorgado: { select: { id: true, nombre: true } } },
+        orderBy: [{ evento: { fecha: "desc" } }, { id: "desc" }],
+      })
+    : null;
+  const productos = modulos.finanzas ? await o.proveedores.productos.productosComprados(db, alumnoId) : null;
+  const operativo = {
+    asistencia,
+    eventos: participaciones ? participaciones.map((p) => ({ evento: { id: p.evento.id, nombre: p.evento.nombre, tipo: p.evento.tipo, fecha: iso(p.evento.fecha) }, estatus: p.estatus, resultado: p.resultado, nivel_otorgado: p.nivel_otorgado })) : null,
     productos_comprados: productos,
   };
 
@@ -145,23 +159,26 @@ export async function armarExpediente(db: Consultas, alumnoId: string, o: Opcion
   if (esMaestro) return { alumno: { id: alumno.id, nombre: alumno.nombre, apellidos: alumno.apellidos, estatus: alumno.estatus }, trayectoria, economico: null, operativo, comercial: null, salud: { incluida: false, endpoint: `/api/salud/alumno/${alumnoId}` } };
 
   // ── Económico ────────────────────────────────────────────────────────────────────────────────────
+  // V1: sin el módulo de finanzas no hay sección económica (mismo `null` que le toca al maestro) y no se consulta el estado de cuenta.
   const mensualidadDe = (i: (typeof inscripciones)[number]) => restar(deDecimal(i.precio_mensualidad_aplicado), deDecimal(i.descuento_mensualidad_aplicado));
-  const cuenta = await o.proveedores.economico.estadoDeCuenta(db, alumnoId, o.ahora);
-  const economico = {
-    mensualidad_vigente: {
-      total: aTexto(sumar(...vigentes.map(mensualidadDe))),
-      por_inscripcion: vigentes.map((i) => ({ inscripcion_id: i.id, grupo: i.grupo.nombre, precio_de_lista: aTexto(deDecimal(i.precio_mensualidad_aplicado)), descuento: aTexto(deDecimal(i.descuento_mensualidad_aplicado)), mensualidad: aTexto(mensualidadDe(i)), meses_gratis: i.meses_gratis_aplicados })),
-    },
-    dia_de_corte: vigentes.map((i) => ({ inscripcion_id: i.id, dia: i.dia_corte_pago, proximo_corte: proximoCorte(i.dia_corte_pago, hoy) })),
-    promocion_aplicada: inscripciones
-      .filter((i) => i.promocion)
-      .map((i) => ({ inscripcion_id: i.id, promocion: i.promocion, beneficios: i.aplicaciones.map((a) => ({ tipo: a.beneficio.tipo, descripcion: a.beneficio.descripcion, descuento: aTexto(deDecimal(a.descuento)), meses_gratis: a.meses_gratis, estatus: a.estatus })) })),
-    beneficios_pendientes: inscripciones
-      .filter((i) => i.estatus !== "baja")
-      .flatMap((i) => i.aplicaciones.filter((a) => a.estatus === "pendiente").map((a) => ({ inscripcion_id: i.id, promocion: a.promocion.nombre, tipo: a.beneficio.tipo, descripcion: a.beneficio.descripcion }))),
-    estado_de_cuenta: cuenta,
-    antiguedad_cartera_vencida: cuenta.disponible ? { dias: cuenta.antiguedadCarteraVencidaDias, vencido: cuenta.vencido } : { disponible: false, motivo: cuenta.motivo },
-  };
+  const economico = !modulos.finanzas ? null : await (async () => {
+    const cuenta = await o.proveedores.economico.estadoDeCuenta(db, alumnoId, o.ahora);
+    return {
+      mensualidad_vigente: {
+        total: aTexto(sumar(...vigentes.map(mensualidadDe))),
+        por_inscripcion: vigentes.map((i) => ({ inscripcion_id: i.id, grupo: i.grupo.nombre, precio_de_lista: aTexto(deDecimal(i.precio_mensualidad_aplicado)), descuento: aTexto(deDecimal(i.descuento_mensualidad_aplicado)), mensualidad: aTexto(mensualidadDe(i)), meses_gratis: i.meses_gratis_aplicados })),
+      },
+      dia_de_corte: vigentes.map((i) => ({ inscripcion_id: i.id, dia: i.dia_corte_pago, proximo_corte: proximoCorte(i.dia_corte_pago, hoy) })),
+      promocion_aplicada: inscripciones
+        .filter((i) => i.promocion)
+        .map((i) => ({ inscripcion_id: i.id, promocion: i.promocion, beneficios: i.aplicaciones.map((a) => ({ tipo: a.beneficio.tipo, descripcion: a.beneficio.descripcion, descuento: aTexto(deDecimal(a.descuento)), meses_gratis: a.meses_gratis, estatus: a.estatus })) })),
+      beneficios_pendientes: inscripciones
+        .filter((i) => i.estatus !== "baja")
+        .flatMap((i) => i.aplicaciones.filter((a) => a.estatus === "pendiente").map((a) => ({ inscripcion_id: i.id, promocion: a.promocion.nombre, tipo: a.beneficio.tipo, descripcion: a.beneficio.descripcion }))),
+      estado_de_cuenta: cuenta,
+      antiguedad_cartera_vencida: cuenta.disponible ? { dias: cuenta.antiguedadCarteraVencidaDias, vencido: cuenta.vencido } : { disponible: false, motivo: cuenta.motivo },
+    };
+  })();
 
   // ── Comercial ────────────────────────────────────────────────────────────────────────────────────
   const leadIds = [...new Set(inscripciones.map((i) => i.lead_id).filter((x): x is string => x !== null))];

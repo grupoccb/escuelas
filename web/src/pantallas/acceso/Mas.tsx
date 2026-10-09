@@ -16,7 +16,7 @@ export function Mas() {
     <Pagina titulo="Más">
       <Tarjeta titulo="Secciones">
         <ul className="lista-tarjetas">
-          {seccionesDe(yo.permisos).map((s) => (
+          {seccionesDe(yo.permisos, yo.modulos).map((s) => (
             <li key={s.id}>
               <Link className="fila" to={s.ruta}>
                 <Icono nombre={s.icono} /> {s.etiqueta}

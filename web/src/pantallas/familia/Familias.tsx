@@ -117,8 +117,9 @@ function UnSoloHijo() {
 
 export default function Familias({ crucada = false }: { crucada?: boolean }) {
   useTitulo(crucada ? "Familias con un solo hijo" : "Familias");
+  const { puede } = useSesion();
   return (
-    <Pagina titulo="Familias" subtitulo="Quién es quién en cada familia: adultos, hijos, saldo.">
+    <Pagina titulo="Familias" subtitulo={puede("estado_cuenta:leer") ? "Quién es quién en cada familia: adultos, hijos, saldo." : "Quién es quién en cada familia: adultos e hijos."}>
       <nav className="pestanas" aria-label="Vistas de familias">
         <NavLink to="/familias" end className="pestana-enlace">
           Buscar

@@ -29,6 +29,7 @@ export const GRUPOS_DE_ADMINISTRACION: { titulo: string; areas: Area[] }[] = [
     titulo: "Canales y organización",
     areas: [
       { ruta: "/admin/canales", titulo: "Canales de WhatsApp", ayuda: "Números y bandejas de Chatwoot.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/modulos", titulo: "Módulos", ayuda: "Qué partes del sistema tiene encendidas la escuela: cotizador, clase muestra, inscripción, operación, finanzas y tableros.", permiso: "catalogo:escribir" },
       { ruta: "/admin/configuracion", titulo: "Configuración", ayuda: "Topes de mensajes, vigencias, umbrales y modo de cierre.", permiso: "catalogo:escribir" },
     ],
   },

@@ -12,6 +12,7 @@ import { aplicarCodigoAlLead, resolverCodigosDeMensaje, type RastreoDelMensaje }
 import { agendarClaseMuestra, proximasSesionesConLugar } from "../clases-muestra/agenda.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
+import { leerModulos } from "../modulos/index.ts";
 import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
 import { snapshotDeCotizacion } from "../cotizador/cotizacion.ts";
 import { elegirHorario, guardarCotizacion, horariosCotizadosAlContacto } from "../cotizador/guardar.ts";
@@ -564,7 +565,10 @@ async function contextoCaptacion(
   const deLanding = o.deLanding ? { datosDeLanding: true } : {};
   // Con los datos de la landing ya en mano, desde el primer mensaje el bot necesita el catálogo (sigue con la cotización sin preguntar de nuevo).
   const necesitaCatalogo = PASOS_CON_CATALOGO.includes(o.paso) || (o.deLanding === true && o.paso === "inicio");
-  if (!vertical.cotizador_whatsapp_activo || !necesitaCatalogo) return { nombreVertical: vertical.nombre, sucursales, ...deLanding };
+  // V1: el bot ofrece cotización y horarios solo con el módulo del cotizador encendido en la organización (además del interruptor de la vertical), y la clase muestra
+  // solo con el de la clase muestra. Apagados, el bot hace lo de siempre sin ellos: tres preguntas y pase al asesor. Se lee en cada mensaje (sin caché).
+  const modulos = await leerModulos(tx);
+  if (!vertical.cotizador_whatsapp_activo || !modulos.cotizador || !necesitaCatalogo) return { nombreVertical: vertical.nombre, sucursales, ...deLanding };
 
   // La fecha de la consulta (precio y promociones vigentes hoy) es la local de la sucursal del contacto; si aún no
   // eligió, la de la primera que ofrece la vertical.
@@ -576,7 +580,7 @@ async function contextoCaptacion(
   const esperaHorario = o.paso === "horario" || o.paso === "lista_espera";
   const guardada = esperaHorario && o.prospectoId ? await horariosCotizadosAlContacto(tx, o.conversacionId, o.prospectoId, catalogo.fecha) : null;
   const cotizacionGuardada = guardada && guardada.opciones.length > 0 ? guardada : null;
-  const claseMuestra = vertical.clase_muestra_whatsapp_activo && (o.paso === "horario" || o.paso === "fecha_muestra") && o.prospectoId
+  const claseMuestra = vertical.clase_muestra_whatsapp_activo && modulos.clase_muestra && (o.paso === "horario" || o.paso === "fecha_muestra") && o.prospectoId
     ? await contextoClaseMuestra(tx, { ...o, prospectoId: o.prospectoId, zona, opcionesDeHorario: cotizacionGuardada?.opciones.map((x) => x.grupoId) ?? [], grupoElegidoId: cotizacionGuardada?.grupoElegidoId ?? null })
     : null;
   return {

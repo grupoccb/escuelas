@@ -11,7 +11,7 @@ const MAXIMO_EN_BARRA = 5;
 export function Shell({ children }: { children: ReactNode }) {
   const yo = useYo();
   const { salir, sucursalId, elegirSucursal } = useSesion();
-  const secciones = seccionesDe(yo.permisos);
+  const secciones = seccionesDe(yo.permisos, yo.modulos);
   const enBarra = secciones.length > MAXIMO_EN_BARRA ? secciones.slice(0, MAXIMO_EN_BARRA - 1) : secciones;
   const hayMas = secciones.length > MAXIMO_EN_BARRA;
   const nombreEscuela = yo.organizacion?.nombre ?? "Gestión";

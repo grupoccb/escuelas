@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { test } from "node:test";
 import { EVENTOS, problemaDeContrasenaNueva, textoDeDesfase, tituloDeEvento } from "./mensajeria.ts";
 
@@ -22,4 +24,11 @@ test("todo evento disparador conocido tiene título y sentido", () => {
 test("la contraseña nueva pide al menos 10 caracteres antes de molestar al servidor", () => {
   assert.notEqual(problemaDeContrasenaNueva("corta"), null);
   assert.equal(problemaDeContrasenaNueva("suficientemente-larga"), null);
+});
+
+test("el módulo de cada evento de la interfaz es el mismo que el del servidor (src/modulos/index.ts), y ninguno falta", () => {
+  const fuente = readFileSync(resolve(import.meta.dirname, "../../../../src/modulos/index.ts"), "utf8");
+  const bloque = /MODULO_DE_EVENTO = \{([^}]*)\}/.exec(fuente)![1]!;
+  const delServidor = Object.fromEntries([...bloque.matchAll(/(\w+): "(\w+)"/g)].map((m) => [m[1]!, m[2]!]));
+  assert.deepEqual(Object.fromEntries(Object.entries(EVENTOS).map(([k, v]) => [k, v.modulo])), delServidor);
 });

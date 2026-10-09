@@ -71,8 +71,10 @@ ON CONFLICT DO NOTHING;
 -- Configuración de la organización (A6). Los valores por defecto del contexto, sección 11:
 -- 3 mensajes automáticos por teléfono al día y 1 de marketing cada 7 días. Editables por
 -- organización. ON CONFLICT sin destino: la migración ya crea la fila en las bases existentes.
-INSERT INTO configuracion_organizacion (id, organizacion_id, max_automaticos_por_dia, max_marketing_por_ventana, ventana_marketing_dias) VALUES
-  ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000001', 3, 1, 7)
+-- V1 (módulos): la demo tiene TODOS los módulos encendidos (decisión 3 del plan); la plantilla de una organización nueva es la que trae solo la captación.
+INSERT INTO configuracion_organizacion (id, organizacion_id, max_automaticos_por_dia, max_marketing_por_ventana, ventana_marketing_dias,
+  modulo_cotizador, modulo_clase_muestra, modulo_inscripcion, modulo_operacion, modulo_finanzas, modulo_tableros) VALUES
+  ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000001', 3, 1, 7, true, true, true, true, true, true)
 ON CONFLICT DO NOTHING;
 
 -- Usuarios de la demo (B1). SOLO DEMO: los cuatro tienen la contraseña `Demo-local-2026!` (la misma

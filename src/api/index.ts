@@ -4,7 +4,7 @@
 // Orden (importa):
 //   1. cabeceras de API y protección CSRF para todo /api;
 //   2. rutas públicas: iniciar y cerrar sesión;
-//   3. a partir de aquí TODO exige sesión (`autenticar`, UNA vez, aquí) y cada ruta DEBE declarar su
+//   3. a partir de aquí TODO exige sesión (`autenticar`, UNA vez, aquí), luego la guarda de módulos (V1: módulo apagado = 404) y cada ruta DEBE declarar su
 //      acceso con `requierePermiso(…)` o `soloSesion()`: sin declaración `contextoDe` falla (denegar
 //      por omisión, EB-09). `rutas.test.ts` recorre el router real y compara con una tabla escrita a mano;
 //   4. 404 en JSON para rutas desconocidas, y el manejador de errores de la convención.
@@ -23,11 +23,13 @@ import type { DepsApi } from "./contexto.ts";
 import { cookieSeguraDesdeEntorno } from "./cookies.ts";
 import { origenesPermitidosDesdeEntorno, proteccionCsrf } from "./csrf.ts";
 import { noEncontrado } from "./errores.ts";
+import { guardaDeModulos } from "./modulos-rutas.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeAutomatizaciones } from "./rutas/automatizaciones.ts";
 import { rutasDeCanales } from "./rutas/canales.ts";
 import { rutasDeConfiguracion } from "./rutas/configuracion.ts";
 import { rutasDeGrupos } from "./rutas/grupos.ts";
+import { rutasDeModulos } from "./rutas/modulos.ts";
 import { rutasDeEventosInesperados } from "./rutas/eventos-inesperados.ts";
 import { rutasDePlantillas } from "./rutas/plantillas.ts";
 import { rutasDeProgramas } from "./rutas/programas.ts";
@@ -135,6 +137,8 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
 
   // Desde aquí, todo con sesión. Una ruta nueva montada después queda autenticada sin que nadie lo recuerde.
   api.use(autenticar(deps));
+  // V1: un módulo apagado en la organización del usuario hace que SUS rutas respondan 404 (como una que no existe), para todos los roles. Antes de cualquier ruta.
+  api.use(guardaDeModulos());
   api.use(rutasDeSesionPropia(deps));
   api.use(rutasDeUsuarios(deps));
   api.use(rutasDeGrupos(deps));
@@ -143,6 +147,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeProgramas(deps));
   api.use(rutasDeCanales(deps));
   api.use(rutasDeConfiguracion(deps));
+  api.use(rutasDeModulos(deps));
   api.use(rutasDePlantillas(deps));
   api.use(rutasDeAutomatizaciones(deps));
   api.use(rutasDeEventosInesperados(deps));

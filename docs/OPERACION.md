@@ -2,6 +2,23 @@
 
 Para quien usa el sistema (administrador, asesor, maestro, recepción) y para quien lo mantiene. Las pantallas se llaman como en la barra de la interfaz. Todo lo que dice «el sistema manda…» pasa por `MessagingProvider`: respeta la ventana de 24 h (fuera de ella solo sale una plantilla aprobada), el horario de 09:00 a 20:00 de la sucursal, las bajas, el tope de frecuencia y la atención humana.
 
+## Módulos: qué tiene encendido la escuela (V1)
+
+La escuela arranca con la **captación**: el bot de tres preguntas, el pase al asesor, las tareas, el embudo y el reporte de leads. Lo demás se enciende cuando esté lista, desde **Administración → Módulos** (solo el administrador), sin reiniciar nada y sin tocar código:
+
+| Módulo | Qué enciende | Necesita |
+|---|---|---|
+| Cotizador | Programa, horarios con lugar, precio y promociones por edad; cotizaciones y lista de espera; el bot los ofrece por WhatsApp | — |
+| Clase muestra | Agendar la clase, el registro del maestro, avisos al maestro y recordatorios a la familia; el bot ofrece agendar | — |
+| Inscripción | Convertir al lead en familia e inscribir; familias, alumnos y expedientes; la bienvenida | Cotizador |
+| Operación diaria (asistencia, niveles y eventos) | Pase de lista, niveles y eventos | Inscripción |
+| Finanzas | Cargos, pagos, estado de cuenta, uniformes, productos y ventas, y recordatorios de pago | Inscripción |
+| Tableros | Los reportes de clases muestra, costo por campaña y el ejecutivo | Inscripción, Finanzas y Clase muestra |
+
+Lo que pasa con un módulo apagado: su sección no aparece en la barra y su dirección dice «No disponible»; su API responde como una ruta que no existe (también al administrador); el bot no lo ofrece; sus automatizaciones y barridos no corren (una automatización que ya estaba programada se omite sin mandar); sus tareas no se listan. **No se borra nada**: al encenderlo vuelve todo lo guardado. Al encender un módulo después de un tiempo, lo que ya pasó NO se manda de golpe: lo omitido se queda omitido y lo nuevo sigue las reglas de siempre (horario de 09:00 a 20:00, descartar lo que ya pasó, topes de frecuencia); finanzas genera la mensualidad del mes en curso (una sola vez), no las de los meses apagados. La captación nunca se apaga. Se enciende en orden (primero la base) y se apaga al revés; la pantalla dice qué falta.
+
+Las organizaciones que ya existían (la demo incluida) tienen todo encendido; una escuela nueva nace con solo la captación (`docs/ALTA-DE-CLIENTE.md`).
+
 ## Por rol
 
 ### Recepción (inicio: Registrar pago)

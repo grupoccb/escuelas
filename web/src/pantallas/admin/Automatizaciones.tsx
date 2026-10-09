@@ -11,7 +11,8 @@ import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { DIAS, enteroDe, horarioDeEnvio } from "./ayudas.ts";
 import { Regreso, useEdicion } from "./comunes.tsx";
-import { EVENTOS, textoDeDesfase, tituloDeEvento } from "./mensajeria.ts";
+import { useSesion } from "../../sesion/SesionContext.tsx";
+import { EVENTOS, NOMBRE_DE_MODULO, textoDeDesfase, tituloDeEvento } from "./mensajeria.ts";
 
 interface AutomatizacionAdmin {
   id: string;
@@ -118,6 +119,7 @@ export default function Automatizaciones() {
   const plantillas = useCarga((senal) => api.get<Pag<PlantillaMinima>>("/api/plantillas", { limite: 100, activo: true }, senal), []);
   const edicion = useEdicion<AutomatizacionAdmin>();
   const alternar = useAccion();
+  const { moduloEncendido } = useSesion();
   return (
     <Pagina titulo="Automatizaciones" subtitulo="Los avisos que el sistema manda solo." acciones={<Regreso />}>
       <Aviso>Apagar una automatización impide que se programen envíos NUEVOS; lo que ya estaba programado sigue su curso.</Aviso>
@@ -130,7 +132,10 @@ export default function Automatizaciones() {
           <li key={a.id} className="tarjeta pila" data-prueba={`automatizacion-${a.id}`}>
             <div className="fila fila-entre">
               <strong>{a.nombre}</strong>
-              <Insignia tono={a.activo ? "exito" : "neutro"}>{a.activo ? "Encendida" : "Apagada"}</Insignia>
+              <span className="fila">
+                {EVENTOS[a.evento_disparador] && !moduloEncendido(EVENTOS[a.evento_disparador]!.modulo) ? <Insignia tono="alerta">En pausa: {NOMBRE_DE_MODULO[EVENTOS[a.evento_disparador]!.modulo]} está apagado</Insignia> : null}
+                <Insignia tono={a.activo ? "exito" : "neutro"}>{a.activo ? "Encendida" : "Apagada"}</Insignia>
+              </span>
             </div>
             <p className="muted">
               {tituloDeEvento(a.evento_disparador)} · {textoDeDesfase(a.offset_minutos)} · {a.max_intentos} intento(s) · de {horaDeMinutos(a.hora_inicio_min)} a {horaDeMinutos(a.hora_fin_min)}

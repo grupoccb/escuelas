@@ -8,11 +8,18 @@ export interface Sucursal {
   nombre: string;
 }
 
+/** Los módulos de la escuela (`GET /api/yo` y `/api/modulos`). La captación es el módulo base y siempre viene encendida. */
+export type ModuloId = "captacion" | "cotizador" | "clase_muestra" | "inscripcion" | "operacion" | "finanzas" | "tableros";
+export type Modulos = Record<ModuloId, boolean>;
+
 export interface Yo {
   usuario: { id: string; correo: string; nombre: string; rol: Rol };
   organizacion: { id: string; nombre: string; slug: string | null } | null;
   sucursales: Sucursal[];
+  /** Los permisos EFECTIVOS: los del rol menos los de los módulos apagados. */
   permisos: string[];
+  /** Los módulos encendidos de la organización. */
+  modulos: Modulos;
   configuracion: { modo_cierre: ModoDeCierre; chatwoot_url_publica: string | null };
 }
 
