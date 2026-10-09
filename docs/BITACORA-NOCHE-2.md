@@ -69,6 +69,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H7 | HECHO | ver `git log` (`H7:`) | Cuadratura: `cuadratura(db)` y `npm run cuadratura` (7 reglas en centavos exactos), prueba de propiedad con PRNG y semilla (3 semillas × 120 pasos, cuadratura tras CADA paso, determinista), carrera de 30 pagos, detección de un descuadre inyectado por SQL |
 | I1 | HECHO | ver `git log` (`I1:`) | Reporte de clases muestra: agendadas, asistidas, no asistidas, conversión (asistidas → inscritas) por fuente, vertical y sucursal, rango por día local; API y comando |
 | H-fix | HECHO (parcial: EH-11 y las BAJA de producto EH-14, EH-15, EH-17 y EH-20 esperan decisión de Eduardo; EH-12, EH-13 y EH-19 pendientes) | 7a2afdd…2af3cc4 y `EG-05` (2e6f1e6) | Correcciones de la auditoría de la etapa H (`docs/auditorias/etapa-H.md`): la ALTA (EH-01) y 9 de las 10 MEDIA corregidas, EG-05 implementada por decisión de Eduardo; ver la sección «Auditoría y correcciones de la etapa H» |
+| H-verif | HECHO | ver `git log` (`H-verif:`) | Verificación independiente de las correcciones H (revertir cada arreglo y ver fallar su prueba, 4 ataques por SQL directo) y 3 blindajes nuevos en la base; ver «Verificación independiente de las correcciones H» |
 | I2 | PENDIENTE | | Costo por alumno inscrito por campaña (detenido por instrucción de Eduardo: la etapa H se audita antes de seguir con I) |
 | I3 | PENDIENTE | | Reporte ejecutivo |
 | I4 | PENDIENTE | | Datos de demo |
@@ -2403,6 +2404,52 @@ La primera corrida de `test:int` fue sobre una base recién creada y vacía; la 
 **Para Eduardo**
 - Decidir EH-11 (qué pasa con lo anterior a H), EH-20 (último día del mes), EH-14/15/17 y EH-12/13 (ver informe, sección 7).
 - Correr `npm run cuadratura` contra la base real tras migrar a esta versión (la regla 8 es nueva y revisa los cargos ya existentes contra el precio congelado de su inscripción: si la demo tiene cargos creados a mano o con precios editados, avisará).
+
+## Verificación independiente de las correcciones H
+
+Regla 2 de Eduardo: las correcciones las verifica un agente distinto del que las hizo. Verificador: la sesión que implementa I2 a I5 (no escribió ninguno de los commits `H-fix` ni `EG-05`).
+
+**Método.** Copia limpia de `HEAD` (`git archive`, fuera del repo; el árbol del repo no se tocó) y una base propia (`verif_h_pruebas`, nunca la de la demo ni `inscripciones_pruebas`). Por cada commit se REVIRTIÓ solo el código fuente (sin pruebas ni docs; para las migraciones, quitando la migración y recreando la base) y se corrieron las pruebas que el commit agregó o cambió: tenían que fallar. Para EH-07 y las mutaciones de EH-18 (cuyo arreglo ya no es un diff aislable) se aplicó la mutación a mano. Después, cuatro ataques propios por SQL directo con un rol sin dueño (`SELECT, INSERT, UPDATE`, el de `docs/API.md`).
+
+| ID | Resultado | Evidencia |
+|---|---|---|
+| EH-01 contadores del dinero por SQL directo | **verificado** | quitada la migración `20261022000000`: fallan `EH-01`, `EH-02` (porque dependía de ella), `EH-09` y «los caminos legítimos» de `blindaje.itest.ts` (4 de 21 con `cargos.itest.ts`). Los CHECK de `cargos.itest.ts` siguen siendo la segunda defensa. Ver sin embargo H-verif A2 |
+| EH-02 cargo de una venta cancelado suelto | **verificado, con hueco → corregido en `H-verif`** | revertida la migración, falla `EH-02`. **Hueco:** `UPDATE cargo SET venta_id = NULL, estatus = 'cancelado'` (la guarda del disparador era `WHEN NEW.venta_id IS NOT NULL` y `venta_id` no estaba blindado) cancelaba el cargo de la venta; ver A1 |
+| EH-03 beneficio solo con la PRIMERA mensualidad | **verificado** | revertida la migración, falla `EH-03` (1 de 10) |
+| EH-04 misma clave, dos familias | **verificado** | revertido `pagos.ts`, falla `EH-04` (1 de 19) |
+| EH-05 venta con sucursal ajena | **verificado** | revertido `productos.ts`, falla `EH-05` (1 de 14) |
+| EH-06 beneficio de producto = una pieza | **verificado** | revertida la ruta, falla `EH-06` (1 de 14) |
+| EH-07 cuadratura con instantánea | **verificado** | quitado `isolationLevel: "RepeatableRead"`, falla la prueba de la instantánea (1 de 8) |
+| EH-08 cuadratura vs precio congelado | **verificado** | revertido `cuadratura.ts`, fallan las 3 pruebas nuevas de la regla 8 (3 de 16) |
+| EH-09 único (pago, cargo) en el schema | **verificado** | revertido el schema, falla `schema.test.ts`; `prisma migrate diff` contra la base migrada da «This is an empty migration» (sin diferencias) |
+| EH-10 códigos de error de momento | **verificado** | revertido `clasificar.ts`, falla la prueba de clasificación (1 de 7) |
+| EH-16 releer el cargo antes del mensaje | **verificado** | revertido `motor.ts`, falla `EH-16` (1 de 10) |
+| EH-18 mutaciones que sobrevivían | **verificado** (M08, M21, M44, M50, S02, S14, S15 por mutación) | `lt → lte` en el barrido (M08), quitar `revision_en: null` (M21), saldo de un cancelado (M44), cargo de precio 0 siempre pendiente (M50), `DROP CONSTRAINT pago_cancelacion_check` (S02), `DROP INDEX venta_promocion_aplicacion_key` (S14), `DROP INDEX tarea_asesor_deuda_vencida_key` (S15): cada una hace fallar exactamente su prueba nueva |
+| EH-11 inscripciones previas a H | **observación** | la prueba fija el comportamiento actual (sin cargo de inscripción, solo el mes en curso, vencido); la decisión sigue pendiente de Eduardo |
+| EG-05 tope de marketing por clase declarada | **verificado** | revertido `provider.ts` (el conteo y el motivo por categoría de Meta), fallan las 4 pruebas de EG-05. Leído el diff: `reglas.ts` frena `!esDeServicio(plantilla)`, `provider.ts` cuenta `clase_mensaje = marketing`, lo ausente cuenta como marketing, el servicio no se frena y el tope sigue siendo de la organización. Las dos pruebas de diseño conservan todas sus aserciones (solo ganaron `max_marketing_por_ventana: 2` como precondición) |
+
+**Ataques propios (SQL directo, rol de la aplicación).**
+
+| Ataque | Antes | Ahora |
+|---|---|---|
+| A1 `UPDATE cargo SET venta_id = NULL, estatus = 'cancelado'` (desligar el cargo de una venta y cancelarlo en la misma sentencia) | **aceptado**: la venta registrada se queda sin cobro (la cuadratura lo ve después: `ventas_y_cargos`) | rechazado: `venta_id` es inmutable en `cargo_blindaje` |
+| A2 `INSERT` de un pago y de una aplicación «oculta» (`eliminado_en` no nulo) | **aceptado**: mueve el cargo y el pago, pero ninguna consulta ve la aplicación (la cuadratura lo ve después) | rechazado: una aplicación nace viva |
+| A7 `INSERT` de una venta promocional de un beneficio todavía PENDIENTE (nadie pagó la primera mensualidad) | **aceptado**: sale el uniforme del inventario sin cobro | rechazado: exige `liberado_en` y `liberado_por_pago_id` |
+| A3 aplicación con monto negativo; A5 aplicación que nace revertida; A6 reabrir un cargo cancelado; A4 editar el precio congelado de una inscripción; A12 mover un cargo a otra venta | rechazados (CHECK, disparadores, `inscripcion_precio_congelado`, `venta_cuadra_con_su_cargo`) | sin cambios |
+
+**Corrección: commit `H-verif`** (migración `20261023000000_h_verif_blindajes`, tres cambios en la base y tres pruebas en `src/finanzas/blindaje.itest.ts`, cada una verificada por mutación: con la función anterior o sin el disparador, la prueba falla).
+
+**Verificación del commit `H-verif`** (sobre `HEAD` = J1 más este commit, copia limpia fuera del repo)
+```
+$ npm run validar     → exit 0 · tests 605 · pass 605 · fail 0 (más los 9 de web)
+$ npm run test:int    → exit 0 · tests 1037 · pass 1037 · fail 0   (base recién creada y vacía; la migración aplica sobre ella)
+```
+Mutaciones de las pruebas nuevas: con la `cargo_blindaje` anterior falla A1; con la `pago_aplicacion_alta` anterior falla A2; sin el disparador `venta_promocional_liberada_trg` falla A7. El disparador de A7 es `AFTER INSERT` para que los CHECK de la venta (`venta_promocional_check`) respondan primero y la prueba preexistente de SQL directo de H5 conserve su aserción.
+
+**Observaciones que NO se corrigen (decisión o fuera de alcance).**
+- Quien tiene `INSERT` sobre `pago` y `pago_aplicacion` puede registrar un pago falso y aplicarlo: la base no puede saber si entró el dinero. Es autorización (quién puede cobrar), no integridad; la cuadratura compara pagos contra aplicaciones, no contra la caja.
+- `UPDATE promocion_aplicacion SET estatus = 'entregado'` desde `pendiente` sigue permitido (la entrega administrativa anterior a H4, decisión 2 de H4): marca entregado sin pago, pero ya no puede sacar producto del inventario (A7).
+- `UPDATE inscripcion SET eliminado_en` pasa con cargos vivos (la cuadratura lo ve como «cargo de una inscripción que no existe»). Y `UPDATE producto SET stock = stock + n` pasa (el ajuste de inventario es un acto legítimo de la aplicación). Se anotan para K3.
 
 ## J1. Interfaz web: base
 
