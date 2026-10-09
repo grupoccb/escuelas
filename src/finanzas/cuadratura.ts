@@ -12,6 +12,8 @@
 //   5. estado_de_cuenta_cuadra — Σ cargos (no cancelados) − Σ aplicaciones vivas = Σ de los saldos por familia (el saldo total del estado de cuenta).
 //   6. ventas_y_cargos — toda venta normal registrada tiene un solo cargo vivo de cantidad × precio; una anulada o promocional, ninguno; todo cargo vivo de venta es de una venta registrada.
 //   7. stock_no_negativo.
+//   8. cargo_igual_al_precio_congelado (EH-08) — el cargo de inscripción y el de mensualidad cobran lo que la inscripción congeló (precio de lista y descuento, o el mes gratis), y no hay
+//      dos cargos de la misma inscripción y periodo (el único parcial de la base no ve lo que se «borró» de forma lógica). Sin esto, un cargo de monto equivocado cuadraba perfecto.
 
 import type { BaseDatos } from "../datos/alcance.ts";
 import { aTexto, deDecimal, multiplicar, sumar, type Centavos } from "../lib/dinero.ts";
@@ -23,7 +25,9 @@ export interface Discrepancia {
 }
 
 export interface DatosParaCuadratura {
-  cargos: { id: string; tutorId: string; ventaId: string | null; montoFinal: Centavos; montoPagado: Centavos; estatus: string }[];
+  cargos: { id: string; tutorId: string; ventaId: string | null; montoFinal: Centavos; montoPagado: Centavos; estatus: string; concepto?: string; inscripcionId?: string | null; periodo?: string | null; monto?: Centavos; descuento?: Centavos }[];
+  /** Lo que cada inscripción congeló. Si no se da, la regla 8 no corre (las pruebas de las otras reglas no lo necesitan). */
+  inscripciones?: { id: string; precioInscripcion: Centavos; precioMensualidad: Centavos; descuentoInscripcion: Centavos; descuentoMensualidad: Centavos }[];
   pagos: { id: string; tutorId: string; monto: Centavos; montoAplicado: Centavos; estatus: string }[];
   aplicaciones: { id: string; pagoId: string; cargoId: string; monto: Centavos; estatus: string }[];
   ventas: { id: string; estatus: string; esPromocional: boolean; cantidad: number; precioUnitario: Centavos }[];
@@ -130,6 +134,30 @@ export function calcularCuadratura(d: DatosParaCuadratura): ResultadoDeCuadratur
   // 7. Stock.
   for (const p of d.productos) if (p.stock < 0) x.push({ regla: "stock_no_negativo", id: p.id, detalle: `stock ${p.stock}` });
 
+  // 8. Cargos de inscripción y de mensualidad contra lo que la inscripción congeló; uno por (inscripción, concepto, periodo).
+  if (d.inscripciones) {
+    const inscripcionPorId = new Map(d.inscripciones.map((i) => [i.id, i]));
+    const vistos = new Set<string>();
+    const regla = "cargo_igual_al_precio_congelado";
+    for (const c of d.cargos) {
+      if ((c.concepto !== "inscripcion" && c.concepto !== "mensualidad") || !c.inscripcionId || c.monto === undefined || c.descuento === undefined) continue;
+      const clave = `${c.inscripcionId}|${c.concepto}|${c.periodo ?? ""}`;
+      if (vistos.has(clave)) x.push({ regla, id: c.id, detalle: `dos cargos de ${c.concepto} de la misma inscripción${c.periodo ? ` y periodo ${c.periodo}` : ""}` });
+      vistos.add(clave);
+      const i = inscripcionPorId.get(c.inscripcionId);
+      if (!i) {
+        x.push({ regla, id: c.id, detalle: "cargo de una inscripción que no existe" });
+        continue;
+      }
+      const [precio, fijo] = c.concepto === "inscripcion" ? [i.precioInscripcion, i.descuentoInscripcion] : [i.precioMensualidad, i.descuentoMensualidad];
+      if (c.monto !== precio) x.push({ regla, id: c.id, detalle: `el cargo de ${c.concepto} cobra ${centavos(c.monto)} y la inscripción congeló ${centavos(precio)}` });
+      const descuentoCongelado = fijo < precio ? fijo : precio;
+      // La mensualidad puede ser un mes gratis (descuento = todo el precio); la inscripción, no.
+      const valido = c.descuento === descuentoCongelado || (c.concepto === "mensualidad" && c.descuento === precio);
+      if (!valido) x.push({ regla, id: c.id, detalle: `el descuento del cargo de ${c.concepto} (${centavos(c.descuento)}) no es el que congeló la inscripción (${centavos(descuentoCongelado)})` });
+    }
+  }
+
   return {
     ok: x.length === 0,
     discrepancias: x,
@@ -144,17 +172,19 @@ export function calcularCuadratura(d: DatosParaCuadratura): ResultadoDeCuadratur
 export async function cuadratura(db: BaseDatos): Promise<ResultadoDeCuadratura> {
   const datos = await db.$transaction(
     async (tx) => {
-      const cargos = await tx.cargo.findMany({ select: { id: true, tutor_id: true, venta_id: true, monto_final: true, monto_pagado: true, estatus: true } });
+      const cargos = await tx.cargo.findMany({ select: { id: true, tutor_id: true, venta_id: true, monto: true, descuento: true, monto_final: true, monto_pagado: true, estatus: true, concepto: true, inscripcion_id: true, periodo: true } });
+      const inscripciones = await tx.inscripcion.findMany({ select: { id: true, precio_inscripcion_aplicado: true, precio_mensualidad_aplicado: true, descuento_inscripcion_aplicado: true, descuento_mensualidad_aplicado: true } });
       const pagos = await tx.pago.findMany({ select: { id: true, tutor_id: true, monto: true, monto_aplicado: true, estatus: true } });
       const aplicaciones = await tx.pago_aplicacion.findMany({ select: { id: true, pago_id: true, cargo_id: true, monto_aplicado: true, estatus: true } });
       const ventas = await tx.venta.findMany({ select: { id: true, estatus: true, es_promocional: true, cantidad: true, precio_unitario: true } });
       const productos = await tx.producto.findMany({ select: { id: true, stock: true } });
-      return { cargos, pagos, aplicaciones, ventas, productos };
+      return { cargos, inscripciones, pagos, aplicaciones, ventas, productos };
     },
     { isolationLevel: "RepeatableRead", maxWait: 10_000, timeout: 120_000 },
   );
   return calcularCuadratura({
-    cargos: datos.cargos.map((c) => ({ id: c.id, tutorId: c.tutor_id, ventaId: c.venta_id, montoFinal: deDecimal(c.monto_final), montoPagado: deDecimal(c.monto_pagado), estatus: c.estatus })),
+    cargos: datos.cargos.map((c) => ({ id: c.id, tutorId: c.tutor_id, ventaId: c.venta_id, montoFinal: deDecimal(c.monto_final), montoPagado: deDecimal(c.monto_pagado), estatus: c.estatus, concepto: c.concepto, inscripcionId: c.inscripcion_id, periodo: c.periodo, monto: deDecimal(c.monto), descuento: deDecimal(c.descuento) })),
+    inscripciones: datos.inscripciones.map((i) => ({ id: i.id, precioInscripcion: deDecimal(i.precio_inscripcion_aplicado), precioMensualidad: deDecimal(i.precio_mensualidad_aplicado), descuentoInscripcion: deDecimal(i.descuento_inscripcion_aplicado), descuentoMensualidad: deDecimal(i.descuento_mensualidad_aplicado) })),
     pagos: datos.pagos.map((p) => ({ id: p.id, tutorId: p.tutor_id, monto: deDecimal(p.monto), montoAplicado: deDecimal(p.monto_aplicado), estatus: p.estatus })),
     aplicaciones: datos.aplicaciones.map((a) => ({ id: a.id, pagoId: a.pago_id, cargoId: a.cargo_id, monto: deDecimal(a.monto_aplicado), estatus: a.estatus })),
     ventas: datos.ventas.map((v) => ({ id: v.id, estatus: v.estatus, esPromocional: v.es_promocional, cantidad: v.cantidad, precioUnitario: deDecimal(v.precio_unitario) })),

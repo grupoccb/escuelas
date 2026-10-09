@@ -123,3 +123,89 @@ test("el dinero es exacto: 0.1 + 0.2 centavos-exactos no deriva (miles de aplica
   }
   assert.deepEqual(calcularCuadratura(d).discrepancias, []);
 });
+
+// ── EH-08: cargos contra el precio congelado, y reglas que el resto de la cuadratura cubría por redundancia ───────────────────────────────
+
+/** Una inscripción con precio de lista 1000.00 de mensualidad (descuento fijo 150.00) y 500.00 de inscripción (sin descuento), con sus tres cargos. */
+function conInscripcion(): DatosParaCuadratura {
+  return {
+    cargos: [
+      { id: "i1", tutorId: "t1", ventaId: null, montoFinal: 50000n, montoPagado: 0n, estatus: "pendiente", concepto: "inscripcion", inscripcionId: "n1", periodo: null, monto: 50000n, descuento: 0n },
+      { id: "m1", tutorId: "t1", ventaId: null, montoFinal: 85000n, montoPagado: 0n, estatus: "pendiente", concepto: "mensualidad", inscripcionId: "n1", periodo: "2026-11", monto: 100000n, descuento: 15000n },
+      { id: "m2", tutorId: "t1", ventaId: null, montoFinal: 0n, montoPagado: 0n, estatus: "pagado", concepto: "mensualidad", inscripcionId: "n1", periodo: "2026-12", monto: 100000n, descuento: 100000n },
+    ],
+    inscripciones: [{ id: "n1", precioInscripcion: 50000n, precioMensualidad: 100000n, descuentoInscripcion: 0n, descuentoMensualidad: 15000n }],
+    pagos: [],
+    aplicaciones: [],
+    ventas: [],
+    productos: [],
+  };
+}
+
+test("EH-08: un cargo que cobra lo que la inscripción congeló cuadra (descuento fijo y mes gratis incluidos)", () => {
+  assert.deepEqual(calcularCuadratura(conInscripcion()).discrepancias, []);
+});
+
+test("EH-08: atrapa un cargo de mensualidad o de inscripción con monto distinto del precio congelado", () => {
+  const a = conInscripcion();
+  a.cargos[1]!.monto = 90000n;
+  a.cargos[1]!.montoFinal = 75000n; // sigue siendo coherente consigo mismo: solo el precio congelado lo delata
+  assert.deepEqual(reglas(a), ["cargo_igual_al_precio_congelado"]);
+  const b = conInscripcion();
+  b.cargos[0]!.monto = 55000n;
+  b.cargos[0]!.montoFinal = 55000n;
+  assert.deepEqual(reglas(b), ["cargo_igual_al_precio_congelado"]);
+});
+
+test("EH-08: atrapa un descuento que no es el congelado (ni mes gratis), y que un cargo de inscripción lleve mes gratis", () => {
+  const a = conInscripcion();
+  a.cargos[1]!.descuento = 20000n;
+  a.cargos[1]!.montoFinal = 80000n;
+  assert.deepEqual(reglas(a), ["cargo_igual_al_precio_congelado"]);
+  const b = conInscripcion();
+  b.cargos[0]!.descuento = 50000n;
+  b.cargos[0]!.montoFinal = 0n;
+  b.cargos[0]!.estatus = "pagado";
+  assert.deepEqual(reglas(b), ["cargo_igual_al_precio_congelado"]);
+});
+
+test("EH-08: atrapa dos cargos de la misma inscripción y periodo (lo que un soft-delete le escondería al único parcial) y un cargo de una inscripción que no existe", () => {
+  const a = conInscripcion();
+  a.cargos.push({ ...a.cargos[1]!, id: "m1b" });
+  assert.deepEqual(reglas(a), ["cargo_igual_al_precio_congelado"]);
+  const b = conInscripcion();
+  b.inscripciones = [];
+  assert.deepEqual(reglas(b), ["cargo_igual_al_precio_congelado"]);
+  // Sin los datos de las inscripciones la regla no corre.
+  const c = conInscripcion();
+  delete c.inscripciones;
+  assert.deepEqual(reglas(c), []);
+});
+
+test("un pago aplicado que cubre MENOS que su monto se atrapa por sí mismo, aunque otro pago exagerado compense la suma global", () => {
+  const d: DatosParaCuadratura = {
+    cargos: [
+      { id: "c1", tutorId: "t1", ventaId: null, montoFinal: 20000n, montoPagado: 6000n, estatus: "pendiente" },
+      { id: "c2", tutorId: "t1", ventaId: null, montoFinal: 20000n, montoPagado: 9000n, estatus: "pendiente" },
+    ],
+    pagos: [
+      { id: "pA", tutorId: "t1", monto: 10000n, montoAplicado: 6000n, estatus: "aplicado" }, // dice cubrir 100.00 y cubre 60.00
+      { id: "pB", tutorId: "t1", monto: 5000n, montoAplicado: 9000n, estatus: "aplicado" }, // cubre 90.00 con 50.00 (aplicado de más)
+    ],
+    aplicaciones: [
+      { id: "a1", pagoId: "pA", cargoId: "c1", monto: 6000n, estatus: "aplicada" },
+      { id: "a2", pagoId: "pB", cargoId: "c2", monto: 9000n, estatus: "aplicada" },
+    ],
+    ventas: [],
+    productos: [],
+  };
+  const r = calcularCuadratura(d);
+  assert.equal(r.discrepancias.some((x) => x.regla === "pagos_aplicados_igual_aplicaciones" && x.id === "pA" && /debe cubrir su monto/.test(x.detalle)), true, "pA");
+  assert.equal(r.discrepancias.some((x) => x.id === "pB"), true, "pB");
+});
+
+test("una aplicación revertida de un pago que NO está cancelado se atrapa", () => {
+  const d = sano();
+  d.aplicaciones.push({ id: "a3", pagoId: "p1", cargoId: "c1", monto: 100n, estatus: "revertida" });
+  assert.equal(calcularCuadratura(d).discrepancias.some((x) => x.id === "a3" && /revertida de un pago que no está cancelado/.test(x.detalle)), true);
+});
