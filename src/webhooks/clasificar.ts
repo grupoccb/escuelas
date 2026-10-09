@@ -38,18 +38,34 @@ const PRISMA_TRANSITORIOS = new Set([
   "P2024", // tiempo agotado esperando una conexión del pool
   "P2028", // error de la API de transacciones (tiempo agotado, transacción cerrada)
   "P2034", // la transacción falló por un conflicto de escritura o un interbloqueo
+  "P2037", // demasiadas conexiones abiertas a la base
 ]);
 
 /** SQLSTATE exactos que son del momento. */
-const SQLSTATE_TRANSITORIOS = new Set(["40001", "40P01", "55P03", "57014", "57P01", "57P02", "57P03"]);
+const SQLSTATE_TRANSITORIOS = new Set([
+  "40001", "40P01", "55P03", "57014", "57P01", "57P02", "57P03",
+  "25006", // transacción de solo lectura: la base cambió a réplica (failover)
+  "25P03", // tiempo agotado de una transacción ociosa
+  "3D000", // la base no existe (configuración o despliegue a medias)
+  "42P01", // la tabla no existe (migración pendiente)
+  "42703", // la columna no existe (migración pendiente)
+]);
 
-/** Clases de SQLSTATE que son del momento: 08 conexión, 53 recursos insuficientes, 58 error del sistema, XX interno. */
-const CLASES_SQLSTATE_TRANSITORIAS = ["08", "53", "58", "XX"];
+/** Clases de SQLSTATE que son del momento: 08 conexión, 28 autorización (credenciales rotadas o mal puestas), 53 recursos insuficientes, 58 error del sistema, XX interno. */
+const CLASES_SQLSTATE_TRANSITORIAS = ["08", "28", "53", "58", "XX"];
 
-const NODE_TRANSITORIOS = new Set(["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "ENOTFOUND", "EHOSTUNREACH", "ENETUNREACH"]);
+const NODE_TRANSITORIOS = new Set([
+  "ECONNREFUSED", "ECONNRESET", "ECONNABORTED", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "ENOTFOUND", "EHOSTUNREACH", "ENETUNREACH", "EMFILE", "ENFILE", "ENOMEM",
+  "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_SOCKET", "UND_ERR_CLOSED", "UND_ERR_DESTROYED",
+]);
 
+/** Errores que Node, undici y Prisma nombran por su clase cuando no traen código: tiempos agotados, el motor de Prisma caído o sin poder arrancar. */
+const NOMBRES_TRANSITORIOS = new Set(["AbortError", "TimeoutError", "PrismaClientRustPanicError", "PrismaClientInitializationError"]);
+
+// OJO (EG-01): el texto de un error puede REPETIR lo que escribió una persona (Prisma cita el valor que no pudo convertir). Por eso el texto solo decide cuando el
+// error NO trae ninguna señal estructurada de que es un dato (código de restricción o de valor, error de validación): ver `esErrorDeDato`.
 const TEXTO_TRANSITORIO =
-  /can't reach database server|connection (?:terminated|refused|reset|closed|lost)|timed out fetching|timeout exceeded when trying to connect|too many (?:clients|connections)|deadlock detected|could not serialize access|terminating connection|database system is (?:starting up|shutting down|in recovery)|server closed the connection|conexión rota/i;
+  /can't reach database server|connection (?:terminated|ended unexpectedly|refused|reset|closed|lost)|client has encountered a connection error|client was closed and is not queryable|query read timeout|socket hang up|client network socket disconnected|timed out fetching|timeout exceeded when trying to connect|too many (?:database )?(?:clients|connections)|deadlock detected|could not serialize access|terminating connection|database system is (?:starting up|shutting down|in recovery)|server closed the connection|read-only transaction|\b(?:econnreset|econnrefused|etimedout|epipe|eai_again|enotfound)\b|conexión rota/i;
 
 const TEXTO_CON_NUL = /invalid byte sequence for encoding|0x00|\\u0000|null bytes?|nul byte/i;
 
@@ -64,7 +80,7 @@ function codigosDe(error: unknown): string[] {
   const visitar = (valor: unknown, profundidad: number): void => {
     if (!esObjeto(valor) || vistos.has(valor) || profundidad > 5) return;
     vistos.add(valor);
-    for (const k of ["code", "originalCode", "sqlState", "errno", "kind"]) {
+    for (const k of ["code", "errorCode", "originalCode", "sqlState", "errno", "kind"]) {
       const c = valor[k];
       if (typeof c === "string" || typeof c === "number") salida.push(String(c));
     }
@@ -109,29 +125,42 @@ export function detalleSeguro(error: unknown): string {
   return `${base}${primera ? `: ${primera}` : ""}`.slice(0, 200);
 }
 
+const CODIGOS_DE_RESTRICCION = ["P2002", "P2003", "P2004", "P2011", "P2012", "P2014"];
+const CODIGOS_DE_DATO = ["P2000", "P2005", "P2006", "P2007", "P2008", "P2009", "P2020", "P2023"];
+
+/** ¿El error trae una señal ESTRUCTURADA de que es por el dato (y no por el momento)? Entonces su texto —que puede citar lo que escribió una persona— no decide nada. */
+function esErrorDeDato(error: unknown, codigos: string[]): boolean {
+  if (nombresDe(error).some((n) => n.startsWith("Prisma") && n.endsWith("ValidationError"))) return true;
+  return codigos.some((c) => CODIGOS_DE_RESTRICCION.includes(c) || CODIGOS_DE_DATO.includes(c) || ["P2001", "P2025"].includes(c) || (c.length === 5 && (c.startsWith("22") || c.startsWith("23"))));
+}
+
 export function clasificarError(error: unknown): Clasificacion {
   const detalle = detalleSeguro(error);
   if (error instanceof ErrorTransitorio) return { clase: "transitorio", detalle };
 
   const codigos = codigosDe(error);
   const mensaje = error instanceof Error ? error.message : "";
+  // 1. Lo transitorio por código o por clase de error: señales estructuradas, que ninguna persona puede escribir.
   if (
     codigos.some((c) => PRISMA_TRANSITORIOS.has(c) || SQLSTATE_TRANSITORIOS.has(c) || NODE_TRANSITORIOS.has(c) || CLASES_SQLSTATE_TRANSITORIAS.some((k) => c.length === 5 && c.startsWith(k))) ||
-    TEXTO_TRANSITORIO.test(mensaje)
+    nombresDe(error).some((n) => NOMBRES_TRANSITORIOS.has(n))
   ) {
     return { clase: "transitorio", detalle };
   }
+  // 2. Lo que es del dato por estructura gana sobre el texto: «connection terminated» dentro de un valor citado no es una falla de la base.
+  // 3. Sin señal estructurada del dato, el texto de los errores de red y de la base decide.
+  if (!esErrorDeDato(error, codigos) && TEXTO_TRANSITORIO.test(mensaje)) return { clase: "transitorio", detalle };
 
   const inesperado = (causa: CausaInesperada): Clasificacion => ({ clase: "inesperado", causa, detalle });
   if (error instanceof BandejaSinAprovisionar) return inesperado("bandeja_sin_aprovisionar");
   if (TEXTO_CON_NUL.test(mensaje) || codigos.includes("22021") || codigos.includes("22P05")) return inesperado("texto_con_nul");
   // Restricciones: P2002 único, P2003 llave foránea, P2004 restricción, P2011 nulo, P2012 falta un valor, SQLSTATE clase 23.
-  if (codigos.some((c) => ["P2002", "P2003", "P2004", "P2011", "P2012", "P2014"].includes(c) || (c.length === 5 && c.startsWith("23")))) return inesperado("restriccion_base");
+  if (codigos.some((c) => CODIGOS_DE_RESTRICCION.includes(c) || (c.length === 5 && c.startsWith("23")))) return inesperado("restriccion_base");
   if (codigos.some((c) => ["P2001", "P2025"].includes(c))) return inesperado("registro_inexistente");
   // Datos fuera de rango o de otro tipo: P2000 demasiado largo, P2005/P2006/P2007 valores inválidos, P2020 fuera de rango, P2023, SQLSTATE clase 22.
   if (
     nombresDe(error).some((n) => n.startsWith("Prisma") && n.endsWith("ValidationError")) ||
-    codigos.some((c) => ["P2000", "P2005", "P2006", "P2007", "P2008", "P2009", "P2020", "P2023"].includes(c) || (c.length === 5 && c.startsWith("22")))
+    codigos.some((c) => CODIGOS_DE_DATO.includes(c) || (c.length === 5 && c.startsWith("22")))
   ) {
     return inesperado("dato_invalido");
   }

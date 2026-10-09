@@ -70,12 +70,23 @@ const TEXTO_DE_ORIGEN: Record<OrigenEvento, string> = {
 /** Resuelve la organización del contexto: la dada, la de la bandeja de Chatwoot o la del número de la escuela. */
 async function bandejaDe(prisma: PrismaRaiz, c: ContextoDeEvento | undefined): Promise<Pick<BandejaResuelta, "id" | "organizacion_id"> | null> {
   if (!c) return null;
+  // EG-02: la constancia no puede depender de que el dato del evento se pueda buscar. Si la consulta falla por el DATO (un número que la base no guarda, un texto con
+  // NUL), el evento simplemente no se ata a ninguna organización; solo una falla del MOMENTO se relanza (así se pide el reintento).
+  const buscar = async (consulta: () => Promise<Pick<BandejaResuelta, "id" | "organizacion_id"> | null>) => {
+    try {
+      return await consulta();
+    } catch (error) {
+      if (clasificarError(error).clase === "transitorio") throw error;
+      return null;
+    }
+  };
   if (c.chatwoot) {
-    const b = await resolverBandejaChatwoot(prisma, c.chatwoot.cuenta, c.chatwoot.bandeja);
+    const { cuenta, bandeja } = c.chatwoot;
+    const b = await buscar(() => resolverBandejaChatwoot(prisma, cuenta, bandeja));
     if (b) return b;
   }
   for (const numero of c.numeroReceptor ?? []) {
-    const b = await resolverBandejaPorNumero(prisma, numero);
+    const b = await buscar(() => resolverBandejaPorNumero(prisma, numero));
     if (b) return b;
   }
   return null;

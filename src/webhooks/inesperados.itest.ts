@@ -19,8 +19,10 @@ import { EstadosEntregaChatwoot, MessagingProvider, ReenviadorTwilioFalso, Trans
 import { firmarCuerpoChatwoot } from "../mensajeria/chatwoot/webhook.ts";
 import { payloadMensajeEntrante } from "../mensajeria/chatwoot/fixtures.ts";
 import { MAX_INTENTOS_REENVIO, RECLAMO_TWILIO_VENCE_MS } from "../mensajeria/twilio/borde.ts";
-import { crearManejadorDeInesperados } from "./inesperado.ts";
+import { crearManejadorDeInesperados, registrarEventoInesperado } from "./inesperado.ts";
+import { resolverBandejaChatwoot } from "../datos/sistema.ts";
 import { huella } from "./forma.ts";
+import { clasificarError } from "./clasificar.ts";
 import { levantarApi, sembrarUsuario } from "../testutil/api.ts";
 
 const SECRETO = "secreto-de-prueba";
@@ -600,5 +602,108 @@ test("WH tarea: la del evento que no se pudo atar a ningún lead (lead_id nulo) 
   } finally {
     m.cerrar();
     await api.cerrar();
+  }
+});
+
+// ── Auditoría de INV-6, WH y G (EG-02, EG-06) ───────────────────────────────────────────────────────────
+
+test("EG-02: un account.id o inbox.id fuera del rango de la base no cuesta un 503 sin fin: 200, UNA constancia sin organización, también al repetirse", async () => {
+  const valores = [2_147_483_648, 4_294_967_296, Number.MAX_SAFE_INTEGER];
+  // Con el procesamiento real (la bandeja «no existe») y con uno que falla por el dato (la constancia tiene que poder guardarse igual).
+  for (const [nombre, opciones] of [["procesamiento real", {}], ["procesamiento que falla por el dato", { procesarEntrante: async (): Promise<{ resultado: string }> => { throw new TypeError("falla por un dato"); } }]] as const) {
+    const m = await montar(opciones);
+    try {
+      for (const campo of ["cuenta", "bandeja"] as const) {
+        for (const valor of valores) {
+          const id = randomInt(100_000_000, 900_000_000);
+          const cuerpo = JSON.stringify(payloadMensajeEntrante({ id, [campo]: valor, content: "CENTINELA María" }));
+          for (let i = 0; i < 2; i++) {
+            const r = await m.chatwoot(cuerpo);
+            assert.equal(r.estado, 200, `${nombre} · ${campo} = ${valor}: ${r.estado}`);
+          }
+          if (nombre === "procesamiento que falla por el dato") {
+            const filas = await constancias("chatwoot", `chatwoot:${id}`);
+            assert.equal(filas.length, 1, `${campo} = ${valor}: UNA constancia`);
+            assert.deepEqual([filas[0]!.organizacion_id, filas[0]!.intentos], [null, 2]);
+            sinContenido(filas[0], `${campo} = ${valor}`);
+          }
+        }
+      }
+    } finally {
+      m.cerrar();
+    }
+  }
+});
+
+test("EG-02: cada defensa por separado — resolver una bandeja con un número que la base no guarda da «no existe», y la constancia se guarda aunque la búsqueda falle por el dato (no si falla por el momento)", async () => {
+  // 1. La búsqueda de la bandeja.
+  for (const [cuenta, bandeja] of [[2_147_483_648, 1], [1, 2_147_483_648], [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER], [-1, 1], [1.5, 1]] as const) {
+    assert.equal(await resolverBandejaChatwoot(prisma, cuenta, bandeja), null, `${cuenta}/${bandeja}`);
+  }
+  // 2. La constancia, aunque la consulta de la bandeja lance por el dato (una versión futura de la búsqueda, un valor raro).
+  const o = await sembrarOrganizacion(prisma, "EG-02 constancia");
+  const falla = (error: () => Error) => conGanchos(prisma, { modelo: "bandeja_chatwoot", operacion: "findFirst", antes: async () => { throw error(); } });
+  const datoRaro = () => Object.assign(new Error("Value out of range for the type"), { code: "P2020" });
+  const clave = `eg02-${unico()}`;
+  const r = await registrarEventoInesperado(falla(datoRaro), { origen: "chatwoot", clave, causa: "forma_inesperada", detalle: "x", forma: {}, contexto: { chatwoot: { cuenta: 7, bandeja: 8 } } });
+  assert.deepEqual(r, { nuevo: true, tareaId: null });
+  assert.equal((await constancias("chatwoot", clave)).length, 1);
+  // Una falla del MOMENTO en esa misma consulta sí se relanza: el proveedor tiene que reintentar.
+  await assert.rejects(
+    registrarEventoInesperado(falla(DEL_MOMENTO), { origen: "chatwoot", clave: `${clave}-b`, causa: "forma_inesperada", detalle: "x", forma: {}, contexto: { chatwoot: { cuenta: 7, bandeja: 8 } } }),
+    (e) => (e as { code?: string }).code === "P2024",
+  );
+  assert.equal((await constancias("chatwoot", `${clave}-b`)).length, 0);
+  void o;
+});
+
+test("EG-06: si la propia constancia no se puede guardar, el webhook pide el reintento (503) y nada se pierde en silencio; un error que no es de unicidad se propaga tal cual", async () => {
+  const o = await sembrarOrganizacion(prisma, "EG-06 constancia");
+  const rompe = (error: () => Error) => conGanchos(prisma, { modelo: "evento_inesperado", operacion: "create", antes: async () => { throw error(); } });
+  const evento = (clave: string) => ({ origen: "chatwoot" as const, clave, causa: "forma_inesperada" as const, detalle: "x", forma: {}, contexto: { organizacionId: o.organizacionId } });
+  // Un error de la base al guardar (disco lleno, restricción inesperada, lo que sea): el manejador pide «reintentar», no «aceptado».
+  for (const error of [() => new Error("no hay espacio en el disco"), () => Object.assign(new Error("fk"), { code: "P2003" }), DEL_MOMENTO]) {
+    const manejador = crearManejadorDeInesperados(rompe(error));
+    assert.equal(await manejador.dato(evento(`eg06-${unico()}`)), "reintentar");
+    assert.equal(await manejador.falla({ origen: "chatwoot", clave: `eg06-${unico()}`, error: new TypeError("un dato"), contexto: { organizacionId: o.organizacionId } }), "reintentar");
+  }
+  // Y ese error es el que sube (no se disfraza de otro ni se traga): solo la violación de unicidad se trata como «ya estaba».
+  await assert.rejects(registrarEventoInesperado(rompe(() => Object.assign(new Error("fk"), { code: "P2003" })), evento(`eg06-${unico()}`)), (e) => (e as { code?: string }).code === "P2003");
+  // Con la base sana, el mismo manejador acepta.
+  assert.equal(await crearManejadorDeInesperados(prisma).dato(evento(`eg06-${unico()}`)), "aceptado");
+});
+
+test("EG-01 con Prisma y Postgres reales: una conexión matada en plena transacción es del MOMENTO (se reintenta); un dato que cita texto de una falla es un DATO (no se reintenta sin fin)", async () => {
+  // 1. El backend de la transacción muere (failover, reinicio, `pg_terminate_backend`): lo siguiente que se le pide a esa conexión falla sin código de Postgres.
+  let error: unknown;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const pid = (await tx.$queryRaw<{ pid: number }[]>`select pg_backend_pid() as pid`)[0]!.pid;
+      await prisma.$queryRaw`select pg_terminate_backend(${pid}::int)`; // otra conexión del pool la mata
+      await new Promise((r) => setTimeout(r, 150));
+      await tx.$queryRaw`select 1`;
+    });
+  } catch (e) {
+    error = e;
+  }
+  assert.ok(error, "la transacción tenía que fallar");
+  assert.equal(clasificarError(error).clase, "transitorio", String((error as Error).message).slice(0, 120));
+  // 2. Valores que citan el texto de una falla de la base dentro de un error de DATO.
+  for (const frase of ["Can't reach database server at db:5432", "connection terminated unexpectedly", "deadlock detected", "timeout exceeded when trying to connect"]) {
+    const intentos: [string, () => Promise<unknown>][] = [
+      ["uuid mal formado", () => prisma.lead.findFirst({ where: { id: `no-uuid ${frase}` } })],
+      ["tipo incorrecto", () => prisma.campana.create({ data: { organizacion_id: "00000000-0000-4000-8000-0000000000aa", nombre: { frase } as never, origen: "otro" } })],
+      ["consulta cruda", () => prisma.$queryRawUnsafe("select $1::uuid", frase)],
+    ];
+    for (const [nombre, f] of intentos) {
+      let e2: unknown;
+      try {
+        await f();
+      } catch (e) {
+        e2 = e;
+      }
+      assert.ok(e2, nombre);
+      assert.equal(clasificarError(e2).clase, "inesperado", `${nombre} · «${frase}»`);
+    }
   }
 });

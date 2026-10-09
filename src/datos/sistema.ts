@@ -30,12 +30,18 @@ export interface BandejaResuelta {
   sucursal_id: string | null;
 }
 
+/** El mayor valor que guarda una columna `INTEGER` de Postgres: un identificador de Chatwoot mayor no puede ser de ninguna bandeja nuestra. */
+export const ENTERO_MAXIMO_DE_LA_BASE = 2_147_483_647;
+
 /** Bandeja de Chatwoot de la que viene un evento del Agent Bot. */
 export async function resolverBandejaChatwoot(
   raiz: PrismaRaiz,
   chatwootAccountId: number,
   chatwootInboxId: number,
 ): Promise<BandejaResuelta | null> {
+  // EG-02: un número fuera del rango de `INTEGER` (válido para JavaScript, imposible para la base) haría fallar la consulta (P2020) y, con ella, la constancia
+  // del propio evento inesperado: el webhook respondería 503 sin fin. No es de ninguna bandeja: no existe.
+  for (const id of [chatwootAccountId, chatwootInboxId]) if (!Number.isInteger(id) || id < 0 || id > ENTERO_MAXIMO_DE_LA_BASE) return null;
   const prisma = clienteSinAlcance(raiz);
   const b = await prisma.bandeja_chatwoot.findFirst({
     where: {
