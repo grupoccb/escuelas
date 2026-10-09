@@ -91,3 +91,9 @@ test("roles mínimos: el rol de tarea del backend no tiene permisos propios y ni
 test("el estado se guarda cifrado en un backend remoto", () => {
   assert.match(leer("versions.tf"), /backend "s3"/);
 });
+
+test("EK-01: las URL de la base hacia RDS cifran con la semántica de libpq (sin ella, `pg` verificaría una CA que Node no conoce y nada conectaría)", () => {
+  const urls = leer("secretos.tf").split("\n").filter((l) => /"base-url-(aplicacion|migrador)"/.test(l));
+  assert.equal(urls.length, 2);
+  for (const l of urls) assert.match(l, /sslmode=require&uselibpqcompat=true/, l.trim());
+});

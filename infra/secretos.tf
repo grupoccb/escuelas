@@ -30,10 +30,13 @@ resource "random_id" "token_metricas" {
   byte_length = 32
 }
 
+# K9 (EK-01): con `pg` 8.x, `sslmode=require` a secas se trata como `verify-full` y exige que Node conozca la CA de Amazon (no la trae): el backend y `preparar-roles.ts` no
+# conectarían a RDS. `uselibpqcompat=true` da la semántica de libpq (cifrado sí, verificación de la cadena no; la base va en una subred privada y RDS fuerza TLS con
+# `rds.force_ssl`). Si se quiere verificar, empaquetar el bundle de CA de RDS en la imagen, fijar NODE_EXTRA_CA_CERTS y volver a `verify-full`.
 locals {
   secretos_generados = {
-    "base-url-aplicacion"      = "postgresql://inscripciones_app:${random_password.base_aplicacion.result}@${aws_db_instance.principal.address}:5432/inscripciones?sslmode=require"
-    "base-url-migrador"        = "postgresql://inscripciones_migrador:${random_password.base_maestra.result}@${aws_db_instance.principal.address}:5432/inscripciones?sslmode=require"
+    "base-url-aplicacion"      = "postgresql://inscripciones_app:${random_password.base_aplicacion.result}@${aws_db_instance.principal.address}:5432/inscripciones?sslmode=require&uselibpqcompat=true"
+    "base-url-migrador"        = "postgresql://inscripciones_migrador:${random_password.base_maestra.result}@${aws_db_instance.principal.address}:5432/inscripciones?sslmode=require&uselibpqcompat=true"
     "base-clave-aplicacion"    = random_password.base_aplicacion.result
     "base-clave-chatwoot"      = random_password.base_chatwoot.result
     "clave-datos-sensibles"    = random_id.clave_datos_sensibles.b64_std

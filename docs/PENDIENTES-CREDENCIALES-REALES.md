@@ -47,6 +47,8 @@ Todo el sistema se probó con servicios simulados (transporte falso, Chatwoot lo
 | 4.6 | **Ensayo de restauración** con la base real y el cifrado de respaldos (`docs/RESPALDO.md`) | RTO medido y anotado; la clave de salud abre las fichas restauradas |
 | 4.7 | **Revisión de seguridad externa** (prueba de penetración) y revisión de la configuración real de AWS; las 4 vulnerabilidades altas de la CLI de Prisma quedan fuera de producción pero conviene vigilarlas | Informe sin altos pendientes |
 | 4.8 | **Rotación de la clave de datos de salud**: el procedimiento está escrito y probado en pequeño; ensayarlo con datos reales y conservar las claves anteriores mientras existan respaldos | Una ficha cifrada con la clave vieja se lee tras rotar |
+| 4.9 | **Respaldo lógico programado en AWS** (K9, EK-03): hoy `npm run respaldo` es manual; falta una tarea programada con `pg_dump` en su imagen, `s3:PutObject` solo al bucket de respaldos con KMS y una alarma si no corre | Un respaldo cifrado nuevo cada noche en el bucket; `npm run restaurar` lo abre en una base nueva |
+| 4.10 | **TLS hacia RDS** (K9, EK-01): las URL llevan `sslmode=require&uselibpqcompat=true` (cifra, no verifica la cadena). Para verificarla, empaquetar el bundle de CA de RDS y fijar `NODE_EXTRA_CA_CERTS` | El backend y la tarea de migración conectan a la RDS real |
 
 ## 5. Lo que depende de la escuela
 

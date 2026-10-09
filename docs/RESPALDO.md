@@ -34,7 +34,7 @@ Si se rota (`CLAVES_DATOS_SENSIBLES_ANTERIORES`, ver `docs/API.md`), conserva TA
 
 | | Valor | Cómo |
 |---|---|---|
-| **RPO** (cuánto se puede perder) | Minutos con RDS (restauración a un punto en el tiempo, retención 14–35 días). Hasta 24 h con el respaldo lógico diario. | `infra/base_datos.tf`; programar `npm run respaldo` cada noche en una tarea con acceso a la base |
+| **RPO** (cuánto se puede perder) | Minutos con RDS (restauración a un punto en el tiempo, retención 14–35 días). Hasta 24 h SOLO si alguien corre el respaldo lógico cada noche: en AWS todavía no hay quien lo programe (K9, EK-03). | `infra/base_datos.tf`; pendiente: una tarea programada con `pg_dump` en la imagen y `s3:PutObject` solo al bucket de respaldos |
 | **RTO** (cuánto tarda volver) | 30–60 min desde RDS a una instancia nueva + cambiar `DATABASE_URL`. 5–15 min por cada 10 GB con el respaldo lógico, más migraciones y cuadratura. | Ensayo medido en local: base de demo chica en menos de 40 s (`respaldo.itest.ts`) |
 
 Los números reales se miden en el primer ensayo con la base de la escuela; hay que repetir el ensayo de restauración cada trimestre, con el procedimiento de arriba, y anotar la fecha.

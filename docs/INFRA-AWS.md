@@ -98,7 +98,7 @@ Dónde se ahorra, en orden de impacto: una sola NAT en producción (−33, a cos
 
 ## RPO y RTO
 
-Ver `docs/RESPALDO.md`. Con esta infraestructura: respaldos automáticos de RDS con retención de 14 días (hasta 35) y recuperación a un punto en el tiempo (RPO de minutos), más respaldo lógico cifrado a S3. RTO: restaurar a una instancia nueva tarda del orden de 30 a 60 minutos más el cambio de `DATABASE_URL`. La clave de cifrado de datos de salud NO se respalda con la base: vive en Secrets Manager y tiene una copia protegida contra borrado; guarda otra copia fuera de AWS (un gestor de contraseñas de la dirección).
+Ver `docs/RESPALDO.md`. Con esta infraestructura: respaldos automáticos de RDS con retención de 14 días (hasta 35) y recuperación a un punto en el tiempo (RPO de minutos), más el respaldo lógico (`npm run respaldo`) que HOY es manual: la infraestructura no trae una tarea programada ni permisos para escribir en el bucket de respaldos (K9, EK-03; queda como pendiente, ver `docs/PENDIENTES-CREDENCIALES-REALES.md`). RTO: restaurar a una instancia nueva tarda del orden de 30 a 60 minutos más el cambio de `DATABASE_URL`. La clave de cifrado de datos de salud NO se respalda con la base: vive en Secrets Manager y tiene una copia protegida contra borrado; guarda otra copia fuera de AWS (un gestor de contraseñas de la dirección).
 
 ## Lo que este módulo no cubre
 
