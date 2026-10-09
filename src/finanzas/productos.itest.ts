@@ -335,3 +335,23 @@ test("EH-05: vender con una sucursal que no existe, o que es de OTRA organizaci√
     await otra.cerrar();
   }
 });
+
+test("EH-06: un beneficio de producto es UNA pieza: pedir 20 es 400 y no entrega ni descuenta nada; con 1 (o sin cantidad) entrega una", async () => {
+  const uniforme = await producto({ stock: 30, nombre: "Uniforme", talla: "10" });
+  const apagar = await promocionConUniforme();
+  try {
+    const x = await inscritoYPagado();
+    for (const cantidad of [20, 2, 0]) {
+      const r = await m.recepcion.post(`/api/beneficios/${x.aplicacion.id}/entregar`, { producto_id: uniforme.id, cantidad });
+      assert.equal(r.estado, 400, `cantidad ${cantidad}`);
+    }
+    assert.equal(await stockDe(uniforme.id), 30, "nada se descont√≥");
+    assert.equal((await liberadoDe(x.inscripcionId)).estatus, "liberado");
+    const ok = await m.recepcion.post<{ venta_id: string }>(`/api/beneficios/${x.aplicacion.id}/entregar`, { producto_id: uniforme.id, cantidad: 1 });
+    assert.equal(ok.estado, 200, JSON.stringify(ok.cuerpo));
+    assert.equal(await stockDe(uniforme.id), 29);
+    assert.equal((await prisma.venta.findFirstOrThrow({ where: { id: ok.cuerpo.venta_id } })).cantidad, 1);
+  } finally {
+    await apagar();
+  }
+});

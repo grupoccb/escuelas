@@ -148,7 +148,10 @@ export async function ajustarStock(tx: Consultas, productoId: string, delta: num
  * Entrega un beneficio de PRODUCTO (H4): crea la venta promocional de precio 0 (descuenta el stock) y marca el beneficio entregado, en la misma transacción. El producto sale
  * del beneficio (`producto_id`) o, si éste solo dice «Uniforme», del que elija recepción (una talla). Debe ser de la vertical de la inscripción.
  */
-export async function entregarProducto(tx: Consultas, ctx: ContextoDeBeneficio, e: { aplicacionId: string; productoId: string | null; cantidad: number }): Promise<{ aplicacionId: string; ventaId: string }> {
+/** EH-06: un beneficio de producto es UNA pieza (el beneficio no lleva cantidad): lo ganado no se multiplica al entregarlo. */
+export const PIEZAS_POR_BENEFICIO = 1;
+
+export async function entregarProducto(tx: Consultas, ctx: ContextoDeBeneficio, e: { aplicacionId: string; productoId: string | null }): Promise<{ aplicacionId: string; ventaId: string }> {
   const a = await tx.promocion_aplicacion.findFirst({
     where: { id: e.aplicacionId },
     select: {
@@ -167,7 +170,7 @@ export async function entregarProducto(tx: Consultas, ctx: ContextoDeBeneficio, 
   const producto = await tx.producto.findFirst({ where: { id: productoId, activo: true }, select: { id: true, vertical_id: true, stock: true, nombre: true, talla: true } });
   if (!producto) throw new RechazoDeVenta("producto_inexistente", "No se encontró el producto, o ya no está activo");
   if (producto.vertical_id !== a.inscripcion.grupo.programa.vertical_id) throw new RechazoDeVenta("producto_de_otra_vertical", "El producto es de otra vertical");
-  if (producto.stock < e.cantidad) throw new RechazoDeVenta("sin_stock", `No hay existencias de ${nombreDelProducto(producto)}`);
+  if (producto.stock < PIEZAS_POR_BENEFICIO) throw new RechazoDeVenta("sin_stock", `No hay existencias de ${nombreDelProducto(producto)}`);
   const tutorId = await responsableDePago(tx, a.inscripcion.alumno_id);
   if (!tutorId) throw new RechazoDeVenta("sin_responsable_de_pago", "El alumno no tiene un tutor");
   const sucursalId = a.inscripcion.grupo.programa.sucursal_id;
@@ -175,7 +178,7 @@ export async function entregarProducto(tx: Consultas, ctx: ContextoDeBeneficio, 
   let ventaId: string;
   try {
     const v = await tx.venta.create({
-      data: altaConAlcance({ tutor_id: tutorId, alumno_id: a.inscripcion.alumno_id, producto_id: producto.id, sucursal_id: sucursalId, cantidad: e.cantidad, precio_unitario: "0.00", es_promocional: true, promocion_aplicacion_id: a.id, fecha: aFecha(hoy), registrada_por_usuario_id: ctx.usuarioId }),
+      data: altaConAlcance({ tutor_id: tutorId, alumno_id: a.inscripcion.alumno_id, producto_id: producto.id, sucursal_id: sucursalId, cantidad: PIEZAS_POR_BENEFICIO, precio_unitario: "0.00", es_promocional: true, promocion_aplicacion_id: a.id, fecha: aFecha(hoy), registrada_por_usuario_id: ctx.usuarioId }),
       select: { id: true },
     });
     ventaId = v.id;

@@ -20,7 +20,7 @@ const MENSAJES: Record<MotivoDeRechazoDeEntrega, string> = {
 };
 export const mensajeDeEntrega = (m: MotivoDeRechazoDeEntrega): string => MENSAJES[m];
 
-export async function entregarBeneficio(tx: Consultas, ctx: ContextoDeBeneficio, e: { aplicacionId: string; productoId: string | null; cantidad: number }): Promise<ResultadoDeEntregaDeBeneficio> {
+export async function entregarBeneficio(tx: Consultas, ctx: ContextoDeBeneficio, e: { aplicacionId: string; productoId: string | null }): Promise<ResultadoDeEntregaDeBeneficio> {
   const a = await tx.promocion_aplicacion.findFirst({ where: { id: e.aplicacionId }, select: { id: true, beneficio: { select: { tipo: true } } } });
   if (!a) return { ok: false, motivo: "inexistente", mensaje: MENSAJES.inexistente };
   if (a.beneficio.tipo === "producto_gratis") {
