@@ -2,14 +2,13 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { INICIO_POR_ROL } from "./navegacion.ts";
 import { Acceso } from "./pantallas/acceso/Acceso.tsx";
-import { NoEncontrada, Pendiente, SinAcceso } from "./pantallas/acceso/Errores.tsx";
+import { NoEncontrada, SinAcceso } from "./pantallas/acceso/Errores.tsx";
 import { Mas } from "./pantallas/acceso/Mas.tsx";
 import { SesionProvider, useSesion } from "./sesion/SesionContext.tsx";
 import { Cargando } from "./ui/basicos.tsx";
 import { Shell } from "./ui/Shell.tsx";
 
-// Cada pantalla se carga cuando se visita (el celular no baja lo que no usa). J5 sustituye estos marcadores por sus pantallas.
-const pendiente = (bloque: string) => lazy(() => Promise.resolve({ default: () => <Pendiente bloque={bloque} /> }));
+// Cada pantalla se carga cuando se visita (el celular no baja lo que no usa). Las pantallas de J6 a J10 se agregan aquí (ver `navegacion.ts`).
 const Hoy = lazy(() => import("./pantallas/maestro/Hoy.tsx"));
 const RegistroClase = lazy(() => import("./pantallas/maestro/RegistroClase.tsx"));
 const PaseDeLista = lazy(() => import("./pantallas/maestro/PaseDeLista.tsx"));
@@ -17,10 +16,10 @@ const Embudo = lazy(() => import("./pantallas/asesor/Embudo.tsx"));
 const Tareas = lazy(() => import("./pantallas/asesor/Tareas.tsx"));
 const FichaLead = lazy(() => import("./pantallas/asesor/FichaLead.tsx"));
 const Conversion = lazy(() => import("./pantallas/conversion/Conversion.tsx"));
-const RegistrarPago = pendiente("J5");
-const EstadoDeCuenta = pendiente("J5");
-const Uniformes = pendiente("J5");
-const Ventas = pendiente("J5");
+const RegistrarPago = lazy(() => import("./pantallas/recepcion/RegistrarPago.tsx"));
+const EstadoDeCuenta = lazy(() => import("./pantallas/recepcion/EstadoDeCuenta.tsx"));
+const Uniformes = lazy(() => import("./pantallas/recepcion/Uniformes.tsx"));
+const Ventas = lazy(() => import("./pantallas/recepcion/Ventas.tsx"));
 
 /** Una ruta que solo existe con el permiso. Sin él se muestra «Sin acceso» y la pantalla ni se monta: no pide nada a la API. */
 function RequierePermiso({ permiso, children }: { permiso: string; children: ReactNode }) {

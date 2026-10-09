@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aCentavos, comparar, deCentavos, esImporte, formatear, minimo, normalizarCaptura, restar, sumar } from "./dinero.ts";
+import { aCentavos, comparar, multiplicar, deCentavos, esImporte, formatear, minimo, normalizarCaptura, restar, sumar } from "./dinero.ts";
 
 test("aCentavos y deCentavos son inversos y exactos (sin flotantes)", () => {
   for (const t of ["0.00", "0.01", "0.10", "1234.50", "9999999999.99", "-15.05", "100.00"]) assert.equal(deCentavos(aCentavos(t)), t);
@@ -48,4 +48,12 @@ test("esImporte y aCentavos rechazan lo que no es un importe", () => {
   assert.equal(esImporte("12,50"), false);
   assert.throws(() => aCentavos("1e3"), RangeError);
   assert.throws(() => aCentavos(""), RangeError);
+});
+
+test("multiplicar un precio por piezas es exacto", () => {
+  assert.equal(multiplicar("350.00", 3), "1050.00");
+  assert.equal(multiplicar("0.10", 3), "0.30");
+  assert.equal(multiplicar("9999999.99", 100), "999999999.00");
+  assert.throws(() => multiplicar("1.00", 1.5), RangeError);
+  assert.throws(() => multiplicar("1.00", -1), RangeError);
 });

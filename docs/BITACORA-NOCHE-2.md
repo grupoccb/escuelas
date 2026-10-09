@@ -78,7 +78,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J2 | HECHO | ver `git log` (`J2:`) | Maestro en celular (390×844): «Hoy» con asistencia y «listo para cerrar», registro del alumno COMPLETO (adultos como filas, salud solo en memoria, antecedentes, observación, reglamento e imagen con evidencia) y pase de lista idempotente; probado en Chromium contra el backend real |
 | J3 | HECHO | ver `git log` (`J3:`) | Asesor: embudo (tablero y lista, filtros, estancados, mover con motivo/nota), tareas, ficha del lead (atribución, cotizaciones, clase muestra, historial, enlace a Chatwoot); cambios mínimos a la API con test |
 | J4 | HECHO (parcial: el modo `maestro_en_sitio` no tiene prueba en navegador: el modo es configuración y todavía no hay API para cambiarla, J8) | ver `git log` (`J4:`) | Asistente de conversión sin recaptura (familia → alumnos → grupo y horario con lugares reales → precio y promociones → reglamento e imagen → confirmación); cierre en sitio del maestro |
-| J5 | PENDIENTE | | Interfaz: recepción |
+| J5 | HECHO | ver `git log` (`J5:`) | Recepción: registrar pago (búsqueda de familia, reparto sugerido y a mano entre hijos, parcial, clave de idempotencia por envío, cancelación), estado de cuenta con antigüedad, uniformes por entregar y ventas con existencia; importes siempre texto exacto |
 | J6 | PENDIENTE | | Interfaz: familia y expediente |
 | J7 | PENDIENTE | | Interfaz: administración del catálogo |
 | J8 | PENDIENTE | | Interfaz: mensajería y usuarios |
@@ -2681,4 +2681,67 @@ Mutaciones comprobadas (ambas hacen fallar `faltantes.test.ts`): que `restantes`
 **Para Eduardo**
 - Revisa `docs/capturas/30…33-conversion-*.png`. Decide si el reglamento debe poder registrarse sin clase muestra (hoy la API lo liga a la clase: D6).
 - **HECHO (parcial)**: sin prueba en navegador del modo `maestro_en_sitio` (la configuración no tiene API todavía —J8—); la lógica de la API sí está probada (F6) y `CierreEnSitio` solo aparece con ese modo.
+
+## J5. Recepción: pagos, estado de cuenta, uniformes y ventas
+
+**Qué se hizo** (`web/src/pantallas/recepcion/`)
+- **Buscar a la familia** (`BuscadorDeFamilia.tsx`): teléfono (en cualquier formato: la normalización la hace el servidor, invariante 7) o nombre; resultados con los alumnos; lo que no existe se dice.
+- **Registrar pago** (`RegistrarPago.tsx`): lo que adeuda la familia (saldo, vencido, cada cargo de cada hijo en el orden en que se pagaría: primero el que venció antes); monto (se acepta «1,250.50»; más de dos decimales o letras se rechazan en pantalla), método, referencia y fecha; **reparto sugerido** por `GET /api/pagos/propuesta` (pago parcial marcado) y **ajuste a mano entre los cargos de varios hijos** (`reparto.ts`, puro y con pruebas: cada importe es real, ninguno pasa del saldo de su cargo y la suma cuadra EXACTAMENTE con el pago; dice «faltan/sobran $0.01» con centavos exactos); **excedente** explicado (no existe «saldo a favor»: el servidor responde 409 y la pantalla dice cuánto sobra); **UNA clave de idempotencia por envío** (`claveParaEnvio`: la misma firma —familia, monto, método, referencia, fecha, reparto— conserva la clave; cambiar cualquier parte da otra): un doble clic —y un reintento después de que se cortó la red con el pago ya registrado— devuelve el mismo pago (`repetido`) y la pantalla dice «ya estaba registrado: no se duplicó». Comprobante de lo registrado (qué hijo, qué cargo, cuánto), pagos recientes y **cancelación** con motivo (no se borra; los cargos recuperan el saldo).
+- **Estado de cuenta** (`EstadoDeCuenta.tsx`, `/cuenta/:tutorId`, también para el asesor): resumen (cargado, pagado, saldo, vencido), **antigüedad de lo vencido** (1 a 30, 31 a 60, 61 a 90, más de 90), cada hijo con sus cargos (estatus y días de atraso) y los pagos.
+- **Uniformes por entregar** (`Uniformes.tsx`): lo liberado al saldar la primera mensualidad, con alumno, talla, familia y promoción; «Marcar entregado» pide la pieza (la talla del alumno primero, solo con existencia) y el servidor crea la venta promocional (precio 0) y descuenta UNA pieza en la misma transacción; la existencia se ve y se refresca.
+- **Ventas** (`Ventas.tsx`): existencia a la vista («Última pieza», «Agotado»), vender a un alumno (el total es `precio × cantidad` exacto, en centavos `bigint`), el cargo queda a nombre del responsable de pago, anular devuelve la pieza. **Última pieza**: si otra persona la vende mientras la pantalla está abierta, el servidor rechaza la segunda venta (409), la pantalla lo explica y **vuelve a leer la existencia**.
+- **Dinero**: nunca `Number` ni `parseFloat` (`check:dinero` vigila `pantallas/recepcion/` y `lib/dinero.ts` como zonas estrictas); `lib/dinero.ts` ganó `multiplicar` (exacto). `nombreDeCargo` ya no repite el concepto en la descripción de inscripciones y mensualidades.
+- **Datos de prueba** (por la API del administrador, salvo la promoción y la talla, que no tienen API): una familia con dos hijos inscritos (inscripción y mensualidad de cada uno, $3,000.00) y un cargo vencido hace 40 días ($800.00); una familia que ya saldó su primera mensualidad (uniforme talla 8 liberado; la promoción se apaga al terminar para no tocar a nadie más); y productos con existencia 3, 2, 1 y 1.
+
+**Verificación**
+```
+$ npm run validar        → exit 0 · tests 622 · pass 622 · web: tests 31 · pass 31 (reparto 4, dinero 7, faltantes 8, formulario 6, fechas 4, chatwoot 2)
+$ npm run test:navegador → 58 passed. recepcion.spec.ts (11): búsqueda (teléfono con espacios y paréntesis, nombre, inexistente); la deuda ($3,800.00 con $800.00 vencido hace 40 d) y el
+   reparto sugerido (parcial); «12.345» se rechaza; $4,000 → «sobran $200.00» y no se puede enviar; pago de $1,500 a mano entre DOS hijos (un centavo menos:
+   «faltan $0.01» y bloqueado; un cargo no recibe más que su saldo): la API tiene UN pago con aplicaciones {Hijo Uno 500.00, Hija Dos 1000.00}, saldo 2300.00;
+   pago parcial (el vencido queda en 500.00); doble clic → +1 pago; reintento tras corte de red (el servidor SÍ lo procesó) → «ya estaba registrado» y NO +2;
+   cancelar (queda «Cancelado» con su motivo, el saldo se restituye); estado de cuenta igual a la API (saldo, vencido, antigüedad); el asesor lee la cuenta pero no ve
+   «Registrar pago» ni por URL; uniforme (solo la talla 8, existencia 3 → 2, venta promocional de 0.00, sale de la lista); ventas (1 pieza → «Agotado»; anular la
+   devuelve; «Solo hay 1 en existencia»; la última gorra: otra persona la vende primero → alerta, existencia 0, UNA venta registrada).
+$ npm run test:int       → exit 0 · tests 1058 · pass 1058 · fail 0
+$ docker compose up -d --build --wait → exit 0 (sin `down -v`): backend Healthy, GET / → 200 con el build de Vite, /salud ok, login de recepcion@demo.test y GET /api/tutores 200
+```
+Mutaciones comprobadas: cambiar `claveParaEnvio` para generar siempre una clave nueva hace fallar la prueba del reintento (se duplicaría el pago); aceptar un reparto cuya suma difiere en un centavo hace fallar `reparto.test.ts`.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La clave de idempotencia dura lo que dura el pago, no el clic**: se calcula de la firma del pago y solo cambia si recepción cambia algo. Alternativa descartada: una clave por clic (un reintento tras un corte duplicaría el cobro) o una por pantalla abierta (cambiar el monto daría `clave_reutilizada`, 409).
+2. **El reparto a mano parte del que propuso el servidor** y valida en cliente lo mismo que impone la base (suma exacta, tope por saldo); el servidor lo vuelve a validar y la base falla cerrada. Alternativa descartada: calcular el reparto en pantalla (dos fuentes de verdad).
+3. **Los importes nunca se convierten**: texto ↔ centavos `bigint` en `lib/dinero.ts`. Alternativa descartada: `Intl.NumberFormat` sobre un `Number` (pierde exactitud con importes grandes y la guarda lo prohíbe).
+4. **La existencia se vuelve a leer tras un fallo de venta**: lo que se ve puede estar viejo (otra caja vendió). Alternativa descartada: asumir que el error fue de la persona.
+5. **Los uniformes se entregan eligiendo la pieza** cuando el beneficio solo dice «Uniforme»; se ofrece primero la talla del alumno. Alternativa descartada: elegir la pieza por talla en silencio (si no hay existencia de esa talla, recepción debe decidirlo).
+
+**Para Eduardo**
+- Revisa `docs/capturas/40…45-*.png` (celular y escritorio). El flujo de cobro es el que más se va a usar: dime si el reparto a mano debería partir en blanco en vez de la propuesta.
+- **[SUPUESTO]** Los importes de la demo de pruebas ($500 / $1,000 / $350 / $120 / $80) son de ejemplo; en producción salen de las tablas.
+- Hoy no hay forma de capturar una **entrada de inventario** desde la interfaz (`POST /api/productos/:id/ajuste-stock` existe en la API): queda para J7/J8 (administración).
+
+## Cierre de J1 a J5 — para quien siga (J6 a J10)
+
+**Estructura de `web/`** (React 19 + Vite 8 + TypeScript estricto; su propio `package.json`; `npm run web:validar` = ESLint (con `react-hooks` y `no-console`) + `tsc` + pruebas de lógica pura con `node --test`)
+```
+web/
+  index.html · vite.config.ts · tsconfig.json · eslint.config.js · playwright.config.ts
+  src/
+    main.tsx · app.tsx            enrutador; cada pantalla se carga con lazy(); <RequierePermiso> por ruta
+    navegacion.ts                 SECCIONES (id, ruta, etiqueta, icono, permiso) e INICIO_POR_ROL
+    api/cliente.ts                pedir/api.get|post|put|patch|delete, ErrorDeApi, traerTodo
+    api/tipos.ts                  tipos compartidos de las respuestas
+    sesion/SesionContext.tsx      useSesion()/useYo(): permisos, sucursal elegida, entrar/salir
+    lib/                          dinero.ts (texto ↔ centavos bigint), fechas.ts, etiquetas.ts, numeros.ts, chatwoot.ts, permisos.ts
+    ui/                           Shell, basicos (Boton, Tarjeta, Aviso, Insignia, Pagina…), campos, Dialogo, Icono, hooks (useCarga, useAccion, useAhora, useTitulo)
+    pantallas/<área>/             acceso, maestro, asesor, conversion, recepcion  (+ un formulario.ts / reparto.ts / faltantes.ts PURO por pantalla compleja, con su .test.ts)
+    salud/                        el ÚNICO lugar que nombra campos de salud (check:sensibles)
+    estilos/base.css              variables claro/oscuro, foco visible, AA, objetivos de 44 px
+  e2e/                            Playwright: fixtura.ts (bloqueo de peticiones externas, comoRol, capturar), ayudas.ts (apiComo, json…), *.spec.ts
+scripts/navegador/                servidor.ts (el backend real + web/dist), mundo.ts (datos de prueba), tipos.ts (la forma de mundo.json)
+scripts/test-navegador.ts         compila, recrea la base inscripciones_navegador_pruebas y corre Playwright
+```
+**Cómo agregar una pantalla (J6 a J10)**: (1) `web/src/pantallas/<área>/<Pantalla>.tsx` con `export default`, usando `<Pagina>`, `useCarga` (lecturas) y `useAccion` (escrituras: ya ignora el segundo clic) y manejando siempre carga / vacío / error (`Cargando`, `Vacio`, `ErrorDeCarga`, `ErrorDeAccion`); (2) una entrada en `SECCIONES` de `navegacion.ts` con el permiso de lo principal que muestra (o ninguna, si se llega desde otra pantalla); (3) su `<Route>` en `app.tsx` envuelta en `<RequierePermiso permiso="…">`; (4) lo que sea lógica (validar, repartir, decidir qué falta) en un `.ts` puro con su `.test.ts`; (5) datos de prueba en `scripts/navegador/mundo.ts` (y su forma en `tipos.ts`) y un `e2e/<pantalla>.spec.ts` que haga el flujo en Chromium y compruebe por la API (`apiComo`) que lo guardado llegó; (6) capturas con `capturar(page, "NN-nombre", "celular" | "escritorio")` (salen en `docs/capturas/`). Reglas: nada de textos de vertical o sucursal en el código (vienen de la API; `check:generico` escanea `web/`), importes SIEMPRE como texto con `lib/dinero.ts`, nada de datos sensibles en consola, `localStorage` ni URL, y la clase `.sin-borde` / `.pila` / `.fila` para el diseño (sin estilos en línea).
+**Componentes reutilizables** ya hechos: `BuscadorDeFamilia`, `Aceptaciones` (reglamento e imagen con evidencia), `MoverEtapa`, `TarjetaDeTarea`, `Cotizaciones`, `ClasesMuestraDeLead`, `GrupoDeOpciones` (botones táctiles), `Dialogo`.
+**Pantallas pendientes / salvedades**: J6 (familia y expediente), J7 (administración del catálogo: incluye la entrada de inventario), J8 (mensajería y usuarios: incluye cambiar el modo de cierre), J9 (tableros), J10 (recorridos). El modo `maestro_en_sitio` no tiene prueba en navegador (J4); la barra inferior del celular muestra 4 secciones y «Más» (si Eduardo prefiere otra jerarquía es un cambio de `navegacion.ts`).
 

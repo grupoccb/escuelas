@@ -68,3 +68,9 @@ export function normalizarCaptura(entrada: string): string | null {
   const [entero = "0", dec = ""] = limpio.split(".");
   return `${entero === "" ? "0" : entero}.${dec.padEnd(2, "0")}`;
 }
+
+/** Un precio por una cantidad entera de piezas (exacto): «350.00» × 3 → «1050.00». */
+export function multiplicar(importe: string, piezas: number): string {
+  if (!Number.isInteger(piezas) || piezas < 0) throw new RangeError("La cantidad debe ser un entero positivo");
+  return deCentavos(aCentavos(importe) * BigInt(piezas));
+}

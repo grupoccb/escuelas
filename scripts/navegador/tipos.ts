@@ -31,6 +31,15 @@ export interface Mundo {
     /** Los alumnos inscritos en el grupo A (el pase de lista). */
     alumnosDelPase: { alumnoId: string; inscripcionId: string; nombre: string }[];
   };
+  /** J5: recepción. */
+  recepcion: {
+    /** Una familia con dos hijos inscritos: inscripción y mensualidad de cada uno ($3,000.00) y un cargo vencido hace 40 días ($800.00). */
+    gomez: { tutorId: string; telefono: string; nombre: string; hijos: { alumnoId: string; nombre: string }[]; cargoVencidoId: string };
+    /** Una familia que ya saldó la primera mensualidad: su uniforme (talla 8) está por entregar. */
+    uniforme: { tutorId: string; alumnoId: string; nombre: string; beneficioId: string };
+    productos: { uniforme8: { id: string; nombre: string; talla: string }; uniforme10: { id: string; nombre: string; talla: string }; playera: { id: string; nombre: string }; gorra: { id: string; nombre: string } };
+    grupoD: { id: string; nombre: string };
+  };
   /** J4: conversión e inscripción. */
   conversion: {
     /** Con clase muestra y registro del maestro (falta solo el apellido y el reglamento); recomendado: un grupo de un solo lugar. */

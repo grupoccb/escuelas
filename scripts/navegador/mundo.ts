@@ -50,6 +50,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
   const maestroDelMundo = await sembrarMaestro(prisma, org, docs, { norte: norte.id, grupoA: grupoA.id, grupoB: grupoB.id, programaId: programa.id });
 
   const conversion = await sembrarConversion(prisma, org, docs, etapas, nuevoCliente, { norte: norte.id, grupoA: grupoA.id, programaId: programa.id }, maestro);
+  const finanzas = await sembrarRecepcion(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id }, administrador);
   const asesorDelMundo = await sembrarAsesor(prisma, org, etapas, { norte: norte.id, sur: sur.id });
 
   return {
@@ -65,6 +66,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
     maestro: maestroDelMundo,
     asesor: asesorDelMundo,
     conversion,
+    recepcion: finanzas,
   };
 }
 
@@ -162,4 +164,63 @@ async function sembrarConversion(
 
   const zeta = await familia("Familia Zeta", "Niña Zeta", 6, etapas["contactado"]!);
   return { epsilon: { ...epsilon, claseId: clase.id }, zeta, grupoC: { id: grupoC.id, nombre: grupoC.nombre }, rellenoAlumnoId: relleno.alumnoId };
+}
+
+const fechaEnMexico = (ms: number): string => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+
+/** J5: finanzas de recepción. Todo por la API del administrador (como en la vida real), salvo lo que no tiene API (la promoción y la talla). */
+async function sembrarRecepcion(
+  prisma: PrismaPruebas,
+  org: OrganizacionDePrueba,
+  docs: DocumentosLegalesSembrados,
+  nuevoCliente: () => ClienteApi,
+  ids: { norte: string; programaId: string },
+  administrador: UsuarioDelMundo,
+): Promise<Mundo["recepcion"]> {
+  const a = nuevoCliente();
+  if ((await a.login(org.slug, administrador.correo, administrador.contrasena)).estado !== 201) throw new Error("El administrador no pudo iniciar sesión");
+  const ok = async <T>(r: Promise<{ estado: number; cuerpo: T }>, que: string): Promise<T> => {
+    const x = await r;
+    if (x.estado < 200 || x.estado >= 300) throw new Error(`${que}: ${x.estado} ${JSON.stringify(x.cuerpo)}`);
+    return x.cuerpo;
+  };
+
+  // Un grupo de cupo holgado y sin horarios (no aparece en el cotizador, así que no estorba a las pruebas de conversión).
+  const grupoD = await prisma.grupo.create({ data: { organizacion_id: org.organizacionId, programa_id: ids.programaId, nombre: "Grupo D", cupo_maximo: 50 } });
+
+  const producto = async (nombre: string, talla: string | null, precio: string, stock: number) =>
+    ok(a.post<{ id: string }>("/api/productos", { vertical_id: org.verticalId, nombre, ...(talla ? { talla } : {}), precio, stock }), `producto ${nombre}`);
+  const uniforme8 = await producto("Uniforme", "8", "350.00", 3);
+  const uniforme10 = await producto("Uniforme", "10", "350.00", 2);
+  const playera = await producto("Playera", null, "120.00", 1);
+  const gorra = await producto("Gorra", null, "80.00", 1);
+
+  // La familia con dos hijos.
+  const telefono = "5555010101";
+  const uno = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Hijo Uno", telefono: `+52${telefono}` });
+  const dos = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Hija Dos", conTutor: uno.tutorId });
+  await prisma.tutor.update({ where: { id: uno.tutorId }, data: { apellidos: "Gómez" } });
+  await prisma.alumno.updateMany({ where: { id: { in: [uno.alumnoId, dos.alumnoId] } }, data: { apellidos: "Gómez" } });
+  for (const al of [uno, dos]) await ok(a.post("/api/inscripciones", { alumno_id: al.alumnoId, grupo_id: grupoD.id }), "inscribir");
+  const vencido = await ok(a.post<{ id: string }>("/api/cargos", { alumno_id: uno.alumnoId, descripcion: "Examen anterior", monto: "800.00", fecha_vencimiento: fechaEnMexico(Date.now() - 40 * 86_400_000) }), "cargo vencido");
+
+  // La familia del uniforme: una promoción «al pagar la primera mensualidad» (se apaga al terminar, para no tocar a nadie más), la inscripción y el pago.
+  const promo = await prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "Uniforme de bienvenida", codigo: "UNIFORME-NAV", vigencia_desde: new Date("2020-01-01"), condicion_tipo: "al_pagar_primera_mensualidad", acumulable: true, prioridad: 5 } });
+  await prisma.promocion_beneficio.create({ data: { organizacion_id: org.organizacionId, promocion_id: promo.id, tipo: "producto_gratis", modo: "total", momento_disparo: "al_cumplir_condicion", descripcion: "Uniforme" } });
+  const uni = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Alumno Uniforme", telefono: "+525555020202" });
+  await prisma.alumno.update({ where: { id: uni.alumnoId }, data: { talla_uniforme: "8", apellidos: "Prueba" } });
+  const insc = await ok(a.post<{ id: string }>("/api/inscripciones", { alumno_id: uni.alumnoId, grupo_id: grupoD.id }), "inscribir al del uniforme");
+  const cargos = await ok(a.get<{ datos: { id: string; concepto: string; saldo: string }[] }>(`/api/cargos?tutor_id=${uni.tutorId}`), "cargos del uniforme");
+  const mensualidad = cargos.datos.find((c) => c.concepto === "mensualidad");
+  if (!mensualidad) throw new Error("La inscripción no generó la primera mensualidad");
+  await ok(a.post("/api/pagos", { tutor_id: uni.tutorId, monto: mensualidad.saldo, metodo: "efectivo", aplicaciones: [{ cargo_id: mensualidad.id, monto: mensualidad.saldo }] }), "pago de la primera mensualidad");
+  await prisma.promocion.update({ where: { id: promo.id }, data: { activo: false } });
+  const beneficio = await prisma.promocion_aplicacion.findFirstOrThrow({ where: { inscripcion_id: insc.id, estatus: "liberado" } });
+
+  return {
+    gomez: { tutorId: uno.tutorId, telefono, nombre: "Rosa Gómez", hijos: [{ alumnoId: uno.alumnoId, nombre: "Hijo Uno" }, { alumnoId: dos.alumnoId, nombre: "Hija Dos" }], cargoVencidoId: vencido.id },
+    uniforme: { tutorId: uni.tutorId, alumnoId: uni.alumnoId, nombre: "Alumno Uniforme", beneficioId: beneficio.id },
+    productos: { uniforme8: { id: uniforme8.id, nombre: "Uniforme", talla: "8" }, uniforme10: { id: uniforme10.id, nombre: "Uniforme", talla: "10" }, playera: { id: playera.id, nombre: "Playera" }, gorra: { id: gorra.id, nombre: "Gorra" } },
+    grupoD: { id: grupoD.id, nombre: grupoD.nombre },
+  };
 }
