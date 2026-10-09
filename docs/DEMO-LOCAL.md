@@ -229,3 +229,14 @@ demo igual. Las credenciales son de desarrollo y están en `config/demo-local.en
   asesor sin haberla tomado a propósito.
 - Un contacto que vuelve a escribir en una conversación nueva reutiliza su lead y el bot le
   vuelve a preguntar.
+
+## Demo guiada con un solo comando (K8) y otras notas de la etapa K
+
+```bash
+npm run demo:guiada              # narra en español, del anuncio simulado al primer pago; termina con la cuadratura y las ligas
+npm run demo:guiada -- --servir  # además deja la interfaz encendida en http://127.0.0.1:3100 (usuarios de la demo; Ctrl+C para terminar)
+```
+
+Usa una base PROPIA (`inscripciones_demo_guiada`, se recrea en cada corrida, nunca toca la de la demo) y el transporte de mensajes FALSO: nada sale a Twilio ni a Chatwoot. Solo necesita el Postgres de compose (`docker compose up -d postgres`); para ver la interfaz en las ligas, `npm run web:build`. Es reproducible (reloj inyectado, datos fijos): dos corridas dan el mismo relato.
+
+Otras notas (K3, K4, K5): los puertos de compose se publican solo en `127.0.0.1`; el backend de la demo declara `ENTORNO_DEMO=si` (en producción se niega a arrancar con estos valores públicos); `/metricas` responde con `Authorization: Bearer demo-local-metricas-token-0001-solo-demo`; `/salud` es «vivo» y `/salud/lista` es «listo»; el respaldo local es `npm run respaldo` (usa el contenedor de Postgres de compose si no tienes `pg_dump`), ver `docs/RESPALDO.md`.

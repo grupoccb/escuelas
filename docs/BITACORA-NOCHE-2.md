@@ -105,7 +105,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K5 | HECHO | ver `git log` (`K5:`) | Respaldo y restauración probados en local: `npm run respaldo` / `npm run restaurar` (pg_dump -Fc, cifrado AES-256-GCM opcional, suma de verificación, retención); prueba con la historia de la demo: respaldar, restaurar en una base nueva y comparar conteos por tabla, migraciones y cuadratura; RPO/RTO documentados |
 | K6 | HECHO (parcial: escrita y validada, NUNCA desplegada ni con un `terraform plan` real contra AWS; los costos son estimaciones de lista) | ver `git log` (`K6:`) | Infraestructura como código para AWS en `infra/` (Terraform): VPC de tres capas, RDS cifrada, ECS Fargate (backend, Chatwoot, migración, cuadratura), ALB con HTTPS y reglas por ruta, WAF, Secrets Manager, S3 con ciclo de vida, CloudWatch con 10 alarmas, roles mínimos; `npm run infra:validar` |
 | K7 | HECHO | ver `git log` (`K7:`) | Documentación: `docs/OPERACION.md` (por rol, las 20 tareas del asesor, variables de producción, rutina y alarmas), `docs/ALTA-DE-CLIENTE.md` + plantilla de organización probada, `docs/PENDIENTES-CREDENCIALES-REALES.md` y `docs/SUPUESTOS-Y-DECISIONES.md` (más de 100 decisiones abiertas y 45 filas de supuestos en una lista única) |
-| K8 | PENDIENTE | | Demo guiada |
+| K8 | HECHO | ver `git log` (`K8:`) | `npm run demo:guiada`: recorre y narra en español, con servicios simulados y una base propia, del anuncio simulado (referral) al primer pago repartido, el uniforme por entregar y la cuadratura en verde, con ligas locales a la interfaz; reproducible e idempotente, con prueba que la ejecuta dos veces |
 | K9 | PENDIENTE | | Auditoría final |
 
 ## A0. Preparación
@@ -2975,3 +2975,24 @@ $ npm run infra:validar   → fmt, init (sin backend) y validate: «The configur
 
 **Para Eduardo**
 - `docs/SUPUESTOS-Y-DECISIONES.md` es lo que tienes que decidir; empieza por «mensajería e INV-6» y «finanzas y cobranza».
+
+## K8. Demo guiada con un solo comando
+
+**Qué se hizo**
+- `npm run demo:guiada` (`scripts/demo-guiada.ts` sobre `scripts/lib/demo-guiada.ts`): recrea una base PROPIA (`inscripciones_demo_guiada`, solo se atreve con nombres que contienen «demo_guiada»), aplica las migraciones y los seeds del catálogo, levanta la app real en 127.0.0.1 con el transporte de mensajes FALSO (nada sale a Twilio ni a Chatwoot) y un reloj inyectado (un lunes fijo), y narra 13 pasos: preparativos → anuncio simulado de Click-to-WhatsApp (referral firmado como lo haría Chatwoot, atribuido a la campaña) → una familia por el QR y la landing → el bot de tres preguntas → la cotización → la clase muestra agendada y la conversación pasada a una persona → aviso al maestro y recordatorios de 24 h y 2 h con el reloj adelantado → registro del maestro con salud cifrada (nunca se muestra), asistencia, aceptación del reglamento y de la imagen, «listo para cerrar» → conversión → inscripción con la promoción (precio congelado) → una venta, el primer pago repartido, con la misma clave dos veces (idempotente) → el beneficio liberado y el uniforme entregado con su stock → estado de cuenta → **cuadratura en verde**. Termina con un resumen y ligas locales a la interfaz (ficha del lead, registro del maestro, expediente, estado de cuenta, uniformes). `--servir` deja el servidor encendido en el puerto 3100 para recorrerla con esos datos (usuarios de la demo).
+- Todo lo que nombra sale de las tablas (escuela, vertical, sucursal, programa, grupo, maestro, precios, promociones): el script no contiene un solo término de vertical (`check:generico`). Pasa por los caminos reales: webhook firmado, landing, API con sesión y permisos, el barrido `correrCiclo` y `MessagingProvider`.
+- **Prueba** `src/demo/guiada.itest.ts` (2): ejecuta el script de verdad DOS veces seguidas (la segunda recrea la base), exige los 13 pasos, los hitos del relato, «✓ cuadra», las ligas, que el relato sea **idéntico palabra por palabra** (sin las líneas con ligas, que llevan puertos e identificadores), y que se niegue a tocar una base que no sea suya.
+
+**Verificación** (copia limpia del árbol final K2 a K8, base propia `inscripciones_k8_pruebas`)
+```
+$ npm run validar     → exit 0 · tests 659 · pass 659 · fail 0 (más los 31 de web)
+$ npm run test:int    → exit 0 · tests 1101 · pass 1101 · fail 0
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Un proceso real contra Postgres, no un guion de pantalla.** Alternativa descartada: reproducir respuestas grabadas: no probaría nada y se desfasaría de la API.
+2. **No se agrega un segundo hijo** (la promoción de hermanos): no hay API para agregar un segundo prospecto a un lead; la demo reparte el pago entre la mensualidad y una venta. Queda anotado como hueco para la interfaz de familia.
+3. **Base propia que se recrea cada vez**, no limpieza fina: es lo que la hace idempotente y reproducible.
+
+**Para Eduardo**
+- Pruébalo: `docker compose up -d postgres` y `npm run demo:guiada` (o con `-- --servir` y `npm run web:build` para clicar la interfaz).
