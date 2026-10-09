@@ -22,6 +22,7 @@ import { problemaDeFechaDeNacimiento } from "../clases-muestra/registro-reglas.t
 import { registroDeProspectoParaConversion } from "../clases-muestra/registro.ts";
 import type { ContextoApi } from "../api/contexto.ts";
 import { registrarCambio, type Instantanea } from "../api/registro.ts";
+import { bloquearCupoDeGrupo } from "../catalogo/cupo.ts";
 import { precioVigente } from "../catalogo/precios.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
@@ -342,8 +343,10 @@ export async function convertirLead(db: BaseDatos, ctx: Pick<ContextoApi, "usuar
         hizoAlgo = true;
       }
 
-      // Las inscripciones, siempre en el mismo orden de grupos (dos conversiones con los mismos grupos no se estorban en orden inverso).
-      porInscribir.sort((a, b) => (a.entrada.grupoId < b.entrada.grupoId ? -1 : a.entrada.grupoId > b.entrada.grupoId ? 1 : 0));
+      // Dos cosas distintas (EK-I01). 1) Los candados de cupo de TODOS los grupos, siempre en orden de id: dos conversiones con los mismos grupos no se estorban en orden
+      // inverso. 2) Las inscripciones, en el orden de CAPTURA de los prospectos (el del plan: `creado_en`, `id`): quién recibe el descuento por hermanos depende de quién se
+      // inscribe después, y eso no puede decidirlo el orden de unos UUID aleatorios (el mismo lead daba precios distintos según los ids de sus grupos).
+      for (const g of [...new Set(porInscribir.map((i) => i.entrada.grupoId))].sort()) await bloquearCupoDeGrupo(tx, g);
       for (const i of porInscribir) {
         const r = await inscribirAlumno(tx, { ahora, usuarioId: ctx.usuario.id }, i.entrada);
         if (!r.ok) {

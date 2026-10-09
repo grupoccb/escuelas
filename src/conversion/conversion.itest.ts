@@ -459,7 +459,9 @@ test("EF-05: la conversión toma los candados de los grupos de sus inscripciones
       ],
     });
     assert.equal(r.estado, 201, JSON.stringify(r.cuerpo));
-    assert.deepEqual(tomados, [menor, mayor], "los candados de los grupos, en orden de id");
+    // Los candados se toman todos primero, en orden de id (EK-I01); `inscribirAlumno` los vuelve a pedir (ya los tiene) al inscribir a cada hijo en su orden de captura.
+    assert.deepEqual(tomados.slice(0, 2), [menor, mayor], "los candados de los grupos, en orden de id");
+    assert.deepEqual([...new Set(tomados)], [menor, mayor], "ningún grupo se pide por primera vez fuera de ese orden");
   } finally {
     await apiOrden.cerrar();
   }
@@ -471,4 +473,40 @@ test("el aislamiento entre organizaciones: el lead de otra organización es 404 
   const fam = await sembrarFamilia(prisma, otra, { etapaId: e2.negociacion });
   assert.equal((await admin.get(`/api/leads/${fam.leadId}/conversion`)).estado, 404);
   assert.equal((await admin.post(`/api/leads/${fam.leadId}/convertir`, {})).estado, 404);
+});
+
+test("EK-I01 (determinismo): con la promoción por hermanos, el hijo capturado primero paga completo y el segundo recibe el descuento, sin importar el orden de los UUID de sus grupos", async () => {
+  const promo = await prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "Hermanos K9", codigo: `HK9${Date.now()}`, vigencia_desde: new Date("2020-01-01"), condicion_tipo: "min_hermanos", condicion_valor: { hermanos: 2 }, acumulable: true, prioridad: 5 } });
+  await prisma.promocion_beneficio.create({ data: { organizacion_id: org.organizacionId, promocion_id: promo.id, tipo: "descuento_mensualidad", modo: "porcentaje", valor: "10.00" } });
+  try {
+    for (const grupoDelPrimeroMayor of [true, false]) {
+      let g1 = await grupoNuevo();
+      let g2 = await grupoNuevo();
+      for (let i = 0; i < 40 && (g1.grupoId > g2.grupoId) !== grupoDelPrimeroMayor; i++) {
+        g1 = await grupoNuevo();
+        g2 = await grupoNuevo();
+      }
+      assert.equal(g1.grupoId > g2.grupoId, grupoDelPrimeroMayor, "preparación: el orden de ids que se quiere probar");
+      const f = await leadDelBot({ nombre: "Primero K9", sucursalId: norte });
+      const dos = await prisma.prospecto.create({ data: { organizacion_id: org.organizacionId, lead_id: f.leadId, vertical_interes_id: org.verticalId, nombre: "Segundo K9", edad_declarada: 8, origen: "asesor", creado_en: new Date(Date.now() + 60_000) } });
+      await aceptaReglamento(f.leadId, f.prospectoId);
+      await aceptaReglamento(f.leadId, dos.id);
+      const r = await asesorNorte.post<Conv & Errores>(`/api/leads/${f.leadId}/convertir`, {
+        tutor: { parentesco: "madre" },
+        prospectos: [
+          { prospecto_id: f.prospectoId, alumno: { apellidos: "Uno", fecha_nacimiento: "2019-01-01" }, inscripcion: { grupo_id: g1.grupoId } },
+          { prospecto_id: dos.id, alumno: { apellidos: "Dos", fecha_nacimiento: "2017-02-02" }, inscripcion: { grupo_id: g2.grupoId } },
+        ],
+      });
+      assert.equal(r.estado, 201, JSON.stringify(r.cuerpo));
+      const descuento = async (prospectoId: string): Promise<string> => {
+        const a = r.cuerpo.alumnos.find((x) => x.prospecto_id === prospectoId)!;
+        return (await prisma.inscripcion.findFirstOrThrow({ where: { id: a.inscripcion!.id } })).descuento_mensualidad_aplicado.toString();
+      };
+      assert.equal(await descuento(f.prospectoId), "0", `el capturado primero paga completo (grupo del primero ${grupoDelPrimeroMayor ? "mayor" : "menor"})`);
+      assert.equal(await descuento(dos.id), "80", "el segundo recibe el 10 % de 800.00");
+    }
+  } finally {
+    await prisma.promocion.update({ where: { id: promo.id }, data: { activo: false } });
+  }
 });
