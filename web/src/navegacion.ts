@@ -5,7 +5,7 @@
 
 import type { Rol } from "./api/tipos.ts";
 
-export type NombreDeIcono = "hoy" | "lista" | "embudo" | "tareas" | "pagos" | "cuenta" | "uniforme" | "ventas" | "familia" | "mas" | "salir" | "chatwoot" | "alerta";
+export type NombreDeIcono = "hoy" | "lista" | "embudo" | "tareas" | "pagos" | "cuenta" | "uniforme" | "ventas" | "familia" | "admin" | "mas" | "salir" | "chatwoot" | "alerta";
 
 export interface Seccion {
   id: string;
@@ -27,6 +27,7 @@ export const SECCIONES: readonly Seccion[] = [
   { id: "ventas", ruta: "/ventas", etiqueta: "Ventas", icono: "ventas", permiso: "ventas:registrar" },
   { id: "alumnos", ruta: "/alumnos", etiqueta: "Alumnos", icono: "familia", permiso: "alumnos:leer" },
   { id: "familias", ruta: "/familias", etiqueta: "Familias", icono: "familia", permiso: "tutores:leer" },
+  { id: "admin", ruta: "/admin", etiqueta: "Administración", icono: "admin", permiso: "catalogo:escribir" },
 ];
 
 /** A dónde llega cada rol al iniciar sesión (la primera de SUS secciones). */

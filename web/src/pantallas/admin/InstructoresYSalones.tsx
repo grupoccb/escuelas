@@ -1,0 +1,185 @@
+// Instructores (quién imparte, en qué sucursales y con qué usuario entra) y salones (de una sucursal). Un choque de salón o de instructor se detecta al asignarlos a un grupo.
+
+import { useState } from "react";
+import { api, type Pagina as Pag } from "../../api/cliente.ts";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
+import { Dialogo } from "../../ui/Dialogo.tsx";
+import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
+import { enteroDe } from "./ayudas.ts";
+import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import type { InstructorAdmin, SalonAdmin, SucursalAdmin } from "./tipos.ts";
+
+interface UsuarioMinimo {
+  id: string;
+  nombre: string;
+  rol: string;
+  activo: boolean;
+}
+
+function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alCerrar }: { instructor: InstructorAdmin | null; sucursales: SucursalAdmin[]; usuarios: UsuarioMinimo[]; alGuardar: () => void; alCerrar: () => void }) {
+  const [nombre, setNombre] = useState(instructor?.nombre ?? "");
+  const [telefono, setTelefono] = useState(instructor?.telefono ?? "");
+  const [correo, setCorreo] = useState(instructor?.correo ?? "");
+  const [usuarioId, setUsuarioId] = useState(instructor?.usuario_id ?? "");
+  const [donde, setDonde] = useState<string[]>(instructor?.sucursales ?? []);
+  const [activo, setActivo] = useState(instructor?.activo ?? true);
+  const [local, setLocal] = useState<Record<string, string>>({});
+  const guardar = useAccion();
+  const servidor = guardar.error?.porCampo() ?? {};
+  const err = (k: string) => local[k] ?? servidor[k];
+  return (
+    <form
+      className="formulario"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        const e: Record<string, string> = {};
+        if (nombre.trim() === "") e["nombre"] = "Escribe el nombre";
+        setLocal(e);
+        if (Object.keys(e).length > 0) return;
+        const cuerpo = { nombre: nombre.trim(), telefono: telefono.trim() === "" ? null : telefono.trim(), correo: correo.trim() === "" ? null : correo.trim(), usuario_id: usuarioId === "" ? null : usuarioId, sucursales: donde, activo };
+        void guardar.ejecutar(async () => {
+          if (instructor) await api.patch(`/api/instructores/${instructor.id}`, cuerpo);
+          else await api.post("/api/instructores", cuerpo);
+          alGuardar();
+        });
+      }}
+    >
+      <CampoTexto etiqueta="Nombre" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
+      <CampoTexto etiqueta="Teléfono" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} error={err("telefono")} ayuda="Para los avisos de las clases muestra." />
+      <CampoTexto etiqueta="Correo" type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} error={err("correo")} />
+      <CampoSelect etiqueta="Usuario con el que entra (maestro)" value={usuarioId} vacio="Sin usuario" opciones={usuarios.filter((u) => u.rol === "maestro" && u.activo).map((u) => ({ valor: u.id, texto: u.nombre }))} onChange={(e) => setUsuarioId(e.target.value)} error={err("usuario_id")} ayuda="De ahí sale «sus grupos» en la aplicación." />
+      <fieldset className="pila sin-borde">
+        <legend>
+          <strong>Sucursales donde da clases</strong>
+        </legend>
+        <p className="campo-ayuda">Sin ninguna marcada = sin restricción.</p>
+        {sucursales.map((s) => (
+          <CampoCasilla key={s.id} etiqueta={s.nombre} checked={donde.includes(s.id)} onChange={(e) => setDonde((d) => (e.target.checked ? [...d, s.id] : d.filter((x) => x !== s.id)))} />
+        ))}
+      </fieldset>
+      <CampoCasilla etiqueta="Activo" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+      <ErrorDeAccion error={guardar.error} />
+      <div className="formulario-acciones">
+        <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
+          Guardar
+        </Boton>
+        <Boton onClick={alCerrar}>Cancelar</Boton>
+      </div>
+    </form>
+  );
+}
+
+function FormularioSalon({ salon, sucursales, alGuardar, alCerrar }: { salon: SalonAdmin | null; sucursales: SucursalAdmin[]; alGuardar: () => void; alCerrar: () => void }) {
+  const [sucursalId, setSucursalId] = useState(salon?.sucursal_id ?? "");
+  const [nombre, setNombre] = useState(salon?.nombre ?? "");
+  const [capacidad, setCapacidad] = useState(salon?.capacidad ? String(salon.capacidad) : "");
+  const [activo, setActivo] = useState(salon?.activo ?? true);
+  const [local, setLocal] = useState<Record<string, string>>({});
+  const guardar = useAccion();
+  const servidor = guardar.error?.porCampo() ?? {};
+  const err = (k: string) => local[k] ?? servidor[k];
+  return (
+    <form
+      className="formulario"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        const e: Record<string, string> = {};
+        const cap = capacidad.trim() === "" ? null : enteroDe(capacidad, 1, 1000);
+        if (salon === null && sucursalId === "") e["sucursal_id"] = "Elige la sucursal";
+        if (nombre.trim() === "") e["nombre"] = "Escribe el nombre";
+        if (capacidad.trim() !== "" && cap === null) e["capacidad"] = "Escribe una capacidad de 1 a 1000";
+        setLocal(e);
+        if (Object.keys(e).length > 0) return;
+        void guardar.ejecutar(async () => {
+          if (salon) await api.patch(`/api/salones/${salon.id}`, { nombre: nombre.trim(), capacidad: cap, activo });
+          else await api.post("/api/salones", { sucursal_id: sucursalId, nombre: nombre.trim(), capacidad: cap, activo });
+          alGuardar();
+        });
+      }}
+    >
+      {salon === null ? <CampoSelect etiqueta="Sucursal" requerido value={sucursalId} vacio="Elige una sucursal" opciones={sucursales.map((s) => ({ valor: s.id, texto: s.nombre }))} onChange={(e) => setSucursalId(e.target.value)} error={err("sucursal_id")} /> : null}
+      <CampoTexto etiqueta="Nombre del salón" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
+      <CampoTexto etiqueta="Capacidad (opcional)" inputMode="numeric" value={capacidad} onChange={(e) => setCapacidad(e.target.value)} error={err("capacidad")} />
+      <CampoCasilla etiqueta="Activo" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+      <ErrorDeAccion error={guardar.error} />
+      <div className="formulario-acciones">
+        <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
+          Guardar
+        </Boton>
+        <Boton onClick={alCerrar}>Cancelar</Boton>
+      </div>
+    </form>
+  );
+}
+
+export default function InstructoresYSalones() {
+  useTitulo("Instructores y salones");
+  const instructores = useCarga((senal) => api.get<Pag<InstructorAdmin>>("/api/instructores", { limite: 100 }, senal), []);
+  const salones = useCarga((senal) => api.get<Pag<SalonAdmin>>("/api/salones", { limite: 100 }, senal), []);
+  const sucursales = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
+  const usuarios = useCarga((senal) => api.get<Pag<UsuarioMinimo>>("/api/usuarios", { rol: "maestro", limite: 100 }, senal), []);
+  const edI = useEdicion<InstructorAdmin>();
+  const edS = useEdicion<SalonAdmin>();
+  const [bajaI, setBajaI] = useState<InstructorAdmin | null>(null);
+  const [bajaS, setBajaS] = useState<SalonAdmin | null>(null);
+  const nombreSucursal = (id: string) => sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—";
+  return (
+    <Pagina titulo="Instructores y salones" subtitulo="Quién imparte y dónde." acciones={<Regreso />}>
+      <Tarjeta titulo="Instructores" acciones={<Boton variante="primario" onClick={edI.nuevo}>Nuevo instructor</Boton>}>
+        {instructores.error ? <ErrorDeCarga error={instructores.error} alReintentar={instructores.recargar} /> : null}
+        {instructores.cargando && !instructores.datos ? <Cargando /> : null}
+        {instructores.datos && instructores.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay instructores" /> : null}
+        <ul className="lista-tarjetas" data-prueba="lista-de-instructores">
+          {(instructores.datos?.datos ?? []).map((i) => (
+            <li key={i.id} className="pila" data-prueba={`instructor-${i.id}`}>
+              <div className="fila fila-entre">
+                <strong>{i.nombre}</strong>
+                <Insignia tono={i.activo ? "exito" : "neutro"}>{i.activo ? "Activo" : "Inactivo"}</Insignia>
+              </div>
+              <p className="muted">{i.sucursales.length === 0 ? "Sin restricción de sucursal" : i.sucursales.map(nombreSucursal).join(", ")}{i.usuario_id ? " · con usuario" : ""}</p>
+              <div className="fila">
+                <Boton onClick={() => edI.editar(i)}>Editar</Boton>
+                <Boton variante="peligro" onClick={() => setBajaI(i)}>Dar de baja</Boton>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Tarjeta>
+      <Tarjeta titulo="Salones" acciones={<Boton variante="primario" onClick={edS.nuevo}>Nuevo salón</Boton>}>
+        {salones.error ? <ErrorDeCarga error={salones.error} alReintentar={salones.recargar} /> : null}
+        {salones.cargando && !salones.datos ? <Cargando /> : null}
+        {salones.datos && salones.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay salones" /> : null}
+        <ul className="lista-tarjetas" data-prueba="lista-de-salones">
+          {(salones.datos?.datos ?? []).map((s) => (
+            <li key={s.id} className="pila" data-prueba={`salon-${s.id}`}>
+              <div className="fila fila-entre">
+                <strong>
+                  {s.nombre} <span className="muted">· {nombreSucursal(s.sucursal_id)}</span>
+                </strong>
+                <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activo" : "Inactivo"}</Insignia>
+              </div>
+              <p className="muted">{s.capacidad ? `Capacidad ${s.capacidad}` : "Sin capacidad registrada"}</p>
+              <div className="fila">
+                <Boton onClick={() => edS.editar(s)}>Editar</Boton>
+                <Boton variante="peligro" onClick={() => setBajaS(s)}>Dar de baja</Boton>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Tarjeta>
+      <Dialogo abierto={edI.actual !== null} titulo={edI.actual === "nuevo" ? "Nuevo instructor" : "Editar instructor"} alCerrar={edI.cerrar}>
+        {edI.actual !== null ? <FormularioInstructor instructor={edI.actual === "nuevo" ? null : edI.actual} sucursales={sucursales.datos?.datos ?? []} usuarios={usuarios.datos?.datos ?? []} alGuardar={() => { edI.cerrar(); instructores.recargar(); }} alCerrar={edI.cerrar} /> : null}
+      </Dialogo>
+      <Dialogo abierto={edS.actual !== null} titulo={edS.actual === "nuevo" ? "Nuevo salón" : "Editar salón"} alCerrar={edS.cerrar}>
+        {edS.actual !== null ? <FormularioSalon salon={edS.actual === "nuevo" ? null : edS.actual} sucursales={sucursales.datos?.datos ?? []} alGuardar={() => { edS.cerrar(); salones.recargar(); }} alCerrar={edS.cerrar} /> : null}
+      </Dialogo>
+      <ConfirmarAccion abierto={bajaI !== null} titulo="Dar de baja al instructor" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaI(null)} alConfirmar={async () => { await api.delete(`/api/instructores/${bajaI!.id}`); instructores.recargar(); }}>
+        <Aviso tono="alerta">Si todavía imparte grupos, el sistema pedirá que se los cambies antes. Baja de <strong>{bajaI?.nombre}</strong>.</Aviso>
+      </ConfirmarAccion>
+      <ConfirmarAccion abierto={bajaS !== null} titulo="Dar de baja el salón" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaS(null)} alConfirmar={async () => { await api.delete(`/api/salones/${bajaS!.id}`); salones.recargar(); }}>
+        <Aviso tono="alerta">Si algún grupo lo usa, el sistema pedirá que le cambies el salón antes. Baja de <strong>{bajaS?.nombre}</strong>.</Aviso>
+      </ConfirmarAccion>
+    </Pagina>
+  );
+}

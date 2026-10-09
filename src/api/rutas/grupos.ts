@@ -3,7 +3,7 @@
 //   GET    /api/grupos?programa_id=&sucursal_id=&limite=&pagina=   (grupos:leer)
 //   POST   /api/grupos   { programa_id, nombre, cupo_maximo, permite_lista_espera?, salon_id?, instructor_id?, horarios?, activo? }   (catalogo:escribir)
 //   PATCH  /api/grupos/:id   { nombre?, cupo_maximo?, permite_lista_espera?, salon_id?|null, instructor_id?|null, horarios?, activo? }
-//   DELETE /api/grupos/:id   baja lógica
+//   DELETE /api/grupos/:id   baja lógica (409 si tiene inscripciones activas o congeladas: se pasan antes a otro grupo)
 //
 // Alcance de lectura: administrador, todos; asesor y recepción, los de sus sucursales; maestro, SOLO los
 // grupos cuyo instructor está ligado a su usuario.
@@ -277,6 +277,8 @@ export function rutasDeGrupos(_deps: DepsApi): Router {
     await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
       const antes = await tx.grupo.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
+      const vigentes = await tx.inscripcion.count({ where: { grupo_id: id, estatus: { in: ["activa", "congelada"] } } });
+      if (vigentes > 0) throw conflicto(`El grupo tiene ${vigentes} inscripción(es) vigente(s): pásalas a otro grupo antes de darlo de baja`);
       const ahora = ctx.ahora();
       await tx.grupo_horario.updateMany({ where: { grupo_id: id }, data: { eliminado_en: ahora } });
       await tx.grupo.update({ where: { id }, data: { eliminado_en: ahora } });

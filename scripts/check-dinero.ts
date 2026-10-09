@@ -36,7 +36,7 @@ const LLAMADAS_DE_FLOTANTE = /\bNumber\s*\(|\bparseInt\s*\(|\.toFixed\s*\(|\bMat
 const ZONAS_DE_DINERO = ["promociones/", "cotizador/", "finanzas/", "pagos/", "cobranza/", "inscripciones/", "conversion/", "eventos/", "expediente/", "catalogo/precios.ts", "api/rutas/eventos.ts", "api/rutas/expediente.ts", "api/rutas/finanzas-", "api/rutas/reportes-", "reportes/", "demo/", "exportacion/"];
 const EXENTO_DE_TOFIXED = "lib/dinero.ts";
 /** La interfaz (J1): lo que maneja importes es zona estricta. El formateador de dinero (`lib/dinero.ts`) opera en `bigint` y texto. */
-const ZONAS_DE_DINERO_WEB = ["pantallas/recepcion/", "pantallas/conversion/", "lib/dinero.ts"];
+const ZONAS_DE_DINERO_WEB = ["pantallas/recepcion/", "pantallas/conversion/", "pantallas/admin/Precios.tsx", "pantallas/admin/Promociones.tsx", "pantallas/admin/beneficios.ts", "pantallas/tableros/", "lib/dinero.ts"];
 
 /** Funciones que bajan un importe a flotante, por su nombre (para el acceso por corchetes). */
 const NOMBRES_DE_FLOTANTE = "toNumber|toFixed|parseFloat|parseInt|Number|round|floor|ceil|trunc|fround";

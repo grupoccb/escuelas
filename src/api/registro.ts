@@ -71,6 +71,15 @@ export const CAMPOS_AUDITABLES = {
   venta: ["tutor_id", "alumno_id", "producto_id", "cantidad", "total", "estatus"],
   // I2: el gasto de una campaña (id de la campaña, fecha y monto como texto exacto; la nota es texto libre y no se audita).
   gasto_campana: ["campana_id", "fecha", "monto"],
+  // J7: el catálogo administrado por pantalla. Nada identificable; los identificadores del proveedor (SID, WABA) no se guardan en el registro.
+  vertical: ["nombre", "slug", "etiqueta_progresion", "etiqueta_evento", "usa_progresion", "color_marca", "logo_url", "cotizador_whatsapp_activo", "clase_muestra_whatsapp_activo", "activo"],
+  sucursal: ["nombre", "direccion", "zona_horaria", "activo"],
+  sucursal_vertical: ["sucursal_id", "vertical_id", "activo"],
+  programa: ["vertical_id", "sucursal_id", "nombre", "edad_min", "edad_max", "nivel", "permite_traslape", "fecha_corte_edad", "activo"],
+  canal_whatsapp: ["vertical_id", "sucursal_id", "numero_whatsapp", "nombre_publico", "calidad_meta", "activo"],
+  bandeja_chatwoot: ["canal_whatsapp_id", "nombre", "chatwoot_account_id", "chatwoot_inbox_id"],
+  // J7 (con la configuración de la organización, que usa J8 para sus topes).
+  configuracion_organizacion: ["max_automaticos_por_dia", "max_marketing_por_ventana", "ventana_marketing_dias", "cotizacion_vigencia_dias", "lista_espera_oferta_horas", "clase_muestra_anticipacion_min", "clase_muestra_horizonte_dias", "clase_muestra_correccion_horas", "umbral_faltas_consecutivas", "umbral_dias_deuda", "sucursal_sin_programa", "modo_cierre"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

@@ -94,7 +94,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J4 | HECHO (parcial: el modo `maestro_en_sitio` no tiene prueba en navegador: el modo es configuración y todavía no hay API para cambiarla, J8) | ver `git log` (`J4:`) | Asistente de conversión sin recaptura (familia → alumnos → grupo y horario con lugares reales → precio y promociones → reglamento e imagen → confirmación); cierre en sitio del maestro |
 | J5 | HECHO | ver `git log` (`J5:`) | Recepción: registrar pago (búsqueda de familia, reparto sugerido y a mano entre hijos, parcial, clave de idempotencia por envío, cancelación), estado de cuenta con antigüedad, uniformes por entregar y ventas con existencia; importes siempre texto exacto |
 | J6 | HECHO | ver `git log` (`J6:`) | Familias y expediente: buscador de alumnos y de familias, ficha con banderas y saldo, expediente por rol (el maestro sin importes), salud en vista aparte con motivo, cambiar de grupo con el cupo real, congelar, reactivar y baja con motivo, «con un solo hijo» |
-| J7 | PENDIENTE | | Interfaz: administración del catálogo |
+| J7 | HECHO | ver `git log` (`J7:`) | Administración del catálogo: disciplinas, sucursales (y qué disciplina se imparte en cuál), programas con traslape de edad, grupos y horarios con choques, instructores y salones, precios versionados, promociones, canales y bandejas y configuración de la escuela; endpoints nuevos con IDOR, registro de cambios y carreras probadas; K1 posible solo con administración |
 | J8 | PENDIENTE | | Interfaz: mensajería y usuarios |
 | J9 | PENDIENTE | | Interfaz: tableros |
 | J10 | PENDIENTE | | Interfaz: recorridos en navegador |
@@ -2836,6 +2836,45 @@ Nota honesta: una primera corrida completa coincidió con otras dos corridas de 
 - Revisa `docs/capturas/50…57-*.png` (familias, ficha, cambiar de grupo, expediente por rol, salud). Dime si la salud debería poder consultarse sin motivo para el maestro del grupo en el momento de la clase (hoy el motivo es obligatorio para todos).
 - «Con un solo hijo» no filtra por disciplina (el filtro `sin_vertical_id` existe en la API; la pantalla lo ofrecerá cuando haya un selector de disciplinas, J7).
 - Las capturas de pantallas anteriores (`docs/capturas/10…45`) se regeneran en cada corrida de `test:navegador` y cambian de bytes aunque no cambie nada visible: este commit no las incluye.
+
+## J7. Administración del catálogo
+
+**Qué se hizo**
+- **Endpoints nuevos** (todos con permiso `catalogo:escribir`, solo administrador; lectura con `catalogo:leer` donde no hay datos del proveedor; validación con `validar.ts`, registro de cambios, baja lógica con sus dependientes, llaves compuestas y candado del catálogo; `docs/API.md`):
+  - `GET|POST|PATCH|DELETE /api/verticales` (`src/api/rutas/verticales.ts`): el **identificador** (`slug`) sale del nombre y NO cambia (va en la landing y en los QR impresos); con progresión exige su etiqueta; la clase muestra por WhatsApp exige el cotizador; color `#RRGGBB`; logo https; la baja es lógica y 409 con la lista de lo que la usa.
+  - `GET|POST|PATCH|DELETE /api/sucursales` y `PUT|DELETE /api/sucursales/:id/verticales/:vertical_id` (`sucursales.ts`): **zona horaria IANA validada** (rechaza «CST»), nombre único, y la relación «qué vertical se imparte en qué sucursal» idempotente (12 PUT simultáneos dejan UNA fila viva).
+  - `GET|POST|PATCH|DELETE /api/programas` (`programas.ts`): la sucursal debe ofrecer la vertical; edades coherentes; **traslape de edad solo entre alternativas** (los dos con `permite_traslape`; la misma función pura que la verificación del catálogo) bajo el candado del catálogo: **dos altas que se traslapan a la vez, gana una**; la vertical y la sucursal no cambian.
+  - `GET|POST|PATCH|DELETE /api/canales-whatsapp` y `POST|PATCH|DELETE /api/bandejas-chatwoot` (`canales.ts`): número normalizado con `normalizarNumeroWhatsapp` (invariante 7) y **único en todo el sistema** (409 sin decir de quién); una bandeja por canal; (cuenta, bandeja) únicas. Los tokens de Twilio y Chatwoot siguen en el entorno: no hay credenciales en estas filas.
+  - `GET|PATCH /api/configuracion` (`configuracion.ts`): los diez ajustes numéricos con **los mismos rangos que los CHECK de la base**, `modo_cierre` y `sucursal_sin_programa`; el `GET` trae los límites y las etiquetas para que la pantalla no los repita. (Lo usa J8; se construyó aquí junto con el resto de las tablas de la organización.)
+  - `DELETE /api/grupos/:id` ahora es **409 si el grupo tiene inscripciones vigentes** (antes se podía dar de baja con alumnos dentro).
+  - `src/catalogo/organizacion.ts` (puro, con su prueba): `slugDe`, `esZonaHorariaValida`, color y URL.
+- **Pantallas** (`web/src/pantallas/admin/`, ruta `/admin`, solo con `catalogo:escribir`; una URL directa sin el permiso da «Sin acceso» y no hace ninguna petición): menú de administración, **Disciplinas**, **Sucursales** (con las disciplinas que se imparten en cada una), **Programas**, **Grupos y horarios** (cupo, salón, instructor, lista de espera y filas de día y hora; **el choque de salón o de instructor sale como error claro** con qué se pisa con qué), **Instructores y salones**, **Precios versionados** (una vigencia nueva cierra la anterior; el pasado no se edita), **Promociones** (condición, alcance, beneficios en palabras, cupo, prioridad, vigencia), **Canales de WhatsApp** (con su bandeja) y **Configuración**. Lógica pura con prueba: horas, filas de horario y resumen (`ayudas.ts`), beneficios en palabras con el valor validado SIN números flotantes (`beneficios.ts`).
+- **Disponible para K1**: todo lo necesario para la prueba de fuego (una sucursal y una vertical nuevas SOLO desde administración, sin tocar código) ya está: ver la prueba `K1 (por la API)` y el recorrido por pantalla de `admin.spec.ts`. **Para que la landing de la vertical nueva (`/l/<identificador>`) exista falta publicar su aviso de privacidad** (`POST /api/documentos-legales` con `tipo: "aviso_privacidad"`); sin él responde como una página que no existe (EE-11).
+- `check:dinero` ahora vigila como zona estricta `pantallas/admin/Precios.tsx`, `Promociones.tsx`, `beneficios.ts` y `pantallas/tableros/` (no se debilitó nada).
+
+**Verificación** (J7, J8 y J9 se verificaron JUNTOS sobre el mismo árbol de trabajo y se partieron en tres commits)
+```
+$ npm run validar        → exit 0 (lint, typecheck, check:generico, check:capas, check:sensibles, check:dinero) · tests 667 · pass 667 · fail 0 · web: tests 48 · pass 48
+$ npm run test:navegador → exit 0 · 92 passed (admin 11, admin-mensajería 6, tableros 6, familia 11, y las de J1 a J5 intactas)
+$ DATABASE_URL_PRUEBAS=…_j_pruebas npm run test:int → tests 1113 · pass 1112 · fail 1: «la demo guiada … dos corridas dan el MISMO relato» (`src/demo/guiada.itest.ts`, del bloque K8 que escribe
+                           otro agente en la misma rama de trabajo: el orden de los cargos de la segunda corrida). Nada de J6 a J9 falla. Las pruebas nuevas (administracion.itest 7,
+                           administracion-mensajeria.itest 3) y los 22 tests que se rompían por la cookie con reloj fijo pasan.
+```
+`administracion.itest.ts` (7): permisos por rol (solo el administrador escribe; asesor, recepción y maestro 403 y leen lo que `catalogo:leer` permite; sin sesión 401); **IDOR** en cada recurso (otra organización: 404 al leer, cambiar, borrar y ni aparece en las listas); el identificador no cambia (400) y no se repite (409), se reutiliza tras una baja; reglas entre campos; zona horaria; PUT idempotente bajo 12 hilos; **carrera de dos programas que se traslapan: 201 y 409, queda UNO**; el traslape solo entre alternativas; número de WhatsApp repetido entre dos organizaciones (409); configuración fuera de rango (9 casos), dos cambios simultáneos de ajustes distintos (ninguno se pierde, una sola fila); baja de lo que se usa (409 con el motivo); registro de cambios; y **`K1 (por la API)`**: vertical + sucursal + relación + programa + precio + grupo con horario → el cotizador devuelve el grupo con sus 12 lugares y el precio, y la landing (con su aviso) responde. `organizacion.test.ts` (4) y `ayudas.test.ts` / `beneficios.test.ts` de `web/` (8).
+`admin.spec.ts` (11, Chromium real): quien no administra no ve la sección ni entra por URL (ni una petición); disciplina con identificador fijo y el error «ya existe»; sucursal con zona inválida rechazada; programa con **traslape rechazado con su motivo**; salón e instructor; grupo con horario y **el choque de salón mostrado como error claro**; **precios**: importe inválido rechazado, vigencia nueva que deja la anterior cerrada el día previo y **el cotizador ya ofrece el grupo de la sucursal nueva con el precio vigente**; promoción por hermanos con beneficio (porcentaje 0 rechazado) y código repetido; canal con número normalizado y repetido rechazado, bandeja ligada; configuración con rango validado y el cambio llega a la API.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El identificador de una vertical no se edita.** Va en QR impresos y enlaces de campañas. Alternativa descartada: editable con redirecciones (más superficie y los QR impresos no se pueden reimprimir).
+2. **La vertical y la sucursal de un programa no cambian**: se da de baja y se crea otro. Los grupos, precios, cotizaciones e inscripciones cuelgan de ellas. Alternativa descartada: permitir moverlo (cambiaría retroactivamente lo ya inscrito).
+3. **El traslape de edad se rechaza al guardar** (la misma regla de `traslapesDeEdad`), no se avisa después. Alternativa descartada: guardar y mostrar una alerta (el bot preguntaría mal hasta que alguien la lea).
+4. **Una baja lógica con dependientes es 409**, con la lista; el camino normal es «desactivar». Alternativa descartada: en cascada (soft delete de todo lo que cuelga, sin que nadie lo sepa).
+5. **Los canales y las bandejas los lee solo el administrador** (traen identificadores del proveedor). Alternativa descartada: `catalogo:leer` para todos.
+6. **Configuración en J7**: la API y su pantalla salieron con el resto de las tablas de la organización; J8 la usa para sus topes. Alternativa descartada: partirla en dos bloques.
+
+**Para Eduardo**
+- Revisa `docs/capturas/60…68-*.png`. Pregunta abierta: ¿el asesor debería ver (solo leer) los programas y precios de su sucursal en pantalla? Hoy la pantalla de administración es solo del administrador (la API de lectura ya es de todos los roles).
+- **[SUPUESTO]** Zonas horarias sugeridas en el campo: América Latina y Madrid; el campo acepta cualquier nombre IANA que el servidor conozca.
+- Dar de alta una vertical nueva deja su landing sin servir hasta publicar su aviso de privacidad: ¿conviene que la pantalla de disciplinas lo pida al crearla? (hoy es un paso aparte por la API).
 
 ## Cierre de J1 a J5 — para quien siga (J6 a J10)
 

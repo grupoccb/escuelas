@@ -25,6 +25,16 @@ const Expediente = lazy(() => import("./pantallas/familia/Expediente.tsx"));
 const SaludDelAlumno = lazy(() => import("./pantallas/familia/SaludDelAlumno.tsx"));
 const Familias = lazy(() => import("./pantallas/familia/Familias.tsx"));
 const FichaFamilia = lazy(() => import("./pantallas/familia/FichaFamilia.tsx"));
+const Administracion = lazy(() => import("./pantallas/admin/Administracion.tsx"));
+const AdminVerticales = lazy(() => import("./pantallas/admin/Verticales.tsx"));
+const AdminSucursales = lazy(() => import("./pantallas/admin/Sucursales.tsx"));
+const AdminProgramas = lazy(() => import("./pantallas/admin/Programas.tsx"));
+const AdminGrupos = lazy(() => import("./pantallas/admin/Grupos.tsx"));
+const AdminInstructores = lazy(() => import("./pantallas/admin/InstructoresYSalones.tsx"));
+const AdminPrecios = lazy(() => import("./pantallas/admin/Precios.tsx"));
+const AdminPromociones = lazy(() => import("./pantallas/admin/Promociones.tsx"));
+const AdminCanales = lazy(() => import("./pantallas/admin/Canales.tsx"));
+const AdminConfiguracion = lazy(() => import("./pantallas/admin/Configuracion.tsx"));
 
 /** Una ruta que solo existe con el permiso. Sin él se muestra «Sin acceso» y la pantalla ni se monta: no pide nada a la API. */
 function RequierePermiso({ permiso, children }: { permiso: string; children: ReactNode }) {
@@ -58,6 +68,16 @@ function Rutas() {
         <Route path="/familias" element={<RequierePermiso permiso="tutores:leer"><Familias /></RequierePermiso>} />
         <Route path="/familias/un-solo-hijo" element={<RequierePermiso permiso="tutores:leer"><Familias crucada /></RequierePermiso>} />
         <Route path="/familias/:tutorId" element={<RequierePermiso permiso="tutores:leer"><FichaFamilia /></RequierePermiso>} />
+        <Route path="/admin" element={<RequierePermiso permiso="catalogo:escribir"><Administracion /></RequierePermiso>} />
+        <Route path="/admin/verticales" element={<RequierePermiso permiso="catalogo:escribir"><AdminVerticales /></RequierePermiso>} />
+        <Route path="/admin/sucursales" element={<RequierePermiso permiso="catalogo:escribir"><AdminSucursales /></RequierePermiso>} />
+        <Route path="/admin/programas" element={<RequierePermiso permiso="catalogo:escribir"><AdminProgramas /></RequierePermiso>} />
+        <Route path="/admin/grupos" element={<RequierePermiso permiso="catalogo:escribir"><AdminGrupos /></RequierePermiso>} />
+        <Route path="/admin/instructores" element={<RequierePermiso permiso="catalogo:escribir"><AdminInstructores /></RequierePermiso>} />
+        <Route path="/admin/precios" element={<RequierePermiso permiso="catalogo:escribir"><AdminPrecios /></RequierePermiso>} />
+        <Route path="/admin/promociones" element={<RequierePermiso permiso="catalogo:escribir"><AdminPromociones /></RequierePermiso>} />
+        <Route path="/admin/canales" element={<RequierePermiso permiso="catalogo:escribir"><AdminCanales /></RequierePermiso>} />
+        <Route path="/admin/configuracion" element={<RequierePermiso permiso="catalogo:escribir"><AdminConfiguracion /></RequierePermiso>} />
         <Route path="/mas" element={<Mas />} />
         <Route path="*" element={<NoEncontrada />} />
       </Routes>
