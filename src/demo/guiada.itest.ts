@@ -52,7 +52,11 @@ test("la demo guiada recorre los doce pasos, termina con la cuadratura en verde 
   // Sin términos que dependan de la escuela en el código: todo lo nombrado sale de las tablas, así que el relato cambia con el catálogo, no con el script.
   const dos = correr();
   assert.equal(dos.codigo, 0);
-  assert.equal(relato(dos.salida), relato(una.salida), "reproducible: la segunda corrida (que recrea la base) cuenta lo mismo");
+  const a = relato(una.salida).split("\n");
+  const b = relato(dos.salida).split("\n");
+  const i = a.findIndex((l, k) => l !== b[k]);
+  assert.equal(i, -1, `reproducible: la segunda corrida (que recrea la base) cuenta lo mismo; difieren en la línea ${i + 1}:\n  1.ª: ${a[i]}\n  2.ª: ${b[i]}`);
+  assert.equal(a.length, b.length);
 });
 
 test("la demo guiada se niega a tocar una base que no sea suya", () => {

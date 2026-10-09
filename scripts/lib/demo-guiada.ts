@@ -418,12 +418,12 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   dato(`El inventario tiene «${uniforme!.nombre}» y «${playera!.nombre}» (${dinero(playera!.precio)}).`);
   exigir(await recepcion.post("/api/ventas", { alumno_id: alumnoId, producto_id: playera!.id, cantidad: 1 }), [201], "venta de la playera");
   dato(`Recepción le vende una playera a Mateo: el stock baja y nace un cargo de producto a nombre de la madre.`);
-  const cargos = (exigir(await recepcion.get(`/api/cargos?tutor_id=${tutorId}&limite=50`), [200], "cargos").datos as { id: string; concepto: string; monto_final: string; saldo: string; fecha_vencimiento: string }[]).filter((cg) => Number(cg.saldo) > 0 || cg.concepto === "inscripcion");
+  const cargos = (exigir(await recepcion.get(`/api/cargos?tutor_id=${tutorId}&limite=50`), [200], "cargos").datos as { id: string; concepto: string; monto_final: string; saldo: string; fecha_vencimiento: string }[]).filter((cg) => Number(cg.saldo) > 0 || cg.concepto === "inscripcion").sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento) || a.concepto.localeCompare(b.concepto));
   for (const cg of cargos) dato(`Cargo «${cg.concepto}»: ${dinero(cg.monto_final)} (vence ${cg.fecha_vencimiento}).`);
   const adeudado = cargos.reduce((a, cg) => a + Math.round(Number(cg.saldo) * 100), 0);
   const montoPago = (adeudado / 100).toFixed(2);
   const propuesta = exigir(await recepcion.get(`/api/pagos/propuesta?tutor_id=${tutorId}&monto=${montoPago}`), [200], "propuesta de pago");
-  dato(`Se paga ${dinero(montoPago)} en efectivo; el sistema propone el reparto, más antiguo primero: ${propuesta.aplicaciones.map((a: { cargo_id: string; monto: string }) => `${dinero(a.monto)} a «${cargos.find((cg) => cg.id === a.cargo_id)?.concepto}»`).join(" + ")}.`);
+  dato(`Se paga ${dinero(montoPago)} en efectivo; el sistema propone el reparto, más antiguo primero: ${propuesta.aplicaciones.map((a: { cargo_id: string; monto: string }) => `${dinero(a.monto)} a «${cargos.find((cg) => cg.id === a.cargo_id)?.concepto}»`).sort().join(" + ")}.`);
   const pago = exigir(await recepcion.post("/api/pagos", { tutor_id: tutorId, monto: montoPago, metodo: "efectivo", clave_idempotencia: "demo-guiada-pago-0001" }), [201], "pago");
   const repetido = await recepcion.post("/api/pagos", { tutor_id: tutorId, monto: montoPago, metodo: "efectivo", clave_idempotencia: "demo-guiada-pago-0001" });
   dato(`Pago registrado. Si la caja repite el envío por error, la misma clave devuelve el mismo pago (${repetido.estado === 200 && repetido.cuerpo.repetido ? "idempotente: no se cobra dos veces" : "verifica la idempotencia"}).`);

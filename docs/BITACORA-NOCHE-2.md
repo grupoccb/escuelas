@@ -3166,3 +3166,7 @@ $ npm run test:int    → exit 0 · tests 1101 · pass 1101 · fail 0
 
 **Para Eduardo**
 - Pruébalo: `docker compose up -d postgres` y `npm run demo:guiada` (o con `-- --servir` y `npm run web:build` para clicar la interfaz).
+
+## K8-fix. La demo guiada: orden estable de los cargos
+
+La primera corrida completa del árbol con las rutas de J7/J8 integradas hizo fallar UNA vez la prueba de reproducibilidad de la demo guiada (`src/demo/guiada.itest.ts`): el relato listaba los cargos de la familia en el orden en que la API los devuelve, y dos cargos con el mismo vencimiento (la inscripción de $0.00 y la mensualidad) pueden salir en cualquier orden. **Corregido:** el relato ordena los cargos por vencimiento y concepto y las aplicaciones del reparto por texto; la prueba ahora dice en qué línea difieren las dos corridas. Verificado con 4 corridas seguidas del script (relato idéntico) y 2 de la prueba. Lección: una prueba de reproducibilidad que pasa por casualidad en tres corridas no es una prueba; el desempate que faltaba estaba en el relato, no en el sistema.
