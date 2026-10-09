@@ -68,6 +68,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H6 | HECHO | ver `git log` (`H6:`) | Cobranza: recordatorios de pago de SERVICIO con el motor y todas las reglas del provider, cancelados al saldarse/cancelarse/darse de baja, tarea por deuda sobre un umbral de días |
 | H7 | HECHO | ver `git log` (`H7:`) | Cuadratura: `cuadratura(db)` y `npm run cuadratura` (7 reglas en centavos exactos), prueba de propiedad con PRNG y semilla (3 semillas × 120 pasos, cuadratura tras CADA paso, determinista), carrera de 30 pagos, detección de un descuadre inyectado por SQL |
 | I1 | HECHO | ver `git log` (`I1:`) | Reporte de clases muestra: agendadas, asistidas, no asistidas, conversión (asistidas → inscritas) por fuente, vertical y sucursal, rango por día local; API y comando |
+| H-fix | HECHO (parcial: EH-11 y las BAJA de producto EH-14, EH-15, EH-17 y EH-20 esperan decisión de Eduardo; EH-12, EH-13 y EH-19 pendientes) | 7a2afdd…2af3cc4 y `EG-05` (2e6f1e6) | Correcciones de la auditoría de la etapa H (`docs/auditorias/etapa-H.md`): la ALTA (EH-01) y 9 de las 10 MEDIA corregidas, EG-05 implementada por decisión de Eduardo; ver la sección «Auditoría y correcciones de la etapa H» |
 | I2 | PENDIENTE | | Costo por alumno inscrito por campaña (detenido por instrucción de Eduardo: la etapa H se audita antes de seguir con I) |
 | I3 | PENDIENTE | | Reporte ejecutivo |
 | I4 | PENDIENTE | | Datos de demo |
@@ -2346,3 +2347,59 @@ $ npm run test:int    → exit 0 · tests 1006 · pass 1006 · fail 0
 2. **Conversión = asistidas que hoy tienen una inscripción**, no «leads inscritos»: es lo que pide el tablero (asistidas → inscritas) y se mide por prospecto. Un niño con dos clases asistidas cuenta en cada una (documentado).
 3. **La fuente es una sola derivación pura** (campaña → landing/código/anuncio → directo) que reutiliza I2.
 4. **El rango se resuelve por día local en memoria** sobre una ventana UTC holgada: un `WHERE` en SQL por zona de cada sucursal no cabe en Prisma sin SQL crudo.
+
+## Auditoría y correcciones de la etapa H
+
+Informe: `docs/auditorias/etapa-H.md` (auditor con contexto nuevo, commit `54985c0`). **1 ALTA, 10 MEDIA, 9 BAJA**; 65 mutaciones (46 mueren, 19 sobreviven: 4 equivalentes o redundantes y 15 huecos de prueba o hallazgos); ataque de pagos simultáneos (80 hilos, pagos cruzados, cancelaciones, baja, claves repetidas) sin un solo sobrepago ni 5xx; verificación independiente de las seis correcciones `G-fix` (revertido el arreglo, el test falla en las seis; EG-01 resultó corto de cobertura: EH-10).
+
+| Hallazgo | Gravedad | Estado | Commit / nota |
+|---|---|---|---|
+| EH-01 los contadores del dinero se falsean por SQL directo con el rol de la aplicación (`UPDATE cargo.monto_pagado/estatus`, `INSERT` de cargo «pagado» o de pago «aplicado» sin aplicaciones, `eliminado_en` de cargo/pago/aplicación/venta) | ALTA | **corregido** | `7a2afdd` (migración `20261022000000`): `pg_trigger_depth()` para los contadores, altas con contadores en cero y guardas de `eliminado_en`; `blindaje.itest.ts` con SQL directo; 8 mutaciones muertas |
+| EH-02 el cargo de una venta se cancela suelto por SQL (M09 sobrevivía) | MEDIA | **corregido** | `c6c06e3` (migración `20261022010000`): disparador diferido también sobre `cargo`; prueba de la API (409 `de_venta`) y de SQL |
+| EH-03 la base libera el beneficio con cualquier mensualidad pagada (M18 sobrevivía) | MEDIA | **corregido** | `f83bf8b` (migración `20261022020000`): exige la primera; prueba con meses por adelantado |
+| EH-04 misma clave de idempotencia de dos familias a la vez → 500 (S04 sobrevivía) | MEDIA | **corregido** | `76ff8ba`: la violación del único es `clave_reutilizada` (409); prueba con barrera |
+| EH-05 `POST /api/ventas` con sucursal inexistente o de otra organización → 500 | MEDIA | **corregido** | `e95816e` |
+| EH-06 entregar un beneficio de producto aceptaba cantidad hasta 20 | MEDIA | **corregido** | `9319254`: una pieza por beneficio (`PIEZAS_POR_BENEFICIO`); la API rechaza `cantidad` > 1 con 400 |
+| EH-07 la cuadratura da falsas alarmas mientras se opera (8 de 3 249 corridas) | MEDIA | **corregido** | `d67d6e4`: transacción `RepeatableRead` (`OpcionesTransaccion.isolationLevel`) |
+| EH-08 la cuadratura no compara el cargo con el precio congelado ni prueba el pago aplicado que cubre menos | MEDIA | **corregido** | `50aacb3`: regla 8 `cargo_igual_al_precio_congelado` y pruebas de M32/M35 |
+| EH-09 `pago_aplicacion_pago_cargo_key` fuera del schema: `migrate diff` ya no era limpio | MEDIA | **corregido** | `360ce5d`: declarado en el schema; `migrate diff` da «No difference detected» |
+| EH-10 EG-01 incompleto (`P1000`, `P1003`, `P1010`, `P1011`, `P2021`, `P2022`, `kind` del adaptador) | MEDIA | **corregido** | `9524137` |
+| EH-11 inscripciones previas a H: sin cargo de inscripción ni meses pasados; el primer barrido genera el mes en curso, normalmente vencido, y empieza la cobranza | MEDIA (producto) | **pendiente: decisión de Eduardo** | `2af3cc4`: una prueba fija el comportamiento actual; opciones en el informe |
+| EH-12 reintentar con la clave de un pago cancelado responde 200 con el pago cancelado | BAJA | pendiente | la pantalla futura decide si debe ser 409 |
+| EH-13 la fecha del pago no tiene cota inferior | BAJA | pendiente | decisión de la escuela |
+| EH-14 el estado de cuenta muestra cargos de todas las sucursales | BAJA (producto) | pendiente: decisión | |
+| EH-15 recepción no ve la tarea `deuda_vencida` | BAJA (producto) | pendiente: decisión | |
+| EH-16 ventana de milisegundos entre revalidar el cargo y enviar el recordatorio | BAJA | **corregido (mitigado)** | `86af1ab`: el motor vuelve a leer el cargo justo antes de armar el mensaje (también toma el saldo de ese momento); queda la ventana de encolar y despachar |
+| EH-17 la conversión de I1 cuenta inscripciones de otra vertical | BAJA (producto) | pendiente: decisión | |
+| EH-18 mutaciones que sobrevivían (M06, M08, M21, M32, M35, M44, M50, S02, S14, S15) | BAJA | **corregido** | `2af3cc4`, `50aacb3`: cada una verificada por mutación; siguen vivas solo las equivalentes (M07, M29, M38, M41, M43) |
+| EH-19 interbloqueo teórico barrido ↔ pago | BAJA | pendiente | 180 pagos × 4 barridos concurrentes en 15 rondas: 0 errores |
+| EH-20 inscribirse el último día del mes cobra el mes completo y el siguiente al día siguiente | BAJA (producto) | pendiente: decisión | |
+| EG-05 el tope de marketing cuenta por categoría de Meta | MEDIA (producto) | **corregido por decisión de Eduardo** | `2e6f1e6`: ver abajo |
+
+**EG-05 (decisión de Eduardo): consecuencias y aserciones cambiadas.** El tope de marketing (1 cada 7 días por teléfono, configurable por organización con `max_marketing_por_ventana` y `ventana_marketing_dias`) se aplica y se cuenta por la **clase declarada** de la plantilla (`clase_mensaje = marketing`), no por su categoría de Meta (`reglas.ts` y `provider.ts`). Lo ausente o raro cuenta como marketing, igual que en `esDeServicio`. **Quedan sujetos al tope** el reenganche de captación (25 h), el lead frío, la promoción por vencer y la recuperación de quien no llegó (todas `utility` en Meta, marketing para el negocio): con la configuración por omisión **el segundo intento (a las 48–50 h) ya no sale**: queda `omitido`/`tope_frecuencia` y no se reintenta cuando pasan los 7 días (el intento está agotado), así que **en la práctica el reenganche y la recuperación mandan UN solo mensaje por teléfono y semana**. Si la escuela quiere dos intentos, debe subir `max_marketing_por_ventana` a 2 en su configuración. Un marketing de categoría `marketing` y uno de recuperación se cuentan juntos. Los avisos de servicio no cuentan ni se frenan. Las dos pruebas de diseño que exigían el segundo intento dentro de 7 días:
+
+| Prueba | Cambio | Por qué |
+|---|---|---|
+| `src/automatizaciones/motor.itest.ts` «hasta max_intentos, espaciados; después no hay más» | **ninguna aserción cambió**; se agregó la precondición `fijarConfiguracion(… max_marketing_por_ventana: 2)` al principio | la prueba trata del ESPACIADO (25 h) y del tope de INTENTOS, no del tope de marketing; con el tope por omisión el segundo ya no sale (criterio de Eduardo) |
+| `src/clases-muestra/asistencia.itest.ts` «D4 recuperación: el primer intento sale 2 h después…; el segundo, 48 h después; no hay más (tope)» | **ninguna aserción cambió**; misma precondición | trata del espaciado de 48 h y del tope de intentos |
+| Nuevas, una por cada una | «EG-05: con el tope de marketing por omisión… el segundo intento… se bloquea con tope_frecuencia y queda omitido» | fijan lo que pasa con la configuración por omisión (el 2.º queda `omitido`/`tope_frecuencia`) |
+| `src/mensajeria/reglas.test.ts` y `frecuencia.itest.ts` (nuevas) | por clase: utility/marketing cuenta y se frena; servicio no; clase ausente o rara es marketing; el tope sigue siendo configurable | cinco mutaciones muertas |
+
+**Verificación (HEAD de la sesión de correcciones)**
+```
+$ npm run validar     → exit 0 · tests 598 · pass 598 · fail 0
+$ npm run test:int    → exit 0 · tests 1027 · pass 1027 · fail 0   (base recién creada y vacía)
+$ npm run test:int    → exit 0 · tests 1027 · pass 1027 · fail 0   (segunda corrida seguida, misma base)
+```
+La primera corrida de `test:int` fue sobre una base recién creada y vacía; la segunda, inmediata, sobre la misma base. Nunca se usó la base de la demo ni el proyecto compose `inscripciones`. Además: las tres migraciones nuevas (`20261022000000`, `…010000`, `…020000`) aplican sobre base vacía y sobre una base con datos de la etapa G ya migrada a H (inscripciones activas, congelada y baja, y el mes en curso generado por el barrido); `prisma migrate diff` da «No difference detected» sobre ambas y `npm run cuadratura` sobre la segunda sale con 0. Se corrió `validar` y las pruebas de integración de las áreas tocadas por cada commit; la corrida completa de `test:int` (dos veces) es la del HEAD.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Los contadores los protege `pg_trigger_depth()`**, no un permiso de columna (alternativa descartada: `REVOKE UPDATE (monto_pagado)`: el rol de la aplicación necesita ese `UPDATE` indirectamente a través de los disparadores de las aplicaciones, que corren con sus privilegios). Un superusuario o un dueño con `session_replication_role = replica` sigue pudiendo saltarse los disparadores, y para eso está la cuadratura.
+2. **Dinero y ventas no admiten ni el borrado lógico** (`eliminado_en`): se cancelan o se anulan. Alternativa descartada: permitirlo y filtrarlo en la cuadratura (un cargo pagado «borrado» deja que el barrido genere otra mensualidad).
+3. **Las aserciones de CHECK de `cargos.itest.ts` se conservaron** creando el cargo sin disparadores (`session_replication_role = replica`): los disparadores nuevos rechazan esos mismos cargos antes de llegar a los CHECK, y lo que se prueba ahí es que los CHECK siguen siendo la segunda defensa.
+4. **La cantidad de la entrega de un beneficio de producto no se acepta** (400 si es mayor que 1) en lugar de ignorarse en silencio, para que recepción no crea que entregó tres.
+5. **No se corrigió** EH-11 (cobranza a inscripciones previas a H) sin decisión: tocaría lo que la escuela cobra.
+
+**Para Eduardo**
+- Decidir EH-11 (qué pasa con lo anterior a H), EH-20 (último día del mes), EH-14/15/17 y EH-12/13 (ver informe, sección 7).
+- Correr `npm run cuadratura` contra la base real tras migrar a esta versión (la regla 8 es nueva y revisa los cargos ya existentes contra el precio congelado de su inscripción: si la demo tiene cargos creados a mano o con precios editados, avisará).
