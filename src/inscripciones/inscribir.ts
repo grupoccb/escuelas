@@ -18,6 +18,7 @@
 import { InscripcionesActivas, bloquearCupoDeGrupo } from "../catalogo/cupo.ts";
 import { aFecha, deFecha, precioVigente, sumarDias, type FechaISO } from "../catalogo/precios.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { estatusEfectivo } from "../cotizador/cotizacion.ts";
 import { moverLeadAEtapa } from "../embudo/etapas.ts";
 import { problemasDeReglamentoVigente } from "../legal/aceptaciones.ts";
 import { edadCumplida } from "../lib/edad.ts";
@@ -165,8 +166,9 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
   // La cotización que se acepta (opcional).
   let cotizacionId: string | null;
   if (e.cotizacionId) {
-    const c = await tx.cotizacion.findFirst({ where: { id: e.cotizacionId, prospecto_id: prospecto.id, programa_id: programa.id }, select: { id: true, estatus: true } });
-    if (!c || c.estatus === "vencida") return rechazo("cotizacion_invalida", "La cotización no existe, no es de este alumno y programa, o ya venció", { detalles: [{ campo: "cotizacion_id", mensaje: "No sirve para esta inscripción" }] });
+    const c = await tx.cotizacion.findFirst({ where: { id: e.cotizacionId, prospecto_id: prospecto.id, programa_id: programa.id }, select: { id: true, estatus: true, vigente_hasta: true } });
+    // EG-16: una cotización cuyo último día ya pasó está vencida aunque el barrido que la guarda como `vencida` no haya corrido todavía (`estatusEfectivo`, el mismo criterio de la API).
+    if (!c || estatusEfectivo(c.estatus, deFecha(c.vigente_hasta), ctx.ahora) === "vencida") return rechazo("cotizacion_invalida", "La cotización no existe, no es de este alumno y programa, o ya venció", { detalles: [{ campo: "cotizacion_id", mensaje: "No sirve para esta inscripción" }] });
     cotizacionId = c.id;
   } else {
     const c = await tx.cotizacion.findFirst({ where: { prospecto_id: prospecto.id, programa_id: programa.id, estatus: "vigente", vigente_hasta: { gte: aFecha(hoy) } }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], select: { id: true } });

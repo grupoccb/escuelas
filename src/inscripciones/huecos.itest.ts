@@ -115,6 +115,21 @@ test("una cotización vencida no se puede aceptar al inscribir; una vigente sí,
   assert.equal((await prisma.cotizacion.findFirstOrThrow({ where: { id: vencida.id } })).estatus, "vencida", "la vencida no se toca");
 });
 
+test("EG-16: una cotización cuyo último día ya pasó está vencida aunque el barrido no la haya marcado todavía: no se acepta al inscribir", async () => {
+  const g = await grupoNuevo();
+  const a = await alumno();
+  // `vigente` en la base, pero su último día fue el 21-sep (hoy es el 20-oct): el barrido aún no corrió.
+  const rezagada = await prisma.cotizacion.create({ data: { organizacion_id: org.organizacionId, lead_id: a.leadId, prospecto_id: a.prospectoId, programa_id: g.programaId, sucursal_id: norte, origen: "asesor", fecha: new Date("2026-09-14"), vigente_hasta: new Date("2026-09-21"), estatus: "vigente", snapshot: {} } });
+  const r = await inscribir(admin, a.alumnoId, g.grupoId, { cotizacion_id: rezagada.id });
+  assert.equal(r.estado, 400, "validación: la cotización no sirve");
+  assert.equal(await prisma.inscripcion.count({ where: { alumno_id: a.alumnoId } }), 0);
+  assert.equal((await prisma.cotizacion.findFirstOrThrow({ where: { id: rezagada.id } })).estatus, "vigente", "no se marcó aceptada");
+  // Una cuyo último día fue ayer todavía vale (el mismo margen de un día de `vencerCotizaciones`). (Solo puede haber una vigente por prospecto y programa: la rezagada se marca como lo haría el barrido.)
+  await prisma.cotizacion.update({ where: { id: rezagada.id }, data: { estatus: "vencida" } });
+  const deAyer = await prisma.cotizacion.create({ data: { organizacion_id: org.organizacionId, lead_id: a.leadId, prospecto_id: a.prospectoId, programa_id: g.programaId, sucursal_id: norte, origen: "asesor", fecha: new Date("2026-10-12"), vigente_hasta: new Date("2026-10-19"), estatus: "vigente", snapshot: {} } });
+  assert.equal((await inscribir(admin, a.alumnoId, g.grupoId, { cotizacion_id: deAyer.id })).estado, 201, "su último día fue ayer: aún dentro del margen de un día con que el barrido la marca vencida");
+});
+
 test("si una promoción se agota en la carrera, el lugar que ya se había tomado de la OTRA se devuelve y la inscripción paga solo lo que sí le tocó", async () => {
   const g = await grupoNuevo();
   const crear = async (nombre: string, prioridad: number, cupo: number, beneficio: { tipo: "descuento_mensualidad" | "descuento_inscripcion"; valor: string }) => {
