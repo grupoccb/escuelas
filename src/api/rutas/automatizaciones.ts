@@ -12,7 +12,7 @@
 
 import { Router } from "express";
 import express from "express";
-import { EVENTOS_DISPARADORES, ESPACIADO_MINIMO_MIN, problemaDeDesfase, problemaDeDias, problemaDeHorario } from "../../automatizaciones/ajustes.ts";
+import { EVENTOS_DISPARADORES, ESPACIADO_MINIMO_MIN, problemaDeClase, problemaDeDesfase, problemaDeDias, problemaDeHorario } from "../../automatizaciones/ajustes.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -108,7 +108,15 @@ export function rutasDeAutomatizaciones(_deps: DepsApi): Router {
       const dias = problemaDeDias(final.dias_permitidos);
       if (dias) e.push({ campo: "dias_permitidos", mensaje: dias });
       if (final.espaciado_minutos !== null && final.espaciado_minutos < ESPACIADO_MINIMO_MIN) e.push({ campo: "espaciado_minutos", mensaje: `El espaciado mínimo entre intentos es de ${ESPACIADO_MINIMO_MIN} minutos` });
-      if (c.plantilla_id && !(await tx.plantilla_mensaje.findFirst({ where: { id: c.plantilla_id }, select: { id: true } }))) e.push({ campo: "plantilla_id", mensaje: "La plantilla no existe" });
+      if (c.plantilla_id) {
+        const nueva = await tx.plantilla_mensaje.findFirst({ where: { id: c.plantilla_id }, select: { clase_mensaje: true } });
+        if (!nueva) e.push({ campo: "plantilla_id", mensaje: "La plantilla no existe" });
+        else {
+          // EK-A1 (INV-6): la clase de la plantilla debe corresponder al evento.
+          const clase = problemaDeClase(antes.evento_disparador, nueva.clase_mensaje);
+          if (clase) e.push({ campo: "plantilla_id", mensaje: clase });
+        }
+      }
       if (e.length > 0) throw validacion(e);
       const despues = (await tx.automatizacion.update({ where: { id }, data: c, select: SELECCION })) as unknown as Fila;
       await registrarCambio(tx, ctx, { entidad: "automatizacion", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(despues) });

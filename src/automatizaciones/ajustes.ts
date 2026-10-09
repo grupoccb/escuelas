@@ -16,6 +16,31 @@ const SIGNO_DEL_DESFASE: Record<EventoDisparador, "antes" | "despues"> = {
   cargo_vencido: "despues",
 };
 
+/**
+ * INV-6 (K9, EK-A1): la CLASE de mensaje que cada evento exige de su plantilla. Reenganche, recuperación, lead frío y promoción son MARKETING (se frenan con una persona
+ * atendiendo y cuentan en el tope de marketing); el recordatorio de clase muestra, la bienvenida y la cobranza son de SERVICIO (avisos de algo ya acordado). La clase la DECLARA
+ * la plantilla, pero una plantilla que no corresponde al evento rompería el invariante 6 por configuración: se rechaza al ligarlas o al cambiar la clase.
+ */
+export const CLASE_DEL_EVENTO: Record<EventoDisparador, "servicio" | "marketing"> = {
+  lead_sin_respuesta: "marketing",
+  clase_muestra_proxima: "servicio",
+  clase_muestra_no_asistio: "marketing",
+  lead_frio: "marketing",
+  promocion_por_vencer: "marketing",
+  inscripcion_creada: "servicio",
+  cargo_por_vencer: "servicio",
+  cargo_vencido: "servicio",
+};
+
+/** Un mensaje en palabras si la plantilla (por su clase declarada) no corresponde al evento, o null si sirve. */
+export function problemaDeClase(evento: EventoDisparador, claseDeLaPlantilla: string): string | null {
+  const exigida = CLASE_DEL_EVENTO[evento];
+  if (claseDeLaPlantilla === exigida) return null;
+  return exigida === "marketing"
+    ? "Este aviso es de marketing: su plantilla debe declararse de marketing (si no, saldría aunque una persona atienda la conversación y sin el tope de marketing)"
+    : "Este aviso es de servicio (algo ya acordado): su plantilla debe declararse de servicio";
+}
+
 /** Cuánto se puede mover un desfase: 60 días en minutos. */
 export const DESFASE_MAXIMO_MIN = 60 * 24 * 60;
 export const INICIO_DE_ENVIO_MIN = 540;

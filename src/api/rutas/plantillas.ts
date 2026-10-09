@@ -13,6 +13,7 @@
 
 import { Router } from "express";
 import express from "express";
+import { problemaDeClase } from "../../automatizaciones/ajustes.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -149,7 +150,19 @@ export function rutasDePlantillas(_deps: DepsApi): Router {
       const antes = (await tx.plantilla_mensaje.findFirst({ where: { id }, select: SELECCION })) as unknown as Fila | null;
       if (!antes) throw noEncontrado();
       reglas({ clase_mensaje: c.clase_mensaje ?? antes.clase_mensaje, categoria: c.categoria ?? antes.categoria, ...(c.variables ? { variables: c.variables } : {}) });
-      const despues = (await tx.plantilla_mensaje.update({ where: { id }, data: c, select: SELECCION })) as unknown as Fila;
+      if (c.clase_mensaje !== undefined && c.clase_mensaje !== antes.clase_mensaje) {
+        // EK-A1 (INV-6): cambiar la clase no puede dejar una automatización viva con una plantilla que no le corresponde.
+        const usos = await tx.automatizacion.findMany({ where: { plantilla_id: id }, select: { nombre: true, evento_disparador: true } });
+        const mal = usos.filter((u) => problemaDeClase(u.evento_disparador, c.clase_mensaje!) !== null).map((u) => u.nombre);
+        if (mal.length > 0) throw conflicto(`No se puede declarar de ${c.clase_mensaje}: la usan ${mal.join(", ")}, que exigen la otra clase (INV-6). Cámbialas de plantilla primero`, [{ campo: "clase_mensaje", mensaje: "No corresponde a las automatizaciones que la usan" }]);
+      }
+      let despues: Fila;
+      try {
+        despues = (await tx.plantilla_mensaje.update({ where: { id }, data: c, select: SELECCION })) as unknown as Fila;
+      } catch (err) {
+        if (esViolacionUnica(err)) throw repetida();
+        throw err;
+      }
       await registrarCambio(tx, ctx, { entidad: "plantilla_mensaje", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(despues) });
       return despues;
     });
