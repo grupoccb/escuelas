@@ -687,3 +687,14 @@ Sale con código 0 si todo cuadra y 1 si hay una sola discrepancia (`✓ cuadra`
 7. `stock_no_negativo`.
 
 La base impide casi todo esto (CHECK y disparadores de H1 a H5); la cuadratura es el segundo par de ojos y lo que se corre tras cada paso de las pruebas de propiedad (`src/finanzas/cuadratura.itest.ts`: secuencias aleatorias deterministas con semilla, más una carrera de 30 pagos a la misma familia) y al terminar los datos de demo (I4).
+
+## Reporte de clases muestra (I1)
+
+`GET /api/reportes/clases-muestra?desde=&hasta=&vertical_id=&sucursal_id=` (permiso `reportes:clases_muestra`: administrador y asesor; el asesor solo ve lo de SUS sucursales; recepción y maestro 403). Código: `src/reportes/clases-muestra.ts`, `src/reportes/fuente.ts`, `src/api/rutas/reportes-clases-muestra.ts`. También por comando: `npm run reporte:clases-muestra -- --desde 2026-09-01 --hasta 2026-09-30 [--organizacion …] [--json]`.
+
+Devuelve `total`, `por_fuente`, `por_vertical` y `por_sucursal`; cada fila trae `agendadas`, `asistidas`, `no_asistidas`, `canceladas`, `pendientes`, `inscritas` y `conversion`.
+
+- **Rango:** `desde` y `hasta` (inclusivos) son sobre el DÍA LOCAL de la clase en la zona de la sucursal de su grupo (una clase a las 20:00 locales del 31 es del 31, aunque sean las 02:00 UTC del 1.º). Sin rango, todo.
+- **Agendadas** = todas menos las `reagendada` (la clase nueva ocupa su lugar y sí cuenta): agendadas + asistidas + no asistidas + canceladas. **Pendientes** = las que siguen `agendada` (aún sin marcar).
+- **Inscritas** = de las asistidas, las de un prospecto que hoy tiene una inscripción (cualquier estatus). **Conversión** = inscritas / asistidas, porcentaje con UN decimal en texto (`"71.4"`), calculado con enteros; `null` (la pantalla muestra «—») si no hubo asistidas: nunca una división por cero.
+- **Fuente** (`fuenteDe`): el origen de la campaña del lead (`facebook`, `instagram`, `tiktok`, `google`, `referido`, `presencial` —el QR en sucursal—, `otro`); si no hay campaña, `landing` (entró por el formulario), `codigo` (código de rastreo suelto) o `anuncio` (Click-to-WhatsApp); si no, `directo`.

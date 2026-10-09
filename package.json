@@ -25,7 +25,8 @@
     "check:dinero": "node scripts/check-dinero.ts",
     "demo:contacto": "node --env-file=config/demo-local.env scripts/simular-contacto.ts",
     "reporte:leads": "node --env-file-if-exists=.env scripts/reporte-leads.ts",
-    "cuadratura": "node --env-file-if-exists=.env scripts/cuadratura.ts"
+    "cuadratura": "node --env-file-if-exists=.env scripts/cuadratura.ts",
+    "reporte:clases-muestra": "node --env-file-if-exists=.env scripts/reporte-clases-muestra.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {

@@ -67,8 +67,8 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H5 | HECHO | ver `git log` (`H1-H5:`) | Productos y ventas: stock que nunca baja de cero (disparador + CHECK, carrera de 20 hilos), cargo por venta, anulación, entrega de beneficios de producto como venta promocional |
 | H6 | HECHO | ver `git log` (`H6:`) | Cobranza: recordatorios de pago de SERVICIO con el motor y todas las reglas del provider, cancelados al saldarse/cancelarse/darse de baja, tarea por deuda sobre un umbral de días |
 | H7 | HECHO | ver `git log` (`H7:`) | Cuadratura: `cuadratura(db)` y `npm run cuadratura` (7 reglas en centavos exactos), prueba de propiedad con PRNG y semilla (3 semillas × 120 pasos, cuadratura tras CADA paso, determinista), carrera de 30 pagos, detección de un descuadre inyectado por SQL |
-| I1 | PENDIENTE | | Reporte de clases muestra |
-| I2 | PENDIENTE | | Costo por alumno inscrito por campaña |
+| I1 | HECHO | ver `git log` (`I1:`) | Reporte de clases muestra: agendadas, asistidas, no asistidas, conversión (asistidas → inscritas) por fuente, vertical y sucursal, rango por día local; API y comando |
+| I2 | PENDIENTE | | Costo por alumno inscrito por campaña (detenido por instrucción de Eduardo: la etapa H se audita antes de seguir con I) |
 | I3 | PENDIENTE | | Reporte ejecutivo |
 | I4 | PENDIENTE | | Datos de demo |
 | I5 | PENDIENTE | | Exportación a CSV |
@@ -2262,7 +2262,7 @@ b637ef8 en OTRA base nueva y vacía    test:int exit 0 · tests 933
 
 ## Cierre de H1 a H5 (finanzas) — para quien audite y para H6/H7
 
-**Estado.** H1, H2, H3, H4 y H5 HECHOS en UN solo commit (`H1-H5:`): se escribieron juntos y comparten migraciones, permisos, rutas y la bitácora; separarlos habría exigido commits que no compilan o no pasan `validar`. Desviación consciente de «un commit por bloque»; H6, H7 e I1 a I5 sí van uno por bloque. Sin auditar ni etiquetar (lo hace quien coordina).
+**Estado.** H1, H2, H3, H4 y H5 HECHOS en UN solo commit (`95a61ed`, `H1-H5:`; **comparten commit**, no se reescribe): se escribieron juntos y comparten migraciones, permisos, rutas y la bitácora; separarlos habría exigido commits que no compilan o no pasan `validar`. Desviación consciente de «un commit por bloque»; H6, H7 e I1 a I5 sí van uno por bloque. Sin auditar ni etiquetar (lo hace quien coordina).
 
 **Verificación del commit**
 ```
@@ -2328,3 +2328,21 @@ $ npm run test:int    → exit 0 · tests 1002 · pass 1002 · fail 0
 3. **Estatus coherente incluye cargos sin importe** (nacen `pagado` con cero aplicaciones: correcto).
 
 **Para Eduardo**: correr `npm run cuadratura` contra la base real tras cada migración o restauración (K5).
+
+## I1. Reporte de clases muestra
+
+**Qué se hizo**
+- `src/reportes/clases-muestra.ts` (`reporteDeClasesMuestra`), `src/reportes/fuente.ts` (`fuenteDe`, PURA), `src/lib/razon.ts` (`porcentajeConUnDecimal`: porcentajes de conteos con enteros, «—» sin base), `GET /api/reportes/clases-muestra` (permiso nuevo `reportes:clases_muestra`: administrador y asesor) y `npm run reporte:clases-muestra`. Definiciones en el encabezado del módulo y en `docs/API.md`.
+- Pruebas: `razon.test.ts` (2), `clases-muestra.itest.ts` (4): una foto completa con las 11 clases de un mes por 5 fuentes, 2 verticales y 2 sucursales (agendadas 11, asistidas 7, no asistidas 2, canceladas 1, pendientes 1, inscritas 5, conversión 71.4 %; la reagendada no cuenta; sin asistidas, conversión `null`), el rango por día local (la clase de las 20:00 locales del 31), permisos y alcance (el asesor del sur no ve el norte; pedir una sucursal ajena da cero, no un error que confirme que existe; recepción y maestro 403; sin sesión 401; otra organización vacía) y el comando con y sin `--json`.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 588 · pass 588 · fail 0
+$ npm run test:int    → exit 0 · tests 1006 · pass 1006 · fail 0
+```
+
+**Decisiones**
+1. **«Agendadas» excluye las reagendadas.** Reprogramar cancela la anterior y agenda una nueva (D1); contar las dos inflaría la cifra. Alternativa descartada: contar todas las filas.
+2. **Conversión = asistidas que hoy tienen una inscripción**, no «leads inscritos»: es lo que pide el tablero (asistidas → inscritas) y se mide por prospecto. Un niño con dos clases asistidas cuenta en cada una (documentado).
+3. **La fuente es una sola derivación pura** (campaña → landing/código/anuncio → directo) que reutiliza I2.
+4. **El rango se resuelve por día local en memoria** sobre una ventana UTC holgada: un `WHERE` en SQL por zona de cada sucursal no cabe en Prisma sin SQL crudo.

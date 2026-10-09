@@ -85,6 +85,9 @@ export const MATRIZ_DE_PERMISOS = {
   "ventas:leer": ["administrador", "asesor", "recepcion"],
   "ventas:registrar": ["administrador", "recepcion"],
   "ventas:anular": ["administrador", "recepcion"],
+  // Reportes (etapa I): clases muestra por fuente, vertical y sucursal lo leen el administrador y el asesor (de SUS sucursales); lo que mide dinero del negocio (costo por campaña,
+  // ejecutivo) y el gasto de las campañas, solo el administrador.
+  "reportes:clases_muestra": ["administrador", "asesor"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],
