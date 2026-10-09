@@ -1,5 +1,19 @@
 # BITACORA-NOCHE-2.md
 
+## Resumen (actualizado por la coordinación al cierre de la sesión)
+
+1. Rama `noche-2` (desde `noche-fase1`), un commit por bloque salvo H1–H5 (un solo commit, anotado). Etiquetas `etapa-A` … `etapa-H`; `main` y `noche-fase1` no se tocaron, sin `push`.
+2. A–H: construidas, auditadas por subagentes de contexto nuevo (informes en `docs/auditorias/`), corregidas, y las correcciones verificadas por un agente distinto (regla 2 de Eduardo) desde la etapa F.
+3. I1–I5 (reportes, costo por campaña, ejecutivo, datos de demo deterministas, CSV) y J1–J5 (interfaz React + Vite servida por compose, probada en Chromium real) construidas y verificadas por sus implementadores; **no tienen auditoría independiente propia** (desviación de la regla 1 por el tope de turnos de la sesión: la auditoría final K9 las cubre si llegó a correr; ver la tabla).
+4. J6–J10 y K1–K8 se lanzaron en paralelo al final; su estado exacto está en la tabla de abajo (cualquier bloque que no diga HECHO está PENDIENTE: no se terminó dentro del límite de turnos).
+5. Cambios de Eduardo aplicados durante la sesión: reglas 1–8 de las etapas F–K (en `docs/PLAN-NOCHE-2.md`), invariante 6 reformulado en `CLAUDE.md` (bloque INV-6), bloque WH (webhooks sin 500 por dato inesperado), EG-05 (tope de marketing por clase declarada).
+6. Dinero y cupo: protegidos en la base con disparadores/CHECK/únicos y probados por SQL directo y con concurrencia real; `npm run cuadratura` falla cuando debe.
+7. Incidente a conocer: un agente tocó `wa.me` con Chrome headless (ver «Cierre de las etapas D y E»); la base de la demo quedó desviada en `lead_etapa_historial.secuencia` por una migración editada (reconstruir la demo con `docker compose down -v` + `up`).
+8. Los `[SUPUESTO]` y las decisiones de producto abiertas están dispersos en las secciones de cada bloque y de cada auditoría; `docs/SUPUESTOS-Y-DECISIONES.md` (bloque K7) los reúne si K7 llegó a correr.
+
+**Lo primero que Eduardo debe ver:** (1) esta tabla de estado y los `HECHO (parcial: …)`; (2) `docs/auditorias/` (sobre todo `etapa-H.md`, la del dinero); (3) las capturas en `docs/capturas/` (J, revisión visual en dispositivos reales); (4) decisiones abiertas: estados de entrega de Twilio en la vía A (EA-02), excepción del borde/directorio al invariante 4 (EB-10), reautenticación para crear administradores, qué cuenta como «persona que toma la conversación»; (5) `npm run demo:guiada` si K8 llegó a correr, o `npm run demo:datos` + `docker compose up` para ver el sistema con ~300 alumnos.
+
+
 Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `docs/PLAN-NOCHE-2.md`.
 
 | Bloque | Estado | Commit | Nota |
