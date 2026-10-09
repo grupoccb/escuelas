@@ -80,3 +80,10 @@ export function esFechaReal(fecha: string): boolean {
   const d = new Date(Date.UTC(p.a, p.m - 1, p.d));
   return d.getUTCFullYear() === p.a && d.getUTCMonth() === p.m - 1 && d.getUTCDate() === p.d;
 }
+
+/** El día de calendario (`AAAA-MM-DD`) de un instante en la zona de la sucursal. */
+export function diaEnZona(iso: string, zona: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: zona, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}

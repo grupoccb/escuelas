@@ -8,11 +8,11 @@ import { SesionProvider, useSesion } from "./sesion/SesionContext.tsx";
 import { Cargando } from "./ui/basicos.tsx";
 import { Shell } from "./ui/Shell.tsx";
 
-// Cada pantalla se carga cuando se visita (el celular no baja lo que no usa). J2 a J5 sustituyen estos marcadores por sus pantallas.
+// Cada pantalla se carga cuando se visita (el celular no baja lo que no usa). J3 a J5 sustituyen estos marcadores por sus pantallas.
 const pendiente = (bloque: string) => lazy(() => Promise.resolve({ default: () => <Pendiente bloque={bloque} /> }));
-const Hoy = pendiente("J2");
-const RegistroClase = pendiente("J2");
-const PaseDeLista = pendiente("J2");
+const Hoy = lazy(() => import("./pantallas/maestro/Hoy.tsx"));
+const RegistroClase = lazy(() => import("./pantallas/maestro/RegistroClase.tsx"));
+const PaseDeLista = lazy(() => import("./pantallas/maestro/PaseDeLista.tsx"));
 const Embudo = pendiente("J3");
 const Tareas = pendiente("J3");
 const FichaLead = pendiente("J3");

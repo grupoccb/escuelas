@@ -20,5 +20,43 @@ export interface Mundo {
   programaId: string;
   grupos: { a: { id: string; nombre: string }; b: { id: string; nombre: string } };
   instructorId: string;
+  /** J2: lo que el maestro ve. */
+  maestro: {
+    /** Una clase muestra que ya empezó (agendada): el maestro la registra y marca asistencia. */
+    clase: ClaseDelMundo;
+    /** Otra, dentro de unos días (todavía no se puede marcar asistencia). */
+    claseFutura: ClaseDelMundo;
+    /** De un grupo que NO es suyo: no la ve ni por URL directa. */
+    claseAjena: ClaseDelMundo;
+    /** Los alumnos inscritos en el grupo A (el pase de lista). */
+    alumnosDelPase: { alumnoId: string; inscripcionId: string; nombre: string }[];
+  };
+  /** J3: el embudo del asesor (sucursal norte). */
+  asesor: {
+    /** Nuevo, con campaña de Facebook, conversación en Chatwoot y una tarea pendiente. */
+    alfa: LeadDelMundo & { tareaId: string; chatwoot: { cuentaId: number; bandejaId: number; conversacionId: number } };
+    /** Contactado y reciente: para perderlo con motivo. */
+    beta: LeadDelMundo;
+    /** Contactado y sin movimiento hace diez días: estancado. */
+    gamma: LeadDelMundo & { tareaId: string };
+    /** De la sucursal sur: el asesor del norte no lo ve. */
+    delta: LeadDelMundo;
+    motivos: { precio: string; horario: string };
+    campanaNombre: string;
+  };
+}
+
+export interface LeadDelMundo {
+  leadId: string;
+  prospectoId: string;
+  nombre: string;
+}
+
+export interface ClaseDelMundo {
+  id: string;
+  leadId: string;
+  prospectoId: string;
+  prospecto: string;
+  grupoId: string;
 }
 

@@ -75,7 +75,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | I4 | PENDIENTE | | Datos de demo |
 | I5 | PENDIENTE | | Exportación a CSV |
 | J1 | HECHO | ver `git log` (`J1:`) | Interfaz web base: `web/` (React + Vite + TS), acceso, navegación por permisos, layout responsivo, sesión expirada, 404/403, selector de sucursal; servida por el backend (y por compose); pruebas en Chromium real (`npm run test:navegador`) |
-| J2 | PENDIENTE | | Interfaz: maestro en celular |
+| J2 | HECHO | ver `git log` (`J2:`) | Maestro en celular (390×844): «Hoy» con asistencia y «listo para cerrar», registro del alumno COMPLETO (adultos como filas, salud solo en memoria, antecedentes, observación, reglamento e imagen con evidencia) y pase de lista idempotente; probado en Chromium contra el backend real |
 | J3 | PENDIENTE | | Interfaz: asesor |
 | J4 | PENDIENTE | | Interfaz: conversión e inscripción |
 | J5 | PENDIENTE | | Interfaz: recepción |
@@ -2518,4 +2518,43 @@ $ docker compose up -d --build --wait → exit 0 (sin `down -v`): backend Health
 - Revisa lo visual en dispositivos reales con `docs/capturas/` (acceso, «Más», «Sin acceso»; las demás pantallas llegan en J2 a J5). Es una interfaz sobria a propósito (decisión 14).
 - **[SUPUESTO]** La barra inferior del celular muestra hasta 4 secciones y «Más»; «Hoy» (clases muestra) lo ven todos los que tienen `clases_muestra:leer` (maestro, asesor, administrador), «Pase de lista» quien registra asistencia (maestro, recepción, administrador).
 - Las pantallas de J2 a J5 aún son el marcador «Próximamente» (cada bloque las sustituye).
+
+## J2. Maestro en celular: «Hoy», registro del alumno y pase de lista
+
+**Qué se hizo** (`web/src/pantallas/maestro/`, `web/src/salud/`)
+- **«Hoy»** (`Hoy.tsx`): `GET /api/maestro/clases-muestra` agrupado por día (en la zona de la sucursal de cada clase: «Hoy», «Mañana», «Ayer» o la fecha), con hora, alumno, edad, grupo, programa y sucursal; **sin teléfono ni contacto de la familia** (la API no los manda al maestro). Por clase: «Registro del alumno», «Asistió» / «No asistió» (deshabilitados hasta la hora de la clase: la API responde 409 antes; el botón lo dice de antemano) y, si asistió, «Listo para cerrar la inscripción» (`POST …/listo-para-cerrar`: deja UNA tarea para el asesor). Avisos nuevos del maestro (`/api/maestro/avisos`) con «Visto».
+- **Registro del alumno** (`RegistroClase.tsx`): con **todos los campos de la sección 8 del contexto**: alumno (nombre, apellidos, fecha de nacimiento del acta, sexo, escuela, turno, talla); adultos como **filas** (nombre, apellidos, parentesco, teléfono `tel`, correo `email`, responsable de pago, quien lo lleva —uno solo de cada uno, marcar a otro desmarca al anterior— y «puede recogerlo»: el segundo adulto autorizado es otra fila); **salud y seguridad** solo con `salud:escribir`; antecedentes (¿practicó?, dónde y nivel solo si sí, motivo con el catálogo y detalle solo con «Otro»); observación del maestro (nivel observado, grupo recomendado, interés percibido, notas que el servidor rechaza si mencionan salud); **reglamento y autorización de imagen** (`Aceptaciones.tsx`): texto vigente, quién responde (un adulto del registro u otra persona), canal, nota de evidencia, «Aceptan» / «No aceptan» / «Revocar autorización» (solo imagen) y la frase de estado que da el servidor. Cabecera con estatus de la clase y del registro, asistencia y «lo que todavía falta» con palabras de una persona. «Marcar registro como completo» y «Cerrar registro» (con confirmación; el cerrado queda de solo lectura; el administrador puede reabrir).
+- **Guardado por secciones** (cada una con su botón, estado «Sin guardar» / «Guardado a las 10:32») o todo junto («Guardar borrador»). **Validación en cliente** (`formulario.ts`, pura y con pruebas: fecha real, no futura y de 1 a 99 años; teléfono de 10 dígitos y distinto por adulto; correo; un solo responsable de pago / quien lo lleva) **y en servidor** (los mensajes por campo del servidor se pintan junto al campo). **No se pierde lo escrito**: vive en el estado de la página; si falla la red el aviso lo dice («Lo que escribiste sigue aquí»), el botón pasa a «Reintentar guardado» y se avisa antes de cerrar la pestaña con cambios sin guardar. Nada se guarda en el navegador.
+- **Salud y seguridad** (`web/src/salud/FormularioSalud.tsx`, el ÚNICO lugar de la interfaz que nombra esos campos; `check:sensibles` lo impone): los valores ya guardados **no se muestran**; hay que pedirlos («Ver lo registrado», con un motivo que queda en el registro de accesos) y se pueden ocultar; se manda **solo lo que se tocó**; al guardar, lo escrito **sale de la pantalla**; el contacto de emergencia se compara con los adultos antes de mandar (el servidor lo vuelve a comprobar); nada va a `localStorage`, la URL ni la consola (la prueba lo verifica en el navegador).
+- **Pase de lista** (`PaseDeLista.tsx`): grupo (solo los suyos para el maestro) y fecha; un alumno por tarjeta con tres botones grandes (Presente · Falta · Justificada), «marcar presentes a todos los que faltan por marcar», resumen (Presentes / Faltas / Justificadas / Sin marcar), **guardado idempotente** (guardar lo mismo da «0 nuevas, 0 corregidas, N sin cambio»; corregir da «1 corregidas»), aviso de la racha de faltas y de la tarea al asesor, y mensajes claros cuando ese día el grupo no da clase o la clase todavía no empieza.
+- Componentes y utilidades nuevos: `useAhora` (reloj fuera del render para decidir «¿ya empezó?»), `lib/etiquetas.ts` (textos de los valores fijos y de los 19 tipos de tarea), `lib/fechas.ts#diaEnZona`.
+- **Datos de prueba** (`scripts/navegador/mundo.ts`): una clase muestra que ya empezó, otra futura y otra de un grupo AJENO, y tres alumnos inscritos en el grupo del maestro.
+
+**Verificación**
+```
+$ npm run validar        → exit 0 · tests 606 · pass 606 · web: tests 18 · pass 18 (formulario.test.ts: 6, dinero 6, fechas 4, …)
+$ npm run test:int       → exit 0 · tests 1037 · pass 1037 · fail 0
+$ npm run test:navegador (acceso + capturas + maestro) → 34 passed. maestro.spec.ts (15, viewport 390×844, táctil):
+   Hoy (SUS clases, nada ajeno ni de contacto, la futura no se marca, la clase ajena no se abre ni por URL);
+   registro: alumno, adultos (teléfono corto rechazado en pantalla SIN petición; un solo responsable de pago; el teléfono llega normalizado),
+   salud (llega cifrada y la API la devuelve con permiso y motivo; no queda en pantalla, ni en localStorage/sessionStorage/URL; «Ver lo registrado»
+   deja constancia sin valores en /api/salud-accesos; contacto = adulto se rechaza en pantalla), antecedentes y observación (una nota con salud
+   la rechaza el servidor y se pinta en el campo), reglamento e imagen (aceptar con evidencia, revocar, historial en la API), SIN RED
+   (el campo conserva lo escrito, «Reintentar guardado» guarda), completar y cerrar (solo lectura);
+   asistencia + «listo para cerrar» (una tarea para el asesor); pase de lista (solo sus grupos, ayer, 3 alumnos, guardar dos veces no duplica, corregir, fecha futura).
+```
+Mutaciones comprobadas: quitar `!empezo` del botón «Asistió» hace fallar la prueba de la clase futura; dejar que `FormularioSalud` conserve los valores tras guardar hace fallar la prueba de salud («no queda en pantalla»).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La sección de salud se guarda aparte** (su propio botón y su `PATCH { salud }`), no con «Guardar borrador». Alternativa descartada: mandarla junto con las demás (mezcla datos sensibles con el borrador general y obliga a conservarlos en el estado del padre).
+2. **No se precarga la salud ya guardada**: se pide con motivo. Alternativa descartada: leerla al abrir (cada apertura del registro dejaría una lectura en el registro de accesos y el valor viviría en pantalla sin que nadie lo pidiera).
+3. **Guardar es un borrador**: la pantalla valida el FORMATO de lo escrito, no que esté todo; «lo que falta» lo dice el servidor al completar (409 con la lista) y la pantalla lo muestra con palabras de una persona. Alternativa descartada: exigir todo antes de guardar (un maestro con el celular en la mano y los niños en el salón necesita guardar a medias).
+4. **Grupo recomendado = los grupos que el maestro ve** (los suyos, de la misma vertical): `GET /api/grupos` para el maestro es solo los suyos. Si Eduardo quiere recomendar un grupo de otro maestro, hace falta que la API lo exponga.
+5. **Asistencia en «Hoy» y en el registro** con los mismos botones y la misma regla (desde la hora de la clase). Los botones de asistencia no se ofrecen en una clase cancelada o reagendada.
+6. **Opciones táctiles** (Sí/No, sexo, interés, estatus del pase) como botones de 48 px en vez de `<select>`/casillas: se eligen con el pulgar. El `<input type="radio">` ocupa todo el botón (accesible por teclado y lector de pantalla).
+
+**Para Eduardo**
+- Revisa en un celular real `docs/capturas/10…15-*-celular.png`: el registro es largo (secciones plegables); si prefieres un asistente de un paso por pantalla, es un cambio de presentación, no de datos.
+- **[SUPUESTO]** el motivo por omisión de «Ver lo registrado» es «Revisión del maestro antes de la clase» (editable; la API exige uno).
+- En esta pantalla el **asesor** captura todo menos la salud (decisión 2 de D5): el registro queda completo cuando el maestro o el administrador la capturan.
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ErrorDeApi } from "../api/cliente.ts";
 
 export function comoErrorDeApi(e: unknown): ErrorDeApi {
@@ -87,4 +87,28 @@ export function useTitulo(titulo: string): void {
   useEffect(() => {
     document.title = `${titulo} · Gestión`;
   }, [titulo]);
+}
+
+// «Ahora» para decidir en pantalla (¿ya empezó la clase?): se lee fuera del render y se refresca cada 30 s mientras haya alguien mirando.
+let ahoraCompartido = Date.now();
+const oyentes = new Set<() => void>();
+let temporizador: number | undefined;
+function suscribirAhora(alCambiar: () => void): () => void {
+  oyentes.add(alCambiar);
+  ahoraCompartido = Date.now();
+  temporizador ??= window.setInterval(() => {
+    ahoraCompartido = Date.now();
+    oyentes.forEach((f) => f());
+  }, 30_000);
+  return () => {
+    oyentes.delete(alCambiar);
+    if (oyentes.size === 0 && temporizador !== undefined) {
+      window.clearInterval(temporizador);
+      temporizador = undefined;
+    }
+  };
+}
+/** Milisegundos desde 1970 (como `Date.now()`), refrescado cada 30 s; sirve para comparar con la hora de una clase. */
+export function useAhora(): number {
+  return useSyncExternalStore(suscribirAhora, () => ahoraCompartido, () => ahoraCompartido);
 }

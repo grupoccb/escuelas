@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diaDeSemana, edadEn, esFechaReal, formatearFecha, formatearFechaLarga, horaDeMinutos, hoyLocal, sumarDias } from "./fechas.ts";
+import { diaDeSemana, diaEnZona, edadEn, esFechaReal, formatearFecha, formatearFechaLarga, horaDeMinutos, hoyLocal, sumarDias } from "./fechas.ts";
 
 test("formatos en español", () => {
   assert.equal(formatearFecha("2026-11-10"), "10 nov 2026");
@@ -23,4 +23,10 @@ test("edad y fechas reales", () => {
   assert.equal(edadEn("2030-01-01", "2026-05-04"), null);
   assert.equal(esFechaReal("2026-02-31"), false);
   assert.equal(esFechaReal("2024-02-29"), true);
+});
+
+test("el día de un instante depende de la zona de la sucursal, no de la del navegador", () => {
+  assert.equal(diaEnZona("2026-11-11T03:00:00.000Z", "America/Mexico_City"), "2026-11-10");
+  assert.equal(diaEnZona("2026-11-11T03:00:00.000Z", "UTC"), "2026-11-11");
+  assert.equal(diaEnZona("no es fecha", "UTC"), "");
 });

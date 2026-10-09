@@ -140,7 +140,8 @@ textarea { min-height: 5.5rem; resize: vertical; }
 .grupo-opciones { border: 0; padding: 0; margin: 0; min-width: 0; }
 .grupo-opciones-fila { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
 .opcion { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; min-width: 5rem; flex: 1; padding: 0 0.9rem; border: 2px solid var(--borde); border-radius: 8px; background: var(--superficie); cursor: pointer; font-weight: 600; }
-.opcion input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.opcion { position: relative; }
+.opcion input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .opcion-activa { border-color: var(--primario); background: var(--primario-suave); color: var(--primario); }
 .opcion:focus-within { outline: 3px solid var(--foco); outline-offset: 2px; }
 .formulario { display: flex; flex-direction: column; gap: 0.9rem; }
@@ -192,10 +193,16 @@ table.tabla td.derecha, table.tabla th.derecha { text-align: right; }
 
 /* Pase de lista y registro */
 .alumno-pase { display: flex; flex-direction: column; gap: 0.5rem; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 0.7rem; }
-.seccion-registro > summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; font-weight: 700; font-size: 1.05rem; }
+.seccion-registro > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer; font-weight: 700; font-size: 1.05rem; }
+.seccion-registro[open] > summary { margin-bottom: 0.5rem; }
 .barra-guardado { position: sticky; bottom: calc(var(--alto-barra) + 0.5rem); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 0.6rem; display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgb(0 0 0 / 15%); }
 @media (min-width: 900px) { .barra-guardado { bottom: 0.5rem; } }
 .pasos { display: flex; gap: 0.25rem; list-style: none; padding: 0; margin: 0; overflow-x: auto; }
 .pasos li { flex: 1 0 auto; padding: 0.4rem 0.6rem; border-bottom: 3px solid var(--borde); color: var(--texto-suave); font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
 .pasos li[aria-current="step"] { border-bottom-color: var(--primario); color: var(--primario); }
 .pasos li.hecho { border-bottom-color: var(--exito); color: var(--exito); }
+
+.hora-clase { font-size: 1.25rem; }
+.sin-borde { border: 0; padding: 0; margin: 0; min-width: 0; }
+.texto-legal { white-space: pre-wrap; max-height: 14rem; overflow-y: auto; border: 1px solid var(--borde); border-radius: 8px; padding: 0.6rem; background: var(--superficie-2); }
+.lista-historial { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; }
