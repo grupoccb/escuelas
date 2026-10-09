@@ -21,10 +21,11 @@ const DIA_MS = 86_400_000;
 
 /** Días y meses completos de `desde` a `hasta` (fechas `AAAA-MM-DD`, ambas en el mismo calendario local). Pura. */
 export function antiguedadEntre(desde: string, hasta: string): { dias: number; meses: number } {
-  const [a1, m1, d1] = desde.split("-").map(Number) as [number, number, number];
-  const [a2, m2, d2] = hasta.split("-").map(Number) as [number, number, number];
-  const dias = Math.max(0, Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / DIA_MS));
-  const meses = Math.max(0, (a2 - a1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0));
+  // Sin Number() ni Math.round(): `expediente/` es zona estricta de check:dinero (EG-11). Las dos fechas son medianoche UTC, así que la resta es un múltiplo exacto del día.
+  const d = new Date(`${desde}T00:00:00.000Z`);
+  const h = new Date(`${hasta}T00:00:00.000Z`);
+  const dias = Math.max(0, (h.getTime() - d.getTime()) / DIA_MS);
+  const meses = Math.max(0, (h.getUTCFullYear() - d.getUTCFullYear()) * 12 + (h.getUTCMonth() - d.getUTCMonth()) - (h.getUTCDate() < d.getUTCDate() ? 1 : 0));
   return { dias, meses };
 }
 

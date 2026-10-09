@@ -10,7 +10,7 @@
 //      mensualidad, tarifa, cuota, dinero, centavo, moneda) llama a `Number(`, `parseInt(`, `.toFixed(` o a
 //      `Math.round|floor|ceil|trunc|fround(` (el atajo clásico `Math.round(precio * 100)`), o pasa esas funciones sin llamarlas
 //      (`const f = parseFloat`, `.map(Number)`);
-//   4. en una ZONA DE DINERO (`promociones/`, `cotizador/`, `finanzas/`, `pagos/`, `cobranza/`, `inscripciones/`, `conversion/`,
+//   4. en una ZONA DE DINERO (`promociones/`, `cotizador/`, `finanzas/`, `pagos/`, `cobranza/`, `inscripciones/`, `conversion/`, `eventos/`, `expediente/`, `api/rutas/eventos.ts`, `api/rutas/expediente.ts`,
 //      `catalogo/precios.ts`) aparece CUALQUIERA de esas llamadas, sin importar los nombres, y además: acceso por corchetes
 //      a `Math` o a esas funciones, `globalThis`, `~~x`, el `+x` unario, y una multiplicación o división por un literal
 //      decimal (`* 0.15`) o por 1 (`* 1`): aritmética de flotantes sin llamar a nada.
@@ -33,7 +33,7 @@ const RAIZ_REPO = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 const PALABRAS_DE_DINERO = /(?:monto|precio|costo|importe|saldo|pago|cargo|descuento|mensualidad|tarifa|cuota|dinero|centavo|moneda)/i;
 const LLAMADAS_DE_FLOTANTE = /\bNumber\s*\(|\bparseInt\s*\(|\.toFixed\s*\(|\bMath\s*\.\s*(?:round|floor|ceil|trunc|fround)\s*\(/;
-const ZONAS_DE_DINERO = ["promociones/", "cotizador/", "finanzas/", "pagos/", "cobranza/", "inscripciones/", "conversion/", "catalogo/precios.ts"];
+const ZONAS_DE_DINERO = ["promociones/", "cotizador/", "finanzas/", "pagos/", "cobranza/", "inscripciones/", "conversion/", "eventos/", "expediente/", "catalogo/precios.ts", "api/rutas/eventos.ts", "api/rutas/expediente.ts"];
 const EXENTO_DE_TOFIXED = "lib/dinero.ts";
 
 /** Funciones que bajan un importe a flotante, por su nombre (para el acceso por corchetes). */

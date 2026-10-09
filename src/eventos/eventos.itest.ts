@@ -403,3 +403,20 @@ test("G4 no-fuga entre organizaciones: ni los eventos, ni los participantes, ni 
     await otra.cerrar();
   }
 });
+
+test("EG-10: la elegibilidad cuenta solo las asistencias de ESA vertical: las de otra vertical del mismo alumno no suman", async () => {
+  const id = await evento();
+  const a = await alumno(9, { nivelIdx: 0 }); // 9 de las 10 que pide el siguiente peldaño
+  // El mismo alumno, además, en otra vertical (otro programa y grupo) donde asiste todo el tiempo.
+  const v2 = await prisma.vertical.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Otra", slug: `otra-${randomUUID().slice(0, 6)}`, usa_progresion: false } });
+  await prisma.sucursal_vertical.create({ data: { organizacion_id: m.org.organizacionId, sucursal_id: m.norte, vertical_id: v2.id } });
+  const p2 = await prisma.programa.create({ data: { organizacion_id: m.org.organizacionId, vertical_id: v2.id, sucursal_id: m.norte, nombre: "Programa otra", edad_min: 3, edad_max: 14 } });
+  const g2 = await prisma.grupo.create({ data: { organizacion_id: m.org.organizacionId, programa_id: p2.id, nombre: "Grupo otra", cupo_maximo: 20 } });
+  const insc2 = await prisma.inscripcion.create({ data: { organizacion_id: m.org.organizacionId, alumno_id: a.alumnoId, programa_id: p2.id, grupo_id: g2.id, fecha_inscripcion: new Date("2026-09-01"), fecha_inicio: new Date("2026-09-01"), precio_inscripcion_aplicado: "1.00", precio_mensualidad_aplicado: "1.00", dia_corte_pago: 5 } });
+  for (let i = 0; i < 15; i++) await prisma.asistencia.create({ data: { organizacion_id: m.org.organizacionId, inscripcion_id: insc2.id, grupo_id: g2.id, fecha: dia(sumarDias("2026-10-01", i)), estatus: "presente" } });
+  const e = (await elegibles(id)).find((x) => x.alumno_id === a.alumnoId)!;
+  assert.deepEqual([e.clases_cumplidas, e.elegible, e.faltan], [9, false, 1], "las 15 de la otra vertical no cuentan");
+  // La décima de ESTA vertical sí lo hace elegible.
+  await prisma.asistencia.create({ data: { organizacion_id: m.org.organizacionId, inscripcion_id: a.inscripcionId, grupo_id: m.grupoA, fecha: dia("2026-12-30"), estatus: "presente" } });
+  assert.equal((await elegibles(id)).find((x) => x.alumno_id === a.alumnoId)!.elegible, true);
+});

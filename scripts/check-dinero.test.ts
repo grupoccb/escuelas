@@ -53,6 +53,14 @@ test("EF-09: la inscripción y la conversión mueven dinero: también son zonas 
   assert.deepEqual(hallazgos({ "src/familias/a.ts": `const x = Number(fila.v);` }), [], "fuera de las zonas y sin palabras de dinero, no se mira (límite documentado)");
 });
 
+test("EG-11: eventos (la cuota) y el expediente (las mensualidades) también son zonas estrictas", () => {
+  for (const ruta of ["src/eventos/a.ts", "src/expediente/a.ts", "src/api/rutas/eventos.ts", "src/api/rutas/expediente.ts"]) {
+    assert.deepEqual(hallazgos({ [ruta]: `const x = Number(fila.v);` }), [`${ruta}:1`], ruta);
+    assert.deepEqual(hallazgos({ [ruta]: `const d = importe * 0.15;` }), [`${ruta}:1`], ruta);
+  }
+  assert.deepEqual(hallazgos({ "src/api/rutas/niveles.ts": `const x = Number(fila.v);` }), [], "fuera de las zonas y sin palabras de dinero, no se mira (límite documentado)");
+});
+
 test("en una zona de dinero cualquier llamada a flotantes falla, sin mirar los nombres", () => {
   assert.deepEqual(hallazgos({ "src/promociones/a.ts": `const x = Number(fila.v);` }), ["src/promociones/a.ts:1"]);
   assert.deepEqual(hallazgos({ "src/cotizador/a.ts": `const x = Math.round(a * 3);` }), ["src/cotizador/a.ts:1"]);
