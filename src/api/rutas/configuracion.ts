@@ -9,6 +9,7 @@
 import { Router } from "express";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
+import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
 import { MODOS_DE_CIERRE, POLITICAS_SUCURSAL_SIN_PROGRAMA } from "../../configuracion/index.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
@@ -88,7 +89,8 @@ export function rutasDeConfiguracion(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const c = parsear(esquemaCambio, req.body);
     if (Object.keys(c).length === 0) throw validacion([{ mensaje: "No hay nada que cambiar" }]);
-    const salida = await ctx.db.$transaction(async (tx) => {
+    // K9 (EK-A5): bajo candado, así dos primeros cambios simultáneos no chocan con el único de la fila (antes: 500).
+    const salida = await transaccionConBloqueo(ctx.db, ctx.organizacionId, "configuracion_organizacion", async (tx) => {
       const previa = (await tx.configuracion_organizacion.findFirst({ select: SELECCION })) as Fila | null;
       const antes = previa ?? (await leer(ctx));
       if (previa) await tx.configuracion_organizacion.updateMany({ data: c });
