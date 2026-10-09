@@ -60,6 +60,15 @@ export const CAMPOS_AUDITABLES = {
   // G4: el evento (con su cuota como texto exacto) y la participación de cada alumno. Sin observaciones.
   evento: ["vertical_id", "sucursal_id", "tipo", "nombre", "fecha", "cuota", "cupo", "requiere_vestuario", "otorga_progresion"],
   evento_alumno: ["evento_id", "alumno_id", "estatus", "resultado", "nivel_otorgado_id"],
+  // H1: el cargo (lo que se debe). Ids, concepto, periodo, importes como texto exacto y estatus; nada identificable ni texto libre.
+  cargo: ["tutor_id", "alumno_id", "inscripcion_id", "sucursal_id", "concepto", "periodo", "monto", "descuento", "monto_final", "fecha_vencimiento", "estatus"],
+  // H2: el pago (sin `referencia` ni `motivo_cancelacion`: texto libre, no se audita) y su cancelación.
+  pago: ["tutor_id", "monto", "metodo", "fecha", "estatus", "aplicaciones"],
+  // H4: la entrega de un beneficio diferido (ids y estatus).
+  promocion_aplicacion: ["inscripcion_id", "promocion_id", "beneficio_id", "estatus", "venta_id"],
+  // H5: el catálogo de productos (precio como texto exacto) y las ventas. `stock` se audita en los ajustes de inventario.
+  producto: ["vertical_id", "nombre", "talla", "precio", "stock", "activo"],
+  venta: ["tutor_id", "alumno_id", "producto_id", "cantidad", "total", "estatus"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

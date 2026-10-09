@@ -60,11 +60,11 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | G4 | HECHO | ver `git log` (`G4:`) | Eventos y elegibilidad por clases mínimas: solo elegibles se convocan, cupo atómico y protegido en la base (disparador que falla cerrado; SQL directo y carrera real), estatus que solo avanza, resultado que crea la progresión en la misma transacción |
 | G5 | HECHO | ver `git log` (`G5:`) | Expediente del alumno en una sola respuesta (trayectoria, económico, operativo y comercial) con enchufes `ProveedorEconomico` y `ProveedorProductos` para H; la salud fuera (endpoint aparte); el maestro sin importes |
 | G-fix | HECHO (parcial: EG-05, EG-09 y EG-12 a EG-15 esperan decisión de Eduardo; EG-10 corregido en parte; EG-17 a EG-20 pendientes) | 5c4daf2…b637ef8 | Correcciones de la auditoría de INV-6, WH y la etapa G (`docs/auditorias/etapa-G.md`): 2 ALTA corregidas (EG-01, EG-02), EF-17 corregido de raíz (EG-08); ver la sección «Auditoría y correcciones de INV-6, WH y la etapa G» |
-| H1 | PENDIENTE | | Cargos |
-| H2 | PENDIENTE | | Pagos |
-| H3 | PENDIENTE | | Estado de cuenta por familia |
-| H4 | PENDIENTE | | Beneficios diferidos |
-| H5 | PENDIENTE | | Productos y ventas |
+| H1 | HECHO | ver `git log` (`H1-H5:`, un solo commit: los cinco bloques se escribieron juntos y comparten migraciones, permisos y rutas) | Cargos: inscripción y primera mensualidad al inscribir, generación mensual idempotente por (inscripción, periodo) con único parcial, CHECK y disparadores en la base |
+| H2 | HECHO | ver `git log` (`H1-H5:`) | Pagos manuales repartidos entre cargos de varios hijos, parcial, excedente rechazado, cancelación sin borrar, idempotencia por clave; sobrepago imposible en la base (probado con 20 hilos y por SQL directo) |
+| H3 | HECHO (parcial: la «vista de solo lectura» es el endpoint JSON; la pantalla es de la etapa J) | ver `git log` (`H1-H5:`) | Estado de cuenta por familia y por hijo con antigüedad de lo vencido; `ProveedorEconomico` real enchufado en `server.ts` |
+| H4 | HECHO | ver `git log` (`H1-H5:`) | Beneficios diferidos: liberados en la misma transacción del pago que salda la primera mensualidad, lista de por entregar, cancelar el pago los regresa o los marca en revisión |
+| H5 | HECHO | ver `git log` (`H1-H5:`) | Productos y ventas: stock que nunca baja de cero (disparador + CHECK, carrera de 20 hilos), cargo por venta, anulación, entrega de beneficios de producto como venta promocional |
 | H6 | PENDIENTE | | Cobranza |
 | H7 | PENDIENTE | | Cuadratura |
 | I1 | PENDIENTE | | Reporte de clases muestra |
@@ -2180,3 +2180,108 @@ b637ef8 en OTRA base nueva y vacía    test:int exit 0 · tests 933
 - Decisiones nuevas (sección 8 del informe): EG-05 (¿reenganche y recuperación cuentan para el tope de 1 por semana?), EG-09 (¿el maestro marca `pagado` y quita participantes?), EG-12 (tarea de lead frío con atención humana), EG-13 (confirmación de baja con atención humana), EG-14 y EG-15 (expediente del maestro; antigüedad máxima del pase).
 - `ClienteApi` y `levantarApi()` cambian de forma interna: quien lea `api.base` de una API recién levantada debe esperar `api.listo`.
 - Ninguna migración nueva. Sin cambios en `CLAUDE.md` ni en `docs/insumos/`.
+
+
+## H1. Cargos
+
+**Qué se hizo**
+- **Migración `20261021000000_cargos`:** tabla `cargo` (`tutor_id` responsable de pago, `alumno_id`, `inscripcion_id`, `sucursal_id`, `concepto` `inscripcion|mensualidad|evento|producto`, `periodo` `AAAA-MM`, `monto`, `descuento`, `monto_final`, `monto_pagado`, `fecha_vencimiento`, `estatus` `pendiente|pagado|vencido|cancelado`, datos de la cancelación), todo `Decimal(12,2)`, FK compuestas y `eliminado_en`. **Defensas en la base:** CHECK de importes (`monto_final = monto − descuento`, `0 ≤ monto_pagado ≤ monto_final`), de coherencia con el saldo (`pagado ⇔ monto_pagado = monto_final`; `cancelado ⇒ monto_pagado = 0`), de periodo; **únicos parciales** (una mensualidad por (inscripción, periodo), un cargo de inscripción por inscripción); disparador `cargo_blindaje` (el dinero, el responsable y el vencimiento de un cargo no se editan; un cancelado no se reabre) y disparador que impide el borrado físico.
+- **`src/finanzas/cargos.ts`:** reglas PURAS (`planAlInscribir`, `planDeMensualidad`, `descuentoDeMensualidad`, `vencimientoDeMensualidad`, `estatusEfectivo`) y base de datos (`crearCargosAlInscribir`, `generarMensualidades`, `materializarVencidos`, `cancelarCargo`). `inscribirAlumno` (F3) genera, en su transacción, el cargo de inscripción y la primera mensualidad con los descuentos de las promociones inmediatas ya congelados; los meses gratis dejan en cero las primeras n mensualidades; **los meses pagados por adelantado generan esas mensualidades, con vencimiento el día de la inscripción** (cierra EF-13 en lo que cobra; la promoción de pago anticipado sigue aplicándose al inscribir). Sin tutor no se inscribe (409 `sin_responsable_de_pago`, ANTES de escribir nada).
+- **Barrido (`src/finanzas/barrido.ts`, enchufado en `src/ciclo.ts` con su límite de frecuencia por instancia, 10 min):** genera la mensualidad del mes en curso (calendario local de la sucursal del grupo) de las inscripciones ACTIVAS, con el precio y el descuento congelados, y materializa los vencidos. Aislado por organización.
+- **API** (`src/api/rutas/finanzas-cargos.ts`, `docs/API.md`): listar con filtros (el estatus `vencido` filtra por el efectivo), leer, cargo suelto de evento, cancelar. Permisos nuevos `cargos:leer` (administrador, asesor, recepción) y `cargos:escribir` (administrador, recepción); el maestro no ve importes.
+- Helpers nuevos: `src/lib/periodo.ts` (periodos `AAAA-MM`, días entre fechas; fuera de las zonas de `check:dinero` porque usa `Math`), `src/testutil/finanzas.ts` (`mundoDeFinanzas`: organización con embudo, reglamento, un cliente por rol y reloj movible; inscribe por la API real), `crearPrisma(url, maxConexiones)` para las pruebas de carrera con 20+ hilos.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **`monto_pagado` denormalizado en `cargo`, mantenido por la base.** La alternativa (calcular siempre Σ aplicaciones) no permite un CHECK que falle cerrado ante dos pagos simultáneos. Con la columna, `UPDATE cargo SET monto_pagado = monto_pagado + x` es atómico y el CHECK `monto_pagado ≤ monto_final` lo cierra; la cuadratura (H7) compara la columna contra las aplicaciones.
+2. **Solo se genera el MES EN CURSO.** No se recuperan meses que el barrido no vio (alternativa: ponerse al corriente desde el inicio, que generaría cargos de meses en que la inscripción estuvo congelada). Congelar NO cancela los cargos ya generados; reactivar en medio del mes genera la mensualidad completa de ese mes (sin prorrateo): decisión abierta para Eduardo.
+3. **Un cargo cancelado a propósito no se regenera** (el único parcial incluye los cancelados).
+4. **Cargo sin importe nace `pagado`** (mes o inscripción gratis): el CHECK de coherencia lo exige y evita cargos «pendientes» de cero.
+5. **Un responsable de pago por cargo, fijado al generarlo.** Si el responsable cambia después, los cargos abiertos siguen a nombre del anterior. Alternativa descartada: reasignar cargos (rompería el estado de cuenta de la familia anterior).
+6. **`sucursal_id` en el cargo** (de la sucursal del grupo): define la zona horaria del vencimiento, el alcance por sucursal y los reportes. Para un cargo suelto sale del alumno o de su inscripción.
+
+**Verificación**: ver «Cierre de H1 a H4».
+
+**Para Eduardo**
+- Decidir: ¿reactivar una inscripción congelada a mitad de mes cobra el mes completo? ¿Congelar debe cancelar el cargo del mes en curso?
+- `[SUPUESTO]` la primera mensualidad vence el día de corte de su mes (o el día de la inscripción si ese corte ya pasó).
+
+## H2. Pagos
+
+**Qué se hizo**
+- **Migración `20261021010000_pagos`:** `pago` (tutor, monto, `monto_aplicado`, método `efectivo|tarjeta|transferencia`, referencia, fecha, estatus `aplicado|cancelado`, `clave_idempotencia` única por organización) y `pago_aplicacion` (pago, cargo, monto, `aplicada|revertida`). **Protección en la base, dentro de la misma transacción (regla de Eduardo):** el disparador `pago_aplicacion_alta` suma en `cargo.monto_pagado` y `pago.monto_aplicado` con UN UPDATE atómico cada uno (solo si el cargo está abierto, el pago aplicado y ambos son del MISMO tutor); los CHECK `cargo_importes_check` y `pago_importes_check` fallan cerrado; `pago_aplicacion` es de solo anexar salvo `aplicada → revertida` (cuya reversa resta del cargo y del pago); un pago no se borra ni se edita; un disparador DIFERIDO exige que un pago aplicado cubra exactamente su monto al confirmar (no hay saldo a favor).
+- **`src/finanzas/distribucion.ts` (pura):** orden de antigüedad (vencimiento, creación, id), propuesta de reparto, parcial, excedente y validación del reparto manual. **`pagos.ts`:** `registrarPago` (candado de la familia = UPDATE de la fila del tutor, lectura de saldos con ese candado, reparto, inserción; traduce un rechazo de la base a `saldo_cambio`) y `cancelarPago` (aplicaciones a `revertida` y pago a `cancelado` en la misma transacción; dos cancelaciones simultáneas: gana una).
+- **API** (`finanzas-pagos.ts`): propuesta, registrar, listar, leer, cancelar. Permisos `pagos:leer` (administrador, asesor, recepción), `pagos:registrar` y `pagos:cancelar` (administrador, recepción). Registro de cambios de cada pago y cada cancelación.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Excedente: se RECHAZA** (409 `excedente_sin_cargo`); no existe «saldo a favor». Alternativa descartada: guardar el sobrante como crédito (obliga a otra tabla, a aplicarlo después y a decidir devoluciones; la escuela da el cambio en mostrador). La base lo impone con el disparador diferido.
+2. **El pago y el cargo deben ser del mismo tutor.** Una familia con dos responsables de pago distintos (mamá paga a un hijo, la abuela a otro) tiene dos cuentas. Alternativa descartada: pagar cargos de otro tutor de la misma familia (no hay una entidad «familia» más allá de los tutores ligados).
+3. **Candado de la familia + defensa en la base.** El candado (UPDATE del tutor) hace que el reparto automático lea saldos frescos y que los perdedores de una carrera reciban un `excedente_sin_cargo` claro; la base es la red si alguien lo omite. Probado con y sin candado.
+4. **Idempotencia por clave del cliente** (cuerpo o encabezado `Idempotency-Key`); la misma clave con otro contenido es 409. Alternativa descartada: huella del cuerpo sin clave (dos cobros legítimos iguales el mismo día se confundirían).
+5. **Cancelar un pago reabre los cargos (pagado → pendiente)**; el barrido los vuelve a marcar vencidos si toca. Pagos viejos se pueden cancelar sin límite de fecha (decisión abierta: ¿ventana?).
+6. **El registro de cambios del pago no guarda la referencia ni el motivo** (texto libre; política de ED-03).
+
+**Verificación**: ver «Cierre de H1 a H4».
+
+## H3. Estado de cuenta por familia
+
+**Qué se hizo**
+- `src/finanzas/estado-cuenta.ts`: `estadoDeCuentaDeFamilia` (por hijo y total: cargado, pagado, saldo, vencido y antigüedad), reglas puras de antigüedad (`de_0_a_30` = 1 a 30 días de atraso, `de_31_a_60`, `de_61_a_90`, `mas_de_90` = 91 o más) y `ProveedorEconomicoDeFinanzas` (el `ProveedorEconomico` de G5). `GET /api/tutores/:id/estado-cuenta` (`estado_cuenta:leer`). `src/server.ts` enchufa el proveedor real.
+
+**Decisiones**
+1. **Días de atraso en el calendario local de la sucursal de cada cargo**; el día 90 cae en 61–90 y el 91 en «más de 90». Cada renglón suma el saldo (no el monto).
+2. **La «vista de solo lectura» es el endpoint JSON.** La pantalla es de la etapa J (y el CSV, de I5).
+
+## H4. Beneficios diferidos
+
+**Qué se hizo**
+- **Migraciones `20261021020000_beneficios_diferidos` (columnas y valores de enum) y `…020100_beneficios_diferidos_defensas`** (CHECK y disparador, aparte porque el valor nuevo del enum no se puede usar en la misma transacción): `estatus_aplicacion.liberado`, `liberado_en`, `liberado_por_pago_id`, `entregado_por_usuario_id`, `revision_en`, tarea `beneficio_en_revision`. Disparador `promocion_aplicacion_transicion`: liberar exige un pago aplicado, la primera mensualidad pagada y una inscripción que no esté de baja.
+- `src/finanzas/beneficios.ts` + `despues-del-pago.ts` (el punto donde el pago dispara lo suyo EN SU MISMA TRANSACCIÓN): liberar al saldar la primera mensualidad, regresar a pendiente o marcar en revisión al cancelar el pago, marcar entregado. `GET /api/beneficios/por-entregar` y `POST /api/beneficios/:id/entregar`.
+
+**Decisiones**
+1. **Condición = la primera mensualidad (con importe) queda saldada**, no «cualquier pago aplicado a ella». Alternativa descartada: liberar con el primer abono (la escuela regalaría el uniforme sin cobrar la mensualidad).
+2. **`pendiente → entregado` sigue permitido en la base** (entrega administrativa anterior a H4; tres pruebas de C3/F3 la usan y no se debilitaron). La API solo entrega lo `liberado`.
+3. **Un beneficio no producto (descuento diferido, meses) solo se marca entregado**: su efecto en cargos futuros no se aplica automáticamente (los cargos ya llevan el descuento inmediato congelado). Decisión abierta: ¿un descuento diferido debe aplicarse a las mensualidades siguientes?
+4. **Cancelar el pago de una primera mensualidad ya entregada**: no se recoge nada; tarea al asesor (una pendiente por inscripción).
+
+## H5. Productos y ventas
+
+**Qué se hizo**
+- **Migración `20261021030000_productos_ventas`:** `producto` (vertical, nombre, talla, precio `Decimal`, `stock` con CHECK ≥ 0, activo), `venta` (tutor, alumno, producto, sucursal, cantidad, `precio_unitario` congelado, `es_promocional`, `promocion_aplicacion_id`, fecha, estatus `registrada|anulada`) y `cargo.venta_id`; `promocion_beneficio.producto_id` ya es llave foránea compuesta (agregada `NOT VALID`: C3 la dejó como uuid suelto). **En la base:** el INSERT de la venta DESCUENTA el stock por disparador (y anular lo devuelve), el CHECK `stock >= 0` falla cerrado, una venta no se edita ni se borra, una venta promocional es de precio 0 y ligada a su aplicación (única), y un disparador diferido exige al confirmar que toda venta registrada tenga su cargo vivo de cantidad × precio (y que una anulada o promocional no).
+- `src/finanzas/productos.ts` (`venderProducto`, `anularVenta`, `ajustarStock`, `entregarProducto`, `ProveedorProductosDeFinanzas`) y `src/api/rutas/finanzas-productos.ts` (catálogo, ajuste de inventario, ventas). `entregarBeneficio` (H4) ya entrega los de producto: venta promocional de precio 0 + stock + `entregado`, en una transacción. `server.ts` enchufa el `ProveedorProductos` del expediente.
+- Permisos nuevos: `productos:leer|escribir|stock`, `ventas:leer|registrar|anular`; el maestro no ve precios.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El stock lo mueve la base, no el código.** El disparador del INSERT descuenta y el CHECK impide el negativo; el código solo inserta la venta. Alternativa descartada: `UPDATE producto … WHERE stock >= n` desde el código (correcto, pero una venta escrita por SQL o por un código distinto se saltaría el inventario). El código conserva una lectura previa solo para dar un mensaje claro; la garantía no depende de ella.
+2. **Stock global por producto**, no por sucursal (el modelo de datos no trae sucursal en `producto`). Decisión abierta: ¿inventario por sucursal?
+3. **El cargo de una venta no se cancela suelto**: se anula la venta (devuelve piezas y cancela el cargo). Alternativa descartada: permitir cancelar el cargo y dejar la venta sin cargo (la cuadratura lo vería, pero el inventario ya habría salido sin cobro).
+4. **La venta promocional no genera cargo ni se anula**: es la entrega de algo ya ganado. Si se entregó por error se corrige con un ajuste de inventario y la tarea de revisión.
+5. **Si el beneficio de producto ya fija su producto** (`producto_id`), no se puede entregar otro; si solo dice «Uniforme», recepción elige la talla.
+6. **Sin devoluciones parciales de una venta** (anular es total).
+
+**Para Eduardo**: `[SUPUESTO]` que el stock sea global y que recepción pueda ajustar el inventario.
+
+## Cierre de H1 a H5 (finanzas) — para quien audite y para H6/H7
+
+**Estado.** H1, H2, H3, H4 y H5 HECHOS en UN solo commit (`H1-H5:`): se escribieron juntos y comparten migraciones, permisos, rutas y la bitácora; separarlos habría exigido commits que no compilan o no pasan `validar`. Desviación consciente de «un commit por bloque»; H6, H7 e I1 a I5 sí van uno por bloque. Sin auditar ni etiquetar (lo hace quien coordina).
+
+**Verificación del commit**
+```
+$ npm run validar     → exit 0 · tests 574 · pass 574 · fail 0
+$ npm run test:int    → exit 0 · tests 987 · pass 987 · fail 0   (sobre la base de pruebas recreada VACÍA al inicio del bloque)
+```
+Los archivos nuevos de integración: `cargos.itest.ts` (14), `pagos.itest.ts` (18), `estado-cuenta.itest.ts` (4), `beneficios.itest.ts` (8), `productos.itest.ts` (10); unitarios: `cargos.test.ts`, `distribucion.test.ts`, `estado-cuenta.test.ts`, `periodo.test.ts`.
+
+**Mutaciones atrapadas (base de pruebas aparte, defensa por defensa quitada y las pruebas corridas):** sin `cargo_importes_check` (fallan el SQL directo y la carrera de $600 contra $1,000), sin el disparador `pago_aplicacion_alta_trg` (falla casi todo), sin `pago_cubre_su_monto_trg` (fallan los dos de SQL directo), sin `producto_stock_check` (fallan las 5 de stock), sin `venta_mueve_stock_trg` (6) y sin `venta_cuadra_con_su_cargo_trg` (1). Lección: con solo el filtro de estatus del disparador las carreras de montos que ENCAJAN (20 × $500 contra $500) pasan aunque se quite el CHECK; por eso hay carreras de montos que no encajan ($600 contra $1,000).
+
+**Tablas nuevas:** `cargo`, `pago`, `pago_aplicacion` (solo anexar), `producto`, `venta`. **Columnas nuevas:** `promocion_aplicacion.liberado_en|liberado_por_pago_id|entregado_por_usuario_id|revision_en` (y el valor `liberado`), `cargo.venta_id`, `promocion_beneficio.producto_id` ahora con FK (`NOT VALID`). **Migraciones:** `20261021000000_cargos`, `…010000_pagos`, `…020000_beneficios_diferidos`, `…020100_beneficios_diferidos_defensas`, `…030000_productos_ventas`. La siguiente debe usar `20261021040000` o mayor.
+**Helpers nuevos:** `src/finanzas/{cargos,pagos,distribucion,estado-cuenta,beneficios,entrega,productos,despues-del-pago,barrido,alcance,presentar}.ts`; `src/lib/periodo.ts`; testutil `mundoDeFinanzas` (`src/testutil/finanzas.ts`); `crearPrisma(url, maxConexiones)` / `crearPrismaDePruebas(url, max)` para las carreras de 20+ hilos (el pool por omisión es de 10: con una barrera mayor las transacciones se quedaban esperando una conexión).
+**Permisos nuevos:** `cargos:leer|escribir`, `pagos:leer|registrar|cancelar`, `estado_cuenta:leer`, `beneficios:leer|entregar`, `productos:leer|escribir|stock`, `ventas:leer|registrar|anular`. El maestro no tiene ninguno (no ve importes); el asesor solo lee.
+**Reglas de `check:dinero`:** `finanzas/`, `cobranza/` y `api/rutas/finanzas-*` son zonas estrictas (ya lo eran las dos primeras); se agregaron también `reportes/`, `demo/`, `exportacion/` y `api/rutas/reportes-*` para los bloques I.
+
+**Decisiones abiertas para Eduardo (resumen)**
+1. Reactivar una inscripción congelada a mitad de mes: ¿cobra el mes completo? ¿Congelar cancela el cargo del mes en curso? (hoy: no cancela; reactivar genera el mes completo).
+2. Un pago mayor a lo adeudado se rechaza (sin saldo a favor): ¿se prefiere guardar crédito?
+3. Un descuento DIFERIDO (no producto) solo se marca entregado: ¿debe aplicarse a las mensualidades siguientes?
+4. Stock global por producto, no por sucursal.
+5. Ventana para cancelar un pago viejo (hoy sin límite) y quién puede cancelar (hoy administrador y recepción).
+6. Un solo responsable de pago por cargo, fijado al generarlo; los cargos abiertos no migran si cambia el responsable.

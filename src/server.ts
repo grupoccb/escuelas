@@ -4,6 +4,8 @@ import { correrCiclo } from "./ciclo.ts";
 import { procesarEntrante } from "./captacion/entrante.ts";
 import { registrarDesasignacionDeConversacion, registrarTomaDeConversacion } from "./captacion/toma.ts";
 import { InscripcionesActivas } from "./catalogo/cupo.ts";
+import { ProveedorEconomicoDeFinanzas } from "./finanzas/estado-cuenta.ts";
+import { ProveedorProductosDeFinanzas } from "./finanzas/productos.ts";
 import { crearPrisma } from "./datos/prisma.ts";
 import { pingBaseDatos } from "./datos/sistema.ts";
 import { origenesPermitidosDesdeEntorno } from "./api/csrf.ts";
@@ -45,7 +47,7 @@ const app = crearApp({
   landing: { prisma, origenesPermitidos: origenesPermitidosDesdeEntorno() },
   // API de la aplicación (/api): sesiones, usuarios y recursos. Configuración por variables de entorno.
   // Falla al arrancar (en producción) si falta CLAVE_DATOS_SENSIBLES, en vez de al primer uso.
-  api: { prisma, sensibles: { cifrador: cifradorDesdeEntorno() }, directorio: directorioAgentesDesdeEntorno(), fuenteOcupacion },
+  api: { prisma, sensibles: { cifrador: cifradorDesdeEntorno() }, directorio: directorioAgentesDesdeEntorno(), fuenteOcupacion, expediente: { economico: new ProveedorEconomicoDeFinanzas(), productos: new ProveedorProductosDeFinanzas() } },
   estadosEntrega: new EstadosEntregaChatwoot(),
   registrarEstadoEntrega: (cambio) => registrarEstadoEntrega({ prisma }, cambio),
   procesarEntrante: (evento) => procesarEntrante({ prisma, mensajeria: mensajeria.provider, atribucion, fuenteOcupacion }, evento),

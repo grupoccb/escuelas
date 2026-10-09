@@ -22,6 +22,7 @@ import { estatusEfectivo } from "../cotizador/cotizacion.ts";
 import { moverLeadAEtapa } from "../embudo/etapas.ts";
 import { problemasDeReglamentoVigente } from "../legal/aceptaciones.ts";
 import { edadCumplida } from "../lib/edad.ts";
+import { crearCargosAlInscribir, responsableDePago, type CargoCreado } from "../finanzas/cargos.ts";
 import { aTexto } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { cargarPromociones } from "../promociones/cargar.ts";
@@ -61,7 +62,8 @@ export type MotivoDeRechazoDeInscripcion =
   | "reglamento"
   | "grupo_lleno"
   | "ya_inscrito"
-  | "cotizacion_invalida";
+  | "cotizacion_invalida"
+  | "sin_responsable_de_pago";
 
 export interface InscripcionCreada {
   id: string;
@@ -82,6 +84,8 @@ export interface InscripcionCreada {
   mesesGratis: number;
   mesesPagadosPorAdelantado: number;
   aplicaciones: { id: string; beneficioId: string; promocionId: string; estatus: "entregado" | "pendiente" }[];
+  /** Los cargos que nacieron con la inscripción (H1): la inscripción y la primera mensualidad (o las que se pagan por adelantado). */
+  cargos: CargoCreado[];
   /** Para cerrar la entrada de la lista de espera de ese prospecto en ese grupo, DESPUÉS de confirmar la transacción. */
   listaDeEspera: { grupoId: string; prospectoId: string } | null;
 }
@@ -163,6 +167,10 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
   const problemas = await problemasDeReglamentoVigente(tx, prospecto.id, programa.vertical_id, ctx.ahora);
   if (problemas.length > 0) return rechazo("reglamento", problemas[0]!.mensaje, { detalles: problemas });
 
+  // H1: los cargos son de alguien. Sin un tutor al que cobrarle no se inscribe (se rechaza ANTES de escribir nada).
+  const tutorDePago = await responsableDePago(tx, alumno.id);
+  if (!tutorDePago) return rechazo("sin_responsable_de_pago", "El alumno no tiene un tutor: registra al responsable de pago antes de inscribirlo", { detalles: [{ campo: "tutor", mensaje: "Falta el responsable de pago" }] });
+
   // La cotización que se acepta (opcional).
   let cotizacionId: string | null;
   if (e.cotizacionId) {
@@ -243,6 +251,27 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
   // La bienvenida (F7): una ejecución del motor por automatización aplicable, en esta misma transacción.
   await programarBienvenida(tx, { inscripcionId: fila.id, verticalId: programa.vertical_id, sucursalId: programa.sucursal_id, zonaHoraria: programa.sucursal.zona_horaria, ahora: ctx.ahora });
 
+  // H1: el cargo de inscripción y la primera mensualidad, en esta misma transacción (con los descuentos de las promociones inmediatas ya congelados).
+  const cargos = await crearCargosAlInscribir(
+    tx,
+    { ahora: ctx.ahora, usuarioId: ctx.usuarioId },
+    {
+      inscripcionId: fila.id,
+      alumnoId: alumno.id,
+      sucursalId: programa.sucursal_id,
+      tutorId: tutorDePago,
+      fechaInscripcion: hoy,
+      fechaInicio,
+      diaCorte,
+      precioInscripcion: precio.costoInscripcion,
+      precioMensualidad: precio.costoMensualidad,
+      descuentoInscripcion: r.inscripcion.descuentoAhora,
+      descuentoMensualidad: r.mensualidad.descuentoAhora,
+      mesesGratis: r.mesesGratisAhora,
+      mesesPagadosPorAdelantado: meses,
+    },
+  );
+
   return {
     ok: true,
     inscripcion: {
@@ -264,6 +293,7 @@ export async function inscribirAlumno(tx: Consultas, ctx: ContextoDeInscripcion,
       mesesGratis: r.mesesGratisAhora,
       mesesPagadosPorAdelantado: meses,
       aplicaciones,
+      cargos,
       listaDeEspera: { grupoId: grupo.id, prospectoId: prospecto.id },
     },
   };

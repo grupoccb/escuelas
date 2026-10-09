@@ -103,6 +103,11 @@ model organizacion {
   progresiones               alumno_progresion[]
   eventos                    evento[]
   eventos_alumno             evento_alumno[]
+  cargos                     cargo[]
+  pagos                      pago[]
+  pagos_aplicaciones         pago_aplicacion[]
+  productos                  producto[]
+  ventas                     venta[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -205,6 +210,7 @@ model vertical {
   @@index([organizacion_id])
   niveles_progresion  nivel_progresion[]
   eventos             evento[]
+  productos producto[]
 }
 
 model sucursal {
@@ -238,6 +244,8 @@ model sucursal {
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   eventos       evento[]
+  cargos        cargo[]
+  ventas        venta[]
 }
 
 /// Qué verticales se imparten en qué sucursal.
@@ -899,6 +907,8 @@ enum tipo_tarea_asesor {
   faltas_consecutivas
   /// Llegó por un webhook o la landing algo con datos inesperados que el sistema no pudo procesar (WH). Una pendiente por conversación.
   evento_inesperado
+  /// Se canceló el pago que cumplió la condición de un beneficio que ya se había entregado (H4). Una pendiente por inscripción: una persona decide.
+  beneficio_en_revision
 }
 
 enum estado_tarea_asesor {
@@ -1187,6 +1197,8 @@ enum momento_disparo {
 
 enum estatus_aplicacion {
   pendiente
+  /// H4: la condición se cumplió (se saldó la primera mensualidad) y recepción debe entregarlo. Nace `pendiente`, pasa a `liberado` con el pago y a `entregado` al dárselo a la familia.
+  liberado
   entregado
 }
 
@@ -1295,8 +1307,8 @@ model promocion_beneficio {
   tipo            tipo_beneficio
   modo            modo_beneficio
   valor           Decimal?        @db.Decimal(12, 2)
-  /// El producto llega en H5: por ahora es un uuid SIN llave foránea (nadie lo valida todavía); `descripcion`
-  /// dice qué es («Uniforme») para que recepción sepa qué entregar.
+  /// H5: el producto del catálogo que se entrega (llave foránea compuesta, agregada sin validar las filas de antes de existir `producto`); nulo si el beneficio solo dice qué
+  /// es en `descripcion` («Uniforme») y recepción elige la talla al entregar.
   producto_id     String?         @db.Uuid
   descripcion     String?
   momento_disparo momento_disparo @default(inmediato)
@@ -1306,6 +1318,7 @@ model promocion_beneficio {
 
   organizacion organizacion           @relation(fields: [organizacion_id], references: [id])
   promocion    promocion              @relation(fields: [promocion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  producto     producto?              @relation(fields: [producto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   aplicaciones promocion_aplicacion[]
 
   @@unique([id, organizacion_id])
@@ -1329,6 +1342,12 @@ model promocion_aplicacion {
   /// aplica). La promoción puede cambiar después; lo ya inscrito conserva lo que se le prometió.
   descuento         Decimal            @default(0) @db.Decimal(12, 2)
   meses_gratis      Int                @default(0)
+  /// H4: cuándo y con qué pago se cumplió la condición (nulo mientras esté pendiente) y quién lo entregó.
+  liberado_en          DateTime?       @db.Timestamptz(6)
+  liberado_por_pago_id String?         @db.Uuid
+  entregado_por_usuario_id String?     @db.Uuid
+  /// H4: se canceló el pago que lo liberó cuando ya estaba entregado: una persona decide (tarea `beneficio_en_revision`).
+  revision_en       DateTime?          @db.Timestamptz(6)
   creado_en         DateTime           @default(now()) @db.Timestamptz(6)
   actualizado_en    DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en      DateTime?          @db.Timestamptz(6)
@@ -1338,6 +1357,9 @@ model promocion_aplicacion {
   beneficio      promocion_beneficio @relation(fields: [beneficio_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   autorizado_por usuario?            @relation("aplicacion_autorizada_por", fields: [autorizado_por_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   inscripcion    inscripcion         @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  liberado_por_pago pago?            @relation("aplicacion_liberada_por", fields: [liberado_por_pago_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  entregado_por  usuario?            @relation("aplicacion_entregada_por", fields: [entregado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  ventas         venta[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -1397,6 +1419,13 @@ model usuario {
   progresiones_registradas alumno_progresion[] @relation("progresion_registrada_por")
   eventos_creados evento[] @relation("evento_creado_por")
   participaciones_registradas evento_alumno[] @relation("evento_alumno_registrado_por")
+  cargos_creados cargo[] @relation("cargo_creado_por")
+  cargos_cancelados cargo[] @relation("cargo_cancelado_por")
+  pagos_registrados pago[] @relation("pago_registrado_por")
+  pagos_cancelados pago[] @relation("pago_cancelado_por")
+  beneficios_entregados promocion_aplicacion[] @relation("aplicacion_entregada_por")
+  ventas_registradas venta[] @relation("venta_registrada_por")
+  ventas_anuladas venta[] @relation("venta_anulada_por")
 }
 
 /// Sucursales que ve un usuario. El administrador ve todas sin necesidad de filas aquí.
@@ -2313,6 +2342,9 @@ model tutor {
   sucursal     sucursal?      @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   alumnos      tutor_alumno[]
   leads        lead[]
+  cargos       cargo[]
+  pagos        pago[]
+  ventas       venta[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2351,6 +2383,8 @@ model alumno {
   tutores      tutor_alumno[]
   prospectos   prospecto[]
   inscripciones inscripcion[]
+  cargos       cargo[]
+  ventas       venta[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
@@ -2450,6 +2484,7 @@ model inscripcion {
 
   tareas_asesor tarea_asesor[]
   asistencias   asistencia[]
+  cargos        cargo[]
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
   @@index([alumno_id])
@@ -2748,4 +2783,227 @@ model evento_alumno {
   @@index([organizacion_id])
   @@index([evento_id])
   @@index([alumno_id])
+}
+
+// ── Finanzas (etapa H): cargos ─────────────────────────────────────────────────────────────────────
+
+enum concepto_cargo {
+  inscripcion
+  mensualidad
+  evento
+  producto
+}
+
+enum estatus_cargo {
+  pendiente
+  pagado
+  /// Se materializa con el barrido de cobranza; el estatus «vencido» efectivo también se deriva de `fecha_vencimiento` (src/finanzas/cargos.ts).
+  vencido
+  cancelado
+}
+
+/// Lo que una familia debe. UN responsable de pago (`tutor_id`) por cargo. Dinero `Decimal(12,2)`; en código, SIEMPRE `src/lib/dinero.ts` (centavos `bigint`).
+/// `monto_final = monto − descuento` y no cambian después de nacer (disparador). `monto_pagado` lo mantiene la BASE (disparadores de `pago_aplicacion`,
+/// H2) y nunca pasa de `monto_final`: así dos pagos simultáneos al mismo cargo no pueden sobrepagarlo ni dejar saldos incoherentes. El estatus es coherente con el
+/// saldo por CHECK (pagado ⇔ `monto_pagado = monto_final`; cancelado solo sin pagos). Una mensualidad por (inscripción, periodo) y un cargo de inscripción
+/// por inscripción (índices únicos parciales en la migración): la generación mensual repetida o en paralelo nunca duplica. Cancelar = estatus, nunca borrar.
+model cargo {
+  id                       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id          String         @db.Uuid
+  /// El responsable de pago al generarse el cargo.
+  tutor_id                 String         @db.Uuid
+  alumno_id                String         @db.Uuid
+  /// Nulo en un cargo suelto (un evento, un producto).
+  inscripcion_id           String?        @db.Uuid
+  /// El cargo de una venta de producto (H5): uno por venta. Anular la venta cancela este cargo.
+  venta_id                 String?        @db.Uuid
+  /// Sucursal que cobra (define la zona horaria del vencimiento y quién lo ve).
+  sucursal_id              String         @db.Uuid
+  concepto                 concepto_cargo
+  /// `AAAA-MM`. Obligatorio en una mensualidad.
+  periodo                  String?
+  descripcion              String?
+  monto                    Decimal        @db.Decimal(12, 2)
+  descuento                Decimal        @default(0) @db.Decimal(12, 2)
+  monto_final              Decimal        @db.Decimal(12, 2)
+  /// Σ de las aplicaciones vivas de pagos (la mantiene la base). Saldo = monto_final − monto_pagado.
+  monto_pagado             Decimal        @default(0) @db.Decimal(12, 2)
+  fecha_vencimiento        DateTime       @db.Date
+  estatus                  estatus_cargo  @default(pendiente)
+  creado_por_usuario_id    String?        @db.Uuid
+  cancelado_en             DateTime?      @db.Timestamptz(6)
+  cancelado_por_usuario_id String?        @db.Uuid
+  motivo_cancelacion       String?
+  creado_en                DateTime       @default(now()) @db.Timestamptz(6)
+  actualizado_en           DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en             DateTime?      @db.Timestamptz(6)
+
+  organizacion  organizacion  @relation(fields: [organizacion_id], references: [id])
+  tutor         tutor         @relation(fields: [tutor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  alumno        alumno        @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  inscripcion   inscripcion?  @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal      sucursal      @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  venta         venta?        @relation(fields: [venta_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  creado_por    usuario?      @relation("cargo_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cancelado_por usuario?      @relation("cargo_cancelado_por", fields: [cancelado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  aplicaciones  pago_aplicacion[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([tutor_id, estatus])
+  @@index([alumno_id])
+  @@index([inscripcion_id])
+  @@index([estatus, fecha_vencimiento])
+}
+
+// ── Finanzas (etapa H): pagos ──────────────────────────────────────────────────────────────────────
+
+enum metodo_pago {
+  efectivo
+  tarjeta
+  transferencia
+}
+
+enum estatus_pago {
+  aplicado
+  cancelado
+}
+
+enum estatus_aplicacion_pago {
+  aplicada
+  revertida
+}
+
+/// Dinero que entró de una familia (REGISTRO MANUAL: decisión 10, sin pasarela). Un pago es de un tutor y se reparte entre varios cargos de varios hijos
+/// (`pago_aplicacion`). Nunca se borra ni se edita: cancelar = estatus `cancelado` (sus aplicaciones pasan a `revertida`). `monto_aplicado` lo mantiene la BASE
+/// (disparadores de `pago_aplicacion`) y un pago aplicado cubre EXACTAMENTE su monto (disparador diferido): no existe saldo a favor. `clave_idempotencia` es la clave
+/// del cliente: un reintento del mismo POST no registra dos pagos (único por organización).
+model pago {
+  id                        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id           String       @db.Uuid
+  tutor_id                  String       @db.Uuid
+  monto                     Decimal      @db.Decimal(12, 2)
+  monto_aplicado            Decimal      @default(0) @db.Decimal(12, 2)
+  metodo                    metodo_pago
+  referencia                String?
+  /// El día (calendario local) en que se recibió.
+  fecha                     DateTime     @db.Date
+  estatus                   estatus_pago @default(aplicado)
+  clave_idempotencia        String?
+  registrado_por_usuario_id String?      @db.Uuid
+  cancelado_en              DateTime?    @db.Timestamptz(6)
+  cancelado_por_usuario_id  String?      @db.Uuid
+  motivo_cancelacion        String?
+  creado_en                 DateTime     @default(now()) @db.Timestamptz(6)
+  actualizado_en            DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en              DateTime?    @db.Timestamptz(6)
+
+  organizacion   organizacion       @relation(fields: [organizacion_id], references: [id])
+  tutor          tutor              @relation(fields: [tutor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registrado_por usuario?           @relation("pago_registrado_por", fields: [registrado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cancelado_por  usuario?           @relation("pago_cancelado_por", fields: [cancelado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  aplicaciones   pago_aplicacion[]
+  beneficios_liberados promocion_aplicacion[] @relation("aplicacion_liberada_por")
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([tutor_id, fecha])
+}
+
+/// Cuánto de un pago cubrió un cargo. De SOLO ANEXAR salvo el paso `aplicada → revertida` (cancelar el pago). Los disparadores suman/restan en
+/// `cargo.monto_pagado` y `pago.monto_aplicado` con UN UPDATE atómico y los CHECK de la base impiden sobrepagar. El pago y el cargo son del MISMO tutor.
+model pago_aplicacion {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String                  @db.Uuid
+  pago_id         String                  @db.Uuid
+  cargo_id        String                  @db.Uuid
+  monto_aplicado  Decimal                 @db.Decimal(12, 2)
+  estatus         estatus_aplicacion_pago @default(aplicada)
+  revertida_en    DateTime?               @db.Timestamptz(6)
+  creado_en       DateTime                @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime                @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime?               @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  pago         pago         @relation(fields: [pago_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cargo        cargo        @relation(fields: [cargo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([pago_id])
+  @@index([cargo_id])
+}
+
+// ── Finanzas (etapa H): productos y ventas ─────────────────────────────────────────────────────────
+
+/// Catálogo de productos de la escuela (uniformes, equipo, zapatos…), por vertical. El `stock` NUNCA baja de cero (CHECK en la migración) y solo lo mueven los disparadores de
+/// `venta` (vender descuenta, anular devuelve) y el ajuste atómico de inventario: dos ventas por la última pieza, gana una.
+model producto {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id String    @db.Uuid
+  vertical_id     String    @db.Uuid
+  nombre          String
+  talla           String?
+  precio          Decimal   @db.Decimal(12, 2)
+  stock           Int       @default(0)
+  activo          Boolean   @default(true)
+  creado_en       DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en    DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion          @relation(fields: [organizacion_id], references: [id])
+  vertical     vertical              @relation(fields: [vertical_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  ventas       venta[]
+  beneficios   promocion_beneficio[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([vertical_id])
+}
+
+enum estatus_venta {
+  registrada
+  anulada
+}
+
+/// Una venta de producto a una familia. El precio unitario se CONGELA al vender. Una venta normal genera su `cargo` (concepto `producto`, uno por venta); una venta PROMOCIONAL
+/// (`es_promocional`, la entrega de un beneficio diferido) es de precio 0, no genera cargo y apunta a su `promocion_aplicacion` (una sola venta por aplicación). Insertar la
+/// venta descuenta el stock y anularla lo devuelve (disparadores): no hay venta sin movimiento de inventario.
+model venta {
+  id                       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id          String        @db.Uuid
+  tutor_id                 String        @db.Uuid
+  alumno_id                String        @db.Uuid
+  producto_id              String        @db.Uuid
+  sucursal_id              String        @db.Uuid
+  cantidad                 Int
+  precio_unitario          Decimal       @db.Decimal(12, 2)
+  es_promocional           Boolean       @default(false)
+  promocion_aplicacion_id  String?       @db.Uuid
+  /// El día (calendario local de la sucursal) de la venta.
+  fecha                    DateTime      @db.Date
+  estatus                  estatus_venta @default(registrada)
+  registrada_por_usuario_id String?      @db.Uuid
+  anulada_en               DateTime?     @db.Timestamptz(6)
+  anulada_por_usuario_id   String?       @db.Uuid
+  motivo_anulacion         String?
+  creado_en                DateTime      @default(now()) @db.Timestamptz(6)
+  actualizado_en           DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en             DateTime?     @db.Timestamptz(6)
+
+  organizacion         organizacion          @relation(fields: [organizacion_id], references: [id])
+  tutor                tutor                 @relation(fields: [tutor_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  alumno               alumno                @relation(fields: [alumno_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  producto             producto              @relation(fields: [producto_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  sucursal             sucursal              @relation(fields: [sucursal_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  promocion_aplicacion promocion_aplicacion? @relation(fields: [promocion_aplicacion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  registrada_por       usuario?              @relation("venta_registrada_por", fields: [registrada_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  anulada_por          usuario?              @relation("venta_anulada_por", fields: [anulada_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cargos               cargo[]
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([tutor_id])
+  @@index([alumno_id])
+  @@index([producto_id])
 }

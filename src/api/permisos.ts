@@ -66,6 +66,25 @@ export const MATRIZ_DE_PERMISOS = {
   // Conversión del lead en familia e inscripciones (F2): quien cierra la inscripción. El maestro tiene el permiso, pero la ruta solo se lo concede con el modo de cierre `maestro_en_sitio` (F6, `puedeConvertir`) y de SUS alumnos.
   "conversion:leer": ["administrador", "asesor", "maestro"],
   "conversion:ejecutar": ["administrador", "asesor", "maestro"],
+  // Finanzas (H): el dinero NO lo ve el maestro. Cargos: lo lee el asesor; los escribe (cancela) recepción y el administrador.
+  "cargos:leer": ["administrador", "asesor", "recepcion"],
+  "cargos:escribir": ["administrador", "recepcion"],
+  // Pagos (H2): registro manual. Registrar y cancelar, recepción y administrador; el asesor lee.
+  "pagos:leer": ["administrador", "asesor", "recepcion"],
+  "pagos:registrar": ["administrador", "recepcion"],
+  "pagos:cancelar": ["administrador", "recepcion"],
+  // Estado de cuenta de la familia (H3): solo lectura.
+  "estado_cuenta:leer": ["administrador", "asesor", "recepcion"],
+  // Beneficios diferidos (H4): la lista de lo que hay que entregar la lee el asesor; la entrega es de recepción y el administrador.
+  "beneficios:leer": ["administrador", "asesor", "recepcion"],
+  "beneficios:entregar": ["administrador", "recepcion"],
+  // Productos y ventas (H5): el catálogo lo escribe el administrador; el inventario también recepción; las ventas las registra y anula recepción; el asesor lee; el maestro no ve precios.
+  "productos:leer": ["administrador", "asesor", "recepcion"],
+  "productos:escribir": ["administrador"],
+  "productos:stock": ["administrador", "recepcion"],
+  "ventas:leer": ["administrador", "asesor", "recepcion"],
+  "ventas:registrar": ["administrador", "recepcion"],
+  "ventas:anular": ["administrador", "recepcion"],
   // Oferta
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],
   "catalogo:leer": ["administrador", "asesor", "maestro", "recepcion"],

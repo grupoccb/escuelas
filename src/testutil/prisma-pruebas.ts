@@ -36,7 +36,7 @@ export function exigirBaseDePruebas(databaseUrl: string | undefined): string {
   return databaseUrl;
 }
 
-export function crearPrismaDePruebas(databaseUrl = process.env["DATABASE_URL"]): PrismaPruebas {
-  const raiz = crearPrisma(exigirBaseDePruebas(databaseUrl));
+export function crearPrismaDePruebas(databaseUrl = process.env["DATABASE_URL"], maxConexiones?: number): PrismaPruebas {
+  const raiz = crearPrisma(exigirBaseDePruebas(databaseUrl), maxConexiones);
   return clienteSinAlcance(raiz) as PrismaPruebas;
 }

@@ -22,9 +22,10 @@ export interface PrismaRaiz {
   $disconnect(): Promise<void>;
 }
 
-export function crearPrisma(databaseUrl = process.env["DATABASE_URL"]): PrismaRaiz {
+export function crearPrisma(databaseUrl = process.env["DATABASE_URL"], maxConexiones?: number): PrismaRaiz {
   if (!databaseUrl) throw new Error("Falta DATABASE_URL");
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) }) as unknown as PrismaRaiz;
+  // `maxConexiones`: el tamaño del pool (10 por omisión). Las pruebas de concurrencia con 20–50 hilos simultáneos necesitan uno mayor.
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl, ...(maxConexiones ? { max: maxConexiones } : {}) }) }) as unknown as PrismaRaiz;
 }
 
 /**

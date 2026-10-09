@@ -578,3 +578,78 @@ Tablas `evento` y `evento_alumno` (migración `20261020010000_eventos`). Un even
 - **Por rol:** administrador, asesor y recepción ven las cuatro secciones (asesor y recepción solo de los alumnos de SUS sucursales); el **maestro solo ve a sus alumnos y SIN importes** (EF-03): `economico` y `comercial` vienen en `null` (el origen del lead y el motivo de baja tampoco son suyos). Lo ajeno (otra sucursal, otro maestro, otra organización) es 404.
 - **Enchufes hacia la etapa H** (`src/expediente/proveedores.ts`, invariante 11): `ProveedorEconomico.estadoDeCuenta` (saldo, vencido y antigüedad de la cartera vencida) y `ProveedorProductos.productosComprados` (H5). Hoy responden la implementación NULA documentada: `{ disponible: false, motivo: "finanzas_pendiente" }` y `{ disponible: false, motivo: "productos_pendiente" }`. Para enchufarlos, `ApiDepsEntrada.expediente` recibe la implementación real y el expediente no cambia. Con `disponible: true`, `estado_de_cuenta` trae `saldo`, `vencido` y `antiguedadCarteraVencidaDias` (dinero como texto), y `antiguedad_cartera_vencida` los repite como `{ dias, vencido }`.
 - Solo lee; no escribe nada ni registra accesos a salud. Todo el dinero sale como texto con dos decimales (`src/lib/dinero.ts`).
+
+## Cargos (H1)
+
+Código: `src/finanzas/` (`cargos.ts`, `alcance.ts`, `presentar.ts`, `barrido.ts`), `src/api/rutas/finanzas-cargos.ts`. **Todo el dinero sale y entra como TEXTO con dos decimales** (`"1234.50"`); un número JSON se rechaza (400). Las columnas son `Decimal(12,2)` y el código opera en centavos `bigint` (`src/lib/dinero.ts`).
+
+| Ruta | Permiso | Qué hace |
+|---|---|---|
+| `GET /api/cargos?tutor_id=&alumno_id=&inscripcion_id=&concepto=&estatus=&periodo=&con_saldo=&vence_desde=&vence_hasta=&limite=&pagina=` | `cargos:leer` | Lista paginada (más antiguo primero). `estatus=vencido|pendiente` filtra por el estatus EFECTIVO. |
+| `GET /api/cargos/:id` | `cargos:leer` | Un cargo. |
+| `POST /api/cargos { alumno_id, descripcion, monto, descuento?, fecha_vencimiento, sucursal_id? }` | `cargos:escribir` | Cargo suelto de concepto `evento`, a nombre del responsable de pago. |
+| `POST /api/cargos/:id/cancelar { motivo }` | `cargos:escribir` | Cancela (estatus, no borrado). 409 si tiene pagos (`tiene_pagos`: primero se cancela el pago), si ya está cancelado o ya está pagado. |
+
+- Un cargo: `tutor_id` (responsable de pago), `alumno`, `inscripcion_id`, `sucursal_id`, `concepto` (`inscripcion | mensualidad | evento | producto`), `periodo` (`AAAA-MM`), `monto`, `descuento`, `monto_final`, `monto_pagado`, `saldo`, `fecha_vencimiento`, `estatus` (guardado) y `estatus_efectivo` (`vencido` se deriva de la fecha aunque el barrido no haya corrido), `dias_de_atraso`.
+- **Quién ve:** administrador y recepción escriben; el **asesor lee**; el **maestro no ve importes** (403 en toda la API de finanzas). Asesor y recepción solo ven las sucursales del cargo que tienen asignadas (lo ajeno es 404).
+- **Qué se genera solo.** Al inscribir (F3), en la misma transacción: el cargo de **inscripción** y la **primera mensualidad** (mes en que empieza el alumno), con los descuentos de las promociones inmediatas ya congelados; los **meses gratis** dejan en cero las primeras n mensualidades; los **meses pagados por adelantado** generan esas mensualidades, todas con vencimiento el día de la inscripción. Sin tutor al que cobrarle no se inscribe (409 `sin_responsable_de_pago`, ANTES de escribir nada). Cada mes, el **barrido de finanzas** (`src/finanzas/barrido.ts`, dentro del ciclo de cada minuto, a lo más cada 10 min) genera la mensualidad del mes en curso (calendario local de la sucursal) de las inscripciones **activas** (ni congeladas ni dadas de baja), con el precio y el descuento congelados en la inscripción, y materializa como `vencido` los pendientes vencidos. El vencimiento es el día de corte de la inscripción con la regla del fin de mes (el 31 cae el 30 de abril y el 28 de febrero).
+- **Idempotencia en la base:** único parcial por (inscripción, periodo) para la mensualidad y por inscripción para el cargo de inscripción; dos barridos en paralelo no duplican, y un cargo cancelado a propósito no se regenera.
+- **Defensas en la base (regla de Eduardo):** CHECK de importes (`monto_final = monto − descuento`, `0 ≤ monto_pagado ≤ monto_final`), de coherencia con el saldo (pagado ⇔ `monto_pagado = monto_final`; cancelado solo sin pagos), disparador que impide editar el dinero, el responsable o el vencimiento de un cargo y que lo reabre una vez cancelado, y que impide borrarlo físicamente.
+
+## Pagos (H2)
+
+Código: `src/finanzas/` (`pagos.ts`, `distribucion.ts`, `despues-del-pago.ts`), `src/api/rutas/finanzas-pagos.ts`. **Registro manual** (decisión 10): sin pasarela.
+
+| Ruta | Permiso | Qué hace |
+|---|---|---|
+| `GET /api/pagos/propuesta?tutor_id=&monto=` | `pagos:registrar` | Cómo se repartiría un pago (más antiguo primero) sin registrarlo: `ok`, `adeudado`, `aplicaciones[]`, `excedente`. |
+| `POST /api/pagos { tutor_id, monto, metodo, referencia?, fecha?, clave_idempotencia?, aplicaciones?: [{ cargo_id, monto }] }` | `pagos:registrar` | Registra y reparte. `metodo`: `efectivo | tarjeta | transferencia`. 201 (o 200 con `repetido: true` si la clave ya existía). |
+| `GET /api/pagos?tutor_id=&estatus=&desde=&hasta=` · `GET /api/pagos/:id` | `pagos:leer` | Pagos con sus aplicaciones. |
+| `POST /api/pagos/:id/cancelar { motivo }` | `pagos:cancelar` | Cancela SIN borrar: el pago pasa a `cancelado`, sus aplicaciones a `revertida` y los cargos recalculan su saldo. |
+
+- **Reparto.** Un pago es de la FAMILIA (tutor) y se reparte entre varios cargos de varios hijos. Sin `aplicaciones` el sistema propone el orden: el cargo que **venció primero** se paga primero (luego el creado antes, luego por id). Con `aplicaciones`, recepción ajusta el reparto, que debe sumar EXACTAMENTE el pago, ser de la familia y no pasar del saldo de cada cargo. **Pago parcial:** el último cargo alcanzado queda pendiente con saldo.
+- **Excedente (decisión conservadora):** un pago mayor a lo adeudado se **rechaza** (409 `excedente_sin_cargo`, con `excedente` y `adeudado`); no existe «saldo a favor». Quien cobra registra lo adeudado y da el cambio. La base lo exige también (un pago aplicado cubre exactamente su monto, al confirmar la transacción).
+- **Idempotencia:** `clave_idempotencia` (8–120 caracteres `A-Za-z0-9._:-`) o el encabezado `Idempotency-Key`, única por organización. Un reintento del mismo POST devuelve el mismo pago (`repetido: true`); la misma clave con otro monto, método o familia es 409 `clave_reutilizada`.
+- **Rechazos:** `excedente_sin_cargo`, `reparto_invalido`, `saldo_cambio` (la base paró un sobrepago porque otro movió el saldo), `clave_reutilizada`, `ya_cancelado` (409); monto no positivo o con más de dos decimales, fecha futura (400); familia ajena (404).
+- **Protección en la base, en la misma transacción:** el código toma el candado de la familia (un UPDATE de la fila del tutor) y lee los saldos con él; pero la garantía NO depende de eso. Cada aplicación suma en `cargo.monto_pagado` y en `pago.monto_aplicado` con un UPDATE atómico por disparador, y los CHECK de la base fallan cerrado (`cargo_importes_check`, `pago_importes_check`): 20 pagos simultáneos al mismo cargo, aun por SQL directo y sin candado, dejan pasar solo lo que cabe. `pago_aplicacion` es de solo anexar (salvo `aplicada → revertida`), un pago nunca se borra ni se edita, y un cargo y un pago deben ser de la misma familia.
+
+## Estado de cuenta por familia (H3)
+
+`GET /api/tutores/:id/estado-cuenta` (permiso `estado_cuenta:leer`: administrador, asesor y recepción; el maestro 403; la familia de otra sucursal u organización, 404). Solo lee. Código: `src/finanzas/estado-cuenta.ts`, `src/api/rutas/finanzas-cuenta.ts`.
+
+- `resumen`: `total_cargado`, `total_pagado` (lo aplicado), `saldo` (Σ cargos − Σ aplicaciones vivas), `vencido` y `antiguedad`.
+- `hijos[]`: por hijo, sus `cargos[]` (más antiguo primero, con `saldo`, `estatus_efectivo` y `dias_de_atraso`) y sus propios `total_cargado`, `total_pagado`, `saldo`, `vencido` y `antiguedad`.
+- `pagos[]`: los últimos 100 pagos de la familia con sus aplicaciones.
+- **Antigüedad de lo vencido** (días de atraso = hoy − vencimiento, en el calendario de la sucursal del cargo): `de_0_a_30` (1 a 30 días), `de_31_a_60`, `de_61_a_90` y `mas_de_90` (91 o más). Cada renglón suma el SALDO de sus cargos (un cargo a medio pagar cuenta por lo que falta). Los cargos cancelados se listan pero no cuentan; lo que aún no vence no entra a `vencido`.
+- **Expediente (G5):** `ProveedorEconomicoDeFinanzas` implementa `ProveedorEconomico` y `src/server.ts` lo enchufa: `economico.estado_de_cuenta` trae `saldo`, `vencido` y `antiguedadCarteraVencidaDias` (el cargo vencido más viejo) reales. El maestro sigue sin ver importes.
+
+## Beneficios diferidos (H4)
+
+Código: `src/finanzas/beneficios.ts`, `entrega.ts`, `despues-del-pago.ts`; `src/api/rutas/finanzas-beneficios.ts`.
+
+| Ruta | Permiso | Qué hace |
+|---|---|---|
+| `GET /api/beneficios/por-entregar?sucursal_id=` | `beneficios:leer` (administrador, asesor, recepción) | La lista de recepción: beneficios `liberado` de inscripciones no dadas de baja, con alumno (y su talla), responsable de pago y tipo. |
+| `POST /api/beneficios/:id/entregar { producto_id?, cantidad? }` | `beneficios:entregar` (administrador, recepción) | Lo marca `entregado`. Un beneficio de producto crea la venta promocional de precio 0 y descuenta el stock (H5). |
+
+- **Ciclo:** `pendiente` (al inscribir) → `liberado` (en la MISMA transacción del pago que SALDA la primera mensualidad) → `entregado`. La «primera mensualidad» es la no cancelada de menor periodo que tiene importe; un pago parcial o el pago de la inscripción no liberan. **Una inscripción dada de baja no libera nada.** Liberar es idempotente (UPDATE condicionado a `pendiente`).
+- **Cancelar el pago** que cumplía la condición: lo liberado y no entregado regresa a `pendiente`; lo ya entregado se marca `revision_en` y deja una tarea `beneficio_en_revision` (una pendiente por inscripción) para el asesor.
+- **En la base:** el disparador `promocion_aplicacion_transicion` exige, para liberar, un pago aplicado, la primera mensualidad pagada y una inscripción que no esté de baja; sólo permite `liberado → entregado | pendiente`. (La entrega administrativa `pendiente → entregado` de antes de H4 se conserva en la base; la API nunca la usa.)
+
+## Productos y ventas (H5)
+
+Código: `src/finanzas/productos.ts`, `src/api/rutas/finanzas-productos.ts`. Dinero siempre como texto con dos decimales.
+
+| Ruta | Permiso | Qué hace |
+|---|---|---|
+| `GET /api/productos?vertical_id=&activo=&con_stock=` · `GET /api/productos/:id` | `productos:leer` (administrador, asesor, recepción) | Catálogo. El maestro no ve precios (403). |
+| `POST /api/productos { vertical_id, nombre, talla?, precio, stock? }` · `PATCH` · `DELETE` | `productos:escribir` (administrador) | Alta, cambio (el precio nuevo rige para ventas futuras) y baja lógica. |
+| `POST /api/productos/:id/ajuste-stock { delta, motivo }` | `productos:stock` (administrador, recepción) | Ajuste ATÓMICO de inventario; uno que lo dejaría bajo cero es 409 `stock_insuficiente_para_ajuste` y no se aplica. |
+| `GET /api/ventas?alumno_id=&tutor_id=&producto_id=&estatus=` · `GET /api/ventas/:id` | `ventas:leer` | Ventas con su cargo. Alcance por sucursal. |
+| `POST /api/ventas { alumno_id, producto_id, cantidad, tutor_id?, sucursal_id? }` | `ventas:registrar` (administrador, recepción) | Vende: congela el precio, descuenta el stock y genera el cargo de concepto `producto` (vence el día de la venta) a nombre del responsable de pago. |
+| `POST /api/ventas/:id/anular { motivo }` | `ventas:anular` | Cancela su cargo y devuelve las piezas. 409 `cargo_con_pagos` si ya hay pagos (primero se cancela el pago); la venta promocional (entrega de un beneficio) no se anula. |
+
+- **Stock en la base:** el INSERT de la venta descuenta el stock por disparador y el CHECK `stock >= 0` falla cerrado: dos ventas por la última pieza, gana una (la otra, 409 `sin_stock`); anular devuelve las piezas por disparador; al confirmar, la base exige que toda venta registrada tenga su cargo vivo de cantidad × precio (y que una anulada o promocional no lo tenga).
+- **El cargo de una venta** no se cancela suelto (409 `de_venta`): se anula la venta.
+- **Entrega de beneficios de producto (H4):** `POST /api/beneficios/:id/entregar { producto_id?, cantidad? }` crea la venta promocional de precio 0 (descuenta el stock, sin cargo, ligada a su beneficio) y lo marca `entregado` en una sola transacción. El producto sale del beneficio (`promocion_beneficio.producto_id`, ahora con llave foránea) o, si éste solo dice «Uniforme», del que elija recepción (una talla). Rechazos: 409 `requiere_producto`, `sin_stock`, `no_liberado`, `ya_entregado`; 400 si el producto es de otra vertical o distinto del que fija el beneficio. 8 entregas simultáneas del mismo beneficio entregan una vez.
+- **Expediente (G5):** `ProveedorProductosDeFinanzas` (enchufado en `server.ts`) lista en `operativo.productos_comprados` las ventas no anuladas del alumno, con las promocionales.
