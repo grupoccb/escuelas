@@ -710,3 +710,20 @@ Devuelve `total`, `por_fuente`, `por_vertical` y `por_sucursal`; cada fila trae 
 - **Agendadas** = todas menos las `reagendada` (la clase nueva ocupa su lugar y sí cuenta): agendadas + asistidas + no asistidas + canceladas. **Pendientes** = las que siguen `agendada` (aún sin marcar).
 - **Inscritas** = de las asistidas, las de un prospecto que hoy tiene una inscripción (cualquier estatus). **Conversión** = inscritas / asistidas, porcentaje con UN decimal en texto (`"71.4"`), calculado con enteros; `null` (la pantalla muestra «—») si no hubo asistidas: nunca una división por cero.
 - **Fuente** (`fuenteDe`): el origen de la campaña del lead (`facebook`, `instagram`, `tiktok`, `google`, `referido`, `presencial` —el QR en sucursal—, `otro`); si no hay campaña, `landing` (entró por el formulario), `codigo` (código de rastreo suelto) o `anuncio` (Click-to-WhatsApp); si no, `directo`.
+
+## Costo por alumno inscrito por campaña (I2)
+
+El gasto de cada campaña lo captura A MANO el administrador (no hay integración con las plataformas de anuncios); el reporte lo divide entre lo que la campaña produjo. Todo es del **administrador** (`reportes:costos`, `gastos_campana:leer`, `gastos_campana:escribir`); asesor, recepción y maestro reciben 403. Código: `src/reportes/costo-campana.ts`, `src/api/rutas/reportes-costos.ts`. Dinero siempre como TEXTO con dos decimales (`"1333.33"`): un número JSON se rechaza (400).
+
+| Ruta | Qué hace |
+|---|---|
+| `POST /api/campanas/:id/gastos` `{ fecha, monto, nota? }` | Captura un gasto. `fecha` AAAA-MM-DD no futura; `monto` mayor que cero. 201 con el gasto. 404 si la campaña no existe (o es de otra organización). Queda en el registro de cambios (quién y cuándo). |
+| `GET /api/campanas/:id/gastos?desde=&hasta=` | Los gastos de la campaña (más recientes primero) y su `total` exacto. |
+| `DELETE /api/campanas/:id/gastos/:gasto_id` | Baja lógica (204); el gasto sale de los reportes. Un gasto no se edita: se da de baja y se captura otro. |
+| `GET /api/reportes/costo-por-alumno?desde=&hasta=&campana_id=` | El reporte (abajo). `desde` no puede ser posterior a `hasta` (400). |
+
+**Reporte.** `filas[]` (una por campaña) y `total`. Cada fila: `gasto`, `leads`, `clases_muestra`, `clases_asistidas`, `inscripciones_activas`, `costo_por_lead`, `costo_por_clase_muestra`, `costo_por_alumno` (texto con dos decimales, o `null`) y sus `_texto` (el mismo valor o «—»).
+
+- **Gasto** = Σ de los gastos con `fecha` en el rango (inclusive). **Leads** = los de la campaña creados en el rango (DÍA LOCAL, zona de su sucursal de interés o, sin ella, de la primera sucursal). **Clases muestra** = las agendadas de esos leads con día local de clase en el rango (sin las reagendadas). **Inscripciones activas** = las ACTIVAS hoy con origen en la campaña (`inscripcion.lead_id → lead.campana_id`) cuya `fecha_inscripcion` cae en el rango (una baja no cuenta).
+- **Costo** = gasto / divisor, al centavo más cercano (la mitad se aleja de cero), en centavos `bigint`. **Sin divisor no hay división por cero:** el valor es `null` y el texto «—».
+- **En la base:** `gasto_campana.monto > 0`, el gasto no se edita ni se borra (solo la baja lógica, que no se revierte) y la campaña debe ser de la misma organización (llave foránea compuesta).

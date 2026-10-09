@@ -69,6 +69,8 @@ export const CAMPOS_AUDITABLES = {
   // H5: el catálogo de productos (precio como texto exacto) y las ventas. `stock` se audita en los ajustes de inventario.
   producto: ["vertical_id", "nombre", "talla", "precio", "stock", "activo"],
   venta: ["tutor_id", "alumno_id", "producto_id", "cantidad", "total", "estatus"],
+  // I2: el gasto de una campaña (id de la campaña, fecha y monto como texto exacto; la nota es texto libre y no se audita).
+  gasto_campana: ["campana_id", "fecha", "monto"],
   grupo: ["nombre", "cupo_maximo", "permite_lista_espera", "activo", "salon_id", "instructor_id", "horarios"],
 } as const satisfies Record<string, readonly string[]>;
 

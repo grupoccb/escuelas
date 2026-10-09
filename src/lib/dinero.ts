@@ -112,6 +112,15 @@ export function descuentoPorcentual(c: Centavos, pct: string): { descuento: Cent
   return { descuento, final: c - descuento };
 }
 
+/**
+ * Un importe entre `n` (>= 1) al centavo MÁS CERCANO, la mitad alejándose de cero: un costo promedio (gasto / alumnos). Para REPARTIR un total sin perder ni inventar centavos usa
+ * `repartir`. El divisor es un entero: no hay división por cero (lanza) ni flotantes.
+ */
+export function dividir(c: Centavos, n: number): Centavos {
+  if (!Number.isInteger(n) || n < 1) throw new ErrorDeDinero(`Divisor inválido: ${n}`);
+  return dividirRedondeando(c, BigInt(n));
+}
+
 /** Reparte `total` en `partes` partes iguales sin perder ni inventar centavos: el resto, de uno en uno a las primeras. */
 export function repartir(total: Centavos, partes: number): Centavos[] {
   if (!Number.isInteger(partes) || partes < 1) throw new ErrorDeDinero(`Partes inválidas: ${partes}`);

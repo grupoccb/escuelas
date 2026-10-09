@@ -70,7 +70,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | I1 | HECHO | ver `git log` (`I1:`) | Reporte de clases muestra: agendadas, asistidas, no asistidas, conversión (asistidas → inscritas) por fuente, vertical y sucursal, rango por día local; API y comando |
 | H-fix | HECHO (parcial: EH-11 y las BAJA de producto EH-14, EH-15, EH-17 y EH-20 esperan decisión de Eduardo; EH-12, EH-13 y EH-19 pendientes) | 7a2afdd…2af3cc4 y `EG-05` (2e6f1e6) | Correcciones de la auditoría de la etapa H (`docs/auditorias/etapa-H.md`): la ALTA (EH-01) y 9 de las 10 MEDIA corregidas, EG-05 implementada por decisión de Eduardo; ver la sección «Auditoría y correcciones de la etapa H» |
 | H-verif | HECHO | ver `git log` (`H-verif:`) | Verificación independiente de las correcciones H (revertir cada arreglo y ver fallar su prueba, 4 ataques por SQL directo) y 3 blindajes nuevos en la base; ver «Verificación independiente de las correcciones H» |
-| I2 | PENDIENTE | | Costo por alumno inscrito por campaña (detenido por instrucción de Eduardo: la etapa H se audita antes de seguir con I) |
+| I2 | HECHO | ver `git log` (`I2:`) | Costo por alumno inscrito por campaña: gasto capturado a mano (administrador, registro de cambios, blindado en la base) y reporte por lead, clase muestra y alumno, sin división por cero |
 | I3 | PENDIENTE | | Reporte ejecutivo |
 | I4 | PENDIENTE | | Datos de demo |
 | I5 | PENDIENTE | | Exportación a CSV |
@@ -2450,6 +2450,33 @@ Mutaciones de las pruebas nuevas: con la `cargo_blindaje` anterior falla A1; con
 - Quien tiene `INSERT` sobre `pago` y `pago_aplicacion` puede registrar un pago falso y aplicarlo: la base no puede saber si entró el dinero. Es autorización (quién puede cobrar), no integridad; la cuadratura compara pagos contra aplicaciones, no contra la caja.
 - `UPDATE promocion_aplicacion SET estatus = 'entregado'` desde `pendiente` sigue permitido (la entrega administrativa anterior a H4, decisión 2 de H4): marca entregado sin pago, pero ya no puede sacar producto del inventario (A7).
 - `UPDATE inscripcion SET eliminado_en` pasa con cargos vivos (la cuadratura lo ve como «cargo de una inscripción que no existe»). Y `UPDATE producto SET stock = stock + n` pasa (el ajuste de inventario es un acto legítimo de la aplicación). Se anotan para K3.
+
+## I2. Costo por alumno inscrito por campaña
+
+**Qué se hizo**
+- **Migración `20261023010000_gasto_campana`:** tabla `gasto_campana` (campaña, fecha, `monto Decimal(12,2)`, nota, quién la capturó; `organizacion_id`, `eliminado_en`, FK compuestas). **Defensas en la base:** CHECK `monto > 0`; un gasto no se edita (ni monto, ni fecha, ni campaña, ni nota) y no se borra: lo único que cambia es la baja lógica, que no se revierte (disparador + `TRUNCATE`). Una campaña de otra organización no se puede ligar (llave compuesta).
+- **API** (`src/api/rutas/reportes-costos.ts`, `docs/API.md`): `POST/GET/DELETE /api/campanas/:id/gastos` (administrador; el alta queda en el registro de cambios) y `GET /api/reportes/costo-por-alumno?desde=&hasta=&campana_id=`. Permisos nuevos `reportes:costos`, `gastos_campana:leer`, `gastos_campana:escribir`: solo el administrador (es el gasto de marketing del negocio).
+- **Reporte** (`src/reportes/costo-campana.ts`): por campaña y total, gasto / leads, gasto / clases muestra y gasto / inscripciones ACTIVAS con origen en la campaña (`inscripcion.lead_id → lead.campana_id`). Rango de fechas por DÍA LOCAL. **Sin divisor no hay división por cero:** el valor es `null` y el texto «—».
+- **Dinero:** `dividir(centavos, n)` en `src/lib/dinero.ts` (centavos `bigint`, al centavo más cercano, la mitad alejándose de cero; lanza si el divisor no es un entero >= 1). `reportes/` y `api/rutas/reportes-*` son zonas estrictas de `check:dinero`.
+
+**Verificación** (copia limpia fuera del repo, base propia)
+```
+$ npm run validar     → exit 0 · tests 606 · pass 606 · fail 0 (más los 9 de web)
+$ npm run test:int    → exit 0 · tests 1043 · pass 1043 · fail 0   (base recién creada y vacía)
+```
+`costo-campana.itest.ts` (7): captura a mano (texto exacto, sin número JSON, sin monto cero, sin fecha futura, 403 para asesor y recepción, 404 si la campaña es de otra organización, registro de cambios); costo por lead, clase y alumno con centavos exactos (1333.33 / 3 = 444.44; 1333.33 / 2 = 666.67), sin divisor «—» y total; baja lógica de un gasto; rango por día LOCAL (una a las 22:00 locales del último día del mes no cae en el mes siguiente); **SQL directo** contra el gasto (monto 0 o negativo, editar monto, fecha o nota, borrar, reactivar una baja, campaña ajena); **concurrencia** (25 capturas simultáneas suman exacto); una clase reagendada no cuenta. Mutaciones muertas: divisor `>= 0`, inscripciones sin el filtro de activas, contar las reagendadas, día UTC en lugar de local y dividir truncando. La prueba de «reagendada» se agregó después de la corrida completa (corrida sola, `tsc` y `eslint` en verde).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El gasto no se edita: se da de baja y se captura otro.** Alternativa descartada: permitir cambiar el monto (se pierde la huella de lo que el reporte dijo antes); el registro de cambios y la base lo hacen explícito.
+2. **El denominador de «por alumno inscrito» son las inscripciones ACTIVAS hoy** (lo que pidió Eduardo), con fecha de inscripción en el rango. Alternativa descartada: contar también las ya dadas de baja (el costo se vería mejor de lo que es el negocio hoy).
+3. **Rango por día local**, en la zona de la sucursal de interés del lead (o la de la primera sucursal) y la del grupo de la clase. Alternativa descartada: día UTC (un lead de las 22:00 del 31 caería en el mes siguiente).
+4. **Redondeo al centavo más cercano**, la mitad hacia arriba. Alternativa descartada: truncar (siempre subestima) o mostrar más decimales (el CSV y la pantalla son de pesos).
+5. **Solo administrador.** Alternativa descartada: que el asesor vea el costo de las campañas de su sucursal (el gasto de marketing no está por sucursal).
+
+**Para Eduardo**
+- El gasto no distingue concepto (anuncio, impresión, comisión): una sola cifra por captura, con nota libre. ¿Se necesita un tipo de gasto?
+- Una campaña sin gasto muestra costo 0.00 por lead (no «—»): hay leads pero no se capturó lo gastado. ¿Prefiere «—» hasta que haya un gasto?
+- Para J9 (tableros): `GET /api/reportes/costo-por-alumno` y `/api/campanas/:id/gastos` (ver `docs/API.md`).
 
 ## J1. Interfaz web: base
 

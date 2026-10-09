@@ -108,6 +108,7 @@ model organizacion {
   pagos_aplicaciones         pago_aplicacion[]
   productos                  producto[]
   ventas                     venta[]
+  gastos_campana             gasto_campana[]
 }
 
 /// Ajustes de la organización: UNA fila viva por organización (índice único parcial en la migración).
@@ -364,6 +365,7 @@ model campana {
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])
+  gastos          gasto_campana[]
 }
 
 /// Qué papel juega una etapa en la lógica del sistema (D1). El código NUNCA busca etapas por nombre: los nombres son de la
@@ -1440,6 +1442,7 @@ model usuario {
   beneficios_entregados promocion_aplicacion[] @relation("aplicacion_entregada_por")
   ventas_registradas venta[] @relation("venta_registrada_por")
   ventas_anuladas venta[] @relation("venta_anulada_por")
+  gastos_capturados gasto_campana[] @relation("gasto_creado_por")
 }
 
 /// Sucursales que ve un usuario. El administrador ve todas sin necesidad de filas aquí.
@@ -3023,4 +3026,29 @@ model venta {
   @@index([tutor_id])
   @@index([alumno_id])
   @@index([producto_id])
+}
+
+// ── Reportes (etapa I): gasto de las campañas ──────────────────────────────────────────────────────
+
+/// Lo que la escuela gastó en una campaña (I2): CAPTURADO A MANO por el administrador (no hay integración con las plataformas de anuncios). Dinero `Decimal(12,2)`, siempre positivo; se borra
+/// con baja lógica. Con el gasto, el reporte de costo por alumno inscrito divide entre los leads, las clases muestra y las inscripciones activas que nacieron de la campaña.
+model gasto_campana {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizacion_id       String    @db.Uuid
+  campana_id            String    @db.Uuid
+  fecha                 DateTime  @db.Date
+  monto                 Decimal   @db.Decimal(12, 2)
+  nota                  String?
+  creado_por_usuario_id String?   @db.Uuid
+  creado_en             DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_en        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  eliminado_en          DateTime? @db.Timestamptz(6)
+
+  organizacion organizacion @relation(fields: [organizacion_id], references: [id])
+  campana      campana      @relation(fields: [campana_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  creado_por   usuario?     @relation("gasto_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, organizacion_id])
+  @@index([organizacion_id])
+  @@index([campana_id, fecha])
 }

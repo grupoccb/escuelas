@@ -10,6 +10,7 @@ import {
   deDecimal,
   deTexto,
   descuentoPorcentual,
+  dividir,
   formatear,
   maximo,
   minimo,
@@ -177,4 +178,17 @@ test("cabeEnDecimal: 0 a 9 999 999 999.99", () => {
   assert.equal(cabeEnDecimal(MAXIMO_DECIMAL_12_2), true);
   assert.equal(cabeEnDecimal(MAXIMO_DECIMAL_12_2 + 1n), false);
   assert.equal(cabeEnDecimal(-1n), false);
+});
+
+test("dividir: costo promedio al centavo más cercano, la mitad alejándose de cero, exacto con bigint y sin dividir entre cero", () => {
+  assert.equal(dividir(133333n, 2), 66667n, "666.665 → 666.67");
+  assert.equal(dividir(133333n, 3), 44444n, "444.4433 → 444.44");
+  assert.equal(dividir(133333n, 1), 133333n);
+  assert.equal(dividir(0n, 5), 0n);
+  assert.equal(dividir(-5n, 2), -3n, "-0.025 → -0.03 (alejándose de cero)");
+  assert.equal(dividir(1n, 3), 0n);
+  assert.equal(dividir(2n, 3), 1n);
+  assert.throws(() => dividir(100n, 0), ErrorDeDinero);
+  assert.throws(() => dividir(100n, -1), ErrorDeDinero);
+  assert.throws(() => dividir(100n, 1.5), ErrorDeDinero);
 });
