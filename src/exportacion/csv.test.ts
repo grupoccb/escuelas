@@ -22,7 +22,7 @@ test("nulos y vacíos salen como celda vacía; los números y bigint, tal cual",
 });
 
 test("INYECCIÓN DE FÓRMULAS: =, +, -, @, tabulador y retorno de carro (también tras espacios) se neutralizan con un apóstrofo", () => {
-  for (const peligro of ["=1+1", "=HYPERLINK(\"http://malo\",\"x\")", "+52 55 1234", "-2+3", "@SUMA(A1)", "\t=1", "\r=1", "  =1+1", "\u0000=1", " \t-5", "＝1+1", "＋52", "－1", "＠SUMA(1)"]) {
+  for (const peligro of ["=1+1", "=HYPERLINK(\"http://malo\",\"x\")", "+52 55 1234", "-2+3", "@SUMA(A1)", "\t=1", "\r=1", "  =1+1", "\u0000=1", " \t-5", "\u0085=1", "\u200B=1+1", "\u202E=1", "\uFEFF@SUMA(1)", "＝1+1", "＋52", "－1", "＠SUMA(1)"]) {
     const salida = celda(peligro);
     assert.ok(salida.replace(/^"/, "").startsWith("'"), `${JSON.stringify(peligro)} → ${JSON.stringify(salida)}`);
   }

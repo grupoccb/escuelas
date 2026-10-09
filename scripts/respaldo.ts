@@ -25,7 +25,7 @@ try {
     if (!url) throw new Error("Falta DATABASE_URL");
     if (!frase && !o["sin-cifrar"] && process.env["NODE_ENV"] === "production") throw new Error("En producción el respaldo va cifrado: define RESPALDO_CLAVE (o --sin-cifrar si de verdad lo quieres)");
     if (frase && frase.length < 16) throw new Error("RESPALDO_CLAVE debe tener al menos 16 caracteres");
-    const r = await respaldar({ url, directorio: o.destino!, ...(frase && !o["sin-cifrar"] ? { frase } : {}), ...(o.retener ? { retener: Number(o.retener) } : {}) });
+    const r = await respaldar({ url, directorio: o.destino!, ...(frase && !o["sin-cifrar"] ? { frase } : {}), ...(o.retener !== undefined ? { retener: Number(o.retener) } : {}) });
     const total = Object.values(r.metadatos.filasPorTabla).reduce((a, b) => a + b, 0);
     console.log(`✓ respaldo ${r.archivo} (${r.metadatos.bytes} bytes, ${r.metadatos.cifrado ? "cifrado" : "SIN cifrar"}, ${Object.keys(r.metadatos.filasPorTabla).length} tablas, ${total} filas, ${r.metadatos.migraciones} migraciones)`);
     if (r.borrados.length > 0) console.log(`  retención: se borraron ${r.borrados.length} respaldos viejos`);

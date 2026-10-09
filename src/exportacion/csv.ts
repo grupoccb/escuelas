@@ -35,7 +35,8 @@ const INICIOS_DE_FORMULA = new Set(["=", "+", "-", "@", "＝", "＋", "－", "�
 export function esPeligrosa(texto: string): boolean {
   if (texto.startsWith("\t") || texto.startsWith("\r")) return true;
   for (const caracter of texto) {
-    if (caracter.charCodeAt(0) <= 0x1f || /\s/.test(caracter)) continue;
+    // Se saltan los invisibles (EK-I07): controles (incluido U+0085), formato (espacio de ancho cero U+200B, inversión de dirección U+202E, BOM) y todo espacio.
+    if (/[\p{Cc}\p{Cf}\p{Z}\s]/u.test(caracter)) continue;
     return INICIOS_DE_FORMULA.has(caracter);
   }
   return false;

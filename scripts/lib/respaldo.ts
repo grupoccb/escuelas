@@ -189,6 +189,7 @@ export async function contarFilasPorTabla(url: string): Promise<{ filas: Record<
 }
 
 export async function respaldar(o: OpcionesDeRespaldo): Promise<{ archivo: string; metadatos: MetadatosDeRespaldo; borrados: string[] }> {
+  if (o.retener !== undefined && (!Number.isInteger(o.retener) || o.retener < 1)) throw new Error(`La retención debe ser un entero de 1 o más (recibí ${o.retener})`);
   const con = leerConexion(o.url);
   mkdirSync(o.directorio, { recursive: true, mode: 0o700 });
   const ahora = o.ahora ?? new Date();
@@ -221,12 +222,14 @@ export async function respaldar(o: OpcionesDeRespaldo): Promise<{ archivo: strin
   renameSync(parcial, final);
   const metadatos: MetadatosDeRespaldo = { formato: 1, base: con.base, creadoEn: ahora.toISOString(), cifrado: Boolean(o.frase), sha256: hash.digest("hex"), bytes: statSync(final).size, filasPorTabla: antes.filas, migraciones: antes.migraciones };
   writeFileSync(`${final}.json`, JSON.stringify(metadatos, null, 2), { mode: 0o600 });
-  const borrados = o.retener ? aplicarRetencion(o.directorio, con.base, o.retener) : [];
+  const borrados = o.retener !== undefined ? aplicarRetencion(o.directorio, con.base, o.retener) : [];
   return { archivo: final, metadatos, borrados };
 }
 
 /** Conserva los `n` respaldos más recientes de la base (por el sello del nombre) y borra los demás junto con su archivo de metadatos. */
 export function aplicarRetencion(directorio: string, base: string, n: number): string[] {
+  // EK-07: `--retener -5` o `0` borraba TODOS los respaldos, incluido el recién hecho.
+  if (!Number.isInteger(n) || n < 1) throw new Error(`La retención debe ser un entero de 1 o más (recibí ${n}): conservar menos de un respaldo borraría el que se acaba de hacer.`);
   const patron = new RegExp(`^${base.replace(/[^A-Za-z0-9_]/g, "\\$&")}-\\d{8}-\\d{6}Z\\.dump(?:\\.enc)?$`);
   const existentes = readdirSync(directorio).filter((f) => patron.test(f)).sort().reverse();
   const sobran = existentes.slice(n);
