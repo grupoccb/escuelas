@@ -143,3 +143,10 @@ test("J1: la interfaz (web/src) también: recepción, conversión y su formatead
   assert.deepEqual(hallazgos({ "web/src/pantallas/asesor/a.tsx": `const n = parseFloat(x);` }), ["web/src/pantallas/asesor/a.tsx:1"]);
   assert.deepEqual(hallazgos({ "web/src/pantallas/recepcion/a.test.ts": `Number("1")` }), []);
 });
+
+test("UI-06: el expediente, la ficha de la familia y las cotizaciones del asesor (saldos y precios) son zonas estrictas; el resto de familia/ no", () => {
+  for (const f of ["familia/Expediente.tsx", "familia/FichaFamilia.tsx", "asesor/Cotizaciones.tsx"]) {
+    assert.deepEqual(hallazgos({ [`web/src/pantallas/${f}`]: `const x = Number(t.valor);` }), [`web/src/pantallas/${f}:1`], f);
+  }
+  assert.deepEqual(hallazgos({ "web/src/pantallas/familia/vista.ts": `const años = Math.floor(a.meses / 12);` }), [], "la edad en años no es dinero");
+});
