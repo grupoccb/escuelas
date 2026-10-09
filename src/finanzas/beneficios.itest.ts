@@ -232,3 +232,25 @@ test("CONCURRENCIA: dos pagos parciales simultáneos que juntos saldan la primer
     await apagar();
   }
 });
+
+test("EH-03: pagar el SEGUNDO mes sin el primero no libera nada, ni por el código ni por SQL directo (la base exige la PRIMERA mensualidad pagada)", async () => {
+  const apagar = await promocionDiferida();
+  try {
+    const i = await m.inscribir({ mesesAdelantados: 2 });
+    const mensualidades = i.cargos.filter((c) => c.concepto === "mensualidad").sort((a, b) => (a.periodo ?? "").localeCompare(b.periodo ?? ""));
+    assert.equal(mensualidades.length, 2);
+    const [primera, segunda] = [mensualidades[0]!, mensualidades[1]!];
+    // Se paga solo la segunda: el pago se registra (201) y el beneficio sigue pendiente.
+    const p = await pagar(i.tutorId, "1000.00", { aplicaciones: [{ cargo_id: segunda.id, monto: "1000.00" }] });
+    assert.equal(p.estado, 201, JSON.stringify(p.cuerpo));
+    assert.deepEqual((await aplicaciones(i.inscripcionId)).map((a) => a.estatus), ["pendiente", "pendiente"]);
+    // Si el código se equivocara, la base lo rechaza.
+    const [una] = await aplicaciones(i.inscripcionId);
+    await rechaza(() => prisma.promocion_aplicacion.update({ where: { id: una!.id }, data: { estatus: "liberado", liberado_en: new Date(), liberado_por_pago_id: p.cuerpo.id } }), /beneficio_condicion_no_cumplida/);
+    // Al pagar la primera, sí.
+    assert.equal((await pagar(i.tutorId, "1000.00", { aplicaciones: [{ cargo_id: primera.id, monto: "1000.00" }] })).estado, 201);
+    assert.deepEqual((await aplicaciones(i.inscripcionId)).map((a) => a.estatus), ["liberado", "liberado"]);
+  } finally {
+    await apagar();
+  }
+});
