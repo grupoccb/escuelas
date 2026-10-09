@@ -137,20 +137,27 @@ export function calcularCuadratura(d: DatosParaCuadratura): ResultadoDeCuadratur
   };
 }
 
-/** Carga las filas de la organización (el alcance de `db`) y aplica las reglas. Solo lee. */
+/**
+ * Carga las filas de la organización (el alcance de `db`) y aplica las reglas. Solo lee. EH-07: las cinco lecturas van en UNA transacción con instantánea común (`RepeatableRead`):
+ * en cinco consultas sueltas, un pago confirmado entre una y otra hacía sonar la alarma sin que nada estuviera mal (8 falsas alarmas en 3 249 corridas con pagos simultáneos).
+ */
 export async function cuadratura(db: BaseDatos): Promise<ResultadoDeCuadratura> {
-  const [cargos, pagos, aplicaciones, ventas, productos] = await Promise.all([
-    db.cargo.findMany({ select: { id: true, tutor_id: true, venta_id: true, monto_final: true, monto_pagado: true, estatus: true } }),
-    db.pago.findMany({ select: { id: true, tutor_id: true, monto: true, monto_aplicado: true, estatus: true } }),
-    db.pago_aplicacion.findMany({ select: { id: true, pago_id: true, cargo_id: true, monto_aplicado: true, estatus: true } }),
-    db.venta.findMany({ select: { id: true, estatus: true, es_promocional: true, cantidad: true, precio_unitario: true } }),
-    db.producto.findMany({ select: { id: true, stock: true } }),
-  ]);
+  const datos = await db.$transaction(
+    async (tx) => {
+      const cargos = await tx.cargo.findMany({ select: { id: true, tutor_id: true, venta_id: true, monto_final: true, monto_pagado: true, estatus: true } });
+      const pagos = await tx.pago.findMany({ select: { id: true, tutor_id: true, monto: true, monto_aplicado: true, estatus: true } });
+      const aplicaciones = await tx.pago_aplicacion.findMany({ select: { id: true, pago_id: true, cargo_id: true, monto_aplicado: true, estatus: true } });
+      const ventas = await tx.venta.findMany({ select: { id: true, estatus: true, es_promocional: true, cantidad: true, precio_unitario: true } });
+      const productos = await tx.producto.findMany({ select: { id: true, stock: true } });
+      return { cargos, pagos, aplicaciones, ventas, productos };
+    },
+    { isolationLevel: "RepeatableRead", maxWait: 10_000, timeout: 120_000 },
+  );
   return calcularCuadratura({
-    cargos: cargos.map((c) => ({ id: c.id, tutorId: c.tutor_id, ventaId: c.venta_id, montoFinal: deDecimal(c.monto_final), montoPagado: deDecimal(c.monto_pagado), estatus: c.estatus })),
-    pagos: pagos.map((p) => ({ id: p.id, tutorId: p.tutor_id, monto: deDecimal(p.monto), montoAplicado: deDecimal(p.monto_aplicado), estatus: p.estatus })),
-    aplicaciones: aplicaciones.map((a) => ({ id: a.id, pagoId: a.pago_id, cargoId: a.cargo_id, monto: deDecimal(a.monto_aplicado), estatus: a.estatus })),
-    ventas: ventas.map((v) => ({ id: v.id, estatus: v.estatus, esPromocional: v.es_promocional, cantidad: v.cantidad, precioUnitario: deDecimal(v.precio_unitario) })),
-    productos,
+    cargos: datos.cargos.map((c) => ({ id: c.id, tutorId: c.tutor_id, ventaId: c.venta_id, montoFinal: deDecimal(c.monto_final), montoPagado: deDecimal(c.monto_pagado), estatus: c.estatus })),
+    pagos: datos.pagos.map((p) => ({ id: p.id, tutorId: p.tutor_id, monto: deDecimal(p.monto), montoAplicado: deDecimal(p.monto_aplicado), estatus: p.estatus })),
+    aplicaciones: datos.aplicaciones.map((a) => ({ id: a.id, pagoId: a.pago_id, cargoId: a.cargo_id, monto: deDecimal(a.monto_aplicado), estatus: a.estatus })),
+    ventas: datos.ventas.map((v) => ({ id: v.id, estatus: v.estatus, esPromocional: v.es_promocional, cantidad: v.cantidad, precioUnitario: deDecimal(v.precio_unitario) })),
+    productos: datos.productos,
   });
 }

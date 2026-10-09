@@ -6,6 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { conAlcance } from "../datos/alcance.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { levantarApi, sembrarUsuario } from "../testutil/api.ts";
@@ -304,6 +305,39 @@ test("la cuadratura DETECTA un descuadre inyectado por SQL (con los disparadores
     assert.equal(codigo, 1);
     assert.match(salida, /NO CUADRA/);
     assert.match(salida, /saldo_de_cada_cargo/);
+  } finally {
+    await m.cerrar();
+  }
+});
+
+test("EH-07: la cuadratura lee con UNA instantánea: un pago que se confirma a la mitad de la lectura no la hace sonar (antes: falsa alarma)", async () => {
+  const m = await mundoDeFinanzas(prisma, "Cuadratura instantánea");
+  try {
+    const i = await m.inscribir();
+    const mens = i.cargos.find((c) => c.concepto === "mensualidad")!;
+    let disparado = false;
+    // Justo antes de leer las aplicaciones (las demás tablas ya se leyeron), otra conexión confirma un pago: sin instantánea común, los cargos y los pagos se leyeron SIN él y las
+    // aplicaciones CON él.
+    const bd = conAlcance(
+      conGanchos(prisma, {
+        modelo: "pago_aplicacion",
+        operacion: "findMany",
+        antes: async () => {
+          if (disparado) return;
+          disparado = true;
+          const p = await m.recepcion.post("/api/pagos", { tutor_id: i.tutorId, monto: "100.00", metodo: "efectivo", aplicaciones: [{ cargo_id: mens.id, monto: "100.00" }] });
+          assert.equal(p.estado, 201);
+        },
+      }),
+      m.org.organizacionId,
+    );
+    const durante = await cuadratura(bd);
+    assert.ok(disparado, "el pago se confirmó a mitad de la lectura");
+    assert.deepEqual(durante.discrepancias, [], "una lectura con instantánea no ve el pago a medias");
+    // Después, con el pago ya visible, también cuadra y el total lo incluye.
+    const despues = await cuadratura(m.db);
+    assert.deepEqual(despues.discrepancias, []);
+    assert.equal(despues.resumen.totalPagado, "100.00");
   } finally {
     await m.cerrar();
   }

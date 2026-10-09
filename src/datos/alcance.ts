@@ -179,6 +179,8 @@ export type Consultas = Omit<Cliente, "$transaction" | "$connect" | "$disconnect
 export interface OpcionesTransaccion {
   maxWait?: number;
   timeout?: number;
+  /** Nivel de aislamiento de la transacción (por omisión, el de la base: lectura confirmada). `RepeatableRead` da una instantánea común a todas las lecturas (la cuadratura, EH-07). */
+  isolationLevel?: "ReadCommitted" | "RepeatableRead" | "Serializable";
 }
 
 /** Cliente con scope de una organización, sin SQL crudo (tampoco dentro de la transacción). */
