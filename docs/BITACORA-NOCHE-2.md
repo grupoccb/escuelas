@@ -66,7 +66,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H4 | HECHO | ver `git log` (`H1-H5:`) | Beneficios diferidos: liberados en la misma transacción del pago que salda la primera mensualidad, lista de por entregar, cancelar el pago los regresa o los marca en revisión |
 | H5 | HECHO | ver `git log` (`H1-H5:`) | Productos y ventas: stock que nunca baja de cero (disparador + CHECK, carrera de 20 hilos), cargo por venta, anulación, entrega de beneficios de producto como venta promocional |
 | H6 | HECHO | ver `git log` (`H6:`) | Cobranza: recordatorios de pago de SERVICIO con el motor y todas las reglas del provider, cancelados al saldarse/cancelarse/darse de baja, tarea por deuda sobre un umbral de días |
-| H7 | PENDIENTE | | Cuadratura |
+| H7 | HECHO | ver `git log` (`H7:`) | Cuadratura: `cuadratura(db)` y `npm run cuadratura` (7 reglas en centavos exactos), prueba de propiedad con PRNG y semilla (3 semillas × 120 pasos, cuadratura tras CADA paso, determinista), carrera de 30 pagos, detección de un descuadre inyectado por SQL |
 | I1 | PENDIENTE | | Reporte de clases muestra |
 | I2 | PENDIENTE | | Costo por alumno inscrito por campaña |
 | I3 | PENDIENTE | | Reporte ejecutivo |
@@ -2309,3 +2309,22 @@ Pruebas: `plan.test.ts` (8), `revalidar.test.ts` (2), `cobranza.itest.ts` (8: ho
 6. **Residuo conocido:** entre que el motor revalida el cargo y que MessagingProvider envía hay milisegundos en los que un pago podría llegar; el recordatorio saldría una vez más. Cerrarlo exigiría que el envío ocurra dentro de la transacción del pago.
 
 **Para Eduardo**: `[SUPUESTO]` el texto, el calendario (lunes a sábado), 3 días antes / 1 día después / cada 7 días y el umbral de 15 días. Que el recordatorio de pago salga con una persona atendiendo es la regla INV-6 (clase servicio).
+
+## H7. Cuadratura
+
+**Qué se hizo**
+- `src/finanzas/cuadratura.ts`: `calcularCuadratura` (PURA, sobre filas ya cargadas, 7 reglas con nombre, nunca lanza) y `cuadratura(db)` (carga con el alcance de la organización y aplica); `scripts/cuadratura.ts` y `npm run cuadratura` (código de salida 1 con una sola discrepancia). Reglas en el encabezado y en `docs/API.md`.
+- `cuadratura.test.ts` (10): un estado sano cuadra, y cada regla atrapa su descuadre sobre filas sintéticas (incluye 10 000 aplicaciones de $0.01 sin deriva). `cuadratura.itest.ts` (7): **PROPIEDAD** — tres semillas fijas × 120 pasos de inscripciones (con promoción de 15 % exacta, meses por adelantado, corte del 1 al 31), pagos parciales/totales/de varios cargos de varios hijos, excedentes (siempre 409), cancelaciones de pagos y de cargos, ventas y anulaciones, entrega de beneficios, congelar/baja/reactivar y **meses que pasan** (barrido mensual); tras cada paso, cuadratura sin discrepancias y el estado de cuenta de la familia tocada igual a una suma independiente (agregados de la base); la corrida toca dinero de verdad. **Determinista:** la misma semilla hace exactamente las mismas acciones (de ahí se eligen cosas de registros en orden de creación, nunca del orden que devuelva la base). **Carrera:** 30 pagos aleatorios simultáneos a una familia (barrera real sobre el candado) → nunca se paga más de lo debido y la cuadratura final da cero. **Detección:** un `monto_pagado` movido por SQL con los disparadores apagados lo ve la cuadratura y el comando sale con 1.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 · tests 586 · pass 586 · fail 0
+$ npm run test:int    → exit 0 · tests 1002 · pass 1002 · fail 0
+```
+
+**Decisiones**
+1. **La cuadratura no corrige, solo informa.** Alternativa descartada: «autorreparar» columnas (ocultaría el defecto que las desalineó).
+2. **Una `Discrepancia` por regla y fila**, con el id: se puede ir directo al registro roto.
+3. **Estatus coherente incluye cargos sin importe** (nacen `pagado` con cero aplicaciones: correcto).
+
+**Para Eduardo**: correr `npm run cuadratura` contra la base real tras cada migración o restauración (K5).

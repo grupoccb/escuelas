@@ -665,3 +665,25 @@ Código: `src/cobranza/` (`plan.ts`, `programar.ts`, `revalidar.ts`, `cargar.ts`
 - **Se cancelan** (estatus `cancelado`, motivo `cargo_saldado` / `cargo_cancelado` / `inscripcion_baja`) al saldarse el cargo, cancelarse el cargo o la venta, o darse de baja la inscripción, EN LA MISMA transacción; además el motor revalida antes de enviar. Queda una ventana de milisegundos entre esa revalidación y el envío.
 - **Sin conversación de WhatsApp** de la familia en el canal de esa vertical: la ejecución se omite (`sin_conversacion`) y queda una tarea `cobranza_sin_canal` (una pendiente por cargo) que ve el asesor de la sucursal.
 - **Tarea por deuda** (`deuda_vencida`): cuando una familia lleva `configuracion_organizacion.umbral_dias_deuda` días (15 por omisión) de atraso, el barrido de finanzas deja UNA tarea para el asesor, ligada a su cargo vencido más antiguo; se resuelve sola al saldarse, y si una persona la resuelve a mano no se vuelve a crear (una por cargo, en toda su vida).
+
+## Cuadratura del dinero (H7)
+
+Código: `src/finanzas/cuadratura.ts` (reglas puras `calcularCuadratura` + `cuadratura(db)`), comando `npm run cuadratura` (`scripts/cuadratura.ts`). **Solo lee.**
+
+```
+npm run cuadratura                                  # todas las organizaciones de DATABASE_URL
+npm run cuadratura -- --organizacion <id|nombre>    # una
+npm run cuadratura -- --json
+```
+
+Sale con código 0 si todo cuadra y 1 si hay una sola discrepancia (`✓ cuadra` / `✗ NO CUADRA` y una línea por discrepancia). Las reglas, siempre en centavos exactos:
+
+1. `pagos_aplicados_igual_aplicaciones`: Σ pagos aplicados = Σ aplicaciones vivas; por pago, `monto_aplicado` = Σ de sus aplicaciones vivas, un pago aplicado cubre exactamente su monto y uno cancelado no tiene aplicaciones vivas.
+2. `saldo_de_cada_cargo`: `monto_pagado` = Σ de las aplicaciones vivas del cargo; ningún cargo sobrepagado.
+3. `estatus_coherente_con_el_saldo`: pagado ⇔ saldo 0; pendiente/vencido ⇔ saldo > 0; cancelado ⇒ sin pagos.
+4. `aplicacion_de_la_misma_familia`: el pago y el cargo de cada aplicación son del mismo tutor.
+5. `estado_de_cuenta_cuadra`: Σ cargos (no cancelados) − Σ aplicaciones vivas = Σ de los saldos por familia.
+6. `ventas_y_cargos`: toda venta normal registrada tiene un solo cargo vivo de cantidad × precio; una anulada o promocional, ninguno.
+7. `stock_no_negativo`.
+
+La base impide casi todo esto (CHECK y disparadores de H1 a H5); la cuadratura es el segundo par de ojos y lo que se corre tras cada paso de las pruebas de propiedad (`src/finanzas/cuadratura.itest.ts`: secuencias aleatorias deterministas con semilla, más una carrera de 30 pagos a la misma familia) y al terminar los datos de demo (I4).

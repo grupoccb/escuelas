@@ -24,7 +24,8 @@
     "check:sensibles": "node scripts/check-sensibles.ts",
     "check:dinero": "node scripts/check-dinero.ts",
     "demo:contacto": "node --env-file=config/demo-local.env scripts/simular-contacto.ts",
-    "reporte:leads": "node --env-file-if-exists=.env scripts/reporte-leads.ts"
+    "reporte:leads": "node --env-file-if-exists=.env scripts/reporte-leads.ts",
+    "cuadratura": "node --env-file-if-exists=.env scripts/cuadratura.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {
