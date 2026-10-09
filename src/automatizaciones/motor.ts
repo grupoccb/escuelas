@@ -251,6 +251,9 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     log.info("automatizacion_omitida", { ejecucionId: e.id, motivo });
   };
 
+  // K9 (EK-A2): «apagar» una automatización también frena lo que ya estaba programado (J8 expone el interruptor): se omite, no se manda.
+  if (!e.automatizacion.activo) return omitir("automatizacion_apagada");
+
   const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion", "inscripcion", "cargo"];
   if (!entidadesSoportadas.includes(e.entidad_tipo)) return omitir("entidad_no_soportada");
   const evento = e.automatizacion.evento_disparador;
