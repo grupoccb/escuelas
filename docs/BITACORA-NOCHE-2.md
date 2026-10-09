@@ -102,7 +102,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K2 | HECHO (parcial: EF-06, clases muestra vs inscripción, sigue siendo decisión de Eduardo; la ráfaga más grande probada es de 200 peticiones sobre un servidor y una base locales, no sobre AWS) | ver `git log` (`K2:`) | Ráfagas de 40 a 200 peticiones simultáneas contra el servidor HTTP real (cupo, conversión, cambio de grupo, pagos, webhooks de Chatwoot y Twilio, landing): 0 5xx, invariantes intactos, sin interbloqueos; resuelve ED-08, EH-12, EH-13 y EH-19 |
 | K3 | HECHO (parcial: sin prueba de penetración externa ni revisión de la configuración real de AWS; EB-10, EB-16, EB-18 y EB-19 siguen siendo decisiones o dependen del balanceador; el Terraform solo se revisa como texto) | ver `git log` (`K3:`) | Revisión de seguridad con pruebas: el backend se niega a arrancar en producción con valores de demo, imagen de producción sin la CLI de Prisma (0 vulnerabilidades en lo que corre), cuenta de base de datos sin dueño, guarda de secretos, CORS/cabeceras/inyección/sesiones/límites, contraseñas comunes |
 | K4 | HECHO (parcial: las alarmas de CloudWatch solo están escritas y validadas como código, no probadas en AWS; `/metricas` suma todas las organizaciones, sin etiqueta por organización) | ver `git log` (`K4:`) | Observabilidad: `/salud` (vivo) y `/salud/lista` (listo: base, migraciones, barrido), `/metricas` en formato Prometheus con token, teléfonos enmascarados siempre en los logs, `ciclo_completado` y `cuadratura_descuadre` para las alarmas |
-| K5 | PENDIENTE | | Respaldo y restauración |
+| K5 | HECHO | ver `git log` (`K5:`) | Respaldo y restauración probados en local: `npm run respaldo` / `npm run restaurar` (pg_dump -Fc, cifrado AES-256-GCM opcional, suma de verificación, retención); prueba con la historia de la demo: respaldar, restaurar en una base nueva y comparar conteos por tabla, migraciones y cuadratura; RPO/RTO documentados |
 | K6 | PENDIENTE | | Infraestructura como código |
 | K7 | PENDIENTE | | Documentación |
 | K8 | PENDIENTE | | Demo guiada |
@@ -2909,3 +2909,26 @@ $ npm run test:int    → exit 0 · tests 1093 · pass 1093 · fail 0
 
 **Para Eduardo**
 - Mira `docs/OBSERVABILIDAD.md`: qué números vigilar a diario. Demo local: `curl -H "Authorization: Bearer demo-local-metricas-token-0001-solo-demo" http://localhost:3000/metricas`.
+
+## K5. Respaldo y restauración
+
+**Qué se hizo** (procedimiento, RPO/RTO y custodia de claves en `docs/RESPALDO.md`)
+- `scripts/respaldo.ts` / `scripts/restaurar.ts` (`npm run respaldo`, `npm run restaurar`) sobre `scripts/lib/respaldo.ts`: `pg_dump -Fc` (local o, si no hay herramientas de PostgreSQL instaladas, dentro del contenedor de compose), cifrado opcional con AES-256-GCM y clave derivada con scrypt de una frase (`RESPALDO_CLAVE`, sal propia por archivo), archivo de metadatos con SHA-256 y filas por tabla, retención (`--retener N`) y verificación (`--verificar`). La contraseña viaja por variable de entorno, nunca por argumentos. Restaurar se niega a pisar una base con tablas sin `--reemplazar --confirmar`, verifica la suma ANTES de tocar nada y compara al final el conteo de cada tabla y las migraciones.
+- **Prueba** `src/respaldo/respaldo.itest.ts` (5): se arma una base de origen con migraciones y la historia de la demo generada (I4, 25 alumnos y 2 meses), se respalda sin cifrar y cifrada, se restaura en una base NUEVA y se comprueba el conteo de CADA tabla, `prisma migrate status` en verde («Database schema is up to date») y la cuadratura del dinero. Además: el archivo cifrado no deja ver ni el encabezado de `pg_dump`; sin la frase o con otra no abre; un byte alterado lo delata la suma de verificación y también la etiqueta GCM; restaurar sobre una base con datos se niega; la retención solo borra lo suyo.
+- **La clave de cifrado de los datos de salud NO está en ningún respaldo** y se respalda aparte (Secrets Manager con copia protegida contra destrucción + una copia fuera de AWS): documentado como lo primero de `docs/RESPALDO.md`.
+
+**Verificación** (copia limpia del árbol final K2 a K8, base propia `inscripciones_k8_pruebas`)
+```
+$ npm run validar     → exit 0 · tests 659 · pass 659 · fail 0 (más los 31 de web)
+$ npm run test:int    → exit 0 · tests 1101 · pass 1101 · fail 0
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Respaldo lógico además de los de RDS.** Alternativa descartada: depender solo de los automáticos de RDS (no abren en otra versión ni fuera de AWS y no se pueden ensayar en una laptop).
+2. **Cifrado en el propio script**, no con la herramienta del sistema (`openssl`, `gpg`): una sola forma de hacerlo en cualquier máquina, probada con un byte alterado. Alternativa descartada: cifrar con la llave de datos de salud: un respaldo no debe depender de la clave que protege otra cosa.
+3. **`--exit-on-error` en `pg_restore`** y verificación de conteos: un respaldo a medias nunca deja una base «casi buena» en silencio.
+4. **Restaurar sin dueños ni permisos** (`--no-owner --no-acl`) y volver a preparar la cuenta de la aplicación (`scripts/preparar-roles.ts`).
+
+**Para Eduardo**
+- `[SUPUESTO]` RPO de minutos (RDS) y de hasta 24 h (respaldo lógico nocturno), RTO de 30 a 60 minutos: los reales se miden en el primer ensayo con la base de la escuela (`docs/PENDIENTES-CREDENCIALES-REALES.md`, 4.6).
+- Decide dónde vive la copia de la clave de salud fuera de AWS (un gestor de contraseñas de la dirección es la propuesta).
