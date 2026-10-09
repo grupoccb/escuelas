@@ -3039,6 +3039,8 @@ model gasto_campana {
   fecha                 DateTime  @db.Date
   monto                 Decimal   @db.Decimal(12, 2)
   nota                  String?
+  /// K9 (EK-I04): un reintento del mismo envío no duplica el gasto. Único parcial (organización, campaña, clave) entre los vivos, en la migración.
+  clave_idempotencia    String?   @db.VarChar(120)
   creado_por_usuario_id String?   @db.Uuid
   creado_en             DateTime  @default(now()) @db.Timestamptz(6)
   actualizado_en        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)

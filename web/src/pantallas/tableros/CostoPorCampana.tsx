@@ -1,7 +1,7 @@
 // Costo por alumno inscrito por campaña (I2). Solo el administrador. El gasto de cada campaña se captura a mano; el costo sale de dividir ese gasto entre lo que produjo
 // (leads, clases muestra, alumnos inscritos), al centavo, y «—» cuando no hay divisor. Los importes son texto exacto: nada pasa por números flotantes.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, armarConsulta } from "../../api/cliente.ts";
 import { aCentavos, formatear, normalizarCaptura } from "../../lib/dinero.ts";
 import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
@@ -23,6 +23,8 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
   const [local, setLocal] = useState<Record<string, string>>({});
   const guardar = useAccion();
   const quitar = useAccion();
+  // EK-I04: la misma captura reintentada (doble clic, red) lleva la MISMA clave y no duplica el gasto; otra captura (o una ya guardada) lleva una nueva.
+  const claveRef = useRef<{ firma: string; clave: string } | null>(null);
   const servidor = guardar.error?.porCampo() ?? {};
   const err = (k: string) => local[k] ?? servidor[k];
   return (
@@ -73,8 +75,12 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
           if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) e["fecha"] = "Elige la fecha";
           setLocal(e);
           if (Object.keys(e).length > 0 || m === null) return;
+          const firma = JSON.stringify([campana.id, fecha, m, nota.trim()]);
+          claveRef.current = claveRef.current?.firma === firma ? claveRef.current : { firma, clave: `gasto-${crypto.randomUUID()}` };
+          const clave = claveRef.current.clave;
           void guardar.ejecutar(async () => {
-            await api.post(`/api/campanas/${campana.id}/gastos`, { fecha, monto: m, ...(nota.trim() ? { nota: nota.trim() } : {}) });
+            await api.post(`/api/campanas/${campana.id}/gastos`, { fecha, monto: m, ...(nota.trim() ? { nota: nota.trim() } : {}), clave_idempotencia: clave });
+            claveRef.current = null;
             setMonto("");
             setNota("");
             lista.recargar();

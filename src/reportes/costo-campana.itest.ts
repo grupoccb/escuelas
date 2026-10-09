@@ -167,3 +167,26 @@ test("una clase REAGENDADA no cuenta (la nueva ocupa su lugar y sí cuenta): el 
   const fila = fila2((await reporte("?desde=2026-10-01&hasta=2026-10-31")).cuerpo, f);
   assert.deepEqual([fila.leads, fila.clases_muestra, fila.costo_por_clase_muestra], [1, 1, "100.00"]);
 });
+
+test("EK-I04: el alta de un gasto es idempotente con clave: el reintento y la carrera de 20 envíos iguales dejan UN gasto; la misma clave con otro monto es 409; sin clave todo sigue igual", async () => {
+  const nueva = (await prisma.campana.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Campaña idempotente", origen: "facebook" } })).id;
+  const enviar = (clave: string | undefined, monto = "777.77") => m.admin.post<{ id: string; repetido?: boolean }>(`/api/campanas/${nueva}/gastos`, { fecha: "2026-10-03", monto, nota: "Idempotente", ...(clave ? { clave_idempotencia: clave } : {}) });
+  const primero = await enviar("gasto-clave-0001");
+  assert.equal(primero.estado, 201, JSON.stringify(primero.cuerpo));
+  const otra = await enviar("gasto-clave-0001");
+  assert.deepEqual([otra.estado, otra.cuerpo.id, otra.cuerpo.repetido], [200, primero.cuerpo.id, true], "el reintento devuelve el mismo gasto");
+  assert.equal((await enviar("gasto-clave-0001", "1.00")).estado, 409, "la misma clave con otro contenido");
+  const rafaga = await Promise.all(Array.from({ length: 20 }, () => enviar("gasto-clave-0002")));
+  assert.deepEqual([...new Set(rafaga.map((r) => r.estado))].sort(), [200, 201], "uno crea y el resto recibe el mismo");
+  assert.equal(new Set(rafaga.map((r) => r.cuerpo.id)).size, 1);
+  assert.equal(rafaga.filter((r) => r.estado === 201).length, 1);
+  // Sin clave: dos envíos iguales son dos gastos (el contrato anterior).
+  assert.equal((await enviar(undefined)).estado, 201);
+  assert.equal((await enviar(undefined)).estado, 201);
+  const lista = await m.admin.get<{ datos: unknown[]; total: string }>(`/api/campanas/${nueva}/gastos`);
+  assert.deepEqual([lista.cuerpo.datos.length, lista.cuerpo.total], [4, "3111.08"], "777.77 × 4: la clave 1, la clave 2 y los dos sin clave");
+  // Dado de baja, la clave queda libre (se puede volver a capturar).
+  await m.admin.delete(`/api/campanas/${nueva}/gastos/${primero.cuerpo.id}`);
+  assert.equal((await enviar("gasto-clave-0001")).estado, 201);
+  assert.equal((await m.admin.post(`/api/campanas/${nueva}/gastos`, { fecha: "2026-10-03", monto: "1.00", clave_idempotencia: "corta" })).estado, 400, "clave inválida");
+});
