@@ -137,9 +137,9 @@ function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCer
       {condicion === "pago_anticipado" ? <CampoTexto etiqueta="Meses pagados por adelantado" inputMode="numeric" value={meses} onChange={(e) => setMeses(e.target.value)} error={err("condicion_valor")} /> : null}
       <div className="rejilla rejilla-2">
         <CampoTexto etiqueta="Cupo máximo (opcional)" inputMode="numeric" value={cupo} onChange={(e) => setCupo(e.target.value)} error={err("cupo_maximo")} ayuda={promo ? `Usado: ${promo.cupo_usado}` : "Cuántas veces se puede aplicar."} />
-        <CampoTexto etiqueta="Prioridad" inputMode="numeric" value={prioridad} onChange={(e) => setPrioridad(e.target.value)} error={err("prioridad")} ayuda="Mayor número, se aplica primero." />
+        <CampoTexto etiqueta="Prioridad" inputMode="numeric" value={prioridad} onChange={(e) => setPrioridad(e.target.value)} error={err("prioridad")} ayuda="Mayor número, se aplica primero. Si dos promociones no se pueden juntar, gana la de mayor número; si empatan, la que más le ahorra a la familia." />
       </div>
-      <CampoCasilla etiqueta="Se puede acumular con otras promociones" checked={acumulable} onChange={(e) => setAcumulable(e.target.checked)} />
+      <CampoCasilla etiqueta="Se puede acumular con otras promociones" ayuda="Si no la marcas, esta promoción nunca se junta con otra: cuando aplica, aplica sola." checked={acumulable} onChange={(e) => setAcumulable(e.target.checked)} />
       <CampoCasilla etiqueta="Activa" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
 
       <fieldset className="pila sin-borde">

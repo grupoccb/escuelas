@@ -203,8 +203,10 @@ ON CONFLICT DO NOTHING;
 -- Tres, como en el modelo: inscripción gratis; uniforme gratis al pagar la primera mensualidad (queda PENDIENTE hasta
 -- que se registre el pago: recepción ve la lista de uniformes por entregar); y descuento por hermanos. Vigentes todo
 -- 2026 y 2027 y para todas las verticales, sucursales y programas (sin filas de alcance).
+-- V2 (decisión 6): una promoción NO acumulable no se combina con ninguna otra, así que las tres de ejemplo son ACUMULABLES (se suman, que es lo que cuenta la historia de la demo:
+-- inscripción gratis + uniforme + descuento por hermanos). La prioridad solo ordena. Una escuela que quiera una promoción exclusiva la marca «no acumulable» en Administración.
 INSERT INTO promocion (id, organizacion_id, nombre, codigo, vigencia_desde, vigencia_hasta, condicion_tipo, condicion_valor, cupo_maximo, acumulable, prioridad, activo) VALUES
-  ('00000000-0000-4000-8000-000000000551', '00000000-0000-4000-8000-000000000001', 'Inscripción gratis', 'INSCRIPCION-GRATIS', DATE '2026-01-01', DATE '2027-12-31', 'sin_condicion', NULL, NULL, false, 10, true),
+  ('00000000-0000-4000-8000-000000000551', '00000000-0000-4000-8000-000000000001', 'Inscripción gratis', 'INSCRIPCION-GRATIS', DATE '2026-01-01', DATE '2027-12-31', 'sin_condicion', NULL, NULL, true, 10, true),
   ('00000000-0000-4000-8000-000000000552', '00000000-0000-4000-8000-000000000001', 'Uniforme gratis al pagar la primera mensualidad', 'UNIFORME-GRATIS', DATE '2026-01-01', DATE '2027-12-31', 'al_pagar_primera_mensualidad', NULL, NULL, true, 5, true),
   ('00000000-0000-4000-8000-000000000553', '00000000-0000-4000-8000-000000000001', 'Descuento por hermanos', 'HERMANOS-10', DATE '2026-01-01', DATE '2027-12-31', 'min_hermanos', '{"hermanos": 2}', NULL, true, 3, true)
 ON CONFLICT DO NOTHING;

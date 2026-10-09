@@ -23,6 +23,7 @@ import type { DepsApi } from "./contexto.ts";
 import { cookieSeguraDesdeEntorno } from "./cookies.ts";
 import { origenesPermitidosDesdeEntorno, proteccionCsrf } from "./csrf.ts";
 import { noEncontrado } from "./errores.ts";
+import { esEntornoLocal } from "../seguridad/entorno.ts";
 import { guardaDeModulos } from "./modulos-rutas.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeAutomatizaciones } from "./rutas/automatizaciones.ts";
@@ -92,6 +93,8 @@ export interface ApiDepsEntrada {
   entorno?: NodeJS.ProcessEnv;
   /** Orígenes que pueden hacer peticiones que cambian algo. Vacío = solo el propio host. */
   origenesPermitidos?: string[];
+  /** Acepta también `localhost` y `127.0.0.1` como origen. Por omisión, solo fuera de producción (o en la demo declarada): `esEntornoLocal`. */
+  origenesLocales?: boolean;
   /** Cifrado y regla del maestro de los datos de salud. Por omisión: clave del entorno y maestro sin acceso. */
   sensibles?: OpcionesSensibles;
   /** Agentes de Chatwoot (null = no configurado). Por omisión: ninguno. */
@@ -114,6 +117,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     acceso: { prisma: e.prisma, reloj, sesion, bloqueo: e.bloqueo ?? BLOQUEO_POR_DEFECTO, parametrosHash: e.parametrosHash ?? PARAMETROS_POR_DEFECTO },
     cookieSegura: e.cookieSegura ?? cookieSeguraDesdeEntorno(e.entorno),
     origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(e.entorno),
+    origenesLocales: e.origenesLocales ?? esEntornoLocal(e.entorno ?? process.env),
     sensibles: e.sensibles ?? {},
     directorio: e.directorio ?? null,
     fuenteOcupacion: e.fuenteOcupacion ?? new InscripcionesActivas(),
@@ -130,7 +134,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   const { limites, limitador } = entrada;
   // Primero el límite general por IP (también frena a quien manda sesiones inventadas)...
   if (limites && limitador) api.use(limitarApiPorIp(limitador, "api", limites.api));
-  api.use(proteccionCsrf(deps.origenesPermitidos));
+  api.use(proteccionCsrf({ exactos: deps.origenesPermitidos, locales: deps.origenesLocales }));
 
   // ...y el del login, más estricto, solo para iniciar sesión.
   api.use(rutasPublicasDeSesion(deps, limites && limitador ? [limitarApiPorIp(limitador, "login", limites.login)] : []));

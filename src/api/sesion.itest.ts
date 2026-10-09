@@ -207,7 +207,8 @@ test("CSRF: un método que cambia algo sin JSON ni X-Requested-With se rechaza (
 });
 
 test("CSRF: con ORIGEN_PUBLICO configurado solo ese origen vale", async () => {
-  const fijo = levantarApi(prisma, { origenesPermitidos: ["https://app.escuela.example"] });
+  // V2: así es producción (`origenesLocales: false`): en local, además, valen localhost y 127.0.0.1 (ver origenes.itest.ts).
+  const fijo = levantarApi(prisma, { origenesPermitidos: ["https://app.escuela.example"], origenesLocales: false });
   await fijo.listo;
   try {
     const u = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor" });

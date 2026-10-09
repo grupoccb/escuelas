@@ -90,3 +90,28 @@ INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_i
   ('00000000-0000-4000-8000-000000000804', '00000000-0000-4000-8000-000000000001', 'Recuperación de quien no llegó a la clase muestra', NULL, NULL,
    'clase_muestra_no_asistio', 120, 2880, '00000000-0000-4000-8000-000000000706', 2, ARRAY[0,1,2,3,4,5,6])
 ON CONFLICT DO NOTHING;
+
+-- ── V2: aviso a la familia cuando una PERSONA reprograma o cancela su clase muestra [SUPUESTO] ─────────────
+-- Dos plantillas de SERVICIO (algo ya acordado: sale aunque una persona atienda la conversación) y una automatización por evento, `clase_muestra_reprogramada` y
+-- `clase_muestra_cancelada`. `offset_minutos` es 0 (en cuanto el horario de envío lo permita); se edita desde administración. Lo que caiga fuera de 09:00–20:00 se recorre al siguiente
+-- horario válido; si con eso llegara a la hora de la clase o después, no sale y queda una tarea para que el asesor llame (invariante 14). Si la familia misma cambia su clase
+-- escribiendo, no hay aviso extra. La variable `fecha_anterior` es el día y la hora que tenía la clase reprogramada.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000712', '00000000-0000-4000-8000-000000000001', 'aviso_clase_reprogramada',
+   'HX00000000000000000000000000000012', NULL, 'utility', 'servicio', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"},{"pos":6,"nombre":"fecha_anterior"}]',
+   'Hola, te avisamos que cambió la clase muestra de {{1}}: era el {{6}} y ahora es el {{3}} a las {{4}}, grupo {{2}}, sucursal {{5}}. Si no te acomoda, responde a este mensaje y buscamos otro día.',
+   'aprobada', true),
+  ('00000000-0000-4000-8000-000000000713', '00000000-0000-4000-8000-000000000001', 'aviso_clase_cancelada',
+   'HX00000000000000000000000000000013', NULL, 'utility', 'servicio', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"nombre_grupo"},{"pos":3,"nombre":"fecha_clase"},{"pos":4,"nombre":"hora_clase"},{"pos":5,"nombre":"nombre_sucursal"}]',
+   'Hola, te avisamos que se canceló la clase muestra de {{1}} del {{3}} a las {{4}}, grupo {{2}}, sucursal {{5}}. Responde a este mensaje y te ayudamos a agendar otra.',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_id, evento_disparador, offset_minutos, plantilla_id, max_intentos, dias_permitidos) VALUES
+  ('00000000-0000-4000-8000-000000000810', '00000000-0000-4000-8000-000000000001', 'Aviso a la familia: clase muestra reprogramada', NULL, NULL,
+   'clase_muestra_reprogramada', 0, '00000000-0000-4000-8000-000000000712', 1, ARRAY[0,1,2,3,4,5,6]),
+  ('00000000-0000-4000-8000-000000000811', '00000000-0000-4000-8000-000000000001', 'Aviso a la familia: clase muestra cancelada', NULL, NULL,
+   'clase_muestra_cancelada', 0, '00000000-0000-4000-8000-000000000713', 1, ARRAY[0,1,2,3,4,5,6])
+ON CONFLICT DO NOTHING;

@@ -2,7 +2,8 @@
 // (`lead_sin_respuesta`, el reenganche), la `clase_muestra` (D3: `clase_muestra_proxima`, el recordatorio de 24 h y de 2 h antes; las
 // ejecuciones de esas las crea el alta de la clase, ver src/clases-muestra/recordatorios.ts, y aquí solo se ejecutan), el `lead` sin
 // movimiento (D8: `lead_frio`, tarea para el asesor y reenganche de marketing) y el `aviso_promocion` (D8: `promocion_por_vencer`). Estos dos
-// últimos los programa este mismo motor (src/automatizaciones/seguimiento.ts) y, como todo, mandan SOLO por MessagingProvider.
+// últimos los programa este mismo motor (src/automatizaciones/seguimiento.ts) y, como todo, mandan SOLO por MessagingProvider. V2: también el aviso a la familia de que una PERSONA
+// reprogramó o canceló su clase muestra (`clase_muestra_reprogramada` / `clase_muestra_cancelada`; las ejecuciones las crea el cambio, src/clases-muestra/aviso-cambio.ts).
 //
 // Dos pasos, los dos idempotentes:
 // 1. programar: por cada conversación que cumple, crea UNA ejecución por (automatización,
@@ -28,6 +29,7 @@ import { esEventoDeCobranza, programarCobranza } from "../cobranza/programar.ts"
 import { revalidarCobro } from "../cobranza/revalidar.ts";
 import { asegurarTareaDeCobro } from "../cobranza/tareas.ts";
 import { formatear } from "../lib/dinero.ts";
+import { asegurarTareaDeCambioDeClase, esEventoDeCambioDeClase, type TipoDeCambioDeClase } from "../clases-muestra/aviso-cambio.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
@@ -361,6 +363,11 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   }
   if (!conv) {
     await omitir(clase ? "sin_conversacion" : "conversacion_inexistente");
+    // V2: el aviso del cambio de una clase que no tiene por dónde salir lo da una persona por teléfono.
+    if (clase && esEventoDeCambioDeClase(evento)) {
+      await asegurarTareaDeCambioDeClase(db, { claseId: clase.id, tipo: tipoDeCambio(evento), porQue: "sin_conversacion", ahora });
+      return;
+    }
     // Una clase cuyo lead nunca escribió por WhatsApp (p. ej. entró por la landing): no hay por dónde mandar el recordatorio y una persona decide.
     if (clase) await asegurarTareaDeClase(db, { leadId: clase.lead_id, claseId: clase.id, descripcion: `El recordatorio «${e.automatizacion.nombre}» de la clase muestra no se mandó: el contacto no tiene una conversación de WhatsApp. Avísale tú de la clase.` });
     return;
@@ -404,6 +411,16 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
       const salio = previa.mensaje?.enviado_en ?? null;
       if (salio && conv.ultimo_mensaje_entrante_en && conv.ultimo_mensaje_entrante_en.getTime() > salio.getTime()) return omitir("contacto_respondio");
     }
+  } else if (clase && esEventoDeCambioDeClase(evento)) {
+    // V2: el aviso solo vale mientras el cambio siga siendo el último. Reprogramada: la clase nueva sigue agendada (si volvió a cambiar, sale el aviso del cambio nuevo, con la fecha
+    // buena); cancelada: sigue cancelada. Y solo antes de que empiece la clase.
+    if (clase.estatus !== (evento === "clase_muestra_cancelada" ? "cancelada" : "agendada")) return omitir("clase_no_vigente");
+    if (clase.fecha_hora.getTime() <= ahora.getTime()) {
+      await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "descartado", motivo_omision: "evento_pasado" } });
+      resumen.descartadas++;
+      log.info("automatizacion_descartada", { ejecucionId: e.id, motivo: "evento_pasado" });
+      return;
+    }
   } else if (clase) {
     return omitir("evento_no_soportado");
   }
@@ -426,7 +443,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     // el reenganche no tienen un evento al cual llegar tarde.
     // Una promoción por vencer tiene también un evento al cual no se debe llegar tarde: el instante en que ya no vale (límite exclusivo).
     const siguiente = zona
-      ? clase && evento === "clase_muestra_proxima"
+      ? clase && (evento === "clase_muestra_proxima" || esEventoDeCambioDeClase(evento))
         ? recorrerODescartar(ahora, zona, clase.fecha_hora, ventana, true)
         : cobro && evento === "cargo_por_vencer"
           ? recorrerODescartar(ahora, zona, limiteDeRecordatorioPorVencer(cobro.vencimiento, zona), ventana, true)
@@ -441,6 +458,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
       await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "descartado", motivo_omision: "evento_pasado" } });
       resumen.descartadas++;
       log.info("automatizacion_descartada", { ejecucionId: e.id, motivo: "evento_pasado" });
+      // V2: un aviso de cambio que llegaría tarde (fuera de horario con la clase encima) no sale: una persona llama a la familia.
+      if (clase && esEventoDeCambioDeClase(evento)) await asegurarTareaDeCambioDeClase(db, { claseId: clase.id, tipo: tipoDeCambio(evento), porQue: "fuera_de_horario", ahora });
     }
   };
 
@@ -483,6 +502,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   if (r?.resultado === "bloqueado") {
     await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "omitido", motivo_omision: r.motivo ?? "bloqueado", mensaje_id: mensajeId ?? null } });
     resumen.omitidas++;
+    // V2: el tope de mensajes del día frenó el aviso de un cambio de clase: una persona avisa. (Sin plantilla apta, MessagingProvider ya dejó su tarea; baja y cerrada: la familia no quiere mensajes.)
+    if (r.motivo === "tope_frecuencia" && clase && esEventoDeCambioDeClase(evento)) await asegurarTareaDeCambioDeClase(db, { claseId: clase.id, tipo: tipoDeCambio(evento), porQue: "tope_frecuencia", ahora });
     return;
   }
   const motivoFallo = r ? (r.motivo === ENVIO_INCIERTO ? ENVIO_INCIERTO : "envio_fallido") : "sin_resultado";
@@ -638,6 +659,14 @@ async function resolverVariables(
         if (!clase) return "variable_desconocida";
         valor = describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).hora;
         break;
+      case "fecha_anterior": {
+        // V2: de dónde y cuándo venía una clase reprogramada, p. ej. «lunes 2 de noviembre a las 16:00» (en la zona de SU sucursal).
+        const antes = clase?.reprogramada_de;
+        if (!antes) return "variable_desconocida";
+        const d = describirSesion(antes.fecha_hora, antes.grupo.programa.sucursal.zona_horaria);
+        valor = `${d.fecha} a las ${d.hora}`;
+        break;
+      }
       case "nombre_sucursal":
         if (cobro) {
           valor = cobro.sucursalNombre;
@@ -667,6 +696,9 @@ async function resolverVariables(
 // ---------------------------------------------------------------------------------------------
 // Clase muestra (D3)
 
+/** De qué cambio es el evento (para la tarea del asesor). Solo se llama con un evento de cambio de clase. */
+const tipoDeCambio = (evento: string): TipoDeCambioDeClase => (evento === "clase_muestra_cancelada" ? "cancelada" : "reprogramada");
+
 const SELECCION_CLASE = {
   id: true,
   lead_id: true,
@@ -675,6 +707,7 @@ const SELECCION_CLASE = {
   fecha_hora: true,
   prospecto: { select: { nombre: true } },
   grupo: { select: { nombre: true, programa: { select: { sucursal: { select: { nombre: true, zona_horaria: true } } } } } },
+  reprogramada_de: { select: { fecha_hora: true, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } } },
 } as const;
 
 type ClaseDeEjecucion = NonNullable<Awaited<ReturnType<typeof cargarClase>>>;

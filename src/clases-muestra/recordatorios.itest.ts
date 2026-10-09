@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { conAlcance, altaConAlcance } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, POR_UNA_PERSONA } from "../testutil/semilla.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
 import { correrAutomatizaciones, type ResumenMotor } from "../automatizaciones/motor.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra, type ContextoDeAgenda } from "./agenda.ts";
@@ -195,7 +195,7 @@ test("D3 reprogramar cancela los recordatorios pendientes de la anterior y progr
   assert.equal((await m.corre(new Date("2026-11-01T15:00:00Z"))).enviadas, 0);
   assert.equal(m.transporte.envios.length, 0);
   // Cancelar la nueva.
-  assert.ok((await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, "ya no puede", AGENDADA_EL))).ok);
+  assert.ok((await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, "ya no puede", AGENDADA_EL, POR_UNA_PERSONA))).ok);
   assert.deepEqual((await resumen(m, r.clase.id)).map((x) => [x[1], x[2]]), [["cancelado", "clase_cancelada"], ["cancelado", "clase_cancelada"]]);
   assert.equal((await m.corre(new Date("2026-11-08T15:00:00Z"))).enviadas, 0);
 });

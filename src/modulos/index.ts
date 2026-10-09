@@ -130,6 +130,8 @@ export const MODULO_DE_EVENTO = {
   inscripcion_creada: "inscripcion",
   cargo_por_vencer: "finanzas",
   cargo_vencido: "finanzas",
+  clase_muestra_reprogramada: "clase_muestra",
+  clase_muestra_cancelada: "clase_muestra",
 } as const satisfies Record<string, Modulo>;
 export type EventoDeAutomatizacion = keyof typeof MODULO_DE_EVENTO;
 
@@ -161,6 +163,7 @@ export const MODULO_DE_TIPO_DE_TAREA = {
   lista_espera_lugar_liberado: "cotizador",
   aviso_maestro_no_enviado: "clase_muestra",
   llamar_no_asistio: "clase_muestra",
+  avisar_cambio_de_clase: "clase_muestra",
   listo_para_cerrar: "clase_muestra",
   faltas_consecutivas: "operacion",
   beneficio_en_revision: "finanzas",

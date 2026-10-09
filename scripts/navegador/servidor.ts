@@ -60,7 +60,9 @@ const app = crearApp({
     prisma,
     parametrosHash: PARAMETROS_PRUEBA,
     cookieSegura: false,
-    origenesPermitidos: [],
+    // V2 (decisión 7): como la demo de docker compose, ORIGEN_PUBLICO es `localhost`; las pruebas entran por `127.0.0.1` (baseURL) y por `localhost` (origenes.spec.ts), y las dos
+    // tienen que funcionar: en local la aplicación acepta ambos hosts sin configurar nada más.
+    origenesPermitidos: [`http://localhost:${puerto}`],
     reloj,
     sensibles: { cifrador: cifradorDesdeEntorno() },
     fuenteOcupacion: new InscripcionesActivas(),

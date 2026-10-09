@@ -17,7 +17,7 @@ import express from "express";
 import { marcarAsistencia, type MotivoDeRechazoDeAsistencia } from "../../clases-muestra/asistencia.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, proximasSesionesConLugar, reprogramarClaseMuestra, type MotivoDeRechazo } from "../../clases-muestra/agenda.ts";
 import { describirSesion } from "../../clases-muestra/sesiones.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead, filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -173,8 +173,8 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
 
   /** Un asesor solo agenda a leads que ve (los de sus sucursales) en grupos de sus sucursales. */
   async function prospectoVisible(ctx: ContextoApi, prospectoId: string): Promise<boolean> {
-    const filtro = filtroDeSucursal(await ctx.alcance());
-    return (await ctx.db.prospecto.findFirst({ where: { id: prospectoId, ...(filtro ? { lead: { sucursal_interes_id: filtro } } : {}) }, select: { id: true } })) !== null;
+    const alcanceDeLeads = condicionDeLead(await ctx.alcance());
+    return (await ctx.db.prospecto.findFirst({ where: { id: prospectoId, ...(alcanceDeLeads ? { lead: alcanceDeLeads } : {}) }, select: { id: true } })) !== null;
   }
   async function grupoVisible(ctx: ContextoApi, grupoId: string): Promise<boolean> {
     const filtro = filtroDeSucursal(await ctx.alcance());
@@ -273,7 +273,7 @@ export function rutasDeClasesMuestra(deps: DepsApi): Router {
     if (!(await visible(ctx, id))) throw noEncontrado();
     const resultado = await ctx.db.$transaction(async (tx) => {
       const antes = await tx.clase_muestra.findFirst({ where: { id }, select: SELECCION_CLASE });
-      const r = await cancelarClaseMuestra(tx, id, motivo ?? null, ctx.ahora());
+      const r = await cancelarClaseMuestra(tx, id, motivo ?? null, ctx.ahora(), { tipo: "usuario", usuarioId: ctx.usuario.id });
       if (!r.ok || !antes) return r;
       const despues = await tx.clase_muestra.findFirstOrThrow({ where: { id }, select: SELECCION_CLASE });
       await registrarCambio(tx, ctx, { entidad: "clase_muestra", entidadId: id, accion: "actualizar", antes: instantanea(antes), despues: instantanea(despues) });

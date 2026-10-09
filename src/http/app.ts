@@ -80,7 +80,7 @@ export interface AppDeps {
   /** Qué hacer con un evento que no se pudo procesar (WH). Sin él solo se clasifica y se loguea; `server.ts` pasa el que guarda la constancia y la tarea. */
   inesperados?: ManejadorDeInesperados;
   /** Landing pública por vertical (/l/:vertical, E1). Sin ella, /l no existe. */
-  landing?: { prisma: PrismaRaiz; origenesPermitidos?: readonly string[] };
+  landing?: { prisma: PrismaRaiz; origenesPermitidos?: readonly string[]; origenesLocales?: boolean };
   /** Límites de peticiones (B6). Sin ellos no se limita nada: `server.ts` siempre los pasa. */
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
@@ -115,7 +115,7 @@ export function crearApp(deps: AppDeps): Express {
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
 
   // Landing pública (E1): sin sesión; su propia protección contra abuso (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
-  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.inesperados ? { inesperados: deps.inesperados } : {}), ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
+  if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.inesperados ? { inesperados: deps.inesperados } : {}), ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.landing.origenesLocales !== undefined ? { origenesLocales: deps.landing.origenesLocales } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
 
   // K4. `/salud` (liveness): el proceso atiende. NO toca la base: una caída de la base no debe hacer que el orquestador reinicie las tareas en bucle.
   app.get("/salud", (_req, res) => {

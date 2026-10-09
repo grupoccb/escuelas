@@ -19,6 +19,7 @@ import { bloquearLead, etapaDeSistema, moverLeadAEtapa, tipoDeEtapaDelLead } fro
 import { crearAvisoMaestro } from "./avisos.ts";
 import { trasladarRegistroDeClase } from "./registro.ts";
 import { darPorRecuperadoAlProspecto } from "./asistencia.ts";
+import { programarAvisoDeCambio } from "./aviso-cambio.ts";
 import { cancelarRecordatoriosDeClase, programarRecordatoriosDeClase } from "./recordatorios.ts";
 import { problemaDeFecha, sesionesAgendables, type HorarioDeGrupo, type ProblemaDeFecha } from "./sesiones.ts";
 
@@ -263,6 +264,8 @@ export async function reprogramarClaseMuestra(tx: Consultas, c: ContextoDeAgenda
   // D3: los recordatorios pendientes de la anterior se cancelan y se programan los de la nueva.
   await cancelarRecordatoriosDeClase(tx, vieja.id, "clase_reprogramada");
   await programarRecordatoriosDeClase(tx, clase.id, c.ahora);
+  // V2: si la cambió una PERSONA, la familia recibe el aviso de servicio con la fecha nueva. Si la cambió la familia misma (el bot), ya se le confirmó en la conversación: sin aviso extra.
+  if (c.origen.tipo === "usuario") await programarAvisoDeCambio(tx, { claseId: clase.id, tipo: "reprogramada", ahora: c.ahora });
   return { ok: true, clase, anterior: { id: vieja.id, grupoId: vieja.grupo_id, fechaHora: vieja.fecha_hora, prospectoId: vieja.prospecto_id, leadId: vieja.lead_id } };
 }
 
@@ -283,9 +286,10 @@ async function instructorDe(tx: Consultas, grupoId: string): Promise<string | nu
 
 /**
  * Cancela una clase vigente: libera el lugar. Si era la única clase vigente del lead y estaba en la etapa «clase muestra
- * agendada», vuelve a «contactado» (si la organización la tiene configurada).
+ * agendada», vuelve a «contactado» (si la organización la tiene configurada). `origen` dice quién la canceló: una PERSONA (`usuario`) avisa a la familia
+ * (aviso de servicio, V2); la familia misma (`bot`) no recibe aviso extra. Es obligatorio a propósito: quien llame tiene que decir quién fue.
  */
-export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motivo: string | null, ahora: Date): Promise<{ ok: true; clase: ClaseAnterior } | { ok: false; motivo: "clase_no_vigente" }> {
+export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motivo: string | null, ahora: Date, origen: OrigenDeAgenda): Promise<{ ok: true; clase: ClaseAnterior } | { ok: false; motivo: "clase_no_vigente" }> {
   const vieja = await tx.clase_muestra.findFirst({ where: { id: claseId }, select: { id: true, estatus: true, lead_id: true, prospecto_id: true, grupo_id: true, fecha_hora: true } });
   if (!vieja || vieja.estatus !== "agendada") return { ok: false, motivo: "clase_no_vigente" };
   await bloquearLead(tx, vieja.lead_id); // ED-08: lead → clase, nunca al revés (reprogramar toma el lead y luego la clase)
@@ -297,5 +301,6 @@ export async function cancelarClaseMuestra(tx: Consultas, claseId: string, motiv
   }
   await crearAvisoMaestro(tx, { claseId: vieja.id, tipo: "cancelada", ahora }); // D2
   await cancelarRecordatoriosDeClase(tx, vieja.id, "clase_cancelada"); // D3
+  if (origen.tipo === "usuario") await programarAvisoDeCambio(tx, { claseId: vieja.id, tipo: "cancelada", ahora }); // V2
   return { ok: true, clase: { id: vieja.id, grupoId: vieja.grupo_id, fechaHora: vieja.fecha_hora, prospectoId: vieja.prospecto_id, leadId: vieja.lead_id } };
 }

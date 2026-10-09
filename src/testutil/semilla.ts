@@ -310,3 +310,6 @@ export async function sembrarMotivoBaja(prisma: PrismaPruebas, org: Organizacion
   if (previo) return previo.id;
   return (await prisma.motivo_baja.create({ data: { organizacion_id: org.organizacionId, codigo, nombre: "Motivo de prueba" } })).id;
 }
+
+/** Quién cancela o reprograma en las pruebas de la clase muestra cuando lo hace una persona (V2: eso avisa a la familia). */
+export const POR_UNA_PERSONA = { tipo: "usuario", usuarioId: "00000000-0000-4000-8000-0000000000aa" } as const;

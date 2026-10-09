@@ -18,7 +18,7 @@ import { esViolacionUnica } from "../../datos/prisma.ts";
 import { leadsEstancados } from "../../embudo/estancados.ts";
 import { historialDeLead, moverEtapaDeLead, type MotivoDeRechazoDeMovimiento } from "../../embudo/historial.ts";
 import { MENSAJE_DE_RECHAZO, type MotivoDeRechazoDeTransicion } from "../../embudo/transiciones.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -67,8 +67,7 @@ export function rutasDeEmbudo(_deps: DepsApi): Router {
 
   /** `where` de lead por el alcance de sucursales del usuario. */
   const dondeLead = async (ctx: ContextoApi): Promise<Record<string, unknown>> => {
-    const filtro = filtroDeSucursal(await ctx.alcance());
-    return filtro ? { sucursal_interes_id: filtro } : {};
+    return condicionDeLead(await ctx.alcance()) ?? {};
   };
 
   // ── Estancados (antes de /leads/:id, que tomaría «estancados» por un id) ──

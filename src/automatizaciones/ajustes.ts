@@ -1,7 +1,7 @@
 // Reglas puras de lo que se puede ajustar de una automatización desde la administración (J8): el signo del desfase según su evento, el horario de envío
 // (invariante 14: nunca fuera de 09:00–20:00 de la sucursal) y los días. El servidor las aplica y la base las repite con sus CHECK.
 
-export const EVENTOS_DISPARADORES = ["lead_sin_respuesta", "clase_muestra_proxima", "clase_muestra_no_asistio", "lead_frio", "promocion_por_vencer", "inscripcion_creada", "cargo_por_vencer", "cargo_vencido"] as const;
+export const EVENTOS_DISPARADORES = ["lead_sin_respuesta", "clase_muestra_proxima", "clase_muestra_no_asistio", "lead_frio", "promocion_por_vencer", "inscripcion_creada", "cargo_por_vencer", "cargo_vencido", "clase_muestra_reprogramada", "clase_muestra_cancelada"] as const;
 export type EventoDisparador = (typeof EVENTOS_DISPARADORES)[number];
 
 /** El desfase (`offset_minutos`) mide minutos desde el evento: ANTES de él (negativo), DESPUÉS (positivo) o de cualquiera de los dos lados. */
@@ -14,11 +14,13 @@ const SIGNO_DEL_DESFASE: Record<EventoDisparador, "antes" | "despues"> = {
   inscripcion_creada: "despues",
   cargo_por_vencer: "antes",
   cargo_vencido: "despues",
+  clase_muestra_reprogramada: "despues",
+  clase_muestra_cancelada: "despues",
 };
 
 /**
  * INV-6 (K9, EK-A1): la CLASE de mensaje que cada evento exige de su plantilla. Reenganche, recuperación, lead frío y promoción son MARKETING (se frenan con una persona
- * atendiendo y cuentan en el tope de marketing); el recordatorio de clase muestra, la bienvenida y la cobranza son de SERVICIO (avisos de algo ya acordado). La clase la DECLARA
+ * atendiendo y cuentan en el tope de marketing); el recordatorio de clase muestra, el aviso de que una persona la cambió o la canceló, la bienvenida y la cobranza son de SERVICIO (avisos de algo ya acordado). La clase la DECLARA
  * la plantilla, pero una plantilla que no corresponde al evento rompería el invariante 6 por configuración: se rechaza al ligarlas o al cambiar la clase.
  */
 export const CLASE_DEL_EVENTO: Record<EventoDisparador, "servicio" | "marketing"> = {
@@ -30,6 +32,8 @@ export const CLASE_DEL_EVENTO: Record<EventoDisparador, "servicio" | "marketing"
   inscripcion_creada: "servicio",
   cargo_por_vencer: "servicio",
   cargo_vencido: "servicio",
+  clase_muestra_reprogramada: "servicio",
+  clase_muestra_cancelada: "servicio",
 };
 
 /** Un mensaje en palabras si la plantilla (por su clase declarada) no corresponde al evento, o null si sirve. */

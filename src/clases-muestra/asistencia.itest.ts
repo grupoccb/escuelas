@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { conAlcance, altaConAlcance } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, type TipoDeEtapa } from "../testutil/semilla.ts";
+import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, type TipoDeEtapa, POR_UNA_PERSONA } from "../testutil/semilla.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
 import { correrAutomatizaciones, type ResumenMotor } from "../automatizaciones/motor.ts";
@@ -106,7 +106,7 @@ test("D4: no se marca antes de la hora de la clase (desde la hora exacta sí) y 
   // Cancelada o reagendada: ya no se marcan.
   const g = await m.familia();
   const cancelada = await m.agendar(g.prospectoId, new Date("2026-11-04T22:00:00Z"));
-  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, cancelada, null, AGENDADA_EL));
+  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, cancelada, null, AGENDADA_EL, POR_UNA_PERSONA));
   assert.deepEqual(await m.marcar(cancelada, "asistio", new Date("2026-11-05T00:00:00Z")), { ok: false, motivo: "no_se_puede_marcar" });
   await prisma.clase_muestra.update({ where: { id: cancelada }, data: { estatus: "reagendada" } });
   assert.deepEqual(await m.marcar(cancelada, "no_asistio", new Date("2026-11-05T00:00:00Z")), { ok: false, motivo: "no_se_puede_marcar" });

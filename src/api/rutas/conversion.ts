@@ -16,7 +16,7 @@ import express from "express";
 import { leerConfiguracion } from "../../configuracion/index.ts";
 import { puedeConvertir } from "../../conversion/cierre.ts";
 import { convertirLead, vistaPreviaDeConversion, type EntradaDeConversion, type ResultadoDeConversion } from "../../conversion/convertir.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead, filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -126,8 +126,7 @@ export function rutasDeConversion(deps: DepsApi): Router {
       if (propias.length === 0) throw noEncontrado();
       return [...new Set(propias.map((c) => c.prospecto_id))];
     }
-    const filtro = filtroDeSucursal(await ctx.alcance());
-    if (!(await ctx.db.lead.findFirst({ where: { id, ...(filtro ? { sucursal_interes_id: filtro } : {}) }, select: { id: true } }))) throw noEncontrado();
+    if (!(await ctx.db.lead.findFirst({ where: { id, ...(condicionDeLead(await ctx.alcance()) ?? {}) }, select: { id: true } }))) throw noEncontrado();
     return null;
   }
 

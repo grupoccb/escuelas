@@ -82,7 +82,7 @@ El backend **se niega a arrancar** en producción si falta o es débil algo de e
 | `NODE_ENV=production` | Activa cookie `Secure`, HSTS y las revisiones de arranque |
 | `DATABASE_URL` | La cuenta SIN dueño (`inscripciones_app`, creada por `scripts/preparar-roles.ts`), con `sslmode=require` |
 | `CLAVE_DATOS_SENSIBLES` | 32 bytes en base64 (`openssl rand -base64 32`). **Respáldala aparte** (`docs/RESPALDO.md`): sin ella no se leen las fichas de salud |
-| `ORIGEN_PUBLICO`, `PUBLIC_BASE_URL` | `https://…` del sistema (lo que firma Twilio; el origen de las peticiones que cambian algo) |
+| `ORIGEN_PUBLICO`, `PUBLIC_BASE_URL` | `https://…` del sistema (lo que firma Twilio; el origen de las peticiones que cambian algo). En producción es el ÚNICO origen aceptado (y es obligatorio: sin él el backend no arranca). En local no hace falta: se aceptan `localhost` y `127.0.0.1` con cualquier puerto (V2) |
 | `COOKIE_SEGURA=true`, `TRUST_PROXY=1` | La cookie solo por https; un salto de confianza (el balanceador) para leer la IP real |
 | `CHATWOOT_URL`, `CHATWOOT_BOT_TOKEN`, `CHATWOOT_ADMIN_TOKEN`, `CHATWOOT_WEBHOOK_SECRETO`, `CHATWOOT_URL_PUBLICA` | Chatwoot (el secreto: 24 o más caracteres) |
 | `TWILIO_AUTH_TOKEN` | Para validar la firma de los webhooks de Twilio (con `PUBLIC_BASE_URL`) |

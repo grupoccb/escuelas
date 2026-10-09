@@ -12,10 +12,12 @@
 
 import { randomBytes } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, Router } from "express";
+import { origenAceptado, type PoliticaDeOrigenes } from "../api/csrf.ts";
 import { LIMITE_CUERPO_LANDING } from "../api/cuerpos.ts";
 import { cargarLanding, enlaceSimulado, leerParametros, registrarEnvioDeLanding, validarEnvio, type Landing } from "../captacion/landing.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { enmascararTelefono, log } from "../lib/log.ts";
+import { esEntornoLocal } from "../seguridad/entorno.ts";
 import type { ConfigLimites } from "./config-limites.ts";
 import { paginaDeError, paginaDeFormulario, paginaDeGracias } from "./landing-html.ts";
 import { llaveDeIp, normalizarIp } from "./ip.ts";
@@ -25,8 +27,10 @@ import { manejadorSoloLog, type ManejadorDeInesperados } from "../webhooks/inesp
 
 export interface DepsLanding {
   prisma: PrismaRaiz;
-  /** Orígenes desde los que se acepta el envío (`ORIGEN_PUBLICO`); vacío = solo el propio host de la petición. */
+  /** Orígenes desde los que se acepta el envío (`ORIGEN_PUBLICO`); vacío = solo el propio host de la petición (únicamente en un entorno local). */
   origenesPermitidos?: readonly string[];
+  /** Acepta también `localhost` y `127.0.0.1` (V2). Por omisión, solo fuera de producción o en la demo declarada. */
+  origenesLocales?: boolean;
   reloj?: () => Date;
   limites?: ConfigLimites;
   limitador?: LimitadorDeTasa;
@@ -42,17 +46,11 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/;
  * por IP es lo que lo frena—. `Origin: null` también pasa: un navegador lo manda en un POST del propio sitio cuando la página lleva `Referrer-Policy:
  * no-referrer`, que es la que tiene esta (Firefox); ahí manda `Sec-Fetch-Site`.
  */
-export function origenDelEnvioAceptable(req: Pick<Request, "get">, permitidos: readonly string[]): boolean {
+export function origenDelEnvioAceptable(req: Pick<Request, "get">, politica: PoliticaDeOrigenes): boolean {
   if (req.get("sec-fetch-site") === "cross-site") return false;
   const origen = req.get("origin");
   if (origen === undefined || origen === "null") return true;
-  let o: URL;
-  try {
-    o = new URL(origen);
-  } catch {
-    return false;
-  }
-  return permitidos.length > 0 ? permitidos.includes(o.origin) : o.host === req.get("host");
+  return origenAceptado(origen, politica, req.get("host"));
 }
 
 /**
@@ -166,7 +164,7 @@ export function rutasDeLanding(deps: DepsLanding): Router {
 
   // EE-08: un envío que no viene de esta página se rechaza antes de leer el cuerpo y sin tocar la base.
   const soloDeEstaPagina = (req: Request, res: Response, next: NextFunction): void => {
-    if (origenDelEnvioAceptable(req, deps.origenesPermitidos ?? [])) return next();
+    if (origenDelEnvioAceptable(req, { exactos: deps.origenesPermitidos ?? [], locales: deps.origenesLocales ?? esEntornoLocal(process.env) })) return next();
     log.warn("landing_origen_rechazado", { sitio: req.get("sec-fetch-site") ?? null });
     error(res, 403, "No se pudo enviar", "Envía el formulario desde la página de la escuela.");
   };

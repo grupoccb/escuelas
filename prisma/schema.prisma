@@ -808,6 +808,11 @@ enum evento_disparador {
   /// Después de vencer un cargo (H6): el recordatorio de pago atrasado. La entidad es el `cargo`; `offset_minutos` se mide desde el inicio del día siguiente al vencimiento y los
   /// intentos siguientes salen cada `espaciado_minutos` (7 días por omisión), hasta `max_intentos`.
   cargo_vencido
+  /// Una PERSONA reprogramó una clase muestra (V2): aviso de SERVICIO a la familia con la fecha nueva. La entidad es la clase NUEVA (el aviso es único por clase); `offset_minutos`
+  /// = minutos después del cambio (0 = en cuanto el horario de envío lo permita). Si la familia misma reprogramó (el bot), no hay aviso.
+  clase_muestra_reprogramada
+  /// Una PERSONA canceló una clase muestra (V2): aviso de SERVICIO a la familia. La entidad es la clase cancelada; mismo desfase que el de reprogramada.
+  clase_muestra_cancelada
 }
 
 /// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás
@@ -930,6 +935,9 @@ enum tipo_tarea_asesor {
   deuda_vencida
   /// No hay una conversación de WhatsApp a la cual mandar el recordatorio de pago (H6): una persona cobra. Una pendiente por cargo.
   cobranza_sin_canal
+  /// Una persona cambió o canceló una clase muestra y el aviso por WhatsApp no pudo salir (fuera de horario con la clase encima, sin conversación, tope de mensajes del día) (V2):
+  /// el asesor llama a la familia. Una pendiente por clase.
+  avisar_cambio_de_clase
 }
 
 enum estado_tarea_asesor {
@@ -1243,7 +1251,7 @@ model promocion {
   condicion_valor Json?
   cupo_maximo     Int?
   cupo_usado      Int                 @default(0)
-  /// Las acumulables se suman; las que no, compiten por `prioridad` (mayor gana; empate: menor id).
+  /// Las acumulables se suman entre sí; una NO acumulable no se combina con ninguna otra (V2): compite sola por `prioridad` (mayor gana; empate: más beneficio al cliente; luego menor id).
   acumulable      Boolean             @default(false)
   prioridad       Int                 @default(0)
   activo          Boolean             @default(true)

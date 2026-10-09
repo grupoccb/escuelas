@@ -18,7 +18,7 @@ import { deFecha } from "../../catalogo/precios.ts";
 import { fechaLocal } from "../../lib/horario.ts";
 import { log } from "../../lib/log.ts";
 import { fuenteDe } from "../../reportes/fuente.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { noEncontrado } from "../errores.ts";
@@ -93,9 +93,9 @@ export function rutasDeExportaciones(_deps: DepsApi): Router {
   r.get("/exportaciones/leads", requierePermiso("leads:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaLeads, req.query);
-    const filtro = filtroDeSucursal(await ctx.alcance());
+    const alcanceDeLeads = condicionDeLead(await ctx.alcance());
     const condiciones: Record<string, unknown>[] = [];
-    if (filtro) condiciones.push({ sucursal_interes_id: filtro });
+    if (alcanceDeLeads) condiciones.push(alcanceDeLeads);
     if (q.sucursal_id) condiciones.push({ sucursal_interes_id: q.sucursal_id });
     if (q.etapa_id) condiciones.push({ etapa_id: q.etapa_id });
     const where = condiciones.length > 0 ? { AND: condiciones } : {};

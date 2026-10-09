@@ -117,6 +117,27 @@ test("D3 seed: los recordatorios de 24 h y 2 h quedan como automatizaciones del 
   assert.equal(await db().plantilla_mensaje.count({ where: { codigo: "recordatorio_clase_muestra" } }), 1);
 });
 
+test("V2 seed: el aviso de que una persona reprogramó o canceló la clase — un evento por cambio, desfase 0, todos los días, plantilla de SERVICIO aprobada con las variables que el motor sabe resolver; idempotente", async () => {
+  await aplicar("clase-muestra");
+  for (const [evento, codigo, variables] of [
+    ["clase_muestra_reprogramada", "aviso_clase_reprogramada", ["nombre_prospecto", "nombre_grupo", "fecha_clase", "hora_clase", "nombre_sucursal", "fecha_anterior"]],
+    ["clase_muestra_cancelada", "aviso_clase_cancelada", ["nombre_prospecto", "nombre_grupo", "fecha_clase", "hora_clase", "nombre_sucursal"]],
+  ] as const) {
+    const autos = await db().automatizacion.findMany({ where: { evento_disparador: evento }, include: { plantilla: true } });
+    assert.equal(autos.length, 1, evento);
+    const a = autos[0]!;
+    assert.deepEqual([a.offset_minutos, a.activo, a.vertical_id, a.sucursal_id, a.hora_inicio_min, a.hora_fin_min, a.max_intentos], [0, true, null, null, 540, 1200, 1], evento);
+    assert.deepEqual([...a.dias_permitidos].sort(), [0, 1, 2, 3, 4, 5, 6]);
+    assert.deepEqual([a.plantilla?.codigo, a.plantilla?.clase_mensaje, a.plantilla?.estado_aprobacion, a.plantilla?.categoria], [codigo, "servicio", "aprobada", "utility"], "es un aviso de servicio: sale aunque una persona atienda la conversación");
+    assert.deepEqual((a.plantilla!.variables as { nombre: string }[]).map((v) => v.nombre), variables);
+    const cuerpo = a.plantilla!.cuerpo_referencia ?? "";
+    const usados = [...cuerpo.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => Number(m[1]));
+    assert.deepEqual([...new Set(usados)].sort(), variables.map((_, i) => i + 1).sort(), "cada variable declarada se usa en el texto y viceversa");
+    assert.equal(/alergia|medic|salud|emergencia/i.test(cuerpo), false);
+    assert.equal(await db().plantilla_mensaje.count({ where: { codigo } }), 1, "correr el seed otra vez no duplica");
+  }
+});
+
 test("D4 seed: la recuperación de quien no llegó — evento propio, offset positivo, intentos espaciados con tope y plantilla aprobada; idempotente", async () => {
   await aplicar("clase-muestra");
   const a = await db().automatizacion.findMany({ where: { evento_disparador: "clase_muestra_no_asistio" }, include: { plantilla: true } });

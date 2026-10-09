@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { conAlcance, altaConAlcance, type BaseDatos } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, POR_UNA_PERSONA } from "../testutil/semilla.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra, type ContextoDeAgenda } from "./agenda.ts";
 import { barrerAvisosMaestro, crearAvisoMaestro } from "./avisos.ts";
@@ -137,7 +137,7 @@ test("D2: agendar, reprogramar y cancelar crean UN aviso para el instructor del 
 
   // Cancelar.
   const c = await m.agendar(MIERCOLES_11, m.grupoId);
-  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, c, "se enfermó", AHORA));
+  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, c, "se enfermó", AHORA, POR_UNA_PERSONA));
   assert.deepEqual((await m.avisos()).filter((x) => x.clase_muestra_id === c).map((x) => x.tipo), ["agendada", "cancelada"]);
 });
 
@@ -400,7 +400,7 @@ test("D2: un aviso que quedó 'enviando' (el proceso murió a media operación) 
 test("D2: una clase cancelada antes de avisar no manda el «agendada»; el «cancelada» no avisa de lo que el instructor nunca supo", async () => {
   const m = await mundo();
   const claseId = await m.agendar();
-  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, claseId, null, AHORA));
+  await m.db.$transaction((tx) => cancelarClaseMuestra(tx, claseId, null, AHORA, POR_UNA_PERSONA));
   const r = await m.barrer(AHORA);
   assert.equal(m.transporte.envios.filter((e) => e.tipo === "plantilla" || e.tipo === "mensaje").length, 0, "no se manda ni lo uno ni lo otro por WhatsApp");
   assert.deepEqual((await m.avisos()).map((x) => [x.tipo, x.entrega, x.motivo_entrega]), [["agendada", "descartado", "clase_ya_no_vigente"], ["cancelada", "descartado", "nunca_se_aviso"]]);

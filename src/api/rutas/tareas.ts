@@ -11,7 +11,7 @@ import { Router } from "express";
 import express from "express";
 import { ESTADOS_DE_TAREA, TIPOS_DE_TAREA } from "../../datos/tipos.ts";
 import { leerModulos, tiposDeTareaApagados } from "../../modulos/index.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead, filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -47,10 +47,11 @@ export function rutasDeTareas(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
-    const filtro = filtroDeSucursal(await ctx.alcance());
+    const alcance = await ctx.alcance();
+    const filtro = filtroDeSucursal(alcance);
     // V1: las tareas de un módulo apagado (cobranza, faltas, clases muestra…) no se listan.
     const apagados = tiposDeTareaApagados(await leerModulos(ctx.db));
-    const where = { ...(apagados.length > 0 ? { NOT: { tipo: { in: apagados } } } : {}), ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(q.lead_id ? { lead_id: q.lead_id } : {}), ...(q.sin_lead ? { lead_id: null } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
+    const where = { ...(apagados.length > 0 ? { NOT: { tipo: { in: apagados } } } : {}), ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(q.lead_id ? { lead_id: q.lead_id } : {}), ...(q.sin_lead ? { lead_id: null } : {}), ...(filtro ? { OR: [{ lead: condicionDeLead(alcance) }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
     res.json(
       await paginar(
         pag,
@@ -64,9 +65,10 @@ export function rutasDeTareas(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const { estado } = parsear(esquemaResolver, req.body);
-    const filtro = filtroDeSucursal(await ctx.alcance());
+    const alcance = await ctx.alcance();
+    const filtro = filtroDeSucursal(alcance);
     const apagados = tiposDeTareaApagados(await leerModulos(ctx.db));
-    const where = { id, ...(apagados.length > 0 ? { NOT: { tipo: { in: apagados } } } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
+    const where = { id, ...(apagados.length > 0 ? { NOT: { tipo: { in: apagados } } } : {}), ...(filtro ? { OR: [{ lead: condicionDeLead(alcance) }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
     const resultado = await ctx.db.$transaction(async (tx) => {
       const tarea = await tx.tarea_asesor.findFirst({ where, select: { id: true, estado: true, resuelta_en: true } });
       if (!tarea) throw noEncontrado();

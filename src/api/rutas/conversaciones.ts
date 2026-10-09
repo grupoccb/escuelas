@@ -6,7 +6,7 @@
 // usuario (ver POST /api/usuarios/:id/vincular-chatwoot). Alcance por sucursal de interés del lead.
 
 import { Router } from "express";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { validacion } from "../errores.ts";
@@ -24,7 +24,7 @@ export function rutasDeConversaciones(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
-    const filtro = filtroDeSucursal(await ctx.alcance());
+    const alcanceDeLeads = condicionDeLead(await ctx.alcance());
 
     const condiciones: Record<string, unknown>[] = [];
     if (q.asignada_a === "yo") condiciones.push({ asignada_a_usuario_id: ctx.usuario.id });
@@ -36,7 +36,7 @@ export function rutasDeConversaciones(_deps: DepsApi): Router {
       condiciones.push({ asignada_a_usuario_id: id });
     }
     if (q.estado) condiciones.push({ estado: q.estado });
-    if (filtro) condiciones.push({ lead: { sucursal_interes_id: filtro } });
+    if (alcanceDeLeads) condiciones.push({ lead: alcanceDeLeads });
     const where = condiciones.length > 0 ? { AND: condiciones } : {};
 
     res.json(

@@ -179,27 +179,35 @@ test("una promoción inactiva no aplica; el orden de los motivos es inactiva, vi
   assert.equal(motivoDeDescarte({ ...todoMal, activa: true, vigenciaDesde: "2026-01-01", alcance: { verticales: [], sucursales: [], programas: [] } }, ctx()), "condicion_no_cumplida");
 });
 
-test("las NO acumulables compiten: gana la de mayor prioridad; a igualdad, el menor id; las demás pierden", () => {
+test("las NO acumulables compiten: gana la de mayor prioridad; a igualdad de prioridad, la que más beneficia al cliente; a igualdad de beneficio, el menor id (V2, decisión 6)", () => {
   const a = promo("a", { prioridad: 1 }, pct("10"));
   const b = promo("b", { prioridad: 5 }, pct("20"));
   const c = promo("c", { prioridad: 5 }, pct("30"));
   const r = resolverPromociones([a, c, b], ctx({ costoInscripcion: deTexto("1000.00") }));
-  assert.deepEqual(r.aplicadas.map((x) => x.promocionId), ["b"], "b y c empatan en prioridad: gana el menor id");
-  assert.equal(aTexto(r.inscripcion.descuentoAhora), "200.00");
-  assert.deepEqual(r.descartadas.map((d) => [d.promocionId, d.motivo]), [["a", "pierde_por_prioridad"], ["c", "pierde_por_prioridad"]]);
+  assert.deepEqual(r.aplicadas.map((x) => x.promocionId), ["c"], "b y c empatan en prioridad: gana la de 30 % (más beneficia al cliente), no la de menor id");
+  assert.equal(aTexto(r.inscripcion.descuentoAhora), "300.00");
+  assert.deepEqual(r.descartadas.map((d) => [d.promocionId, d.motivo]), [["a", "pierde_por_prioridad"], ["b", "pierde_por_prioridad"]]);
+  // Con el mismo beneficio, el menor id.
+  const iguales = resolverPromociones([promo("z", { prioridad: 5 }, pct("20")), promo("y", { prioridad: 5 }, pct("20"))], ctx());
+  assert.deepEqual(iguales.aplicadas.map((x) => x.promocionId), ["y"]);
   // La prioridad puede ser negativa.
   assert.deepEqual(resolverPromociones([promo("x", { prioridad: -1 }, pct("1")), promo("y", { prioridad: -2 }, pct("2"))], ctx()).aplicadas.map((x) => x.promocionId), ["x"]);
 });
 
-test("las acumulables se SUMAN todas y conviven con la ganadora no acumulable; una no acumulable que no aplica no estorba", () => {
-  const ganadora = promo("g", { prioridad: 9 }, pct("10"));
+test("las acumulables se SUMAN todas entre sí; una no acumulable NO se combina con ellas (ni ellas con ella); una no acumulable que no aplica no estorba (V2, decisión 6)", () => {
+  const noAcumulable = promo("g", { prioridad: 9 }, pct("10"));
   const perdedora = promo("p", { prioridad: 1 }, pct("50"));
   const suma1 = promo("s1", { acumulable: true, prioridad: 0 }, pct("5"));
   const suma2 = promo("s2", { acumulable: true, prioridad: 3 }, pct("5"));
-  const r = resolverPromociones([perdedora, suma1, ganadora, suma2], ctx({ costoInscripcion: deTexto("1000.00") }));
-  assert.deepEqual(r.aplicadas.map((x) => x.promocionId), ["g", "s2", "s1"], "en orden de prioridad");
-  assert.equal(aTexto(r.inscripcion.descuentoAhora), "200.00", "10 % + 5 % + 5 %");
-  assert.deepEqual(r.descartadas.map((d) => d.promocionId), ["p"]);
+  // La no acumulable de mayor prioridad gana SOLA: ni las acumulables ni la otra no acumulable se le suman.
+  const r = resolverPromociones([perdedora, suma1, noAcumulable, suma2], ctx({ costoInscripcion: deTexto("1000.00") }));
+  assert.deepEqual(r.aplicadas.map((x) => x.promocionId), ["g"]);
+  assert.equal(aTexto(r.inscripcion.descuentoAhora), "100.00", "solo el 10 % de la ganadora");
+  assert.deepEqual(r.descartadas.map((d) => [d.promocionId, d.motivo]), [["p", "pierde_por_prioridad"], ["s1", "pierde_por_prioridad"], ["s2", "pierde_por_prioridad"]]);
+  // Sin no acumulables, las acumulables se suman todas, en orden de prioridad.
+  const sumas = resolverPromociones([suma1, suma2], ctx({ costoInscripcion: deTexto("1000.00") }));
+  assert.deepEqual(sumas.aplicadas.map((x) => x.promocionId), ["s2", "s1"]);
+  assert.equal(aTexto(sumas.inscripcion.descuentoAhora), "100.00", "5 % + 5 %");
   // La mejor no acumulable está fuera de vigencia: la siguiente toma su lugar.
   const fuera = promo("f", { prioridad: 99, vigenciaHasta: "2026-01-01" }, pct("90"));
   const r2 = resolverPromociones([fuera, perdedora], ctx());

@@ -21,6 +21,8 @@ export interface DepsApi {
   acceso: DepsAcceso;
   cookieSegura: boolean;
   origenesPermitidos: string[];
+  /** V2: true en un entorno local (desarrollo, pruebas o la demo): se aceptan además `localhost` y `127.0.0.1`. En producción, false: solo `origenesPermitidos`. */
+  origenesLocales: boolean;
   /** Cifrador y regla del maestro para los datos de salud (los tests inyectan los suyos). */
   sensibles: OpcionesSensibles;
   /** Agentes de Chatwoot. Nulo = no configurado. */

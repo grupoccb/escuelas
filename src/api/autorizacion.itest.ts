@@ -254,14 +254,14 @@ test("/api/yo dice quién eres, tus sucursales y tus permisos", async () => {
 
 // ── Alcance por sucursal ───────────────────────────────────────────────────────────────
 
-test("leads: el asesor ve solo su sucursal; recepción las dos; el administrador todo, incluido el lead sin sucursal", async () => {
+test("leads: el asesor ve su sucursal más los leads sin sucursal (V2); recepción las dos; el administrador todo", async () => {
   const asesor = ids(await como("asesor").get("/api/leads?limite=100"));
   assert.ok(asesor.includes(m.leadNorte));
   assert.ok(!asesor.includes(m.leadSur));
-  assert.ok(!asesor.includes(m.leadSinSucursal), "sin sucursal solo lo ve el administrador");
+  assert.ok(asesor.includes(m.leadSinSucursal), "V2, decisión 5: un lead sin sucursal lo ven todos los asesores");
   const recep = ids(await como("recepcion").get("/api/leads?limite=100"));
   assert.ok(recep.includes(m.leadNorte) && recep.includes(m.leadSur));
-  assert.ok(!recep.includes(m.leadSinSucursal));
+  assert.ok(!recep.includes(m.leadSinSucursal), "recepción conserva su alcance");
   const admin = ids(await como("administrador").get("/api/leads?limite=100"));
   assert.ok([m.leadNorte, m.leadSur, m.leadSinSucursal].every((id) => admin.includes(id)));
   // Pedir explícitamente otra sucursal no abre nada.
@@ -272,7 +272,8 @@ test("leads: el asesor ve solo su sucursal; recepción las dos; el administrador
 test("lead por id: el de otra sucursal da 404 (no 403) al asesor; el administrador lo ve con sus prospectos", async () => {
   assert.equal((await como("asesor").get(`/api/leads/${m.leadSur}`)).estado, 404);
   assert.equal((await como("asesor").get(`/api/leads/${m.leadNorte}`)).estado, 200);
-  assert.equal((await como("asesor").get(`/api/leads/${m.leadSinSucursal}`)).estado, 404);
+  assert.equal((await como("asesor").get(`/api/leads/${m.leadSinSucursal}`)).estado, 200, "V2: sin sucursal lo ve el asesor");
+  assert.equal((await como("recepcion").get(`/api/leads/${m.leadSinSucursal}`)).estado, 404);
   const r = await como("administrador").get<{ id: string; prospectos: unknown[] }>(`/api/leads/${m.leadSur}`);
   assert.equal(r.estado, 200);
   assert.ok(Array.isArray(r.cuerpo.prospectos));

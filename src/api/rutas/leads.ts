@@ -10,7 +10,7 @@
 import { Router } from "express";
 import { normalizarTelefono } from "../../lib/telefono.ts";
 import { fuenteDe } from "../../reportes/fuente.ts";
-import { filtroDeSucursal } from "../alcance.ts";
+import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { noEncontrado, validacion } from "../errores.ts";
@@ -64,7 +64,7 @@ export function rutasDeLeads(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
-    const filtro = filtroDeSucursal(await ctx.alcance());
+    const alcanceDeLeads = condicionDeLead(await ctx.alcance());
     let telefono: string | undefined;
     if (q.telefono !== undefined) {
       const n = normalizarTelefono(q.telefono);
@@ -72,7 +72,7 @@ export function rutasDeLeads(_deps: DepsApi): Router {
       telefono = n;
     }
     const condiciones: Record<string, unknown>[] = [];
-    if (filtro) condiciones.push({ sucursal_interes_id: filtro });
+    if (alcanceDeLeads) condiciones.push(alcanceDeLeads);
     if (q.sucursal_id) condiciones.push({ sucursal_interes_id: q.sucursal_id });
     if (q.etapa_id) condiciones.push({ etapa_id: q.etapa_id });
     if (telefono) condiciones.push({ telefono });
@@ -89,9 +89,9 @@ export function rutasDeLeads(_deps: DepsApi): Router {
   r.get("/leads/:id", ...dentro, async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
-    const filtro = filtroDeSucursal(await ctx.alcance());
+    const alcanceDeLeads = condicionDeLead(await ctx.alcance());
     const lead = await ctx.db.lead.findFirst({
-      where: { id, ...(filtro ? { sucursal_interes_id: filtro } : {}) },
+      where: { id, ...(alcanceDeLeads ?? {}) },
       select: {
         ...SELECCION,
         anuncio_titulo: true,

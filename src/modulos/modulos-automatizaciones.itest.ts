@@ -42,6 +42,8 @@ const CASOS: { evento: EventoDeAutomatizacion; entidad: string; modulo: ModuloAp
   { evento: "promocion_por_vencer", entidad: "aviso_promocion", modulo: "cotizador" },
   { evento: "clase_muestra_proxima", entidad: "clase_muestra", modulo: "clase_muestra" },
   { evento: "clase_muestra_no_asistio", entidad: "clase_muestra", modulo: "clase_muestra" },
+  { evento: "clase_muestra_reprogramada", entidad: "clase_muestra", modulo: "clase_muestra" },
+  { evento: "clase_muestra_cancelada", entidad: "clase_muestra", modulo: "clase_muestra" },
   { evento: "inscripcion_creada", entidad: "inscripcion", modulo: "inscripcion" },
   { evento: "cargo_por_vencer", entidad: "cargo", modulo: "finanzas" },
   { evento: "cargo_vencido", entidad: "cargo", modulo: "finanzas" },

@@ -295,6 +295,7 @@ test("lo guardado por la API llega al resolutor con montos exactos: Â«inscripciÃ
   const base = await crearOk({
     nombre: `Base ${unica}`,
     condicion_tipo: "al_pagar_primera_mensualidad",
+    acumulable: true, // V2: una no acumulable no se combina con la de hermanos; esta prueba es de montos exactos con las dos juntas
     prioridad: 10,
     verticales: [org.verticalId],
     beneficios: [

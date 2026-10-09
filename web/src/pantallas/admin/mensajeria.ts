@@ -12,6 +12,8 @@ export const EVENTOS: Record<string, { titulo: string; sentido: "antes" | "despu
   inscripcion_creada: { titulo: "Bienvenida de inscripción", sentido: "despues", ayuda: "Minutos después de inscribirse.", modulo: "inscripcion" },
   cargo_por_vencer: { titulo: "Recordatorio de pago antes de vencer", sentido: "antes", ayuda: "Minutos antes del día de vencimiento (negativo).", modulo: "finanzas" },
   cargo_vencido: { titulo: "Recordatorio de pago atrasado", sentido: "despues", ayuda: "Minutos después del vencimiento; los siguientes intentos salen cada «espaciado».", modulo: "finanzas" },
+  clase_muestra_reprogramada: { titulo: "Aviso de clase muestra reprogramada", sentido: "despues", ayuda: "Minutos después de que una persona reprograma la clase (0 = enseguida, dentro del horario de envío). Si ya no alcanza a llegar antes de la clase, no sale y queda una tarea.", modulo: "clase_muestra" },
+  clase_muestra_cancelada: { titulo: "Aviso de clase muestra cancelada", sentido: "despues", ayuda: "Minutos después de que una persona cancela la clase (0 = enseguida, dentro del horario de envío). Si ya no alcanza a llegar antes de la clase, no sale y queda una tarea.", modulo: "clase_muestra" },
 };
 
 /** El nombre del módulo, para decirle a la escuela por qué una automatización está en pausa. */

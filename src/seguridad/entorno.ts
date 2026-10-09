@@ -23,6 +23,15 @@ export function esEntornoDeDemo(env: NodeJS.ProcessEnv): boolean {
   return (env["ENTORNO_DEMO"] ?? "").trim().toLowerCase() === "si";
 }
 
+/**
+ * ¿Es un entorno LOCAL (desarrollo o la demo de docker compose) y no una instalación real? Sí si `NODE_ENV` no es `production`, o si es la demo declarada (`ENTORNO_DEMO=si`:
+ * corre con `NODE_ENV=production` pero en la máquina de quien la prueba). Solo ahí la aplicación acepta también `localhost` y `127.0.0.1` como origen (V2, decisión 7).
+ * Una instalación real (AWS) no define `ENTORNO_DEMO` y, con `NODE_ENV=production`, solo acepta `ORIGEN_PUBLICO`.
+ */
+export function esEntornoLocal(env: NodeJS.ProcessEnv): boolean {
+  return env["NODE_ENV"] !== "production" || esEntornoDeDemo(env);
+}
+
 export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDeEntorno[] {
   if (env["NODE_ENV"] !== "production") return [];
   const hallazgos: HallazgoDeEntorno[] = [];

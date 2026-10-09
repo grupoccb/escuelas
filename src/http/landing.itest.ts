@@ -570,7 +570,7 @@ test("EE-08: un envío que no viene de la propia página (otro sitio) se rechaza
   const cuerpo = (tel: string) => campos(m, { telefono: tel });
   const rechazados: [string, Record<string, string>][] = [
     ["origen de otro sitio", { origin: "https://evil.example" }],
-    ["otro sitio con puerto", { origin: "http://127.0.0.1:1" }],
+    ["un subdominio que parece local", { origin: "http://127.0.0.1.evil.example:1" }],
     ["Sec-Fetch-Site cross-site", { "sec-fetch-site": "cross-site", origin: "null" }],
     ["origen ilegible", { origin: "no es una url" }],
   ];
@@ -599,18 +599,48 @@ test("EE-08: un envío que no viene de la propia página (otro sitio) se rechaza
 
 test("EE-08: con orígenes públicos configurados, solo esos valen (ni el propio host)", async () => {
   const m = await mundo();
-  const fijo = levantarApi(prisma, {}, { landing: { prisma, origenesPermitidos: ["https://app.escuela.example"] } });
+  const fijo = levantarApi(prisma, {}, { landing: { prisma, origenesPermitidos: ["https://app.escuela.example"], origenesLocales: false } });
   await fijo.listo;
   try {
     const propio = await enviar(fijo.base, m.ruta, campos(m, { telefono: "55 8400 0001" }), { origin: fijo.base });
     assert.equal(propio.status, 403, "ni el propio host si no es el configurado");
     await propio.text();
+    // V2: en producción tampoco valen localhost ni 127.0.0.1, con ningún puerto.
+    for (const origin of ["http://localhost:3000", "http://127.0.0.1:1", "http://localhost.evil.example"]) {
+      const local = await enviar(fijo.base, m.ruta, campos(m, { telefono: "55 8400 0001" }), { origin });
+      assert.equal(local.status, 403, origin);
+      await local.text();
+    }
     const publico = await enviar(fijo.base, m.ruta, campos(m, { telefono: "55 8400 0001" }), { origin: "https://app.escuela.example" });
     assert.equal(publico.status, 303);
     await publico.text();
     assert.equal(await m.db.lead.count(), 1);
   } finally {
     await fijo.cerrar();
+  }
+});
+
+test("V2 (decisión 7): en local la landing acepta localhost y 127.0.0.1 con cualquier puerto aunque ORIGEN_PUBLICO sea otro; lo ajeno y los subdominios engañosos no", async () => {
+  const m = await mundo();
+  const local = levantarApi(prisma, {}, { landing: { prisma, origenesPermitidos: ["https://app.escuela.example"], origenesLocales: true } });
+  await local.listo;
+  try {
+    const casos: [string, number][] = [
+      ["http://localhost:3000", 303],
+      ["http://127.0.0.1:5173", 303],
+      ["https://app.escuela.example", 303],
+      ["https://malo.example", 403],
+      ["http://localhost.evil.example", 403],
+      ["http://localhost@evil.example", 403],
+    ];
+    for (const [i, [origin, estado]] of casos.entries()) {
+      const r = await enviar(local.base, m.ruta, campos(m, { telefono: `55 8500 000${i}` }), { origin });
+      assert.equal(r.status, estado, origin);
+      await r.text();
+    }
+    assert.equal(await m.db.lead.count(), 3, "solo los tres aceptados llegaron a la base");
+  } finally {
+    await local.cerrar();
   }
 });
 

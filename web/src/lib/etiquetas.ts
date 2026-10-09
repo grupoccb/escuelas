@@ -72,6 +72,7 @@ export const TIPOS_DE_TAREA: Record<string, { titulo: string; ayuda: string }> =
   lista_espera_lugar_liberado: { titulo: "Lugar liberado", ayuda: "Se liberó un lugar: ofrécelo al siguiente de la lista." },
   aviso_maestro_no_enviado: { titulo: "Aviso al maestro no enviado", ayuda: "El aviso de la clase muestra no salió por WhatsApp; el maestro lo ve en la aplicación." },
   llamar_no_asistio: { titulo: "Llamar a quien no llegó", ayuda: "No llegó a su clase muestra: ofrécele reagendar." },
+  avisar_cambio_de_clase: { titulo: "Avisar el cambio de una clase", ayuda: "Se cambió o se canceló una clase muestra y el aviso por WhatsApp no pudo salir a tiempo: llama a la familia y avísale." },
   lead_frio: { titulo: "Lead sin movimiento", ayuda: "Lleva días sin movimiento en su etapa: decide cómo retomarlo." },
   listo_para_cerrar: { titulo: "Listo para cerrar", ayuda: "El maestro marcó que la familia quedó lista para inscribirse." },
   faltas_consecutivas: { titulo: "Faltas seguidas", ayuda: "Un alumno llegó al umbral de faltas consecutivas." },

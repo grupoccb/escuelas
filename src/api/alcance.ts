@@ -7,12 +7,20 @@
 //
 // Todo recurso con sucursal usa `filtroDeSucursal()` para armar su `where`; nadie arma el filtro a
 // mano. La organización la pone el scope (`ctx.db`), no este archivo.
+//
+// UN LEAD SIN SUCURSAL (V2, decisión 5). Un lead que todavía no eligió sucursal (`sucursal_interes_id` nulo) lo ven y atienden TODOS los asesores de la organización hasta
+// que tenga una; en cuanto la tiene, solo los asesores de esa sucursal (y el administrador). Es una excepción del ASESOR y solo de los leads (y lo que cuelga de ellos:
+// prospectos, cotizaciones, tareas del lead, historial, conversaciones, exportación): recepción y maestro conservan su alcance, y lo demás con sucursal (grupos, cargos,
+// inscripciones, familias) no cambia. Vive en UN solo lugar: `condicionDeLead()`; las rutas de leads no arman `sucursal_interes_id: { in }` a mano.
 
 import type { BaseDatos } from "../datos/alcance.ts";
 import type { UsuarioDeSesion } from "../auth/sesiones.ts";
 import { noEncontrado } from "./errores.ts";
 
-export type AlcanceDeSucursales = { todas: true } | { todas: false; sucursalIds: string[] };
+export type AlcanceDeSucursales =
+  | { todas: true }
+  /** `leadsSinSucursal`: el asesor también ve y atiende los leads que aún no tienen sucursal (V2, decisión 5). Ausente = no. */
+  | { todas: false; sucursalIds: string[]; leadsSinSucursal?: boolean };
 
 /** Las sucursales que ve el usuario. El administrador las ve todas sin necesidad de filas. */
 export async function alcanceDeSucursales(db: BaseDatos, usuario: Pick<UsuarioDeSesion, "id" | "rol">): Promise<AlcanceDeSucursales> {
@@ -22,7 +30,7 @@ export async function alcanceDeSucursales(db: BaseDatos, usuario: Pick<UsuarioDe
     select: { sucursal_id: true },
     orderBy: { sucursal_id: "asc" },
   });
-  return { todas: false, sucursalIds: filas.map((f) => f.sucursal_id) };
+  return { todas: false, sucursalIds: filas.map((f) => f.sucursal_id), ...(usuario.rol === "asesor" ? { leadsSinSucursal: true } : {}) };
 }
 
 /**
@@ -48,6 +56,24 @@ export async function alcanceDeCatalogo(db: BaseDatos, usuario: Pick<UsuarioDeSe
  */
 export function filtroDeSucursal(alcance: AlcanceDeSucursales): { in: string[] } | undefined {
   return alcance.todas ? undefined : { in: alcance.sucursalIds };
+}
+
+/**
+ * Condición de Prisma sobre un `lead` para lo que el usuario puede ver; `undefined` (sin restricción) para el administrador. Es la única forma de acotar leads por sucursal:
+ * el asesor ve los de sus sucursales MÁS los que todavía no tienen sucursal (decisión 5 de V2); recepción y maestro, solo los de sus sucursales.
+ * Para una relación (`conversacion.lead`, `tarea_asesor.lead`, `prospecto.lead`): `{ lead: condicionDeLead(alcance) }`.
+ */
+export function condicionDeLead(alcance: AlcanceDeSucursales): Record<string, unknown> | undefined {
+  if (alcance.todas) return undefined;
+  const suyas = { sucursal_interes_id: { in: alcance.sucursalIds } };
+  return alcance.leadsSinSucursal ? { OR: [{ sucursal_interes_id: null }, suyas] } : suyas;
+}
+
+/** ¿Puede ver (y atender) un lead con esta sucursal de interés (nula si aún no la tiene)? La versión en memoria de `condicionDeLead`, para validar un id que llega por parámetro. */
+export function veLeadDeSucursal(alcance: AlcanceDeSucursales, sucursalInteresId: string | null): boolean {
+  if (alcance.todas) return true;
+  if (sucursalInteresId === null) return alcance.leadsSinSucursal === true;
+  return alcance.sucursalIds.includes(sucursalInteresId);
 }
 
 /** ¿Puede ver esta sucursal? Para validar un id que llega por parámetro. */

@@ -17,7 +17,7 @@ import { log } from "./lib/log.ts";
 import { estadoDelBarrido } from "./observabilidad/proceso.ts";
 import { crearRecolector } from "./observabilidad/recolector.ts";
 import { leerMigracionesEsperadas } from "./observabilidad/salud.ts";
-import { esEntornoDeDemo, impedimentosParaArrancar, revisarEntorno } from "./seguridad/entorno.ts";
+import { esEntornoDeDemo, esEntornoLocal, impedimentosParaArrancar, revisarEntorno } from "./seguridad/entorno.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
 import { crearManejadorDeInesperados } from "./webhooks/inesperado.ts";
 import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega, sondaChatwootDesdeEntorno } from "./mensajeria/index.ts";
@@ -70,7 +70,7 @@ const app = crearApp({
   twilio,
   // Landing pública por vertical (/l/:vertical): el cuestionario que crea el lead y manda a WhatsApp con su código de rastreo (E1).
   // El POST de la landing solo se acepta desde el origen público configurado (ORIGEN_PUBLICO), o desde el propio host si no hay uno (EE-08).
-  landing: { prisma, origenesPermitidos: origenesPermitidosDesdeEntorno() },
+  landing: { prisma, origenesPermitidos: origenesPermitidosDesdeEntorno(), origenesLocales: esEntornoLocal(process.env) },
   // API de la aplicación (/api): sesiones, usuarios y recursos. Configuración por variables de entorno.
   // Falla al arrancar (en producción) si falta CLAVE_DATOS_SENSIBLES, en vez de al primer uso.
   api: { prisma, sensibles: { cifrador: cifradorDesdeEntorno() }, directorio: directorioAgentesDesdeEntorno(), fuenteOcupacion, expediente: { economico: new ProveedorEconomicoDeFinanzas(), productos: new ProveedorProductosDeFinanzas() } },

@@ -189,11 +189,13 @@ test("permisos: administrador y asesor cotizan; recepción lee pero no cotiza; e
   assert.equal((await cotizar(api.cliente(), leadNorte, {})).estado, 401);
 });
 
-test("alcance: el asesor de otra sucursal no ve ni cotiza el lead (404); un lead sin sucursal solo lo ve el administrador", async () => {
+test("alcance: el asesor de otra sucursal no ve ni cotiza el lead (404); un lead sin sucursal lo ven todos los asesores (V2) pero no recepción ni el maestro", async () => {
   assert.equal((await listar(asesorSur, leadNorte)).estado, 404);
   assert.equal((await cotizar(asesorSur, leadNorte, { prospecto_id: prospectoNino, programa_id: pNinos.id })).estado, 404);
   const sinSucursal = await prisma.lead.create({ data: { organizacion_id: org.organizacionId, vertical_interes_id: org.verticalId, etapa_id: org.etapaInicialId } });
-  assert.equal((await listar(asesorNorte, sinSucursal.id)).estado, 404);
+  assert.equal((await listar(asesorNorte, sinSucursal.id)).estado, 200, "V2, decisión 5: un lead sin sucursal lo ven todos los asesores");
+  assert.equal((await listar(asesorSur, sinSucursal.id)).estado, 200);
+  assert.equal((await listar(recepcion, sinSucursal.id)).estado, 404, "recepción conserva su alcance: sin sucursal no es de la suya");
   assert.equal((await listar(admin, sinSucursal.id)).estado, 200);
   assert.equal((await listar(admin, randomUUID())).estado, 404);
 });

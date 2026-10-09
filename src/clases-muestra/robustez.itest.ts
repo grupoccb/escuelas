@@ -9,7 +9,7 @@ import { crearVersionDeDocumento, documentoVigente } from "../legal/documentos.t
 import { conAlcance } from "../datos/alcance.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, POR_UNA_PERSONA } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra, type ContextoDeAgenda } from "./agenda.ts";
 import { moverLeadAEtapa } from "../embudo/etapas.ts";
@@ -98,7 +98,7 @@ test("ED-05 (M49): el maestro lee la ficha de salud de un prospecto solo mientra
   assert.equal(await puede(m.maestroB), true);
 
   // Cancelarla: nadie.
-  const c = await m.db.$transaction((tx) => cancelarClaseMuestra(tx, rep.clase.id, null, AHORA));
+  const c = await m.db.$transaction((tx) => cancelarClaseMuestra(tx, rep.clase.id, null, AHORA, POR_UNA_PERSONA));
   assert.ok(c.ok);
   assert.equal(await puede(m.maestroB), false, "una clase cancelada no da acceso");
 

@@ -70,7 +70,7 @@ Lista única de lo que Eduardo debe decidir y de lo que la escuela debe confirma
 | EC-19 | ¿La capacidad del salón debe limitar el cupo del grupo? | Sin recomendación previa. | No se contrastan. | |
 | EC-20 | ¿Se puede corregir el costo de un precio ya usado, o solo cerrarlo y abrir otro? ¿Y borrar el precio vigente? | Sin recomendación previa. | Se puede corregir y borrar; sin precio vigente el cotizador dice "sin precio". | |
 | EC-21 | ¿Una promoción sin alcance debe avisar o pedir confirmación antes de volverse universal? | Sin recomendación previa. | Sin filas de alcance vale para todos; quitar el último programa la vuelve universal sin aviso. | |
-| C3-acum | ¿Una promoción no acumulable debe excluir también a las acumulables? | Si el negocio lo quiere, se marcan todas como no acumulables. | No: la ganadora no acumulable convive con las acumulables. | |
+| C3-acum | ¿Una promoción no acumulable debe excluir también a las acumulables? | — | **Sí (decisión 6 de V1, hecha en V2):** una no acumulable no se combina con ninguna otra; compite sola contra el grupo de acumulables por prioridad, luego mayor beneficio al cliente y luego menor id. Antes (C3): convivía con las acumulables. | Eduardo decidió |
 | EC-05 | ¿Quién fusiona los salones migrados con nombres casi iguales? | La verificación `salonesConNombreParecido` los lista; decide el administrador. | Nuevos nombres parecidos ya se rechazan; los viejos no se fusionan solos. | |
 | CTX-13 | Centenario, karate 6 a 13 años, depende de un solo horario (martes y jueves 5:00 pm): ¿se abre otro? | Contexto §13: medirlo antes de decidir. | Un solo grupo. | |
 
@@ -192,7 +192,7 @@ Dónde vive cada uno: "API" significa que el administrador puede cambiarlo por l
 | Área | Qué se asumió | Dónde vive | Valor actual | Confirmación de la escuela |
 |---|---|---|---|---|
 | Precios | Inscripción y mensualidad de los 14 programas, iguales en las dos sucursales, en pesos, vigentes desde 2026-01-01 | `precio`; API | Karate 3-5: 600 y 750; Karate 6-13: 600 y 850; Karate 14+: 700 y 950; Ballet 3-5: 600 y 800; Ballet 6-13: 600 y 900; Ballet 14+: 700 y 1,000; Salsa y Cumbia: 500 y 700; Twerk: 500 y 750 | |
-| Promociones | Tres promociones de ejemplo, vigentes de 2026-01-01 a 2027-12-31, para todas las verticales y sucursales, sin tope de cupo | `promocion`, `promocion_beneficio`; API | Inscripción gratis (no acumulable, prioridad 10); uniforme gratis al pagar la primera mensualidad (acumulable, 5); 10 % en la mensualidad desde el segundo hermano (acumulable, 3) | |
+| Promociones | Tres promociones de ejemplo, vigentes de 2026-01-01 a 2027-12-31, para todas las verticales y sucursales, sin tope de cupo | `promocion`, `promocion_beneficio`; API | Inscripción gratis (acumulable, prioridad 10; antes de V2 era no acumulable, pero ahora una no acumulable no se combina con nadie y la demo cuenta la historia de las tres juntas); uniforme gratis al pagar la primera mensualidad (acumulable, 5); 10 % en la mensualidad desde el segundo hermano (acumulable, 3) | |
 | Productos | Stock global y que recepción ajusta el inventario | `producto`; API | Global por producto | |
 | Cotización | Días que vale una cotización, a lo más (antes vence si lo cotizado vence: una promoción o el precio) | `configuracion_organizacion.cotizacion_vigencia_dias`; SQL | 7 días | |
 | Lista de espera | Horas para tomar un lugar ofrecido | `configuracion_organizacion.lista_espera_oferta_horas`; SQL | 48 horas | |

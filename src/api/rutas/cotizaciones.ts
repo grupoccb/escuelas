@@ -21,7 +21,7 @@ import { cotizar } from "../../cotizador/cotizar.ts";
 import { guardarCotizacion } from "../../cotizador/guardar.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
 import { fechaLocal } from "../../lib/horario.ts";
-import { filtroDeSucursal, veSucursal } from "../alcance.ts";
+import { condicionDeLead, veSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -105,8 +105,7 @@ export function rutasDeCotizaciones(deps: DepsApi): Router {
 
   /** El lead, si es de una sucursal que ve quien pregunta. */
   async function leadVisible(ctx: ReturnType<typeof contextoDe>, id: string) {
-    const filtro = filtroDeSucursal(await ctx.alcance());
-    return ctx.db.lead.findFirst({ where: { id, ...(filtro ? { sucursal_interes_id: filtro } : {}) }, select: { id: true, vertical_interes_id: true } });
+    return ctx.db.lead.findFirst({ where: { id, ...(condicionDeLead(await ctx.alcance()) ?? {}) }, select: { id: true, vertical_interes_id: true } });
   }
 
   r.get("/leads/:id/cotizaciones", requierePermiso("leads:leer"), async (req, res) => {

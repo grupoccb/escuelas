@@ -20,7 +20,7 @@ import { log } from "../lib/log.ts";
 import { MessagingProvider, TransporteFalso, registrarEstadoEntrega, type EventoEntrante } from "../mensajeria/index.ts";
 import { colectarLogs, type ColectorDeLogs } from "../testutil/logs.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { OcupacionFija, sembrarDocumentosLegales, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { OcupacionFija, sembrarDocumentosLegales, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba, POR_UNA_PERSONA } from "../testutil/semilla.ts";
 import { escenarioBot } from "../testutil/bot.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, reprogramarClaseMuestra } from "../clases-muestra/agenda.ts";
 import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
@@ -251,7 +251,7 @@ test("D1-D4: ningún centinela de salud aparece en el aviso al maestro, los reco
     await correrAutomatizaciones({ prisma, mensajeria: new MessagingProvider({ transporte: e.transporte, reloj: () => new Date("2026-11-17T16:00:00Z") }), reloj: () => new Date("2026-11-17T16:00:00Z"), organizacionId: e.org.organizacionId });
     const otra = await db.$transaction((tx) => agendarClaseMuestra(tx, ctx, { prospectoId: f.prospectoId, grupoId, fechaHora: new Date("2026-11-23T22:00:00Z") }));
     assert.ok(otra.ok);
-    await db.$transaction((tx) => cancelarClaseMuestra(tx, otra.clase.id, "cambio de planes", AHORA));
+    await db.$transaction((tx) => cancelarClaseMuestra(tx, otra.clase.id, "cambio de planes", AHORA, POR_UNA_PERSONA));
   } finally {
     colector.detener();
   }

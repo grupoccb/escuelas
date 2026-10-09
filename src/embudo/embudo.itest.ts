@@ -120,8 +120,10 @@ test("D7: permisos, alcance y entradas — recepción y maestro 403; otra sucurs
   assert.equal((await mover(admin, f.leadId, { etapa_id: etapas.contactado, campo_raro: 1 })).estado, 400);
   assert.equal((await mover(admin, f.leadId, {})).estado, 400);
   const lejano = await sembrarFamilia(prisma, org, { sucursalId: null, etapaId: etapas.nuevo });
-  assert.equal((await mover(asesorNorte, lejano.leadId, { etapa_id: etapas.contactado })).estado, 404, "un lead sin sucursal solo lo ve el administrador");
+  assert.equal((await mover(asesorNorte, lejano.leadId, { etapa_id: etapas.contactado })).estado, 200, "V2, decisión 5: un lead sin sucursal lo atienden todos los asesores");
   assert.equal((await mover(admin, lejano.leadId, { etapa_id: etapas.contactado })).estado, 200);
+  const conSucursal = await sembrarFamilia(prisma, org, { sucursalId: sur, etapaId: etapas.nuevo });
+  assert.equal((await mover(asesorNorte, conSucursal.leadId, { etapa_id: etapas.contactado })).estado, 404, "en cuanto tiene sucursal, solo los asesores de esa sucursal");
   assert.equal((await filasDe(f.leadId)).length, 0, "nada de lo rechazado quedó en el historial");
 });
 
