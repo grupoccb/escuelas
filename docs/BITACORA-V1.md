@@ -8,7 +8,7 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 | V1 | HECHO | ver `git log` (`V1:`) | Módulos por organización: interruptores en Administración, guarda de rutas, motor, bot y barridos |
 | V2 | HECHO | ver `git log` (`V2:`) | Decisiones 4 a 7: aviso a la familia por un cambio de clase, leads sin sucursal, promociones no acumulables, orígenes locales |
 | V3 | HECHO | ver `git log` (`V3:`) | Segundo hijo: niños del lead por API y ficha, conversión de hermanos en una operación, promoción por hermanos con la cotización previa exacta, EF-11 resuelto, `demo:guiada` |
-| V4 | PENDIENTE | | Cierre con el maestro en sitio (EK-15) |
+| V4 | HECHO | ver `git log` (`V4:`) | Cierre con el maestro en sitio probado en navegador (EK-15 resuelto): confirmación con el grupo, grupo lleno con siguiente paso, 9 pruebas en Chromium (celular y escritorio) |
 | V5 | PENDIENTE | | Configuración sin SQL |
 | V6 | PENDIENTE | | Carga del catálogo real |
 | V7 | PENDIENTE | | Recorrido por rol |
@@ -139,3 +139,30 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 - **Hueco que ya existía y V3 no cierra:** con el módulo de clase muestra apagado y el de inscripción encendido, nadie puede registrar el reglamento de un niño que no tenga un hermano que ya lo aceptó (el registro vive en la clase muestra). Es decisión de producto (¿un formulario de aceptación en la ficha?).
 - **Pendientes de EF-11:** con el candado de la familia queda resuelto; EF-14 (bienvenidas duplicadas por hermanos) sigue abierto.
 - Para ver lo nuevo en la demo ya levantada hay que aplicar la migración `20261027030000_v3_segundo_hijo` (`prisma migrate deploy`); V12 reconstruye la demo.
+
+## V4. Cierre con el maestro en sitio (EK-15)
+
+**Qué se hizo**
+- **Prueba de punta a punta** `web/e2e/v4-cierre-en-sitio.spec.ts` (9 pruebas, corre después de V3 por su nombre): (1) el administrador cambia el modo en **Administración → Configuración** (en la interfaz, no por API), guarda y la API lo confirma; (2) en celular de 390 px el maestro del mundo de pruebas abre «Hoy», ve a su alumno (lead con clase muestra asistida, registro completo capturado por el maestro por la API y reglamento aceptado), pulsa «Inscribir a mi alumno», confirma y se verifica en la base y en la API: una inscripción activa en el grupo recomendado con precios 500/800, un lugar menos, cargos de inscripción y primera mensualidad, lead en etapa «inscrito», `npm run cuadratura` en verde (se ejecuta de verdad sobre la organización de la prueba) y **ningún importe**: ni en la pantalla (sin `$`, cifras con decimales ni MXN), ni por la API (`GET /api/cargos` 403, la inscripción que lee el maestro no trae `precio_*`, `descuento_*` ni promociones); (3) lo mismo en escritorio de 1366 px.
+- **Caminos que no inscriben**, cada uno comprobando que no quedó nada a medias: modo `asesor_whatsapp` (sin botón, API 403 con la instrucción, solo el asesor convierte); módulo de inscripción apagado (con sus dependientes, como V1 exige): ni «Inscribir a mi alumno» ni «Listo para cerrar», API 404, y al encenderlo vuelve sin reiniciar; grupo que se llena mientras el maestro confirma (mensaje, sin alumno, sin cargos, lead sin avanzar, «Avisar al asesor» deja una tarea); doble clic (una inscripción, un juego de cargos), reintento después y tres peticiones simultáneas (`201, 200, 200`); alumno ajeno (no aparece en «Hoy», 404 en vista previa y conversión, incluso nombrando al niño por su identificador, y un hermano suyo sin clase con él tampoco); registro incompleto (la lista dice qué falta y el botón queda deshabilitado).
+- **Fricciones corregidas** (`web/src/pantallas/conversion/CierreEnSitio.tsx`): (a) pulsar «Inscribir a mi alumno» inscribía de inmediato aunque aparta un lugar y genera el cobro: ahora pide confirmar con el nombre del alumno y el grupo en que queda, sin importes; (b) las faltas salían con las palabras del asesor («Grupo y horario», «Precio del programa»): ahora el maestro lee «El grupo en el que se inscribe (elígelo en «Grupo recomendado» del registro del alumno)» y «Que la familia acepte el reglamento»; (c) un rechazo del servidor («El grupo ya no tiene lugares») salía como un error pelón sin siguiente paso y, encima, la pantalla seguía diciendo «Ya está todo lo necesario»: ahora dice qué grupo se llenó, que no se inscribió ni se cobró nada, y ofrece **Avisar al asesor** (la misma tarea de «listo para cerrar»; él lo pone en lista de espera o le busca otro grupo); (d) Configuración explica qué cambia el modo de cierre.
+- **API** (única pieza): la vista previa de la conversión trae `previsiones[].grupo_nombre` (el grupo en que se inscribirá) para la confirmación; sin importes. Documentado en `docs/API.md` y `docs/OPERACION.md`.
+- Capturas en `docs/capturas/v1/` (`v4-01` … `v4-11`): configuración, el botón, la confirmación, el alumno inscrito, lo que falta, grupo lleno, escritorio, modo asesor y módulo apagado.
+
+**Verificación**
+- Prueba nueva de integración `src/conversion/cierre.itest.ts` (grupo lleno por el maestro: 409 `grupo_lleno`, el niño sigue sin ser alumno, sin inscripción, el lead no avanza, «listo para cerrar» deja una tarea; y la vista previa trae el nombre del grupo en que se inscribirá, sin que ella ni el resultado de convertir traigan importes).
+- `npm run validar` → exit 0 (719 tests de backend + 65 de la interfaz, 0 fallas; sin cambio de conteo: no hay lógica pura nueva).
+- `npm run test:int` → exit 0 (`ℹ tests 1248 / ℹ pass 1248 / ℹ fail 0`; antes 1247). Corrido sobre su propia base `v4_inscripciones_pruebas`.
+- `npm run test:navegador` → exit 0 (`134 passed`, 3.1 min; antes 125). Corrido sobre `v4_inscripciones_navegador_pruebas` y el puerto 4340.
+
+**Decisiones que tomé**
+- **Confirmar antes de inscribir.** Alternativa descartada: dejar el clic directo (el maestro puede tocar el botón sin querer y la operación mueve cupo y dinero; se deshace solo con un proceso de baja).
+- **El siguiente paso ante un rechazo es avisar al asesor, no una lista de espera para el maestro.** Alternativa descartada: darle al maestro el permiso de la lista de espera (es decisión de producto y el asesor ya tiene esa salida en el asistente de V3). Reutiliza `POST /api/clases-muestra/:id/listo-para-cerrar` (idempotente), así que no hay ruta nueva.
+- **Las familias de la prueba se siembran dentro de la propia prueba** (no en `scripts/navegador/mundo.ts`), con un programa y tres grupos propios; las promociones del mundo se apagan mientras corre y se reactivan al final (como V3), para que los montos sean exactos. El registro lo captura el maestro por la API, como en la vida real.
+- **Cuadratura** se ejecuta con el comando real (`scripts/cuadratura.ts --organizacion`), no con una réplica.
+- **EK-15 resuelto** (informe `docs/auditorias/etapa-K9-final.md`, fila EK-15, que queda con su texto original como registro histórico). La salvedad «parcial» de **J4** («el modo `maestro_en_sitio` no tiene prueba en navegador…», `docs/BITACORA-NOCHE-2.md`, que no se edita) **queda cerrada**: J4 pasa de `HECHO (parcial)` a `HECHO` a partir de este bloque.
+
+**Para Eduardo**
+- Con el módulo de clase muestra apagado y el de inscripción encendido el maestro no tiene «Hoy», así que el cierre en sitio no existe (es lo esperado: el cierre en sitio vive en la clase muestra).
+- «Avisar al asesor» crea la misma tarea de «listo para cerrar»: su texto no dice que el grupo estaba lleno. Si quieres que lo diga, es un cambio de texto de la tarea.
+- Una vez inscrito, el maestro ve «Este alumno ya está inscrito» y nada más; no hay forma de deshacerlo desde su pantalla (a propósito).

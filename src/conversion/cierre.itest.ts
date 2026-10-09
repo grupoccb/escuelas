@@ -33,7 +33,7 @@ const cifrador = crearCifrador(randomBytes(32));
 
 interface Errores { error: { codigo: string; mensaje: string; detalles?: { campo?: string; mensaje: string }[] } }
 interface Listo { clase_id: string; lead_id: string; creado: boolean; etapa_movida: boolean; tarea_id: string | null }
-interface Previa { listo: boolean; faltantes: { campo: string }[] }
+interface Previa { listo: boolean; faltantes: { campo: string }[]; previsiones: { prospecto_id: string; grupo_nombre: string | null }[] }
 
 let n = 0;
 async function grupo(instructorId: string, sucursalId = norte) {
@@ -172,8 +172,13 @@ test("MODO maestro_en_sitio: el maestro convierte a SUS alumnos al terminar la c
   const previa = await maestro.get<Previa>(`/api/leads/${f.leadId}/conversion`);
   assert.equal(previa.estado, 200);
   assert.deepEqual(previa.cuerpo.faltantes.map((x) => x.campo).sort(), [`prospectos.${f.prospectoId}.alumno.apellidos`, `prospectos.${f.prospectoId}.alumno.fecha_nacimiento`, "tutor.parentesco"].sort());
+  // V4: la vista previa le dice al maestro EN QUÉ GRUPO queda (la pantalla lo pone en la confirmación), sin ningún importe.
+  const nombreDelGrupo = (await prisma.grupo.findFirstOrThrow({ where: { id: gMaestro.grupoId } })).nombre;
+  assert.deepEqual(previa.cuerpo.previsiones.map((x) => [x.prospecto_id, x.grupo_nombre]), [[f.prospectoId, nombreDelGrupo]]);
+  assert.doesNotMatch(JSON.stringify(previa.cuerpo), /monto|precio|importe|\$/i);
   const r = await maestro.post<{ ya_convertido: boolean; alumnos: { inscripcion: { grupo_id: string; creada: boolean } }[] } & Errores>(`/api/leads/${f.leadId}/convertir`, completar(f));
   assert.equal(r.estado, 201, JSON.stringify(r.cuerpo));
+  assert.doesNotMatch(JSON.stringify(r.cuerpo), /monto|precio|importe|\$/i, "el maestro no recibe importes al inscribir");
   assert.deepEqual([r.cuerpo.alumnos[0]!.inscripcion.grupo_id, r.cuerpo.alumnos[0]!.inscripcion.creada], [gMaestro.grupoId, true]);
   assert.equal((await prisma.lead.findFirstOrThrow({ where: { id: f.leadId } })).etapa_id, etapas.inscrito);
   assert.equal((await prisma.tarea_asesor.findFirstOrThrow({ where: { lead_id: f.leadId, tipo: "listo_para_cerrar" } })).estado, "hecha", "la tarea «listo para cerrar» se resolvió sola");
@@ -184,6 +189,34 @@ test("MODO maestro_en_sitio: el maestro convierte a SUS alumnos al terminar la c
   await fijarConfiguracion(prisma, org.organizacionId, { modo_cierre: "asesor_whatsapp" });
   assert.equal((await maestro.get(`/api/leads/${f.leadId}/conversion`)).estado, 403);
   assert.equal((await asesorNorte.get(`/api/leads/${f.leadId}/conversion`)).estado, 200);
+});
+
+test("MODO maestro_en_sitio — el grupo se llena antes de confirmar (V4): 409 grupo_lleno con el motivo, nada a medias (sin alumno, sin cargos, el lead no avanza) y el aviso al asesor sigue disponible", async () => {
+  await fijarConfiguracion(prisma, org.organizacionId, { modo_cierre: "maestro_en_sitio" });
+  try {
+    const p = await sembrarPrograma(prisma, org, { sucursalId: norte, nombre: `Programa lleno ${++n}`, edadMin: 3, edadMax: 14, grupos: [{ nombre: `Grupo lleno ${n}`, cupoMaximo: 1, horarios: [[n % 7, 480 + (n % 10) * 60, 530 + (n % 10) * 60]] }], precio: { inscripcion: "500.00", mensualidad: "800.00" } });
+    const lleno = { programaId: p.id, grupoId: p.grupos[0]!.id };
+    await prisma.grupo.update({ where: { id: lleno.grupoId }, data: { instructor_id: (await prisma.instructor.findFirstOrThrow({ where: { organizacion_id: org.organizacionId, nombre: "Maestro uno" } })).id } });
+    const f = await leadConClase(lleno);
+    const previa = await maestro.get<Previa>(`/api/leads/${f.leadId}/conversion`);
+    assert.equal(previa.estado, 200);
+    assert.equal(previa.cuerpo.previsiones[0]!.grupo_nombre, `Grupo lleno ${n}`);
+    // Otra persona toma el único lugar.
+    const otra = await leadConClase(lleno);
+    assert.equal((await admin.post(`/api/leads/${otra.leadId}/convertir`, completar(otra))).estado, 201);
+    const r = await maestro.post<Errores>(`/api/leads/${f.leadId}/convertir`, completar(f));
+    assert.equal(r.estado, 409, JSON.stringify(r.cuerpo));
+    assert.equal(r.cuerpo.error.detalles?.find((d) => d.campo === "motivo")?.mensaje, "grupo_lleno");
+    assert.equal((await prisma.prospecto.findFirstOrThrow({ where: { id: f.prospectoId } })).alumno_id, null, "el niño sigue sin ser alumno");
+    assert.equal((await prisma.lead.findFirstOrThrow({ where: { id: f.leadId } })).etapa_id, etapas.muestra_asistida);
+    assert.equal(await prisma.inscripcion.count({ where: { lead_id: f.leadId } }), 0);
+    // El siguiente paso: avisar al asesor deja UNA tarea (y el lead pasa a negociación) sin inscribir a nadie.
+    assert.equal((await listo(maestro, f.claseId)).estado, 201);
+    assert.equal(await prisma.tarea_asesor.count({ where: { lead_id: f.leadId, tipo: "listo_para_cerrar", estado: "pendiente" } }), 1);
+    assert.equal(await prisma.inscripcion.count({ where: { lead_id: f.leadId } }), 0);
+  } finally {
+    await fijarConfiguracion(prisma, org.organizacionId, { modo_cierre: "asesor_whatsapp" });
+  }
 });
 
 test("MODO maestro_en_sitio — límites: solo SUS alumnos (404), solo grupos de las sucursales donde da clases, nada fuera de edad, recepción sigue sin poder", async () => {

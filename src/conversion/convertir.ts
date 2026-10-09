@@ -78,6 +78,8 @@ interface ProspectoPlaneado {
   alumno: DatosDeAlumno | null;
   tutores: TutorPlaneado[];
   grupoId: string | null;
+  /** V4: el nombre del grupo en el que se inscribirá (para decírselo al maestro antes de confirmar). */
+  grupoNombre: string | null;
   sucursalDeGrupo: string | null;
   /** Hay una inscripción que crear (o ya existe una activa en ese grupo). */
   inscripcion: ProspectoComplemento["inscripcion"] | null;
@@ -228,15 +230,17 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
       grupoId = cot?.grupo_elegido_id ?? reg?.grupoRecomendadoId ?? null;
     }
     let sucursalDeGrupo: string | null = null;
+    let grupoNombre: string | null = null;
     if (grupoId) {
       // EF-01: el grupo (el que se manda o el que se deduce de la cotización o de la recomendación del maestro) tiene que estar en el alcance de
       // quien convierte, igual que en `POST /api/inscripciones`: la conversión no es un camino lateral para repartir el cupo de otra sucursal.
-      const g = await tx.grupo.findFirst({ where: { id: grupoId, activo: true, ...(alcance.filtroDeGrupos ?? {}) }, select: { id: true, programa: { select: { id: true, vertical_id: true, sucursal_id: true } } } });
+      const g = await tx.grupo.findFirst({ where: { id: grupoId, activo: true, ...(alcance.filtroDeGrupos ?? {}) }, select: { id: true, nombre: true, programa: { select: { id: true, vertical_id: true, sucursal_id: true } } } });
       if (!g) {
         faltantes.push(falta(ruta(p.id, "grupo_id"), "El grupo no existe, ya no está activo o no es de tu alcance"));
         grupoId = null;
       } else {
         sucursalDeGrupo = g.programa.sucursal_id;
+        grupoNombre = g.nombre;
         if (yaAlumno) {
           const activa = await tx.inscripcion.findFirst({ where: { alumno_id: yaAlumno, grupo_id: g.id, estatus: "activa" }, select: { id: true } });
           inscripcionActivaId = activa?.id ?? null;
@@ -259,6 +263,7 @@ export async function planear(tx: Consultas | BaseDatos, leadId: string, entrada
       alumno,
       tutores,
       grupoId,
+      grupoNombre,
       sucursalDeGrupo,
       inscripcion: grupoId ? (comp?.inscripcion ?? {}) : null,
       inscripcionActivaId,
@@ -312,7 +317,7 @@ export interface VistaPrevia {
   yaConvertido: boolean;
   /** SOLO lo que falta por capturar. */
   faltantes: Falta[];
-  prospectos: { prospectoId: string; yaConvertido: boolean; hermanosPrevistos: number; reglamentoPendiente: boolean }[];
+  prospectos: { prospectoId: string; yaConvertido: boolean; hermanosPrevistos: number; reglamentoPendiente: boolean; grupoNombre: string | null }[];
 }
 
 /** Lo que falta por capturar para convertir al lead (nada de lo ya capturado). null si el lead no existe. */
@@ -320,7 +325,7 @@ export async function vistaPreviaDeConversion(db: BaseDatos, leadId: string, ent
   const plan = await planear(db, leadId, entrada, ahora, alcance);
   if (!plan) return null;
   const hayTrabajo = plan.prospectos.some((p) => !p.alumnoId || (p.grupoId !== null && p.inscripcionActivaId === null));
-  return { leadId, listo: plan.faltantes.length === 0, yaConvertido: !hayTrabajo && plan.faltantes.length === 0, faltantes: plan.faltantes, prospectos: plan.prospectos.map((p) => ({ prospectoId: p.prospectoId, yaConvertido: p.alumnoId !== null, hermanosPrevistos: p.hermanosPrevistos, reglamentoPendiente: p.reglamentoPendiente })) };
+  return { leadId, listo: plan.faltantes.length === 0, yaConvertido: !hayTrabajo && plan.faltantes.length === 0, faltantes: plan.faltantes, prospectos: plan.prospectos.map((p) => ({ prospectoId: p.prospectoId, yaConvertido: p.alumnoId !== null, hermanosPrevistos: p.hermanosPrevistos, reglamentoPendiente: p.reglamentoPendiente, grupoNombre: p.grupoNombre })) };
 }
 
 export interface ResultadoDeConversion {

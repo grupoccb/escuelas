@@ -128,7 +128,7 @@ function TarjetaDeClase({ clase, alCambiar }: { clase: ClaseMuestra; alCambiar: 
               Listo para cerrar la inscripción
             </Boton>
             {listo ? <Aviso tono="exito">{listo}</Aviso> : null}
-            <CierreEnSitio leadId={clase.lead_id} />
+            <CierreEnSitio leadId={clase.lead_id} claseId={clase.id} alumno={clase.prospecto} />
           </div>
         ) : null}
         <ErrorDeAccion error={accion.error} />

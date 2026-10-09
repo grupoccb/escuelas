@@ -56,6 +56,7 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
       <Tarjeta titulo="Quién cierra la inscripción">
         <CampoSelect
           etiqueta="Modo de cierre"
+          ayuda="Con «el maestro, en sitio», a cada maestro le aparece «Inscribir a mi alumno» en su pantalla «Hoy» cuando el alumno ya tiene su registro completo y la familia aceptó el reglamento. Con «el asesor», el maestro solo avisa que la familia quedó lista."
           value={modo}
           opciones={[
             { valor: "asesor_whatsapp", texto: "El asesor, por WhatsApp (el maestro marca «listo para cerrar»)" },

@@ -143,7 +143,7 @@ export function rutasDeConversion(deps: DepsApi): Router {
     if (!v) throw noEncontrado();
     res.json({ lead_id: v.leadId, listo: v.listo, ya_convertido: v.yaConvertido, faltantes: v.faltantes, prospectos: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, ya_convertido: p.yaConvertido })),
       // V3: por niño, lo que el asistente enseña antes de confirmar: cuántos hermanos tendrá ya inscritos cuando le toque (para cotizarle EXACTAMENTE lo que se le va a cobrar) y si falta el reglamento.
-      previsiones: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, hermanos_previstos: p.hermanosPrevistos, reglamento_pendiente: p.reglamentoPendiente })),
+      previsiones: v.prospectos.map((p) => ({ prospecto_id: p.prospectoId, hermanos_previstos: p.hermanosPrevistos, reglamento_pendiente: p.reglamentoPendiente, grupo_nombre: p.grupoNombre })),
     });
   });
 

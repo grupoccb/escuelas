@@ -12,7 +12,7 @@ export interface Vista {
   faltantes: Falta[];
   prospectos: { prospecto_id: string; ya_convertido: boolean }[];
   /** V3: por niño, cuántos hermanos tendrá ya inscritos cuando le toque (para cotizarle lo que se le va a cobrar) y si falta el reglamento. */
-  previsiones: { prospecto_id: string; hermanos_previstos: number; reglamento_pendiente: boolean }[];
+  previsiones: { prospecto_id: string; hermanos_previstos: number; reglamento_pendiente: boolean; grupo_nombre: string | null }[];
 }
 
 export interface ResultadoDeConversion {
