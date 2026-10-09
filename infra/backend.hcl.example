@@ -1,0 +1,7 @@
+# Copia a backend.hcl (ignorado por git) y úsalo con: terraform init -backend-config=backend.hcl
+bucket         = "inscripciones-estado-terraform-<cuenta>"
+key            = "produccion/terraform.tfstate"
+region         = "us-east-2"
+encrypt        = true
+kms_key_id     = "alias/inscripciones-estado"
+dynamodb_table = "inscripciones-estado-bloqueo"

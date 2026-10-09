@@ -34,6 +34,7 @@
     "cuadratura": "node --env-file-if-exists=.env scripts/cuadratura.ts",
     "reporte:clases-muestra": "node --env-file-if-exists=.env scripts/reporte-clases-muestra.ts",
     "check:secretos": "node scripts/check-secretos.ts",
+    "infra:validar": "node scripts/infra-validar.ts",
     "respaldo": "node scripts/respaldo.ts",
     "restaurar": "node scripts/restaurar.ts"
   },

@@ -103,7 +103,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K3 | HECHO (parcial: sin prueba de penetración externa ni revisión de la configuración real de AWS; EB-10, EB-16, EB-18 y EB-19 siguen siendo decisiones o dependen del balanceador; el Terraform solo se revisa como texto) | ver `git log` (`K3:`) | Revisión de seguridad con pruebas: el backend se niega a arrancar en producción con valores de demo, imagen de producción sin la CLI de Prisma (0 vulnerabilidades en lo que corre), cuenta de base de datos sin dueño, guarda de secretos, CORS/cabeceras/inyección/sesiones/límites, contraseñas comunes |
 | K4 | HECHO (parcial: las alarmas de CloudWatch solo están escritas y validadas como código, no probadas en AWS; `/metricas` suma todas las organizaciones, sin etiqueta por organización) | ver `git log` (`K4:`) | Observabilidad: `/salud` (vivo) y `/salud/lista` (listo: base, migraciones, barrido), `/metricas` en formato Prometheus con token, teléfonos enmascarados siempre en los logs, `ciclo_completado` y `cuadratura_descuadre` para las alarmas |
 | K5 | HECHO | ver `git log` (`K5:`) | Respaldo y restauración probados en local: `npm run respaldo` / `npm run restaurar` (pg_dump -Fc, cifrado AES-256-GCM opcional, suma de verificación, retención); prueba con la historia de la demo: respaldar, restaurar en una base nueva y comparar conteos por tabla, migraciones y cuadratura; RPO/RTO documentados |
-| K6 | PENDIENTE | | Infraestructura como código |
+| K6 | HECHO (parcial: escrita y validada, NUNCA desplegada ni con un `terraform plan` real contra AWS; los costos son estimaciones de lista) | ver `git log` (`K6:`) | Infraestructura como código para AWS en `infra/` (Terraform): VPC de tres capas, RDS cifrada, ECS Fargate (backend, Chatwoot, migración, cuadratura), ALB con HTTPS y reglas por ruta, WAF, Secrets Manager, S3 con ciclo de vida, CloudWatch con 10 alarmas, roles mínimos; `npm run infra:validar` |
 | K7 | PENDIENTE | | Documentación |
 | K8 | PENDIENTE | | Demo guiada |
 | K9 | PENDIENTE | | Auditoría final |
@@ -2932,3 +2932,29 @@ $ npm run test:int    → exit 0 · tests 1101 · pass 1101 · fail 0
 **Para Eduardo**
 - `[SUPUESTO]` RPO de minutos (RDS) y de hasta 24 h (respaldo lógico nocturno), RTO de 30 a 60 minutos: los reales se miden en el primer ensayo con la base de la escuela (`docs/PENDIENTES-CREDENCIALES-REALES.md`, 4.6).
 - Decide dónde vive la copia de la clave de salud fuera de AWS (un gestor de contraseñas de la dirección es la propuesta).
+
+## K6. Infraestructura como código para AWS
+
+**Qué se hizo** (arquitectura, decisiones, orden de un despliegue real, costos y supuestos en `docs/INFRA-AWS.md`)
+- `infra/` (Terraform ≥ 1.5, proveedor AWS 5.x): VPC con subredes públicas, de aplicación y de datos (sin salida a Internet), NAT por zona configurable, endpoint de S3; RDS PostgreSQL 16 cifrada con KMS, privada, con respaldos de 14 a 35 días, Multi-AZ configurable, SSL forzado y registro de esperas de candados; ElastiCache para la cola de Chatwoot; ECS Fargate para backend (2 tareas, solo lectura, usuario sin privilegios), Chatwoot (web y sidekiq), una tarea de migración y una de cuadratura diaria (EventBridge); ALB con HTTPS (TLS 1.3/1.2), redirección de HTTP, reglas por ruta (`/webhooks/*`, `/api/*`, `/l/*`, `/salud*`, la interfaz) y por nombre (Chatwoot), `/metricas` respondida 404, WAF con reputación de IP y tasa por IP que no cuenta los webhooks; Secrets Manager para TODO secreto (nada en claro en las definiciones de tarea) con la copia de la clave de salud protegida contra destrucción; S3 de respaldos y de adjuntos (sin acceso público, KMS, versiones, solo TLS, ciclo de vida a frío y caducidad); CloudWatch con logs cifrados y 10 alarmas (barrido atrasado, ciclos con errores, descuadre, errores, eventos inesperados, 5xx, sin tareas sanas, RDS); roles por servicio que leen SOLO sus secretos; variables por ambiente (`ambientes/*.tfvars.example`).
+- `npm run infra:validar` (`scripts/infra-validar.ts`): `terraform fmt -check`, `init -backend=false` y `validate`, con el Terraform instalado o la imagen oficial `hashicorp/terraform` por docker; sin credenciales de AWS (se borran del entorno), sin `plan` ni `apply`. `scripts/infra-validar.test.ts` (9) vigila lo que `validate` no ve: cifrado, red privada, TLS, secretos fuera del código, alarmas, roles sin comodines.
+- La tarea de migración corre `prisma migrate deploy` y `scripts/preparar-roles.ts` (la cuenta de la aplicación sin dueño, K3) en cada despliegue.
+
+**Verificación** (copia limpia del árbol final K2 a K8, base propia `inscripciones_k8_pruebas`)
+```
+$ npm run validar     → exit 0 · tests 659 · pass 659 · fail 0 (más los 31 de web)
+$ npm run test:int    → exit 0 · tests 1101 · pass 1101 · fail 0
+```
+```
+$ npm run infra:validar   → fmt, init (sin backend) y validate: «The configuration is valid.»  (Terraform 1.5.7 local y hashicorp/terraform:1.9.8 por docker)
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Una instancia de RDS con dos bases** (aplicación y Chatwoot) `[SUPUESTO]`; ElastiCache en vez de Redis en un contenedor (los trabajos de sidekiq no sobreviven a un reinicio); sin autoescalado; WAF opcional. Alternativas y sus costos en `docs/INFRA-AWS.md`.
+2. **Imágenes separadas** (`produccion` sin CLI de Prisma; `migrar` como tarea puntual). Alternativa descartada: migrar al arrancar.
+3. **Secretos generados por Terraform viven también en su estado**, que va a un bucket cifrado con bloqueo. Alternativa descartada: pasarlos como variables.
+4. **Sin ECR/S3 de estado/ACM/DNS creados aquí cuando dependen de la cuenta** (`backend.hcl.example`, `certificado_arn`): el módulo no adivina cosas de tu cuenta.
+
+**Para Eduardo**
+- Costo aproximado `[SUPUESTO]`: ~200 USD al mes en staging y ~370 en producción (tabla en `docs/INFRA-AWS.md`, con dónde se ahorra).
+- Nada se desplegó: antes de producción hace falta un `terraform plan` real, revisado, y los pasos de `docs/PENDIENTES-CREDENCIALES-REALES.md`.

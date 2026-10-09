@@ -1,0 +1,14 @@
+ambiente             = "produccion"
+zonas                = ["us-east-2a", "us-east-2b"]
+dominio_app          = "app.escuela.example"
+dominio_chatwoot     = "bandeja.escuela.example"
+certificado_arn      = "arn:aws:acm:us-east-2:111111111111:certificate/00000000-0000-0000-0000-000000000000"
+imagen_backend       = "111111111111.dkr.ecr.us-east-2.amazonaws.com/inscripciones:1.0.0"
+imagen_migracion     = "111111111111.dkr.ecr.us-east-2.amazonaws.com/inscripciones:1.0.0-migrar"
+correo_alarmas       = "alarmas@escuela.example"
+backend_instancias   = 2
+rds_clase            = "db.t4g.medium"
+rds_multi_az         = true
+nat_por_zona         = true
+waf_activo           = true
+cidrs_administracion = [] # [SUPUESTO] vacío = la bandeja de Chatwoot abierta a Internet con login; pon las redes de la escuela para cerrarla

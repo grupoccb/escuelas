@@ -1,0 +1,13 @@
+ambiente            = "staging"
+zonas               = ["us-east-2a", "us-east-2b"]
+dominio_app         = "app.staging.escuela.example"
+dominio_chatwoot    = "bandeja.staging.escuela.example"
+certificado_arn     = "arn:aws:acm:us-east-2:111111111111:certificate/00000000-0000-0000-0000-000000000000"
+imagen_backend      = "111111111111.dkr.ecr.us-east-2.amazonaws.com/inscripciones:0.1.0"
+imagen_migracion    = "111111111111.dkr.ecr.us-east-2.amazonaws.com/inscripciones:0.1.0-migrar"
+correo_alarmas      = "alarmas@escuela.example"
+backend_instancias  = 1
+rds_clase           = "db.t4g.small"
+rds_multi_az        = false
+nat_por_zona        = false
+waf_activo          = false
