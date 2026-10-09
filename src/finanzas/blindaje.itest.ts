@@ -107,3 +107,12 @@ test("EH-09: un pago cubre un cargo UNA vez: una segunda aplicación del mismo p
   await rechaza(() => sql(`INSERT INTO pago_aplicacion (organizacion_id, pago_id, cargo_id, monto_aplicado) VALUES ($1::uuid, $2::uuid, $3::uuid, 1)`, c.organizacion_id, p.cuerpo.id, c.id), /pago_aplicacion_pago_cargo_key|Unique constraint/);
   assert.deepEqual((await cuadratura(m.db)).discrepancias, []);
 });
+
+test("EH-18 (S02): un pago no se cancela a escondidas con aplicaciones vivas: `pago_cancelacion_check` exige monto_aplicado = 0", async () => {
+  const i = await m.inscribir();
+  const c = (await prisma.cargo.findFirst({ where: { inscripcion_id: i.inscripcionId, concepto: "mensualidad" } }))!;
+  const p = await m.recepcion.post<{ id: string }>("/api/pagos", { tutor_id: i.tutorId, monto: "100.00", metodo: "efectivo", aplicaciones: [{ cargo_id: c.id, monto: "100.00" }] });
+  assert.equal(p.estado, 201);
+  await rechaza(() => sql(`UPDATE pago SET estatus = 'cancelado', cancelado_en = now() WHERE id = $1::uuid`, p.cuerpo.id), /pago_cancelacion_check/);
+  assert.equal((await prisma.pago.findFirstOrThrow({ where: { id: p.cuerpo.id } })).estatus, "aplicado");
+});

@@ -254,3 +254,27 @@ test("EH-03: pagar el SEGUNDO mes sin el primero no libera nada, ni por el códi
     await apagar();
   }
 });
+
+test("EH-18 (M21): lo ya entregado se marca para revisión UNA vez: cancelar otro pago de la misma mensualidad después no cambia la fecha de la revisión ni duplica la tarea", async () => {
+  const apagar = await promocionDiferida();
+  try {
+    const i = await m.inscribir();
+    const mens = i.cargos.find((c) => c.concepto === "mensualidad")!;
+    const p1 = await pagar(i.tutorId, "1000.00", { aplicaciones: [{ cargo_id: mens.id, monto: "1000.00" }] });
+    const descuento = (await aplicaciones(i.inscripcionId)).find((a) => a.beneficio.tipo === "descuento_mensualidad")!;
+    assert.equal((await m.recepcion.post(`/api/beneficios/${descuento.id}/entregar`)).estado, 200);
+    m.reloj.ahora = new Date("2026-11-11T16:00:00Z");
+    assert.equal((await m.recepcion.post(`/api/pagos/${p1.cuerpo.id}/cancelar`, { motivo: "Error de captura 1" })).estado, 200);
+    const primera = (await aplicaciones(i.inscripcionId)).find((a) => a.id === descuento.id)!.revision_en;
+    assert.ok(primera);
+    // La familia vuelve a pagar y ese pago también se cancela, un día después.
+    const p2 = await pagar(i.tutorId, "1000.00", { aplicaciones: [{ cargo_id: mens.id, monto: "1000.00" }] });
+    m.reloj.ahora = new Date("2026-11-12T16:00:00Z");
+    assert.equal((await m.recepcion.post(`/api/pagos/${p2.cuerpo.id}/cancelar`, { motivo: "Error de captura 2" })).estado, 200);
+    assert.equal((await aplicaciones(i.inscripcionId)).find((a) => a.id === descuento.id)!.revision_en?.toISOString(), primera!.toISOString(), "la revisión conserva su primera fecha");
+    assert.equal(await prisma.tarea_asesor.count({ where: { inscripcion_id: i.inscripcionId, tipo: "beneficio_en_revision" } }), 1);
+  } finally {
+    m.reloj.ahora = new Date("2026-11-10T16:00:00Z");
+    await apagar();
+  }
+});

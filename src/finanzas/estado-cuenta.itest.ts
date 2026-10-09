@@ -119,3 +119,15 @@ test("el expediente del alumno ya trae su estado de cuenta REAL (ProveedorEconom
   const insc = await m.inscribir({ grupoId: g.grupoId });
   void insc;
 });
+
+test("EH-18 (M44): un cargo cancelado se lista con saldo 0.00 y no cuenta en el total cargado ni en el saldo de la familia", async () => {
+  const i = await m.inscribir();
+  const insc = i.cargos.find((c) => c.concepto === "inscripcion")!;
+  const mens = i.cargos.find((c) => c.concepto === "mensualidad")!;
+  assert.equal((await m.recepcion.post(`/api/cargos/${insc.id}/cancelar`, { motivo: "Se condonó" })).estado, 200);
+  const c = (await m.admin.get<Cuenta>(`/api/tutores/${i.tutorId}/estado-cuenta`)).cuerpo;
+  const hijo = c.hijos.find((h) => h.alumno.id === i.alumnoId)!;
+  const cancelado = hijo.cargos.find((x) => x.id === insc.id)!;
+  assert.deepEqual([cancelado.estatus, cancelado.saldo], ["cancelado", "0.00"]);
+  assert.deepEqual([hijo.total_cargado, hijo.saldo], [mens.monto_final, mens.monto_final]);
+});

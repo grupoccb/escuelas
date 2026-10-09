@@ -353,3 +353,11 @@ test("EH-16: un pago que llega entre que el motor lee el cargo y que arma el men
     await c.apagar();
   }
 });
+
+test("EH-18 (S15): la tarea por deuda es UNA por cargo en toda su vida, también por SQL directo (aunque la primera ya esté resuelta)", async () => {
+  const f = await familia();
+  const nueva = (estado: "pendiente" | "hecha") => prisma.tarea_asesor.create({ data: { organizacion_id: m.org.organizacionId, cargo_id: f.mens.id, tipo: "deuda_vencida", estado, descripcion: "Deuda de prueba", ...(estado === "hecha" ? { resuelta_en: new Date() } : {}) } });
+  await nueva("hecha");
+  await assert.rejects(() => nueva("pendiente"), (e: Error) => /tarea_asesor_deuda_vencida_key|Unique constraint/.test(e.message));
+  assert.equal(await prisma.tarea_asesor.count({ where: { cargo_id: f.mens.id, tipo: "deuda_vencida" } }), 1);
+});

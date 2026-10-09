@@ -355,3 +355,30 @@ test("EH-06: un beneficio de producto es UNA pieza: pedir 20 es 400 y no entrega
     await apagar();
   }
 });
+
+test("EH-18 (M50): vender un producto de precio 0.00 genera un cargo sin importe que nace pagado (no un 500 por el CHECK)", async () => {
+  const p = await producto({ stock: 3, precio: "0.00", nombre: "Obsequio" });
+  const al = await m.alumno();
+  const v = await vender(m.recepcion, al.alumnoId, p.id, 2);
+  assert.equal(v.estado, 201, JSON.stringify(v.cuerpo));
+  assert.deepEqual([v.cuerpo.total, v.cuerpo.cargo?.estatus, v.cuerpo.cargo?.monto_final], ["0.00", "pagado", "0.00"]);
+  assert.equal(await stockDe(p.id), 1);
+});
+
+test("EH-18 (S14): una venta promocional por beneficio, también por SQL directo: la segunda la rechaza el único de la base", async () => {
+  const uniforme = await producto({ stock: 5, nombre: "Uniforme", talla: "12" });
+  const apagar = await promocionConUniforme();
+  try {
+    const x = await inscritoYPagado();
+    const ok = await m.recepcion.post<{ venta_id: string }>(`/api/beneficios/${x.aplicacion.id}/entregar`, { producto_id: uniforme.id });
+    assert.equal(ok.estado, 200);
+    const v = await prisma.venta.findFirstOrThrow({ where: { id: ok.cuerpo.venta_id } });
+    await rechaza(
+      () => prisma.venta.create({ data: { organizacion_id: v.organizacion_id, tutor_id: v.tutor_id, alumno_id: v.alumno_id, producto_id: v.producto_id, sucursal_id: v.sucursal_id, cantidad: 1, precio_unitario: "0.00", es_promocional: true, promocion_aplicacion_id: v.promocion_aplicacion_id, fecha: v.fecha } }),
+      /venta_promocion_aplicacion_key|Unique constraint/,
+    );
+    assert.equal(await stockDe(uniforme.id), 4, "la segunda venta no descontó nada");
+  } finally {
+    await apagar();
+  }
+});

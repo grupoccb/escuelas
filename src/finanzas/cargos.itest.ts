@@ -282,3 +282,29 @@ test("el ciclo corre el barrido de finanzas (con su límite de frecuencia por in
   assert.equal(r2.finanzas, null, "dentro de la ventana de frecuencia no vuelve a correr");
   ponerHora("2026-11-10T16:00:00Z");
 });
+
+test("EH-18 (M08): el día de vencimiento el cargo sigue pendiente (no se materializa como vencido hasta el día siguiente)", async () => {
+  const i = await m.inscribir({ diaCorte: 10 }); // vence el 2026-11-10
+  ponerHora("2026-11-10T16:00:00Z");
+  assert.equal((await barrer()).vencidosMaterializados >= 0, true);
+  assert.ok((await m.cargosDe(i.inscripcionId)).every((c) => c.estatus === "pendiente" && c.estatus_efectivo === "pendiente"), "el mismo día todavía no está vencido");
+  ponerHora("2026-11-11T16:00:00Z");
+  await barrer();
+  assert.ok((await m.cargosDe(i.inscripcionId)).every((c) => c.estatus === "vencido"));
+  ponerHora("2026-11-10T16:00:00Z");
+});
+
+test("EH-11 / EH-18 (M06): una inscripción ANTERIOR a H (sin cargos) recibe en el primer barrido solo la mensualidad del mes en curso —sin cargo de inscripción ni meses pasados—, y si su corte ya pasó nace vencida", async () => {
+  const i = await m.inscribir({ diaCorte: 5 });
+  // Se simula «anterior a H»: se borran sus cargos con los disparadores apagados (un superusuario).
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    await tx.$executeRawUnsafe(`DELETE FROM cargo WHERE inscripcion_id = '${i.inscripcionId}'::uuid`);
+  });
+  assert.equal((await m.cargosDe(i.inscripcionId)).length, 0);
+  ponerHora("2026-11-18T18:00:00Z");
+  await barrer();
+  const cargos = await m.cargosDe(i.inscripcionId);
+  assert.deepEqual(cargos.map((c) => [c.concepto, c.periodo, c.fecha_vencimiento, c.estatus]), [["mensualidad", "2026-11", "2026-11-05", "vencido"]]);
+  ponerHora("2026-11-10T16:00:00Z");
+});
