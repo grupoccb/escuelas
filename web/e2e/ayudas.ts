@@ -31,3 +31,8 @@ export function ayerEnMexico(): string {
 export function mananaEnMexico(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + 86_400_000));
 }
+
+/** La fecha de calendario de hace `dias` días en la zona de las sucursales de prueba (Ciudad de México), `AAAA-MM-DD`. */
+export function haceDiasEnMexico(dias: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - dias * 86_400_000));
+}

@@ -1,4 +1,4 @@
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import { mkdirSync } from "node:fs";
 import { cargarMundo, RAIZ, rutaDeEstado } from "./mundo.ts";
@@ -21,6 +21,11 @@ export const test = base.extend({
         return ruta.abort("blockedbyclient");
       },
     );
+    // Una redirección del servidor (por ejemplo el 303 a WhatsApp de la landing) NO pasa por `route`: el evento `request` sí la ve. Cualquier solicitud fuera del origen es un fallo.
+    context.on("request", (r) => {
+      const u = new URL(r.url());
+      if (u.protocol.startsWith("http") && u.origin !== origen) externas.push(`${r.url()} (redirección o carga directa)`);
+    });
     await use(context);
     expect(externas, "peticiones a servicios externos (prohibidas)").toEqual([]);
   },
@@ -45,7 +50,7 @@ export async function llamadasAPi(page: Page): Promise<string[]> {
 }
 
 export const VISTA_CELULAR = { width: 390, height: 844 } as const;
-export const VISTA_ESCRITORIO = { width: 1280, height: 800 } as const;
+export const VISTA_ESCRITORIO = { width: 1366, height: 768 } as const;
 
 /**
  * Una captura para la revisión de Eduardo en `docs/capturas/<nombre>-<celular|escritorio>.png`, con los datos ficticios del mundo de pruebas.
@@ -53,10 +58,58 @@ export const VISTA_ESCRITORIO = { width: 1280, height: 800 } as const;
  */
 export async function capturar(page: Page, nombre: string, vista: "celular" | "escritorio", opciones: { completa?: boolean } = {}): Promise<void> {
   const original = page.viewportSize();
-  await page.setViewportSize(vista === "celular" ? VISTA_CELULAR : VISTA_ESCRITORIO);
+  const tamano = vista === "celular" ? VISTA_CELULAR : VISTA_ESCRITORIO;
+  await page.setViewportSize(tamano);
   await page.waitForLoadState("networkidle");
   const carpeta = resolve(RAIZ, "docs/capturas");
   mkdirSync(carpeta, { recursive: true });
-  await page.screenshot({ path: resolve(carpeta, `${nombre}-${vista}.png`), fullPage: opciones.completa ?? false, animations: "disabled" });
+  if (opciones.completa) {
+    // «Página completa» sin los artefactos de una captura por tramos (la barra lateral y la inferior son fijas): se agranda la ventana a lo que mide la página y se captura la ventana.
+    const alto = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.setViewportSize({ width: tamano.width, height: Math.min(Math.max(alto, tamano.height), 5000) });
+    await page.waitForTimeout(150);
+  }
+  await page.screenshot({ path: resolve(carpeta, `${nombre}-${vista}.png`), animations: "disabled" });
   if (original) await page.setViewportSize(original);
+}
+export const VISTAS = { celular: { ...VISTA_CELULAR, esMovil: true }, escritorio: { ...VISTA_ESCRITORIO, esMovil: false } } as const;
+export type Vista = keyof typeof VISTAS;
+
+/**
+ * Un contexto aparte para un recorrido con varias personas (la familia, el asesor, la maestra): con la sesión de un rol (o sin ella), el tamaño de la vista y la MISMA regla
+ * de la noche que `test`: nada sale a un servicio externo. `cerrar()` falla si algo lo intentó.
+ */
+export async function contextoNuevo(browser: Browser, baseURL: string, vista: Vista, rol: Rol | null): Promise<{ context: BrowserContext; page: Page; cerrar: () => Promise<void> }> {
+  const v = VISTAS[vista];
+  const context = await browser.newContext({
+    baseURL,
+    locale: "es-MX",
+    timezoneId: "America/Mexico_City",
+    viewport: { width: v.width, height: v.height },
+    hasTouch: v.esMovil,
+    isMobile: v.esMovil,
+    ...(rol ? { storageState: rutaDeEstado(rol) } : {}),
+  });
+  const externas: string[] = [];
+  const origen = new URL(baseURL).origin;
+  await context.route(
+    (url) => url.protocol.startsWith("http") && url.origin !== origen,
+    (ruta) => {
+      externas.push(ruta.request().url());
+      return ruta.abort("blockedbyclient");
+    },
+  );
+  context.on("request", (r) => {
+    const u = new URL(r.url());
+    if (u.protocol.startsWith("http") && u.origin !== origen) externas.push(`${r.url()} (redirección o carga directa)`);
+  });
+  const page = await context.newPage();
+  return {
+    context,
+    page,
+    cerrar: async () => {
+      await context.close();
+      expect(externas, "peticiones a servicios externos (prohibidas)").toEqual([]);
+    },
+  };
 }

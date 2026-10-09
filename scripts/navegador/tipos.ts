@@ -81,6 +81,33 @@ export interface Mundo {
     leads: number;
     clases: { agendadas: number; asistidas: number; noAsistidas: number; inscritas: number };
   };
+  /** J10: los recorridos de los cinco flujos. Cada flujo corre dos veces (celular y escritorio) y mueve sus datos: hay un juego por vista. */
+  recorridos: {
+    /** Una segunda maestra con su propio grupo: su pase de lista no se mezcla con el de «Grupo A». Entra por la pantalla de acceso. */
+    maestra: UsuarioDelMundo;
+    grupoPase: { id: string; nombre: string };
+    /** Quienes ya están inscritos en el grupo de la maestra (el pase de lista). */
+    alumnosDelPase: string[];
+    /** Grupo sin instructor al que se inscribe a quien se convierte (recomendado por la maestra en el registro). */
+    grupoConversion: { id: string; nombre: string };
+    /** La landing pública de la vertical sembrada: `/l/<identificador>`. */
+    rutaLanding: string;
+    /** El número al que llevaría el botón de WhatsApp (el navegador de pruebas nunca lo visita). */
+    numeroDelCanal: string;
+    por: Record<
+      "celular" | "escritorio",
+      {
+        /** Recorrido 2: una clase muestra que ya empezó, del grupo de la maestra. */
+        clase: ClaseDelMundo;
+        /** Recorrido 3: lead con clase asistida y el registro de la maestra completo salvo los apellidos y el reglamento. */
+        conversion: LeadDelMundo & { claseId: string; alumno: string; apellidos: string; adulto: string };
+        /** Recorrido 4: una familia con dos hijos recién inscritos (un uniforme por entregar al pagar la primera mensualidad de cada uno). */
+        pago: { tutorId: string; telefono: string; hijos: { alumnoId: string; nombre: string }[]; talla: string };
+        /** Recorrido 1: el teléfono con el que se llena la landing. */
+        telefonoLanding: string;
+      }
+    >;
+  };
   /** J3: el embudo del asesor (sucursal norte). */
   asesor: {
     /** Nuevo, con campaña de Facebook, conversación en Chatwoot y una tarea pendiente. */

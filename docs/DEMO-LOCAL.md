@@ -131,6 +131,8 @@ el embudo y las tareas; recepción, pagos, estado de cuenta, uniformes y ventas)
 
 **Tableros (J9, administrador y asesor).** «Tableros» muestra las clases muestra (agendadas, asistidas, no asistidas y conversión por fuente, disciplina y sucursal), el costo por alumno inscrito por campaña (solo administrador; el gasto se captura a mano) y el reporte ejecutivo (activos, altas y bajas, deserción, ingreso recurrente, cartera vencida y ocupación por grupo), con filtros de fecha, sucursal y disciplina y un botón de descarga en CSV. Las gráficas son barras de SVG propio con su cifra escrita y su tabla.
 
+**Recorridos para revisar (J10).** `docs/capturas/README.md` dice qué mirar en cada captura de los cinco recorridos principales (del anuncio al lead, la clase muestra con el registro de la maestra y el pase de lista, la conversión sin recaptura, el cobro entre dos hijos con el uniforme, y los tableros con su CSV), cada uno en celular (390×844) y en escritorio (1366×768). Salen de `npm run test:navegador` con datos ficticios; el navegador de pruebas nunca sale a WhatsApp, Twilio, Meta, AWS ni Chatwoot.
+
 ```bash
 npm run web:instalar     # una vez: las dependencias de web/ (también las instala `npm install` de la raíz)
 npm run web:dev          # desarrollo con recarga en http://localhost:5173 (proxy al backend en :3000; API_URL lo cambia)

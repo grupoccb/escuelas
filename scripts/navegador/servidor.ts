@@ -53,6 +53,8 @@ const app = crearApp({
   estadosEntrega: { interpretar: () => null },
   registrarEstadoEntrega: async () => "actualizado",
   web: { directorio: resolve(RAIZ, "web/dist") },
+  // La landing pública (`/l/<vertical>`): sin ella el recorrido del anuncio no tendría a dónde llegar.
+  landing: { prisma },
   reloj,
   api: {
     prisma,

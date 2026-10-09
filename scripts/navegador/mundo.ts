@@ -53,6 +53,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
   const finanzas = await sembrarRecepcion(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id }, administrador);
   const asesorDelMundo = await sembrarAsesor(prisma, org, etapas, { norte: norte.id, sur: sur.id });
   const mensajeria = await sembrarMensajeria(prisma, org);
+  const recorridos = await sembrarRecorridos(prisma, org, docs, etapas, nuevoCliente, { norte: norte.id, programaId: programa.id, grupoD: finanzas.grupoD.id }, administrador);
   const tableros = await sembrarTableros(prisma, org, { norte: norte.id, grupo: finanzas.grupoD.id, programaId: programa.id, usuarioId: administrador.id });
   const familia = await sembrarFamiliaYExpediente(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id, grupoD: finanzas.grupoD.id, alumnoConSalud: maestroDelMundo.alumnosDelPase[0]! }, administrador);
 
@@ -73,6 +74,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
     familia,
     mensajeria,
     tableros,
+    recorridos,
   };
 }
 
@@ -343,3 +345,107 @@ async function sembrarTableros(prisma: PrismaPruebas, org: OrganizacionDePrueba,
   });
   return { campana: { id: campana.id, nombre: campana.nombre }, leads: 4, clases: { agendadas: 4, asistidas: 2, noAsistidas: 1, inscritas: 1 } };
 }
+
+/**
+ * J10: los datos de los cinco recorridos, un juego por vista (celular y escritorio) porque cada recorrido mueve lo suyo. Todo ficticio.
+ * La maestra es otra persona con su propio grupo para no tocar el pase de lista de «Grupo A».
+ */
+async function sembrarRecorridos(
+  prisma: PrismaPruebas,
+  org: OrganizacionDePrueba,
+  docs: DocumentosLegalesSembrados,
+  etapas: Record<string, string>,
+  nuevoCliente: () => ClienteApi,
+  ids: { norte: string; programaId: string; grupoD: string },
+  administrador: UsuarioDelMundo,
+): Promise<Mundo["recorridos"]> {
+  const numeroDelCanal = "+525500000001";
+  // La landing manda a WhatsApp solo si el canal tiene número.
+  await prisma.canal_whatsapp.updateMany({ where: { organizacion_id: org.organizacionId }, data: { numero_whatsapp: `whatsapp:${numeroDelCanal}` } });
+
+  const maestra = await usuario(prisma, org, "maestro", "Marta Maestra", "maestra@navegador.test", []);
+  const instructora = await prisma.instructor.create({ data: { organizacion_id: org.organizacionId, usuario_id: maestra.id, nombre: maestra.nombre } });
+  const grupo = async (nombre: string, cupo: number, instructorId: string | null) => {
+    const g = await prisma.grupo.create({ data: { organizacion_id: org.organizacionId, programa_id: ids.programaId, nombre, cupo_maximo: cupo, ...(instructorId ? { instructor_id: instructorId } : {}) } });
+    for (const dia of [0, 1, 2, 3, 4, 5, 6]) await prisma.grupo_horario.create({ data: { organizacion_id: org.organizacionId, grupo_id: g.id, dia_semana: dia, hora_inicio_min: 960, hora_fin_min: 1020 } });
+    return { id: g.id, nombre: g.nombre };
+  };
+  const grupoPase = await grupo("Grupo de la maestra", 20, instructora.id);
+  const grupoConversion = await grupo("Grupo de conversión", 30, null);
+
+  // Dos alumnos ya inscritos en el grupo de la maestra (su pase de lista).
+  const alumnosDelPase: string[] = [];
+  for (const nombre of ["Dani", "Eli"]) {
+    const a = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre });
+    const inicio = new Date(Date.now() - 60 * 86_400_000);
+    inicio.setUTCHours(0, 0, 0, 0);
+    await prisma.inscripcion.create({
+      data: { organizacion_id: org.organizacionId, alumno_id: a.alumnoId, programa_id: ids.programaId, grupo_id: grupoPase.id, lead_id: a.leadId, fecha_inscripcion: inicio, fecha_inicio: inicio, estatus: "activa", precio_inscripcion_aplicado: "500.00", precio_mensualidad_aplicado: "1000.00", dia_corte_pago: 5 },
+    });
+    alumnosDelPase.push(`${nombre} Prueba`);
+  }
+
+  const admin = await prisma.usuario.findFirstOrThrow({ where: { organizacion_id: org.organizacionId, rol: "administrador" }, select: { id: true } });
+  const a = nuevoCliente();
+  if ((await a.login(org.slug, administrador.correo, administrador.contrasena)).estado !== 201) throw new Error("El administrador no pudo iniciar sesión");
+  const m = nuevoCliente();
+  if ((await m.login(org.slug, maestra.correo, maestra.contrasena)).estado !== 201) throw new Error("La maestra no pudo iniciar sesión");
+  const ok = async <T>(r: Promise<{ estado: number; cuerpo: T }>, que: string): Promise<T> => {
+    const x = await r;
+    if (x.estado < 200 || x.estado >= 300) throw new Error(`${que}: ${x.estado} ${JSON.stringify(x.cuerpo)}`);
+    return x.cuerpo;
+  };
+  // Uniformes talla 12 para los dos recorridos de pago.
+  await ok(a.post("/api/productos", { vertical_id: org.verticalId, nombre: "Uniforme", talla: "12", precio: "350.00", stock: 6 }), "producto talla 12");
+
+  const juego = async (vista: "celular" | "escritorio", n: number) => {
+    const cuando = (ms: number): Date => enmin(ms);
+    // Recorrido 2: la clase de la maestra, ya empezada.
+    const claseDeLaMaestra = await claseMuestra(prisma, org, { nombre: vista === "celular" ? "Sofía Recorrido" : "Tomás Recorrido", edad: 7, sucursalId: ids.norte, grupoId: grupoPase.id, cuando: cuando(Date.now() - 80 * 60_000 - n * 60_000), usuarioId: admin.id });
+
+    // Recorrido 3: lead con clase asistida y registro de la maestra completo salvo apellidos y reglamento.
+    const nombreAlumno = vista === "celular" ? "Camila" : "Julián";
+    const apellidos = vista === "celular" ? "Prado Vega" : "Prado Luna";
+    const f = await sembrarFamilia(prisma, org, { sucursalId: ids.norte, nombre: nombreAlumno, edad: 8, etapaId: etapas["muestra_asistida"]! });
+    await prisma.lead.update({ where: { id: f.leadId }, data: { nombre_contacto: `Familia Prado ${vista === "celular" ? "C" : "E"}`, ultima_interaccion_en: new Date() } });
+    const claseAsistida = await prisma.clase_muestra.create({
+      data: { organizacion_id: org.organizacionId, lead_id: f.leadId, prospecto_id: f.prospectoId, grupo_id: grupoPase.id, fecha_hora: cuando(Date.now() - (4 + n) * 3_600_000), estatus: "asistio", agendada_por: "usuario", agendada_por_usuario_id: admin.id, asistencia_marcada_en: new Date(), asistencia_marcada_por_usuario_id: admin.id },
+    });
+    const telefonoPrado = vista === "celular" ? "5544330001" : "5544330002";
+    const adulto = vista === "celular" ? "Rosa" : "Laura";
+    await ok(
+      m.patch(`/api/clases-muestra/${claseAsistida.id}/registro`, {
+        alumno: { nombre: nombreAlumno, fecha_nacimiento: "2018-03-02", sexo: vista === "celular" ? "femenino" : "masculino", escuela: "Escuela Nueva", turno_escolar: "matutino", talla_uniforme: "8" },
+        tutores: [{ nombre: adulto, apellidos: "Prado", parentesco: "madre", telefono: telefonoPrado, es_responsable_pago: true, lo_lleva: true }],
+        antecedentes: { practico_antes: false, motivo_clase: "disciplina" },
+        observacion: { grupo_recomendado_id: grupoConversion.id, interes_percibido: "alto" },
+      }),
+      "registro de la maestra",
+    );
+
+    // Recorrido 4: la familia con dos hijos. La promoción de uniforme rige solo mientras se inscribe (se apaga al terminar).
+    const promo = await prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: `Uniforme de recorrido ${vista}`, codigo: `UNIFORME-REC-${n}`, vigencia_desde: new Date("2020-01-01"), condicion_tipo: "al_pagar_primera_mensualidad", acumulable: true, prioridad: 9 } });
+    await prisma.promocion_beneficio.create({ data: { organizacion_id: org.organizacionId, promocion_id: promo.id, tipo: "producto_gratis", modo: "total", momento_disparo: "al_cumplir_condicion", descripcion: "Uniforme" } });
+    const telefono = vista === "celular" ? "5555060601" : "5555060602";
+    const [h1, h2] = vista === "celular" ? ["Mateo", "Lucía"] : ["Diego", "Valeria"];
+    const uno = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: h1, telefono: `+52${telefono}` });
+    const dos = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: h2, conTutor: uno.tutorId });
+    const apellido = vista === "celular" ? "Ríos" : "Soto";
+    await prisma.tutor.update({ where: { id: uno.tutorId }, data: { apellidos: apellido } });
+    await prisma.alumno.updateMany({ where: { id: { in: [uno.alumnoId, dos.alumnoId] } }, data: { apellidos: apellido, talla_uniforme: "12" } });
+    for (const al of [uno, dos]) await ok(a.post("/api/inscripciones", { alumno_id: al.alumnoId, grupo_id: ids.grupoD }), "inscribir en el recorrido de pago");
+    await prisma.promocion.update({ where: { id: promo.id }, data: { activo: false } });
+
+    return {
+      clase: claseDeLaMaestra,
+      conversion: { leadId: f.leadId, prospectoId: f.prospectoId, nombre: `Familia Prado ${vista === "celular" ? "C" : "E"}`, claseId: claseAsistida.id, alumno: nombreAlumno, apellidos, adulto },
+      pago: { tutorId: uno.tutorId, telefono, hijos: [{ alumnoId: uno.alumnoId, nombre: h1 }, { alumnoId: dos.alumnoId, nombre: h2 }], talla: "12" },
+      telefonoLanding: vista === "celular" ? "5566770001" : "5566770002",
+    };
+  };
+  const celular = await juego("celular", 1);
+  const escritorio = await juego("escritorio", 2);
+  return { maestra, grupoPase, alumnosDelPase, grupoConversion, rutaLanding: `/l/vertical-prueba`, numeroDelCanal, por: { celular, escritorio } };
+}
+
+const enmin = (ms: number): Date => new Date(Math.floor(ms / 60_000) * 60_000);
