@@ -79,6 +79,44 @@ asesor convierte; con `configuracion_organizacion.modo_cierre = 'maestro_en_siti
 El seed trae los motivos de baja de ejemplo `[SUPUESTO]` y la plantilla/automatización de **bienvenida de inscripción** (`bienvenida_inscripcion`, de servicio): con el
 motor corriendo, al inscribir sale a la conversación del tutor responsable (por el transporte configurado; sin Twilio real, solo se registra).
 
+### Cobrar, entregar y medir (H e I)
+
+Con la sesión de **recepción** (o del administrador; ver «Usuarios de la aplicación»), todo por la API (`docs/API.md` tiene cada ruta):
+
+```bash
+GET  /api/tutores/:id/estado-cuenta                     # cargos por hijo, pagos, saldo y antigüedad de lo vencido (0–30, 31–60, 61–90, 90+ días)
+GET  /api/pagos/propuesta?tutor_id=…&monto=1500.00      # cómo se repartiría un pago: el cargo más antiguo primero (un pago puede cubrir a varios hijos)
+POST /api/pagos {"tutor_id":"…","monto":"1500.00","metodo":"efectivo","clave_idempotencia":"caja-0001"}   # reintentar con la misma clave no cobra dos veces
+POST /api/pagos/:id/cancelar {"motivo":"…"}              # no borra: revierte sus aplicaciones y los cargos recalculan su saldo
+GET  /api/beneficios/por-entregar                        # los uniformes «gratis al pagar la primera mensualidad» que ya se ganaron
+POST /api/beneficios/:id/entregar {"producto_id":"…"}    # crea la venta promocional de precio 0 y descuenta el stock
+POST /api/ventas {"alumno_id":"…","producto_id":"…","cantidad":1}   # descuenta stock y genera su cargo
+```
+
+El dinero siempre viaja como **texto** con dos decimales (`"1234.50"`): un número JSON se rechaza. Los pagos son registro manual (sin pasarela). Las mensualidades se generan solas
+(el barrido de cada 10 minutos) y los **recordatorios de pago** (plantillas `recordatorio_pago_*`, de servicio, `[SUPUESTO]`) salen por el motor con el horario de 09:00 a 20:00.
+
+**Comprobar que el dinero cuadra:** `npm run cuadratura` (todas las organizaciones; `-- --organizacion <id>` para una). Sale con 1 si algo no cuadra.
+
+**Reportes:** `GET /api/reportes/clases-muestra` (administrador y asesor), `/costo-por-alumno` (administrador), `/ejecutivo` (administrador y asesor, este último solo sus sucursales) y
+`/ocupacion` (también recepción y maestro, sin importes); los tres primeros aceptan `?formato=csv` para descargarlos, y hay CSV de `GET /api/exportaciones/estado-cuenta?tutor_id=`,
+`/uniformes-por-entregar` y `/leads`. El gasto de cada campaña lo captura el administrador: `POST /api/campanas/:id/gastos {"fecha":"2026-10-03","monto":"1000.00"}`.
+Por comando: `npm run reporte:clases-muestra`.
+
+### Datos de demo (~300 alumnos, seis meses)
+
+```bash
+npm run demo:datos -- --confirmar-base-de-demo     # genera la historia en la base de DATABASE_URL (la de la demo exige la bandera)
+npm run demo:datos -- --confirmar-base-de-demo --alumnos 300 --meses 6 --semilla 20261008 --hasta 2026-10-08
+npm run cuadratura                                  # y verifica que el dinero cuadra
+```
+
+Lo genera **por los servicios reales** (leads de la landing con su código de rastreo, clases muestra, conversión con sus cargos, barrido mensual, pagos parciales y completos, pases de lista,
+bajas, ventas y entrega de uniformes), de forma **determinista** (misma semilla, misma historia, línea por línea) e **idempotente** (sus teléfonos son del bloque `+52 55 9900 NNNN`; si ya
+hay, no hace nada). Tarda unos minutos y al terminar corre la cuadratura y las verificaciones del catálogo (traslapes de edad y choques de salón): sale con 1 si algo no cuadra.
+Si se interrumpe a medias avisa y pide recrear la base de la demo (`docker compose down -v` y `up`): no hay borrado físico. **No** lo corras contra una base que no sea de demo o de
+pruebas. El comando necesita `CLAVE_DATOS_SENSIBLES` o, en local, `NODE_ENV=development` (lo pone el script de npm).
+
 ## Interfaz web
 
 Con `docker compose up -d --build --wait` el backend también sirve la interfaz en **http://localhost:3000** (la compila una etapa del `Dockerfile`; no hace falta instalar nada). Entra con

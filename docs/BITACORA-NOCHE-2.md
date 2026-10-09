@@ -72,7 +72,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H-verif | HECHO | ver `git log` (`H-verif:`) | Verificación independiente de las correcciones H (revertir cada arreglo y ver fallar su prueba, 4 ataques por SQL directo) y 3 blindajes nuevos en la base; ver «Verificación independiente de las correcciones H» |
 | I2 | HECHO | ver `git log` (`I2:`) | Costo por alumno inscrito por campaña: gasto capturado a mano (administrador, registro de cambios, blindado en la base) y reporte por lead, clase muestra y alumno, sin división por cero |
 | I3 | HECHO | ver `git log` (`I3:`) | Reporte ejecutivo: activos por vertical y sucursal, altas y bajas del mes, deserción, ingreso mensual recurrente, cartera vencida (consistente con el estado de cuenta) y % de ocupación por grupo con la fuente real; el asesor ve sus sucursales y el maestro solo la ocupación de sus grupos, sin importes |
-| I4 | PENDIENTE | | Datos de demo |
+| I4 | HECHO | ver `git log` (`I4:`) | Datos de demo: ~300 alumnos y seis meses de historia, deterministas (PRNG con semilla), generados por los servicios reales, idempotentes y con `npm run demo:datos` (protegido contra la base de la demo sin bandera); cuadratura y verificaciones del catálogo en verde |
 | I5 | HECHO | ver `git log` (`I5:`) | Exportación a CSV de los reportes (I1, I2, I3) y de las listas clave (estado de cuenta, uniformes por entregar, leads): escape RFC 4180, inyección de fórmulas neutralizada, BOM, dinero exacto, `Content-Disposition`, alcance respetado y listas grandes por lotes |
 | J1 | HECHO | ver `git log` (`J1:`) | Interfaz web base: `web/` (React + Vite + TS), acceso, navegación por permisos, layout responsivo, sesión expirada, 404/403, selector de sucursal; servida por el backend (y por compose); pruebas en Chromium real (`npm run test:navegador`) |
 | J2 | HECHO | ver `git log` (`J2:`) | Maestro en celular (390×844): «Hoy» con asistencia y «listo para cerrar», registro del alumno COMPLETO (adultos como filas, salud solo en memoria, antecedentes, observación, reglamento e imagen con evidencia) y pase de lista idempotente; probado en Chromium contra el backend real |
@@ -2528,6 +2528,51 @@ $ npm run test:int    → exit 0 · tests 1058 · pass 1058 · fail 0   (base re
 **Para Eduardo**
 - Los teléfonos salen con apóstrofo delante (`'+5255…`): Excel lo muestra como texto. Si prefieren verlo sin él, el costo es abrir la posibilidad de fórmulas.
 - Para J9: cada tablero puede ofrecer «Descargar CSV» con el mismo `GET` y `?formato=csv` (`/api/exportaciones/*` para las listas).
+
+## I4. Datos de demo
+
+**Qué se hizo**
+- **`npm run demo:datos`** (`scripts/demo-datos.ts`, `src/demo/generador.ts`): genera ~300 alumnos y seis meses de historia en la organización que se le indique (por omisión, la única). Un reloj simulado recorre día por día y, **siempre por los servicios reales** (nunca inserts a ciegas), hace: el lead de la landing con su código de rastreo (`registrarEnvioDeLanding`), los hermanos como prospectos del mismo lead, la clase muestra (`agendarClaseMuestra`, `marcarAsistencia`), el reglamento aceptado, la conversión en familia e inscripción con sus cargos (`convertirLead`), el barrido mensual de finanzas, pagos puntuales, parciales, tardíos y morosos con su reparto cargo por cargo (`registrarPago` y sus ganchos), pases de lista con sus derivados, bajas con motivo, ventas, y la entrega de uniformes ganados. Lo único que inserta directo es el catálogo de apoyo: cuatro campañas con su código de rastreo, el gasto que el administrador captura a mano (último paso: es la señal de que la corrida terminó) y, si no hay, productos.
+- **Determinista:** un PRNG con semilla (`src/lib/azar.ts`, mulberry32; la misma semilla, la misma historia). Todo lo que se elige sale del PRNG y de listas ordenadas por contenido, nunca del orden en que la base devuelva las filas ni de un id aleatorio. La prueba compara la traza COMPLETA de dos corridas en organizaciones distintas (cada evento, pago y pase, línea por línea), no solo los totales.
+- **Idempotente:** sus filas están marcadas (teléfonos del bloque reservado `+52 55 9900 NNNN`, campañas «Demo: …»). Volver a correrlo no genera nada (`yaExistia`). Si una corrida anterior se interrumpió (hay filas marcadas pero no el gasto final), avisa y pide recrear la base en lugar de duplicar.
+- **Protegido:** contra una base cuyo nombre no termina en `_pruebas` o `_test` (la de la demo es `inscripciones`) exige `--confirmar-base-de-demo` y, sin ella, sale con 2 antes de conectarse. Al terminar corre la **cuadratura** (H7) y las **verificaciones del catálogo** (traslapes de edad, choques de salón e instructor) y sale con 1 si algo falla.
+- Las pruebas usan una base de pruebas. `src/lib/azar.ts` vive en `lib/` (fuera de las zonas estrictas de `check:dinero`): el azar usa flotantes y ahí no hay dinero.
+
+**Verificación** (copia limpia del `HEAD` más este bloque, fuera del repo, base propia)
+```
+$ npm run validar     → exit 0 · tests 625 · pass 625 · fail 0 (más los 9 de web)
+$ npm run test:int    → exit 0 · tests 1064 · pass 1064 · fail 0   (base recién creada y vacía; incluye la prueba LENTA)
+```
+`generador.itest.ts` (7): una corrida chica (30 alumnos, 3 meses) con el mismo código: leads, clases muestra, inscripciones con sus cargos, pases, pagos parciales y completos, ventas, bajas, deuda vencida, cuadratura en cero y catálogo sin tocar; que pasó por los servicios (tutor y reglamento, lead «inscrito», clase asistida, campañas, gasto, reporte ejecutivo igual a la base); idempotencia; una corrida interrumpida se detecta (falta el gasto final) y no se completa duplicando; determinismo (traza idéntica; otra semilla, otra historia); el comando (la base de la demo exige la bandera; contra una de pruebas genera y cuadra, y la segunda vez dice que ya había); y **LENTA**: 300 alumnos y seis meses sobre el catálogo REAL del seed (tres verticales, dos sucursales, 300 lugares), con las verificaciones del catálogo en cero, los reportes I2 e I3 leyendo esos datos e idempotencia a ese tamaño (`SALTAR_PRUEBAS_LENTAS=1` la salta; unos 3 minutos). La prueba de la corrida interrumpida se agregó después de la corrida completa (corrida sola, `tsc` y `eslint` en verde). Mutaciones muertas: el azar que depende del reloj, no detectar una corrida a medias, no ser idempotente, quitar la protección de la base de la demo y dejar que un id aleatorio desempate el reparto de un pago. Se encontró al integrarlo (el borrador nunca se había corrido): el formato de los códigos de rastreo, el cifrador de la conversión, el desempate del reparto de un pago por un id aleatorio (la historia variaba de una corrida a otra), el orden de la lista del pase de lista y los usos de `Math`/`Number` en una zona de `check:dinero`.
+
+**Corrida real** (`demo_ensayo_test`: la base de la demo recién sembrada con los seis seeds de `docker-compose.yml`, copia aparte; no se tocó la base `inscripciones`):
+```
+$ npm run demo:datos
+Datos de demo generados en Escuela demo (203.1 s).
+  leads: 628 · clases muestra: 465 (asistidas 409) · inscripciones: 297 (bajas 27)
+  cargos: 1750 · pagos: 1244 · ventas: 412 · asistencias registradas: 7440
+  conversiones rechazadas (el grupo se llenó): 43 · beneficios entregados: 285
+✓ cuadra — cargado 1151951.50 · pagado 913616.35 · saldo 238335.15
+  catálogo: traslapes de edad 0 · choques de salón 0 · choques de instructor 0
+  tiempo real: 3m24.071s
+$ npm run demo:datos   (segunda vez)
+Ya había datos de demo en Escuela demo: no se generó nada.
+$ npm run cuadratura
+✓ cuadra — Escuela demo
+  cargos: 1750 · pagos: 1244 · aplicaciones: 1473 · ventas: 412
+  cargado: 1151951.50 · pagado: 913616.35 · saldo: 238335.15
+exit 0
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El reparto de cada pago va cargo por cargo** (`aplicaciones` explícitas). Alternativa descartada: dejar que el sistema reparta «el más antiguo primero»: dos cargos del mismo día se desempatan por un id aleatorio y la historia dejaba de ser determinista.
+2. **Los grupos se eligen con probabilidad proporcional a su cupo** y se planea un 20 % más de familias que `--alumnos`: una conversión que cae en un grupo lleno se rechaza (como en la vida real) y el total inscrito queda cerca de lo pedido. Alternativa descartada: un grupo uniforme (llena primero los grupos chicos y deja vacíos los grandes: 239 de 300).
+3. **«Terminó» = el gasto de las campañas existe.** Alternativa descartada: una tabla o columna de marca (más esquema para algo que solo usa el generador).
+4. **Correr contra la base viva de la demo con el motor encendido:** las familias generadas no tienen conversación de WhatsApp, así que la cobranza no les manda nada y deja tareas `cobranza_sin_canal` y `deuda_vencida` para los asesores (cientos). Es lo que haría el sistema con morosos reales.
+
+**Para Eduardo**
+- Correr `npm run demo:datos -- --confirmar-base-de-demo` contra la base de la demo es decisión tuya (llena el tablero de tareas y los reportes); en esta sesión solo se corrió contra una copia.
+- `[SUPUESTO]` los perfiles de pago (50 % puntual, 25 % parcial, 15 % tardío, 10 % moroso), 12 % de bajas, 40 % que compran un producto y las asistencias de 55 a 98 % son números de ejemplo del generador, no datos de la escuela.
 
 ## J1. Interfaz web: base
 
