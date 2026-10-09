@@ -12,6 +12,7 @@
 
 import { aFecha, deFecha, type FechaISO } from "../catalogo/precios.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { esViolacionUnica } from "../datos/prisma.ts";
 import { aTexto, deDecimal, sumar, type Centavos } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { proponerDistribucion, validarDistribucion, type AplicacionPropuesta, type CargoAbierto, type ProblemaDeDistribucion } from "./distribucion.ts";
@@ -146,19 +147,26 @@ export async function registrarPago(tx: Consultas, ctx: ContextoDePago, e: Entra
   if (fecha > hoy) throw new RechazoDePago("fecha_futura", "La fecha del pago no puede ser futura");
 
   try {
-    const pago = await tx.pago.create({
-      data: altaConAlcance({
-        tutor_id: e.tutorId,
-        monto: aTexto(e.monto),
-        monto_aplicado: "0.00",
-        metodo: e.metodo,
-        referencia: e.referencia ?? null,
-        fecha: aFecha(fecha),
-        clave_idempotencia: e.clave ?? null,
-        registrado_por_usuario_id: ctx.usuarioId,
-      }),
-      select: { id: true },
-    });
+    const pago = await tx.pago
+      .create({
+        data: altaConAlcance({
+          tutor_id: e.tutorId,
+          monto: aTexto(e.monto),
+          monto_aplicado: "0.00",
+          metodo: e.metodo,
+          referencia: e.referencia ?? null,
+          fecha: aFecha(fecha),
+          clave_idempotencia: e.clave ?? null,
+          registrado_por_usuario_id: ctx.usuarioId,
+        }),
+        select: { id: true },
+      })
+      .catch((error: unknown) => {
+        // EH-04: el candado de la familia no ordena a DOS familias que usan la misma clave a la vez; el único de la base (`pago_clave_idempotencia_key`) decide quién gana y la otra
+        // recibe el mismo conflicto que si hubiera llegado después, en lugar de un 500.
+        if (e.clave && esViolacionUnica(error)) throw new RechazoDePago("clave_reutilizada", "Esa clave de idempotencia ya se usó con otro pago");
+        throw error;
+      });
     for (const a of reparto) {
       await tx.pago_aplicacion.create({ data: altaConAlcance({ pago_id: pago.id, cargo_id: a.cargoId, monto_aplicado: aTexto(a.monto) }), select: { id: true } });
     }

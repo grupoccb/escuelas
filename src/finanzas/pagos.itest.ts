@@ -413,3 +413,25 @@ test("CONCURRENCIA: pagar un cargo y cancelarlo al mismo tiempo (10 rondas) nunc
     else assert.deepEqual([fila.estatus, dec(fila.monto_pagado)], ["pagado", "500.00"]);
   }
 });
+
+test("EH-04: la misma clave de idempotencia usada A LA VEZ por dos familias no da 500: una registra y la otra recibe 409 clave_reutilizada", async () => {
+  const f1 = await familia();
+  const f2 = await familia();
+  const clave = `dos-familias-${randomUUID()}`;
+  const barrera = new Barrera(2);
+  // Los dos ya leyeron «esa clave no existe» (candados distintos: son familias distintas) y SOLO ENTONCES crean el pago: el único de la base decide.
+  const apiCarrera = levantarApi(conGanchos(prisma, { modelo: "pago", operacion: "findFirst", cuando: (a) => JSON.stringify(a["where"]).includes(clave), despues: () => barrera.esperar(5000) }), { reloj: () => m.reloj.ahora });
+  try {
+    const clientes = await clientesConSesion(apiCarrera, "recepcion", 2);
+    const [c1, c2] = [clientes[0]!, clientes[1]!];
+    const cuerpo = (f: typeof f1) => ({ tutor_id: f.tutorId, monto: "100.00", metodo: "efectivo", clave_idempotencia: clave, aplicaciones: [{ cargo_id: f.mens1.id, monto: "100.00" }] });
+    const [a, b] = await Promise.all([c1.post<PagoDeApi>("/api/pagos", cuerpo(f1)), c2.post<PagoDeApi>("/api/pagos", cuerpo(f2))]);
+    assert.ok(barrera.completa, "los dos leyeron antes de crear");
+    assert.deepEqual([a.estado, b.estado].sort(), [201, 409], JSON.stringify([a.cuerpo, b.cuerpo]));
+    const perdedor = a.estado === 409 ? a : b;
+    assert.equal(motivo(perdedor), "clave_reutilizada");
+    assert.equal(await prisma.pago.count({ where: { clave_idempotencia: clave } }), 1);
+  } finally {
+    await apiCarrera.cerrar();
+  }
+});
