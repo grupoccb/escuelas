@@ -2574,6 +2574,24 @@ exit 0
 - Correr `npm run demo:datos -- --confirmar-base-de-demo` contra la base de la demo es decisión tuya (llena el tablero de tareas y los reportes); en esta sesión solo se corrió contra una copia.
 - `[SUPUESTO]` los perfiles de pago (50 % puntual, 25 % parcial, 15 % tardío, 10 % moroso), 12 % de bajas, 40 % que compran un producto y las asistencias de 55 a 98 % son números de ejemplo del generador, no datos de la escuela.
 
+## Cierre de H-verif, I2, I3, I4 e I5 (verificación final)
+
+Commits (uno por bloque): `H-verif` (e585ed1), `I2` (39ab1bd), `I3` (6225525), `I5` (4c6fd02) e `I4` (964af1b). I5 va antes que I4 porque la documentación de la demo (`docs/DEMO-LOCAL.md`) menciona los CSV.
+
+**Verificación final sobre el `HEAD` exacto** (`964af1b`, que ya incluye J1 a J5; copia limpia fuera del repo, base propia recién creada):
+```
+$ npm run validar     → exit 0 · tests 625 · pass 625 · fail 0 (más los 9 de web)
+$ npm run test:int    → exit 0 · tests 1065 · pass 1065 · fail 0   (base vacía, incluye la prueba LENTA de 300 alumnos)
+$ npm run test:int    → exit 0 · tests 1065 · pass 1065 · fail 0   (segunda vez seguida, misma base)
+```
+Cada bloque se corrió antes de su commit en una copia limpia de `HEAD` más el bloque (cifras en su sección). Las pruebas que se agregaron después de esa corrida completa por una mutación que sobrevivía están dichas en la sección de cada bloque (corridas solas, `tsc` y `eslint` en verde) y entraron en la corrida final.
+
+**Para quien siga**
+- `src/lib/azar.ts` (PRNG con semilla, fuera de las zonas de `check:dinero`), `src/lib/dinero.ts#dividir`, `src/exportacion/{csv,http}.ts` (`aCsv`, `enviarCsv`, `enviarCsvPorLotes`), `src/finanzas/por-entregar.ts`, `ClienteApi.descargar()` (testutil: los bytes tal cual, `res.text()` se come el BOM).
+- Lección: dos cargos del mismo día se desempatan por un id aleatorio en «el más antiguo primero» (`ordenDeAplicacion`): todo lo que necesite ser determinista reparte a mano.
+- Lección: el borrador de I4 que se heredó nunca se había corrido; se rehízo contra el catálogo real del seed. Revisar como código ajeno lo que llegue de `.tmp/`.
+- Endpoints para la interfaz (J9, tableros): clases muestra `GET /api/reportes/clases-muestra`; costo por campaña `GET /api/reportes/costo-por-alumno` y `GET|POST|DELETE /api/campanas/:id/gastos`; ejecutivo `GET /api/reportes/ejecutivo?mes=` y `GET /api/reportes/ocupacion`; CSV con `?formato=csv` en los tres reportes (`seccion=resumen|activos|ocupacion` en el ejecutivo) y `GET /api/exportaciones/{estado-cuenta?tutor_id=,uniformes-por-entregar,leads}`.
+
 ## J1. Interfaz web: base
 
 **Qué se hizo**
