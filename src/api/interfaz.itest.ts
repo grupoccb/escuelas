@@ -83,7 +83,7 @@ test("GET /api/leads y /api/leads/:id: fuente derivada, campaña, etapa, vertica
     const asesor = await e.entrar("asesor", [norte.id]);
     const campana = await prisma.campana.create({ data: { organizacion_id: e.org.organizacionId, nombre: "Campaña de prueba", origen: "facebook" } });
     const { leadId } = await sembrarFamilia(prisma, e.org, { sucursalId: norte.id, nombre: "Ninia", edad: 7 });
-    await prisma.lead.update({ where: { id: leadId }, data: { campana_id: campana.id, ctwa_clid: "clid-secreto-de-meta", anuncio_id: "anuncio-1", atribucion: { fuente: "codigo" } } });
+    await prisma.lead.update({ where: { id: leadId }, data: { campana_id: campana.id, ctwa_clid: "clid-secreto-de-meta", anuncio_id: "anuncio-1", atribucion: { fuente: "codigo", codigo_rastreo: "ABCD2345", ctwa_clid: "otro-secreto", referral: { source_url: "https://x.invalid" } } } });
     const chatwootId = randomInt(1, 2_000_000_000);
     await prisma.conversacion.create({ data: { organizacion_id: e.org.organizacionId, bandeja_chatwoot_id: e.org.bandejaId, lead_id: leadId, chatwoot_conversacion_id: chatwootId } });
 
@@ -101,6 +101,7 @@ test("GET /api/leads y /api/leads/:id: fuente derivada, campaña, etapa, vertica
     assert.deepEqual(d["conversaciones"], [{ id: (d["conversaciones"] as { id: string }[])[0]!.id, estado: "bot", chatwoot: { cuenta_id: e.org.chatwootAccountId, bandeja_id: e.org.chatwootInboxId, conversacion_id: chatwootId } }]);
     assert.equal((d["prospectos"] as { alumno_id: string | null }[])[0]!.alumno_id, null);
     assert.equal("ctwa_clid" in d, false, "el identificador de rastreo del proveedor no sale");
+    assert.deepEqual(d["atribucion"], { fuente: "codigo", codigo_rastreo: "ABCD2345" }, "de la atribución solo salen las claves seguras");
   } finally {
     await e.api.cerrar();
   }

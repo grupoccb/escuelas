@@ -76,7 +76,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | I5 | PENDIENTE | | Exportación a CSV |
 | J1 | HECHO | ver `git log` (`J1:`) | Interfaz web base: `web/` (React + Vite + TS), acceso, navegación por permisos, layout responsivo, sesión expirada, 404/403, selector de sucursal; servida por el backend (y por compose); pruebas en Chromium real (`npm run test:navegador`) |
 | J2 | HECHO | ver `git log` (`J2:`) | Maestro en celular (390×844): «Hoy» con asistencia y «listo para cerrar», registro del alumno COMPLETO (adultos como filas, salud solo en memoria, antecedentes, observación, reglamento e imagen con evidencia) y pase de lista idempotente; probado en Chromium contra el backend real |
-| J3 | PENDIENTE | | Interfaz: asesor |
+| J3 | HECHO | ver `git log` (`J3:`) | Asesor: embudo (tablero y lista, filtros, estancados, mover con motivo/nota), tareas, ficha del lead (atribución, cotizaciones, clase muestra, historial, enlace a Chatwoot); cambios mínimos a la API con test |
 | J4 | PENDIENTE | | Interfaz: conversión e inscripción |
 | J5 | PENDIENTE | | Interfaz: recepción |
 | J6 | PENDIENTE | | Interfaz: familia y expediente |
@@ -2557,4 +2557,39 @@ Mutaciones comprobadas: quitar `!empezo` del botón «Asistió» hace fallar la 
 - Revisa en un celular real `docs/capturas/10…15-*-celular.png`: el registro es largo (secciones plegables); si prefieres un asistente de un paso por pantalla, es un cambio de presentación, no de datos.
 - **[SUPUESTO]** el motivo por omisión de «Ver lo registrado» es «Revisión del maestro antes de la clase» (editable; la API exige uno).
 - En esta pantalla el **asesor** captura todo menos la salud (decisión 2 de D5): el registro queda completo cuando el maestro o el administrador la capturan.
+
+## J3. Asesor: embudo, tareas y ficha del lead
+
+**Qué se hizo** (`web/src/pantallas/asesor/`)
+- **Embudo** (`Embudo.tsx`): tablero por etapa (una columna por etapa de `GET /api/etapas`, con su conteo) y lista; filtros por sucursal (el selector global), **fuente** y «solo estancados»; **alerta de estancados** («N lead(s) llevan días sin movimiento» con acceso directo) y la insignia «Sin movimiento N d» en cada tarjeta (`GET /api/leads/estancados`); carga hasta 500 leads (de 100 en 100) y avisa si hay más. Un asesor solo ve los de su sucursal (lo decide la API).
+- **Mover de etapa** (`MoverEtapa.tsx`, también desde la ficha): las reglas del servidor anticipadas en pantalla — **perder EXIGE el motivo** (catálogo de `/api/motivos-perdida`), **recuperar EXIGE una nota**, «inscrito» aparece deshabilitado («se llega inscribiendo»); manda `desde_etapa_id`, así que si otra persona ya movió al lead recibe el 409, lo dice («El lead cambió mientras lo veías») y recarga sin pisar su cambio.
+- **Tareas** (`Tareas.tsx`): pendientes y resueltas (hechas + descartadas), filtro por tipo, cada tarea con su **tipo explicado** (los 19 tipos tienen título y descripción en `lib/etiquetas.ts`), enlace al lead, «Marcar como hecha» / «Descartar» (409 si ya estaba resuelta).
+- **Ficha del lead** (`FichaLead.tsx`): contacto y etapa actual, alumnos (con edad y si ya son alumnos), **atribución** (fuente, campaña, anuncio, UTM y código de rastreo —solo las claves seguras—), **cotizaciones** (`Cotizaciones.tsx`: lo cotizado congelado con sus precios y promociones, el horario que eligió la familia, supuestos; y «Cotizar a mano»: el servidor calcula —la pantalla solo elige alumno y programa de `GET /api/cotizador` y manda hermanos/meses opcionales—), **clase muestra** (`ClasesMuestraDeLead.tsx`: agendar, reprogramar y cancelar con las sesiones y **los lugares** que calcula el servidor), historial de etapas (quién, cuándo, motivo, nota), tareas pendientes del lead y el **enlace a su conversación en Chatwoot**: `<CHATWOOT_URL_PUBLICA>/app/accounts/<cuenta>/inbox/<bandeja>/conversations/<conversación>` (`lib/chatwoot.ts`, con prueba); se abre en otra pestaña con `rel="noopener noreferrer"`, nunca se visita desde las pruebas y, si falta la URL pública o la cuenta, la pantalla lo dice en vez de inventar un enlace.
+- **API** (cambios mínimos, con test en `src/api/interfaz.itest.ts`): el detalle del lead ahora trae `atribucion` filtrada a `fuente`, `utm_*` y `codigo_rastreo` (el referral completo del proveedor, con sus identificadores de rastreo, no sale); documentado en `docs/API.md`.
+- **Datos de prueba**: un lead nuevo con campaña de Facebook, conversación en Chatwoot y una tarea; uno contactado; uno estancado hace 10 días con una tarea; y uno de la sucursal sur (el asesor del norte no debe verlo); motivos de pérdida.
+
+**Verificación**
+```
+$ npm run validar        → exit 0 · tests 606 · pass 606 · web: tests 18 · pass 18
+$ node --test src/api/interfaz.itest.ts (base de pruebas) → tests 7 · pass 7 · fail 0
+$ npm run test:int       → exit 0 · tests 1044 · pass 1044 · fail 0
+$ npm run test:navegador → 43 passed. asesor.spec.ts (9): tablero con SUS leads y sin los de otra sucursal, estancados y alerta, filtros (solo estancados, fuente,
+   lista), la ficha ajena es 404 en pantalla, ficha con atribución y el enlace a Chatwoot (href exacto, `_blank`, `noopener`; la prueba falla si el navegador
+   pidiera algo fuera de su origen), cotizar a mano (el precio sale del servidor; «abc» en hermanos se rechaza en pantalla), clase muestra (agendar con
+   lugares ≤ cupo − inscritos, el lead pasa a «muestra agendada»; reprogramar deja una agendada y una reagendada; cancelar regresa al lead a «contactado»),
+   tareas (resolver y descartar quedan en el servidor), mover (avanzar, perder con motivo, recuperar con nota, el historial lo cuenta; y el conflicto
+   cuando otra persona ya lo movió).
+```
+Hallazgo corregido en el camino: el historial devuelve etapas, usuario y motivo como objetos `{id, nombre}` (mi tipo decía texto y React lo rechazó al pintar): ahora está tipado como lo manda la API.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La interfaz no recalcula nada de la cotización**: elige alumno y programa y el servidor cotiza (precio, promociones, lugares). Alternativa descartada: calcular un «precio estimado» en pantalla (dos fuentes de verdad).
+2. **Fuente = la que deriva el servidor** (misma regla de los reportes) en `GET /api/leads`; el filtro es sobre lo cargado, no un parámetro nuevo de la API. Alternativa descartada: `?fuente=` en el servidor (más API para una lista de a lo más 500).
+3. **De la atribución solo salen claves seguras**; no se expone `ctwa_clid` ni el id del anuncio. Alternativa descartada: devolver el JSON del proveedor y filtrar en pantalla (el dato ya habría salido).
+4. **El enlace a Chatwoot lo arma la pantalla** con la URL pública de `/api/yo` y los ids del lead (la API no llama a Chatwoot por esto: invariante 4). Alternativa descartada: que el backend devuelva el enlace ya armado (acopla la API a la forma de las URL de Chatwoot).
+5. **«Resueltas» junta hechas y descartadas** con dos peticiones: la API filtra por un estado a la vez. Alternativa descartada: parámetro `estado` múltiple (cambio de API sin necesidad).
+
+**Para Eduardo**
+- Una tarea generada por el sistema aparece sola al agendar/cancelar una clase cuando el maestro no tiene teléfono (aviso al maestro no enviado): es el comportamiento de D2, ahora visible.
+- **[SUPUESTO]** los nombres de las fuentes en pantalla (Facebook, Instagram, «En sucursal (QR)», «Página de captación»…) están en `FUENTES` (`Embudo.tsx`); el código de la fuente viene del servidor.
 

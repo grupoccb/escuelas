@@ -38,6 +38,16 @@ const SELECCION = {
 
 type FilaLead = { anuncio_id: string | null; ctwa_clid: string | null; atribucion: unknown; campana: { id: string; nombre: string; origen: string } | null } & Record<string, unknown>;
 
+/** Lo único de la atribución que sale en el detalle (el referral completo del proveedor trae identificadores de rastreo que no son para la pantalla). */
+const CLAVES_VISIBLES_DE_ATRIBUCION = ["fuente", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "codigo_rastreo"] as const;
+function atribucionVisible(atribucion: unknown): Record<string, string> | null {
+  if (typeof atribucion !== "object" || atribucion === null || Array.isArray(atribucion)) return null;
+  const crudo = atribucion as Record<string, unknown>;
+  const salida: Record<string, string> = {};
+  for (const k of CLAVES_VISIBLES_DE_ATRIBUCION) if (typeof crudo[k] === "string") salida[k] = crudo[k];
+  return Object.keys(salida).length > 0 ? salida : null;
+}
+
 /** La fila de la base con la fuente derivada; no se exponen el id del anuncio crudo ni el `ctwa_clid` (rastreo del proveedor). */
 function presentarLead<T extends FilaLead>({ anuncio_id, ctwa_clid, atribucion, campana, ...resto }: T) {
   return { ...resto, fuente: fuenteDe({ campana, anuncio_id, ctwa_clid, atribucion }), campana: campana ? { id: campana.id, nombre: campana.nombre } : null };
@@ -107,6 +117,7 @@ export function rutasDeLeads(_deps: DepsApi): Router {
     };
     res.json({
       ...presentarLead(resto as FilaLead),
+      atribucion: atribucionVisible((resto as FilaLead).atribucion),
       vertical: vertical_interes,
       sucursal: sucursal_interes,
       conversaciones: conversaciones.map((c) => ({ id: c.id, estado: c.estado, chatwoot: { cuenta_id: c.bandeja_chatwoot.chatwoot_account_id, bandeja_id: c.bandeja_chatwoot.chatwoot_inbox_id, conversacion_id: c.chatwoot_conversacion_id } })),
