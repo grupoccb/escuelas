@@ -20,8 +20,8 @@ Método: copia limpia del commit (`git archive HEAD | tar -x -C <tmp>`), dos Pos
   - **EG-03 (MEDIA).** `PUT /api/grupos/:id/pase` da **500** cuando una inscripción cambió de grupo y el grupo nuevo toma el pase de una fecha en que el viejo ya la había pasado (violación del índice único `(inscripcion, fecha)`): la lista la ofrece como pendiente.
   - **EG-04 (MEDIA).** Si el proceso muere (o el recálculo falla) entre guardar el pase y recalcular los derivados, el reintento del mismo pase devuelve `sin_cambio` y **nunca** se recalcula: la tarea de faltas consecutivas no nace.
   - **EG-05 (MEDIA).** El tope de marketing (1 cada 7 días, §11 del contexto) se aplica por la **categoría de Meta**, no por la **clase declarada**: `reenganche_captacion` y `recuperacion_no_asistio` (categoría `utility`, clase `marketing`) se saltan el tope.
-  - **EG-08 (MEDIA).** EF-17 (tests flaky) tiene causa raíz: `escucharSinReuso` usa `listen(0)` (comodín) y otros tests usan `listen(0, "127.0.0.1")`; en macOS un comodín puede recibir un puerto que otro proceso ya tiene en `127.0.0.1` y la petición llega al servidor equivocado (un 404 HTML o un servidor que nunca contesta: 300 s hasta «Headers Timeout»). Reproducido: 300 colisiones en 20 000 aperturas; 1 de 24 corridas paralelas fallan.
-- **Bitácora.** Todo «HECHO» de INV-6, WH y G1–G5 se reproduce con las cifras que cita (537 / 924, base vacía incluida). La lista de «decisiones abiertas» es completa; esta auditoría añade cuatro a la sección 8.
+  - **EG-08 (MEDIA).** EF-17 (tests flaky) tiene causa raíz: `escucharSinReuso` usa `listen(0)` (comodín); en macOS un servidor del comodín puede recibir un puerto que otro proceso ya tiene en `127.0.0.1` y la petición llega al equivocado (un 404 HTML o un servidor que nunca contesta: 300 s hasta «Headers Timeout»). Reproducido: 300 colisiones en 20 000 aperturas; 1 a 2 de 24 corridas paralelas fallaban. Con `lsof` en el momento de la falla el otro dueño del puerto resultó ser un **proceso ajeno a las pruebas** (los auxiliares del editor, que escuchan en `127.0.0.1`), así que alinear solo los servidores de prueba entre sí no basta: hay que escuchar en `127.0.0.1`.
+- **Bitácora.** Todo «HECHO» de INV-6, WH y G1–G5 se reproduce con las cifras que cita (537 / 924, base vacía incluida). La lista de «decisiones abiertas» es completa; esta auditoría añade cinco a la sección 8.
 
 ## 2. Tabla de hallazgos
 
@@ -33,7 +33,7 @@ Criterio de gravedad: ALTA = rompe un invariante, cupo/dinero mal calculado o du
 | EG-02 | **ALTA** | `src/webhooks/inesperado.ts:71-79`, `src/datos/sistema.ts:34-50` | `account.id` o `inbox.id` fuera del rango de `int`: la constancia revienta al resolver la bandeja y el webhook da 503 para siempre (bucle del proveedor) |
 | EG-03 | MEDIA | `src/asistencia/pase.ts:83-100,145-155` | `PUT …/pase` → 500: la inscripción que cambió de grupo aparece pendiente en el grupo nuevo en una fecha que el viejo ya pasó |
 | EG-04 | MEDIA | `src/api/rutas/asistencia.ts:82`, `src/asistencia/pase.ts:166` | El recálculo de derivados solo corre para filas que cambiaron: si se corta después de guardar, el reintento no lo repara y la tarea de faltas nunca nace |
-| EG-05 | MEDIA | `src/mensajeria/reglas.ts:142`, `src/mensajeria/provider.ts:371,435` | El tope de marketing por ventana usa la categoría de Meta y no la clase declarada: reenganche y recuperación (utility/marketing) se lo saltan |
+| EG-05 | MEDIA (producto) | `src/mensajeria/reglas.ts:142`, `src/mensajeria/provider.ts:371,435` | El tope de marketing por ventana usa la categoría de Meta y no la clase declarada: reenganche y recuperación (utility/marketing) se lo saltan. Se intentó corregir y rompe dos pruebas de diseño existentes (dos intentos en menos de 7 días): decisión de Eduardo |
 | EG-06 | MEDIA | `src/webhooks/inesperado.ts:117-120,172-177` | Hueco de pruebas de la garantía «nada se pierde en silencio»: dos mutaciones (tragarse toda excepción de la constancia; devolver `aceptado` si la constancia no se guarda) sobreviven |
 | EG-07 | MEDIA | `src/progresion/progresion.ts:71-95` | Un peldaño inferior al actual, registrado a mano con una fecha posterior, hace retroceder al alumno (actual = el más reciente por fecha); el camino por evento sí lo impide |
 | EG-08 | MEDIA | `src/testutil/servidor.ts:15` | Causa raíz de EF-17: servidor de prueba en el comodín convive con otros en `127.0.0.1` del mismo puerto |
@@ -58,7 +58,8 @@ Conteo: **2 ALTA, 8 MEDIA** (EG-03 a EG-10; EG-09 de producto), **10 BAJA** (EG-
 
 `clasificarError` decide por códigos (`PRISMA_TRANSITORIOS`, `SQLSTATE_TRANSITORIOS`, clases `08/53/58/XX`, `NODE_TRANSITORIOS`) y por un texto (`TEXTO_TRANSITORIO`). Lo demás es `inesperado` «ante la duda». Con la base arriba para otra conexión, `registrarEventoInesperado` guarda la constancia, el webhook responde 200 y el proveedor no reintenta: el mensaje de la familia no se procesa.
 Repetir (`aud/clasif.ts` y `aud/errores-reales.ts`, con un Postgres propio): contra el cliente real de Prisma se matan los backends con `pg_terminate_backend` dentro de una transacción → `Error: Client has encountered a connection error and is not queryable` → `inesperado:error_interno`. Con errores sintéticos con la forma que dan `pg`, `undici` y Prisma: `Connection ended unexpectedly`, `Query read timeout`, `read ECONNRESET`, `write EPIPE`, `getaddrinfo EAI_AGAIN db` (sin `code`), `P2037` (demasiadas conexiones), `25006` (`cannot execute INSERT in a read-only transaction`: *failover* a réplica), `PrismaClientRustPanicError`, `AbortError`, `TimeoutError`, `UND_ERR_CONNECT_TIMEOUT`, `UND_ERR_SOCKET` → todos `inesperado`. Sí clasifica bien `57P01`, `25P03`, `40P01`, `40001`, `55P03`, `57014`, `53300`, `ECONNREFUSED` y «Connection terminated unexpectedly».
-Corrección: ampliar las tres listas (códigos `errorCode`/`P2037`/`25006`, clases `28` y `3D` y `42P01`/`42703` —configuración o migración pendiente—, nombres `AbortError`/`TimeoutError`/`PrismaClientRustPanicError`, `UND_ERR_*` y los textos de `pg` y de red). Test: una tabla de errores reales y sintéticos que debe dar `transitorio`, otra de datos que debe seguir dando `inesperado`; mutaciones sobre cada lista.
+**El sentido inverso (hallado después, `aud/texto-hostil.ts`).** La clasificación mira el texto del error ANTES que si el error es un dato. Prisma cita en el mensaje el valor que no pudo convertir, así que un valor que contiene «Can't reach database server», «connection terminated unexpectedly», «deadlock detected» o «timeout exceeded when trying to connect» dentro de un error de validación, de uuid mal formado (`P2023`), de enum o de fecha inválida se clasifica **transitorio**: 503 y el proveedor repite sin fin un mensaje que nunca podrá procesarse. 24 de 28 combinaciones (4 frases × 7 errores). El texto lo controla quien escribe por WhatsApp.
+Corrección: la estructura manda (códigos, nombres de clase, error de validación de Prisma) y el texto solo decide si el error no trae ninguna señal estructurada de ser un dato; se amplían las tres listas (códigos `errorCode`/`P2037`/`25006`, clases `28` y `3D` y `42P01`/`42703` —configuración o migración pendiente—, nombres `AbortError`/`TimeoutError`/`PrismaClientRustPanicError`, `UND_ERR_*` y los textos de `pg` y de red). Test: una tabla de errores sintéticos que debe dar `transitorio`, otra de datos que citan esos textos y debe seguir dando `inesperado`, y una prueba con Prisma y Postgres reales (conexión matada en plena transacción; valores con las frases); 14 mutaciones sobre cada lista y el orden, todas muertas.
 
 ### EG-02 — `account.id`/`inbox.id` fuera de rango → 503 sin fin (ALTA)
 
@@ -79,7 +80,7 @@ Corrección: el PUT recalcula las inscripciones de **todas** las entradas (idemp
 ### EG-05 — El tope de marketing no mira la clase (MEDIA)
 
 INV-6 introduce la clase declarada y `reglas.ts` ya la usa para la baja de marketing, pero el tope «máximo 1 mensaje de marketing por contacto cada 7 días» (§11 del contexto) sigue usando `categoria === "marketing"` (reglas.ts:142; `esMarketing` y `enviadosAlTelefono(…, soloMarketing)` en provider.ts:371,435). `aud/mk.ts`: con `marketingRecientes = 5` y `limiteMarketing = 1`, una plantilla (marketing, marketing) da `tope_frecuencia` y una (utility, marketing) da `null`. Las dos plantillas clasificadas como marketing pero de categoría utility (`reenganche_captacion`, `recuperacion_no_asistio`) no cuentan ni son contadas. La mutación M12 (usar la clase) sobrevive: no hay test.
-Corrección: es marketing lo que declara `clase = marketing` **o** viene de Meta como `marketing`, en las reglas, en el conteo y en el conteo de envíos previos. Test con la matriz de las cuatro combinaciones y dos envíos reales.
+Corrección propuesta: es marketing lo que declara `clase = marketing` **o** viene de Meta como `marketing`, en las reglas, en el conteo y en el conteo de envíos previos. **Intentada en la fase 2 y revertida**: con ella fallan `hasta max_intentos, espaciados; después no hay más` (reenganche, motor) y `D4 recuperación: el primer intento sale 2 h después…; el segundo, 48 h después` (clases muestra): ambas pruebas de diseño exigen un segundo intento de reenganche o de recuperación dentro de los 7 días, lo que el tope semanal de §11 prohíbe. No se debilitaron las pruebas ni se reinterpretó el tope: queda como decisión (sección 8): ¿reenganche y recuperación cuentan para el tope de 1 por semana, o se exceptúan por diseño?
 
 ### EG-06 — La constancia que no se guarda (MEDIA, hueco de prueba)
 
@@ -195,8 +196,24 @@ fuzz Chatwoot 36 504 · Twilio 1 360 · landing 978         500: 0 · 503 por da
 
 ## 8. Decisiones de producto (para Eduardo)
 
-1. **EG-09.** ¿El maestro puede marcar a un participante `pagado` y quitarlo del evento? Hoy sí; el comentario del permiso dice que recepción cobra la cuota.
-2. **EG-12.** ¿La tarea de lead frío debe crearse aunque una persona atienda? Hoy sí (el motor ya no mira la atención humana); el texto de Eduardo solo menciona que no salga el reenganche.
-3. **EG-13.** ¿La confirmación de baja debe salir aunque una persona atienda (es una obligación de cumplimiento) o la confirma la persona? Hoy no sale.
-4. **EG-14 / EG-15.** ¿El maestro debe ver en el expediente solo lo de sus grupos? ¿Hasta cuántos días atrás se puede pasar lista?
-5. **Pendientes ya anotados en la bitácora** (siguen abiertos): excepciones del administrador para convocar a quien no cumple las clases mínimas; si un peldaño puede saltarse uno; una cuota por evento y no por alumno; qué ve el maestro en el expediente; beneficios pendientes de una inscripción congelada en el expediente.
+1. **EG-05.** ¿El reenganche y la recuperación de quien no llegó (clase `marketing`, categoría `utility`) cuentan para el tope de 1 mensaje de marketing por contacto cada 7 días? Hoy no cuentan, y dos pruebas de diseño exigen un segundo intento a las 24–48 h. Si cuentan, hay que dar a esas dos plantillas otro tope. No se tocó.
+2. **EG-09.** ¿El maestro puede marcar a un participante `pagado` y quitarlo del evento? Hoy sí; el comentario del permiso dice que recepción cobra la cuota.
+3. **EG-12.** ¿La tarea de lead frío debe crearse aunque una persona atienda? Hoy sí (el motor ya no mira la atención humana); el texto de Eduardo solo menciona que no salga el reenganche.
+4. **EG-13.** ¿La confirmación de baja debe salir aunque una persona atienda (es una obligación de cumplimiento) o la confirma la persona? Hoy no sale.
+5. **EG-14 / EG-15.** ¿El maestro debe ver en el expediente solo lo de sus grupos? ¿Hasta cuántos días atrás se puede pasar lista?
+6. **Pendientes ya anotados en la bitácora** (siguen abiertos): excepciones del administrador para convocar a quien no cumple las clases mínimas; si un peldaño puede saltarse uno; una cuota por evento y no por alumno; qué ve el maestro en el expediente; beneficios pendientes de una inscripción congelada en el expediente.
+
+## 9. Estado tras las correcciones (fase 2)
+
+Commits `G-fix` (cada uno con su prueba verificada por mutación; `validar` y `test:int` en verde sobre una copia limpia con su propia base):
+
+| ID | Estado | Commit |
+|---|---|---|
+| EG-01 (ALTA), EG-02 (ALTA), EG-06 | corregidos (EG-01: 14 mutaciones muertas; EG-02: 5 de 6, la sexta es equivalente; EG-06: sus 2 mutaciones muertas) | `9290dc6` |
+| EG-03, EG-04 | corregidos (5 mutaciones muertas) | `bc36161` |
+| EG-07 | corregido (4 mutaciones muertas) | `ebbaa48` |
+| EG-08 | corregido de raíz (0 de 72 corridas paralelas fallan; antes 1 a 2 de 24) | `5c4daf2` |
+| EG-10 (M45), EG-11 | corregidos (M11 y M49 se dejan como hueco menor) | `2f4f945` |
+| EG-16 | corregido (2 mutaciones muertas) | `b637ef8` |
+| EG-05, EG-09, EG-12 a EG-15 | pendientes: decisión de Eduardo (EG-05 se intentó y se revirtió: rompe dos pruebas de diseño) | — |
+| EG-17 a EG-20 | pendientes (BAJA) | — |

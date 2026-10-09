@@ -51,7 +51,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | F5 | HECHO | ver `git log` (`F5:`) | Cambio de grupo atómico con historial de solo anexar, congelar/reactivar, baja con motivo de un catálogo editable, lista de espera avisada, concurrencia (último lugar, cruzados, bajas simultáneas) |
 | F6 | HECHO (parcial: EF-12, «listo para cerrar» del segundo hijo con el lead ya «inscrito»; decisión de Eduardo) | ver `git log` (`F6:`) | Los dos modos de cierre por configuración (`modo_cierre`): «listo para cerrar» (etapa, tarea, idempotente) y quién convierte según el modo (el maestro solo en sitio y de sus alumnos) |
 | F7 | HECHO (parcial: EF-11, hermanos que se inscriben a la vez no se ven entre sí; EF-14, bienvenidas duplicadas por hermanos y apagar una automatización no cancela lo programado) | ver `git log` (`F7:`) | Hermanos: promoción `min_hermanos` automática (alumnos distintos de la familia), lista de cross-sell y bienvenida de inscripción por el motor (plantilla de servicio, idempotente) |
-| F-fix | HECHO (parcial: EF-06 y EF-07 esperan decisión de Eduardo; EF-17 solo corrige el síntoma, el cruce de puertos entre pruebas paralelas sigue sin diagnóstico; EF-11 a EF-15 y EF-18 a EF-25 pendientes) | 6c9ef58…3ba2ca0 | Correcciones de la auditoría de la etapa F (`docs/auditorias/etapa-F.md`): ver la sección «Auditoría y correcciones de la etapa F» |
+| F-fix | HECHO (parcial: EF-06 y EF-07 esperan decisión de Eduardo; EF-17 queda corregido de raíz por EG-08 (G-fix); EF-11 a EF-15 y EF-18 a EF-25 pendientes) | 6c9ef58…3ba2ca0 | Correcciones de la auditoría de la etapa F (`docs/auditorias/etapa-F.md`): ver la sección «Auditoría y correcciones de la etapa F» |
 | INV-6 | HECHO | ver `git log` (`INV-6:`) | Invariante 6 reformulado: `plantilla_mensaje.clase_mensaje` (servicio / marketing, declarada), el provider deja pasar solo los avisos de servicio con una persona atendiendo; el bot pasa al asesor tras agendar; el motor ya no mira la atención humana |
 | WH | HECHO | ver `git log` (`WH:`) | Un webhook nunca responde 500 por un dato inesperado: clasificación única (transitoria → 503, dato inesperado → 200 con constancia `evento_inesperado` + tarea idempotentes) en Chatwoot, Twilio (entrantes, estados y barrido del borde) y landing |
 | G1 | HECHO | ver `git log` (`G1:`) | Pase de lista por grupo y fecha: `asistencia` única por (inscripción, fecha), solo sesiones que ya empezaron, lista de inscritos activos, guardado masivo idempotente y serializado, corrección con registro de cambios |
@@ -59,6 +59,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | G3 | HECHO | ver `git log` (`G3:`) | Progresión genérica: `nivel_progresion` y `alumno_progresion` (filas, sin términos de vertical), nivel actual = el más reciente, siguiente por orden, API de niveles y de la progresión del alumno, seed `[SUPUESTO]` de las tres verticales |
 | G4 | HECHO | ver `git log` (`G4:`) | Eventos y elegibilidad por clases mínimas: solo elegibles se convocan, cupo atómico y protegido en la base (disparador que falla cerrado; SQL directo y carrera real), estatus que solo avanza, resultado que crea la progresión en la misma transacción |
 | G5 | HECHO | ver `git log` (`G5:`) | Expediente del alumno en una sola respuesta (trayectoria, económico, operativo y comercial) con enchufes `ProveedorEconomico` y `ProveedorProductos` para H; la salud fuera (endpoint aparte); el maestro sin importes |
+| G-fix | HECHO (parcial: EG-05, EG-09 y EG-12 a EG-15 esperan decisión de Eduardo; EG-10 corregido en parte; EG-17 a EG-20 pendientes) | 5c4daf2…b637ef8 | Correcciones de la auditoría de INV-6, WH y la etapa G (`docs/auditorias/etapa-G.md`): 2 ALTA corregidas (EG-01, EG-02), EF-17 corregido de raíz (EG-08); ver la sección «Auditoría y correcciones de INV-6, WH y la etapa G» |
 | H1 | PENDIENTE | | Cargos |
 | H2 | PENDIENTE | | Pagos |
 | H3 | PENDIENTE | | Estado de cuenta por familia |
@@ -2131,3 +2132,51 @@ Corridas intermedias: `landing.itest.ts` («EE-02 concurrencia FORZADA», barrer
 - **Recordatorio de pago (H6):** la plantilla debe DECLARAR `clase_mensaje = servicio` (NOT NULL: no se puede dar de alta sin decidirlo) y, como todo aviso de servicio, saldrá aunque una persona atienda la conversación (con plantilla aprobada, horario 09:00–20:00, baja total y frecuencia diaria; la baja de marketing no la frena). La verificación vive solo en `MessagingProvider`; la guarda estática impide que la automatización pregunte por el estado.
 - **Productos (H5):** `ProveedorProductos.productosComprados` para el expediente; `promocion_beneficio.producto_id` sigue siendo un uuid sin FK.
 - **Defensas en la base que H debe seguir:** cupo (`inscripcion_cupo_maximo`, `evento_alumno_cupo`), únicos parciales, CHECK de importes; el dinero solo con `src/lib/dinero.ts`; toda pantalla/endpoint nuevo con su test de concurrencia real (`src/testutil/carrera.ts`: barrera forzada, no `Promise.all` a secas).
+
+## Auditoría y correcciones de INV-6, WH y la etapa G
+
+Informe: `docs/auditorias/etapa-G.md` (auditor con contexto nuevo, commit `81feb8c`). **2 ALTA, 8 MEDIA, 10 BAJA**; 70 mutaciones (59 mueren; 11 sobreviven: 5 equivalentes o menores y 6 que son hallazgos o huecos de prueba); fuzz firmado de los webhooks (36 504 variantes de Chatwoot, 1 360 de Twilio, 978 de la landing: ningún 500); verificación independiente de las correcciones `F-fix` (los nueve commits: revertido el arreglo, el test nuevo falla; ninguna falla; EF-17 diagnosticado).
+
+| Hallazgo | Gravedad | Estado | Commit / nota |
+|---|---|---|---|
+| EG-01 la clasificación pierde eventos por fallas del momento (conexión matada, lectura agotada, `P2037`, `25006`, `AbortError`, `UND_ERR_*`…) y repite sin fin los datos que citan texto de una falla | ALTA | **corregido** | `9290dc6`: la estructura (códigos, nombres, validación de Prisma) manda sobre el texto; 14 mutaciones mueren; prueba con Prisma y Postgres reales |
+| EG-02 `account.id`/`inbox.id` fuera del rango de `int` → 503 sin fin | ALTA | **corregido** | `9290dc6`: la búsqueda de la bandeja devuelve «no existe» y la constancia tolera una búsqueda que falla por el dato |
+| EG-03 `PUT …/pase` → 500 con una inscripción que cambió de grupo | MEDIA | **corregido** | `bc36161`: la lista excluye a quien ese día ya pasó en otro grupo |
+| EG-04 el recálculo de derivados no se repara tras un corte | MEDIA | **corregido** | `bc36161`: el PUT recalcula todas las inscripciones del pase (alertas como siempre) |
+| EG-05 el tope de marketing cuenta por categoría de Meta, no por la clase declarada | MEDIA (producto) | **pendiente: decisión de Eduardo** | se intentó y se revirtió: rompe dos pruebas de diseño (dos intentos de reenganche o de recuperación en menos de 7 días); ya estaba como decisión 1 del cierre de G |
+| EG-06 si la constancia no se guarda, nada lo prueba (2 mutaciones sobrevivían) | MEDIA | **corregido** | `9290dc6`: pruebas; ambas mutaciones mueren |
+| EG-07 un peldaño más bajo con fecha posterior hace retroceder al alumno | MEDIA | **corregido** | `ebbaa48`: orden y fecha coherentes (409 `fecha_incoherente_con_el_orden`) |
+| EG-08 causa raíz de EF-17 (tests intermitentes) | MEDIA | **corregido** | `5c4daf2`: los servidores de prueba escuchan en `127.0.0.1`; guarda en `servidor.test.ts`; 0 de 72 corridas paralelas fallan (antes 1 a 2 de 24) |
+| EG-09 el maestro marca `pagado` y quita a quien pagó | MEDIA (producto) | **pendiente: decisión de Eduardo** | informe, sección 8 |
+| EG-10 huecos de prueba (M45, M11, M49) | MEDIA | **corregido en parte** | `2f4f945`: la elegibilidad no cuenta clases de otra vertical (M45); M11 y M49 se dejan (BAJA: ningún instructor tiene una plantilla de marketing; la base cubre M49) |
+| EG-11 `check:dinero` sin `eventos/` ni `expediente/` | BAJA | **corregido** | `2f4f945` (4 mutaciones mueren) |
+| EG-12 a EG-15 (lead frío con atención humana, confirmación de baja, expediente del maestro, fechas del pase) | BAJA (producto) | pendientes: decisión de Eduardo | informe, sección 8 |
+| EG-16 una cotización vencida pero no marcada se acepta | BAJA | **corregido** | `b637ef8` (2 mutaciones mueren) |
+| EG-17 a EG-20 (tarea de faltas tras la baja, clase de plantilla por SQL, campos de la inscripción sin congelar, constancias sin retención) | BAJA | pendientes | informe, sección 3 |
+
+**Verificación de las correcciones F** (sección 6 del informe): `6c9ef58`, `5ce7801`, `f97d836`, `b7ef6ec`, `1a7dab8`, `41ae7ed` y `ad6835e` verificados revirtiendo el arreglo (el test nuevo falla) y con variantes; EF-05: 9 de 10 mutaciones mueren (la décima es EG-16, ya corregida). EF-17 queda **corregido de raíz** por EG-08.
+
+**Decisiones que tomé**
+1. **EG-08: `127.0.0.1` y no el comodín.** El intento de F-fix (todo en el comodín) bajó los fallos de 7 a 4 de 16 y se revirtió. Con `lsof` en el instante de la falla apareció el dueño real del puerto: un proceso ajeno a las pruebas (auxiliares del editor) escuchando en `127.0.0.1`. En macOS un comodín puede recibir ese puerto; una dirección explícita nunca recibe uno ocupado. Alternativa descartada: unificar en el comodín (no protege de procesos ajenos). Costo: el puerto se conoce hasta `listening`; `puertoDe()`, `levantarApi().listo` y `ClienteApi` lo esperan.
+2. **EG-01: la estructura manda sobre el texto.** El texto de un error puede citar lo que escribió una persona; solo decide si no hay ninguna señal estructurada de que es un dato. Alternativa descartada: quitar el texto (se perdería «Can't reach database server» y los errores de `pg` sin código). Las clases `28`, `3D` y `42P01`/`42703` (credenciales, base inexistente, migración pendiente) se tratan como del momento: una falla de despliegue se reintenta, no se pierde.
+3. **EG-04: recalcular todo pero reportar como antes.** `alertas` sigue sin listar a quien no cambió y no hizo nada (prueba existente); alternativa descartada: relajar esa prueba.
+4. **EG-03: excluir de la lista y no editar la fila del otro grupo.** Quien cambió de grupo conserva su asistencia de ese día en el grupo viejo, donde se puede corregir.
+5. **EG-07: coherencia entre fecha y orden y no redefinir «nivel actual».** El nivel actual por fecha es una decisión de G3 con su prueba; se cierra el hueco por la entrada (un peldaño más bajo con fecha posterior, o uno más alto con fecha anterior).
+6. **EG-05 se revirtió.** Aplicarlo rompe «hasta max_intentos, espaciados» y «D4 recuperación…» (segundo intento a las 48 h). No se debilitaron pruebas ni se reinterpretó el tope de §11.
+7. **Historia.** Los commits de código de esta fase se reordenaron una vez (sin tocar nada anterior a `81feb8c`) para que cada uno salga en verde: el ajuste de las pruebas que leen `api.base` se fundió con EG-08.
+
+**Verificación** (copia limpia de cada commit, base propia; nunca la de la demo)
+```
+5c4daf2 EG-08        validar exit 0 · tests 540   test:int exit 0 · tests 924
+9290dc6 EG-01/02/06  validar exit 0 · tests 542   test:int exit 0 · tests 928
+bc36161 EG-03/04     validar exit 0 · tests 542   test:int exit 0 · tests 930
+ebbaa48 EG-07        validar exit 0 · tests 542   test:int exit 0 · tests 931
+2f4f945 EG-10/11     validar exit 0 · tests 543   test:int exit 0 · tests 932
+b637ef8 EG-16 (HEAD) validar exit 0 · tests 543   test:int exit 0 · tests 933 (1.ª, base vacía) · exit 0 · tests 933 (2.ª seguida)
+b637ef8 en OTRA base nueva y vacía    test:int exit 0 · tests 933
+```
+
+**Para Eduardo**
+- Decisiones nuevas (sección 8 del informe): EG-05 (¿reenganche y recuperación cuentan para el tope de 1 por semana?), EG-09 (¿el maestro marca `pagado` y quita participantes?), EG-12 (tarea de lead frío con atención humana), EG-13 (confirmación de baja con atención humana), EG-14 y EG-15 (expediente del maestro; antigüedad máxima del pase).
+- `ClienteApi` y `levantarApi()` cambian de forma interna: quien lea `api.base` de una API recién levantada debe esperar `api.listo`.
+- Ninguna migración nueva. Sin cambios en `CLAUDE.md` ni en `docs/insumos/`.
