@@ -1,7 +1,7 @@
 // Respaldo y restauración de la base de datos (K5). Formato custom de pg_dump (-Fc: comprimido, restaurable por partes y en paralelo), con cifrado
 // opcional (AES-256-GCM, clave derivada con scrypt de una frase que NO vive en el repositorio ni en la base), suma de verificación y retención.
 //
-// No hace falta tener las herramientas de PostgreSQL instaladas: si `pg_dump` no está en el PATH se usan las del contenedor de Postgres de docker compose
+// No hace falta tener las herramientas de PostgreSQL instaladas: si `pg_dump` no está en el PATH se usan las del contenedor de Postgres local que publique el puerto de la conexión (EK-B1)
 // (`docker exec`), que son de la misma versión que el servidor. En producción (AWS) el respaldo principal son los automáticos de RDS; esto es el respaldo
 // LÓGICO (portátil, se puede abrir en otra versión, otra cuenta o una laptop) y se corre como tarea o desde un equipo con acceso a la base. docs/RESPALDO.md.
 
@@ -50,19 +50,44 @@ function hayComando(c: string): boolean {
   return spawnSync(c, ["--version"], { stdio: "ignore" }).status === 0;
 }
 
-/** El contenedor de Postgres de compose, si corre. */
-function contenedorDePostgres(): string | null {
-  const nombre = process.env["RESPALDO_CONTENEDOR"] ?? "inscripciones-postgres-1";
-  const r = spawnSync("docker", ["inspect", "-f", "{{.State.Running}}", nombre], { encoding: "utf8" });
-  return r.status === 0 && r.stdout.trim() === "true" ? nombre : null;
+/** Ejecuta `docker` y devuelve su salida (inyectable en las pruebas). */
+export type EjecutarDocker = (args: string[]) => { status: number | null; stdout: string };
+
+const ejecutarDockerReal: EjecutarDocker = (args) => {
+  const r = spawnSync("docker", args, { encoding: "utf8" });
+  return { status: r.status, stdout: r.stdout ?? "" };
+};
+
+const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * EK-B1: el contenedor cuyas herramientas pueden atender ESTA conexión, o null. Antes se usaba siempre `inscripciones-postgres-1` en `127.0.0.1:5432` sin mirar
+ * la URL: con una `DATABASE_URL` que apunta a otro servidor (otro puerto, otra máquina) respaldaba —o restauraba, con `--reemplazar` incluido— la base del
+ * compose local en su lugar. Ahora: `RESPALDO_CONTENEDOR` manda si se fija (decisión explícita de quien opera); si no, solo un host local y el contenedor que
+ * publica justo el puerto de la URL; un servidor remoto sin `pg_dump` instalado es un error claro.
+ */
+export function elegirContenedor(c: Conexion, entorno: Record<string, string | undefined> = process.env, docker: EjecutarDocker = ejecutarDockerReal): string | null {
+  const fijo = entorno["RESPALDO_CONTENEDOR"];
+  if (fijo) {
+    const r = docker(["inspect", "-f", "{{.State.Running}}", fijo]);
+    return r.status === 0 && r.stdout.trim() === "true" ? fijo : null;
+  }
+  if (!HOSTS_LOCALES.has(c.host)) return null;
+  const r = docker(["ps", "--filter", `publish=${c.puerto}`, "--filter", "status=running", "--format", "{{.Names}}"]);
+  if (r.status !== 0) return null;
+  const nombres = r.stdout.split("\n").map((n) => n.trim()).filter(Boolean);
+  // Ambiguo (dos contenedores publican el mismo puerto) no se adivina.
+  return nombres.length === 1 ? nombres[0]! : null;
 }
 
 /** Lanza `pg_dump` / `pg_restore` con la conexión dada, localmente o dentro del contenedor. La clave va por la variable PGPASSWORD, nunca en los argumentos. */
 export function lanzarHerramienta(herramienta: "pg_dump" | "pg_restore", args: string[], c: Conexion): ChildProcess {
   const entorno = { ...process.env, PGPASSWORD: c.clave };
   if (hayComando(herramienta)) return spawn(herramienta, ["-h", c.host, "-p", c.puerto, "-U", c.usuario, ...args], { env: entorno, stdio: ["pipe", "pipe", "pipe"] });
-  const contenedor = contenedorDePostgres();
-  if (!contenedor) throw new Error(`No hay ${herramienta} instalado ni un contenedor de Postgres de docker compose corriendo (RESPALDO_CONTENEDOR). Instala postgresql-client o levanta compose.`);
+  const contenedor = elegirContenedor(c);
+  if (!contenedor) {
+    throw new Error(`No hay ${herramienta} instalado y ningún contenedor de Postgres local publica el puerto ${c.puerto} de la conexión (${c.host}). Instala postgresql-client, o fija RESPALDO_CONTENEDOR al contenedor de ESE servidor.`);
+  }
   // Dentro del contenedor el servidor está en 127.0.0.1:5432; la clave pasa por -e (no por los argumentos).
   return spawn("docker", ["exec", "-i", "-e", "PGPASSWORD", contenedor, herramienta, "-h", "127.0.0.1", "-p", "5432", "-U", c.usuario, ...args], { env: entorno, stdio: ["pipe", "pipe", "pipe"] });
 }

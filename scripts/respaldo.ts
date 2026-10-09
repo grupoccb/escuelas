@@ -4,7 +4,7 @@
 //   RESPALDO_CLAVE='frase larga' npm run respaldo -- --destino /ruta --retener 14   # cifrado (AES-256-GCM); conserva los 14 más recientes
 //   npm run respaldo -- --verificar respaldos/archivo.dump.enc     # comprueba la suma de verificación y que la frase lo abre
 //
-// La conexión sale de DATABASE_URL (.env). Sin pg_dump instalado se usa el contenedor de Postgres de docker compose (RESPALDO_CONTENEDOR).
+// La conexión sale de DATABASE_URL (.env). Sin pg_dump instalado se usa el contenedor de Postgres local que publique el puerto de DATABASE_URL (o RESPALDO_CONTENEDOR).
 // La clave de cifrado de los datos de salud (CLAVE_DATOS_SENSIBLES) NO está en la base ni en este respaldo: se respalda aparte (docs/RESPALDO.md).
 
 import { parseArgs } from "node:util";

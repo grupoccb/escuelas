@@ -15,7 +15,7 @@ DATABASE_URL=postgresql://…/inscripciones_restaurada npm run cuadratura
 DATABASE_URL=postgresql://…/inscripciones_restaurada npx prisma migrate status
 ```
 
-- Lee `DATABASE_URL`. Sin `pg_dump` instalado usa el contenedor de Postgres de docker compose (`RESPALDO_CONTENEDOR`, por omisión `inscripciones-postgres-1`). La contraseña viaja por variable de entorno, nunca por argumentos.
+- Lee `DATABASE_URL`. Sin `pg_dump` instalado usa el contenedor de Postgres local que publica el puerto de `DATABASE_URL` (o el fijado en `RESPALDO_CONTENEDOR`); un servidor remoto sin `pg_dump` es un error, nunca se sustituye por la base del compose (EK-B1). La contraseña viaja por variable de entorno, nunca por argumentos.
 - Cada respaldo deja `…dump[.enc]` y `…dump[.enc].json` (base, fecha, SHA-256, tamaño, filas por tabla, migraciones). `restaurar` verifica la suma ANTES de tocar nada y, al terminar, compara el conteo de CADA tabla y las migraciones con los del respaldo; si algo no coincide, sale con error.
 - **Retención**: `--retener N` conserva los N más recientes de esa base y borra los demás con su metadato (nunca toca otras bases ni archivos ajenos).
 - **Cifrado**: AES-256-GCM, clave derivada con scrypt de la frase (sal propia por archivo). El archivo cifrado no deja ver ni el encabezado de `pg_dump`. Una frase equivocada o un byte alterado fallan (etiqueta GCM y suma de verificación). **En producción el respaldo va cifrado** (sin `RESPALDO_CLAVE` el comando se niega salvo `--sin-cifrar`). Un respaldo sin cifrar contiene datos de menores (los de salud están cifrados DENTRO de la base con otra clave, pero el resto, nombres, teléfonos, importes, no).
