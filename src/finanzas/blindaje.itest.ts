@@ -79,3 +79,22 @@ test("los caminos legítimos siguen funcionando con los blindajes: pagar, cancel
   assert.equal((await m.recepcion.post(`/api/ventas/${venta}/anular`, { motivo: "se arrepintió" })).estado, 200);
   assert.deepEqual((await cuadratura(m.db)).discrepancias, []);
 });
+
+test("EH-02: el cargo de una venta no se cancela suelto (ni por la API ni por SQL): se anula la venta, que devuelve las piezas", async () => {
+  const ventaId = await vender();
+  const v = await prisma.venta.findFirstOrThrow({ where: { id: ventaId } });
+  const cargo = await prisma.cargo.findFirstOrThrow({ where: { venta_id: ventaId } });
+  // La API: 409 `de_venta`.
+  const r = await m.recepcion.post<{ error: { detalles: { campo?: string; mensaje: string }[] } }>(`/api/cargos/${cargo.id}/cancelar`, { motivo: "sin avisar a nadie" });
+  assert.equal(r.estado, 409);
+  assert.equal(r.cuerpo.error.detalles.find((d) => d.campo === "motivo")?.mensaje, "de_venta");
+  // La base, si el código se equivoca: la venta registrada no se queda sin su cargo.
+  await rechaza(() => sql(`UPDATE cargo SET estatus = 'cancelado', cancelado_en = now() WHERE id = $1::uuid`, cargo.id), /venta_cuadra_con_su_cargo/);
+  assert.equal((await prisma.cargo.findFirstOrThrow({ where: { id: cargo.id } })).estatus, "pendiente");
+  assert.equal((await prisma.producto.findFirstOrThrow({ where: { id: v.producto_id } })).stock, 4);
+  // Anular la venta sí cancela su cargo y devuelve la pieza, en una sola transacción.
+  assert.equal((await m.recepcion.post(`/api/ventas/${ventaId}/anular`, { motivo: "se arrepintió" })).estado, 200);
+  assert.equal((await prisma.cargo.findFirstOrThrow({ where: { id: cargo.id } })).estatus, "cancelado");
+  assert.equal((await prisma.producto.findFirstOrThrow({ where: { id: v.producto_id } })).stock, 5);
+  assert.deepEqual((await cuadratura(m.db)).discrepancias, []);
+});
