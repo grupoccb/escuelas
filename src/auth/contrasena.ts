@@ -127,8 +127,16 @@ export async function verificarContrasenaFicticia(contrasena: string): Promise<b
   return false;
 }
 
+/** Contraseñas de 10 o más caracteres que son de las más usadas (o las de la demo, públicas): la política las rechaza aunque cumplan el largo (K3, EB-20). */
+const CONTRASENAS_COMUNES = new Set([
+  "1234567890", "12345678910", "0123456789", "123456789a", "abc1234567", "11111111111", "1q2w3e4r5t", "qwertyuiop", "qwerty12345", "qwerty123456", "asdfghjkl1",
+  "password12", "password123", "password1234", "passw0rd123", "contrasena1", "contrasena12", "contrasena123", "contrasena2026", "iloveyou123",
+  "administrador", "administrador1", "administrador123", "bienvenido1", "bienvenido123", "bienvenido2026", "escuela12345", "inscripciones", "inscripciones1", "inscripciones123",
+  "demo-local-2026!",
+]);
+
 /**
- * Política mínima: de 10 a 128 caracteres, sin ser el correo ni el nombre del usuario, y con algo
+ * Política mínima: de 10 a 128 caracteres, que no sea de las más comunes, sin ser el correo ni el nombre del usuario, y con algo
  * más que un solo carácter repetido. Devuelve los problemas en español (vacío = cumple).
  */
 export function problemasDeContrasena(contrasena: string, contexto: { correo?: string; nombre?: string } = {}): string[] {
@@ -142,5 +150,6 @@ export function problemasDeContrasena(contrasena: string, contexto: { correo?: s
     problemas.push("La contraseña no puede ser el nombre");
   }
   if (normal.length >= LONGITUD_MINIMA_CONTRASENA && new Set(normal).size < 3) problemas.push("La contraseña es demasiado simple");
+  if (CONTRASENAS_COMUNES.has(minuscula)) problemas.push("Esa contraseña es de las más usadas: elige otra");
   return problemas;
 }

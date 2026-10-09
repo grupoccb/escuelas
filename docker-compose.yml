@@ -2,7 +2,8 @@
 #
 #   docker compose up -d --build --wait
 #
-# Puertos: backend :3000 · Chatwoot :3001 · Postgres de la app :5432.
+# Puertos: backend :3000 · Chatwoot :3001 · Postgres de la app :5432. Publicados SOLO en 127.0.0.1 (K3, EB-20): la demo trae contraseñas públicas y no debe
+# quedar al alcance de otra máquina de la red.
 # Chatwoot trae su propio Postgres (con pgvector, que exige) y Redis; no comparte base con la app.
 #
 # Demo local (SPEC 0.5): al levantar, chatwoot-setup configura la cuenta, el asesor y el Agent
@@ -36,7 +37,10 @@ x-sin-twilio: &sin-twilio
     - "host.docker.internal:host-gateway"
 
 x-backend: &backend
-  build: .
+  # Objetivo «demo» del Dockerfile: lleva la CLI de Prisma (demo-preparar migra y siembra con ella). La imagen de producción (objetivo «produccion») no la lleva.
+  build:
+    context: .
+    target: demo
   image: inscripciones-backend:local
   env_file: config/demo-local.env
 
@@ -48,7 +52,7 @@ services:
       POSTGRES_PASSWORD: inscripciones
       POSTGRES_DB: inscripciones
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -66,6 +70,11 @@ services:
       # Secure (el backend arranca con NODE_ENV=production, que la haría Secure por defecto) y el
       # único origen que puede hacer peticiones que cambian algo es el propio backend.
       COOKIE_SEGURA: "false"
+      # K3: la demo corre con NODE_ENV=production y valores públicos de demostración. Esta marca deja arrancar al backend (que en un despliegue real se
+      # niega: src/seguridad/entorno.ts) y hace que lo diga en el log.
+      ENTORNO_DEMO: "si"
+      # K4: /metricas (formato Prometheus) con un token de demostración: curl -H "Authorization: Bearer $METRICAS_TOKEN" http://localhost:3000/metricas
+      METRICAS_TOKEN: demo-local-metricas-token-0001-solo-demo
       ORIGEN_PUBLICO: http://localhost:3000
       # Interfaz web (J3): la ficha del lead arma el enlace a su conversación con esta URL pública de Chatwoot (la que abre el navegador).
       CHATWOOT_URL_PUBLICA: http://localhost:3001
@@ -77,7 +86,7 @@ services:
       # con `openssl rand -base64 32` y vive en el gestor de secretos.
       CLAVE_DATOS_SENSIBLES: "I4YAELLXaPYTGc2hPt5pVkQ8r0G5MpudNuv0u31Zp28="
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     # El cierre ordenado del backend (src/cierre.ts) espera hasta LIMITE_CIERRE_MS (30 s) a que termine
     # el barrido en curso; compose manda SIGKILL a los 10 s por defecto. Este plazo tiene que ser mayor
     # (un test lo comprueba).
@@ -137,7 +146,7 @@ services:
     entrypoint: docker/entrypoints/rails.sh
     command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
       chatwoot-prepare:
         condition: service_completed_successfully

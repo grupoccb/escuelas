@@ -13,9 +13,21 @@ import { crearApp } from "./http/app.ts";
 import { avisoDeTrustProxy, confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./http/config-limites.ts";
 import { LimitadorDeTasa } from "./http/limite.ts";
 import { log } from "./lib/log.ts";
+import { esEntornoDeDemo, impedimentosParaArrancar, revisarEntorno } from "./seguridad/entorno.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
 import { crearManejadorDeInesperados } from "./webhooks/inesperado.ts";
 import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega } from "./mensajeria/index.ts";
+
+// K3: en producción el backend se niega a arrancar con valores de demostración o una configuración que debilita la seguridad (src/seguridad/entorno.ts).
+// La demo local corre también con NODE_ENV=production y declara ENTORNO_DEMO=si: arranca, pero lo dice.
+const impedimentos = impedimentosParaArrancar();
+if (impedimentos.length > 0) {
+  for (const h of impedimentos) log.error("entorno_inseguro", { codigo: h.codigo, mensaje: h.mensaje });
+  log.error("entorno_inseguro_no_arranca", { problemas: impedimentos.length, ayuda: "docs/OPERACION.md, sección «Variables de producción»" });
+  process.exit(1);
+}
+if (process.env["NODE_ENV"] === "production" && esEntornoDeDemo(process.env)) log.warn("entorno_demo", { aviso: "ENTORNO_DEMO=si: este backend usa valores de demostración públicos. NO es un despliegue real." });
+for (const h of revisarEntorno().filter((x) => !x.grave)) log.warn("entorno_aviso", { codigo: h.codigo, mensaje: h.mensaje });
 
 const prisma = crearPrisma();
 const mensajeria = mensajeriaDesdeEntorno();

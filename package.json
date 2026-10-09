@@ -18,7 +18,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "validar": "npm run lint && npm run typecheck && npm run check:generico && npm run check:capas && npm run check:sensibles && npm run check:dinero && npm test && npm run web:validar",
+    "validar": "npm run lint && npm run typecheck && npm run check:generico && npm run check:capas && npm run check:sensibles && npm run check:dinero && npm run check:secretos && npm test && npm run web:validar",
     "test:int": "node scripts/test-int.ts",
     "test:navegador": "node scripts/test-navegador.ts",
     "web:instalar": "npm --prefix web ci",
@@ -32,7 +32,8 @@
     "reporte:leads": "node --env-file-if-exists=.env scripts/reporte-leads.ts",
     "demo:datos": "NODE_ENV=development node --env-file-if-exists=.env scripts/demo-datos.ts",
     "cuadratura": "node --env-file-if-exists=.env scripts/cuadratura.ts",
-    "reporte:clases-muestra": "node --env-file-if-exists=.env scripts/reporte-clases-muestra.ts"
+    "reporte:clases-muestra": "node --env-file-if-exists=.env scripts/reporte-clases-muestra.ts",
+    "check:secretos": "node scripts/check-secretos.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {

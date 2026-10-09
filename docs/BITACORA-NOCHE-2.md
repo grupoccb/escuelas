@@ -100,7 +100,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J10 | PENDIENTE | | Interfaz: recorridos en navegador |
 | K1 | PENDIENTE | | Prueba de fuego total |
 | K2 | HECHO (parcial: EF-06, clases muestra vs inscripción, sigue siendo decisión de Eduardo; la ráfaga más grande probada es de 200 peticiones sobre un servidor y una base locales, no sobre AWS) | ver `git log` (`K2:`) | Ráfagas de 40 a 200 peticiones simultáneas contra el servidor HTTP real (cupo, conversión, cambio de grupo, pagos, webhooks de Chatwoot y Twilio, landing): 0 5xx, invariantes intactos, sin interbloqueos; resuelve ED-08, EH-12, EH-13 y EH-19 |
-| K3 | PENDIENTE | | Revisión de seguridad |
+| K3 | HECHO (parcial: sin prueba de penetración externa ni revisión de la configuración real de AWS; EB-10, EB-16, EB-18 y EB-19 siguen siendo decisiones o dependen del balanceador; el Terraform solo se revisa como texto) | ver `git log` (`K3:`) | Revisión de seguridad con pruebas: el backend se niega a arrancar en producción con valores de demo, imagen de producción sin la CLI de Prisma (0 vulnerabilidades en lo que corre), cuenta de base de datos sin dueño, guarda de secretos, CORS/cabeceras/inyección/sesiones/límites, contraseñas comunes |
 | K4 | PENDIENTE | | Observabilidad |
 | K5 | PENDIENTE | | Respaldo y restauración |
 | K6 | PENDIENTE | | Infraestructura como código |
@@ -2856,3 +2856,31 @@ Antes del arreglo, `candados.itest.ts` falla con «Transaction failed due to a w
 - **EF-06 (clase muestra e inscripción no se cuentan entre sí)** NO se resolvió: es una decisión de producto abierta, no un defecto («si es claro» no aplica). Sigue en `docs/SUPUESTOS-Y-DECISIONES.md`.
 - `[SUPUESTO]` 400 días como límite hacia atrás de la fecha de un pago (EH-13).
 - Lo que NO prueban estas ráfagas: el rendimiento con la base de la escuela (cientos de miles de filas) ni con varias tareas del backend a la vez; con una sola base y un solo proceso los candados de fila son los mismos que con diez procesos, pero el reparto de conexiones no.
+
+## K3. Revisión de seguridad
+
+**Qué se hizo** (informe completo en `docs/SEGURIDAD.md`: qué se revisó, tabla de hallazgos y riesgos residuales)
+- **K3-01 (ALTA)** `src/seguridad/entorno.ts`: con `NODE_ENV=production` el backend se NIEGA a arrancar (`entorno_inseguro`, salida 1) si encuentra la clave de datos de la demo (publicada en el repositorio), variables con valores `demo-local…`, la base `inscripciones/inscripciones`, `COOKIE_SEGURA=false`, `ORIGEN_PUBLICO` ausente o sin https o un secreto corto. La demo local (compose corre con `NODE_ENV=production`) lo declara con `ENTORNO_DEMO=si` y arranca avisándolo. `config/demo-local.env` lo advierte en su encabezado.
+- **K3-02 / EB-26 / F1-17** `Dockerfile` con cuatro objetivos: `demo` (compose), `migrar` (tarea puntual con la CLI), `produccion` (último: `npm ci --omit=dev --omit=optional`, sin la CLI de Prisma, usuario `node`, sistema de archivos de solo lectura). `npm audit` da 4 altas transitivas de la CLI de Prisma (`deepmerge-ts`, `mysql2`); sobre lo que corre en producción da **0** (79 MB de `node_modules` contra 325). No se corrió `audit fix --force`. `web/`: 0.
+- **K3-03 / EB-08 / EF-15** `scripts/lib/roles-bd.ts` + `scripts/preparar-roles.ts`: la cuenta de la aplicación (sin dueño, sin DELETE, sin UPDATE en las seis tablas de solo anexar, sin ALTER/TRUNCATE/disparadores). `src/seguridad/roles.itest.ts`: 15 sentencias que la cuenta NO puede ejecutar y el mundo completo de finanzas (inscribir, pagar, cancelar, barrer, cuadrar) funcionando con ella.
+- **K3-04 / EB-20** puertos de compose solo en `127.0.0.1`; **K3-05** lista de contraseñas comunes (y la de la demo) en la política.
+- **K3-06** `scripts/check-secretos.ts` (+ test, dentro de `npm run validar`): llaves privadas, AWS, Twilio, GitHub, Slack, Stripe, JWT, `.env` real, asignaciones largas en configuración; excepciones por ruta exacta y con motivo (los valores públicos de la demo).
+- **Pruebas de ataque** `src/seguridad/revision.itest.ts` (9): CORS (nunca concede), cabeceras en toda respuesta, parámetros hostiles (SQL, NUL, CRLF, Unicode, números enormes, fechas imposibles) contra TODAS las rutas GET (recorre el router real: 0 5xx y tablas intactas), asignación masiva y contaminación de prototipo, tamaños (413), sesión (token largo, fijación, cierre), ningún secreto en un log, `Content-Disposition` seguro, y EF-19 (NUL en cualquier campo de un webhook: 200 con constancia).
+- Hallazgos de las auditorías revisados uno por uno: EB-16/EB-18 (del balanceador y el WAF de `infra/`), EB-19 y EB-10 (decisiones), EB-20 (mitigado salvo el cambio obligatorio en el primer acceso), EC-26 (límite por IP y WAF), EF-15 (corregido), EF-19 (probado), EF-25 (aceptado a propósito, documentado). ED-08 se resolvió en K2.
+
+**Verificación** (copia limpia del árbol K2 + K3, y el árbol K2 + K3 + K4 para la suite de integración, que incluye las pruebas de K3)
+```
+$ npm run validar     → exit 0 · tests 640 · pass 640 · fail 0 (más los 31 de web)      [árbol K3]
+$ npm run test:int    → exit 0 · tests 1093 · pass 1093 · fail 0                          [árbol K3+K4, ver K4]
+$ docker build --target produccion … && docker run --read-only …  →  arranca como uid 1000, /salud 200, sin node_modules/.bin ni la CLI
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Negarse a arrancar, no solo avisar.** Alternativa descartada: una alerta fuerte (como la de `TRUST_PROXY`, EB-04): la clave de la demo es pública y un aviso se ignora. Costo: la demo necesita `ENTORNO_DEMO=si`.
+2. **La CLI de Prisma fuera de la imagen de producción**, no actualizar Prisma ni `audit fix --force`. Alternativa descartada: una sola imagen con CLI que migra al arrancar (cada instancia migraría y la CLI, con sus vulnerabilidades, correría en el servicio).
+3. **Puertos de compose solo en 127.0.0.1**, no en `0.0.0.0` (EB-20).
+4. **`roles-bd.ts` en `scripts/lib/`, no en `src/datos/`.** Alternativa descartada: `src/datos/roles.ts`; nombrar las tablas de solo anexar en `src/` choca con `check:capas` (decisión 12) y el servicio no lo necesita (solo la tarea de migración).
+
+**Para Eduardo**
+- Cambio obligatorio de contraseña en el primer acceso (EB-20) y cuánto conservar `acceso_dato_sensible`/`registro_cambio` (EB-19) siguen abiertos (`docs/SUPUESTOS-Y-DECISIONES.md`).
+- Nada contra AWS real: la revisión del Terraform es de texto. Una prueba de penetración externa está en `docs/PENDIENTES-CREDENCIALES-REALES.md`.

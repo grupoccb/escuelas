@@ -54,3 +54,10 @@ test("token de sesión: 32 bytes aleatorios en base64url y su hash es un SHA-256
   assert.equal(hashDeToken(t), hashDeToken(t));
   assert.notEqual(hashDeToken(t), t);
 });
+
+test("K3: las contraseñas más comunes (y la de la demo, que es pública) se rechazan aunque cumplan el largo, sin importar mayúsculas", () => {
+  for (const c of ["1234567890", "Password123", "QWERTYUIOP", "Demo-local-2026!", "administrador123", "Inscripciones1"]) {
+    assert.deepEqual(problemasDeContrasena(c), ["Esa contraseña es de las más usadas: elige otra"], c);
+  }
+  assert.deepEqual(problemasDeContrasena("caballo-grapa-nube-77"), []);
+});

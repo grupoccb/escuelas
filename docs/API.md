@@ -397,7 +397,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE inscripciones_migrador IN SCHEMA public GRANT 
 -- Sin TRUNCATE, ALTER ni TRIGGER: no se otorgan. Las tablas de la demo local (docker compose) usan una sola cuenta, a propósito.
 ```
 
-(El `docker-compose.yml` de la demo usa una sola cuenta dueña: es una demo. El despliegue a AWS, bloque K6, debe crear las dos.)
+(El `docker-compose.yml` de la demo usa una sola cuenta dueña: es una demo. El despliegue a AWS crea las dos: la tarea de migración de `infra/ecs.tf` corre `scripts/preparar-roles.ts` (`scripts/lib/roles-bd.ts`) después de cada migración, y `src/seguridad/roles.itest.ts` prueba que con esa cuenta todo el sistema funciona y que no puede borrar, truncar, alterar ni apagar disparadores.)
 
 ## Datos sensibles: clave y rotación
 
@@ -761,3 +761,11 @@ Los reportes de I1 a I3 se descargan con `?formato=csv` en su propia ruta, y las
 Formato (`src/exportacion/csv.ts`): UTF-8 con **BOM** (Excel abre bien los acentos y la «ñ»), líneas CRLF, coma como separador, escape RFC 4180 (comillas dobles duplicadas) y **protección contra inyección de fórmulas:** una celda de texto que empieza con `=`, `+`, `-`, `@`, tabulador o retorno de carro (también tras espacios o caracteres de control, y sus formas de ancho completo) lleva un apóstrofo delante, y lo mismo los encabezados; por eso un teléfono E.164 sale como `'+5255…`. Solo un importe o un entero que de verdad es numérico (`-12.50`) se deja como está. **El dinero sale como texto decimal exacto con dos decimales** (`1234.50`, sin símbolo ni separador de miles ni notación científica; los cálculos son en centavos `bigint`). Cabeceras: `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="…"; filename*=UTF-8''…` (nombre sin acentos, espacios ni saltos de línea), `Cache-Control: no-store` y `X-Content-Type-Options: nosniff`. Datos de salud: ninguna columna los trae.
 
 Las listas grandes (leads, uniformes) se escriben **por lotes de 500 con cursor**, sin cargarlas enteras en memoria, hasta 100 000 filas. El primer lote se pide antes de escribir las cabeceras (un error de permiso o de base responde como HTTP normal); una falla posterior corta la conexión (el navegador ve una descarga fallida, nunca un archivo truncado que parezca completo) y se registra `exportacion_fallida`.
+
+## Entorno de producción y contraseñas (K3)
+
+Detalle en `docs/SEGURIDAD.md`. **Producción (`NODE_ENV=production`)**: el backend se niega a arrancar (`entorno_inseguro`, código de salida 1) con la clave de datos de la demo, variables con valores de demostración, la base `inscripciones/inscripciones`, `COOKIE_SEGURA=false`, `ORIGEN_PUBLICO` ausente o sin https, o un secreto corto (`src/seguridad/entorno.ts`). La demo local declara `ENTORNO_DEMO=si` y arranca avisándolo. Variables nuevas: `ENTORNO_DEMO`, `RESPALDO_CLAVE` (respaldos), `CLAVE_ROL_APLICACION` y `ROL_APLICACION` (solo la tarea de migración).
+
+**Contraseñas (EB-20)**: además del largo (10–128), se rechazan las más usadas y la de la demo (`Esa contraseña es de las más usadas: elige otra`).
+
+**Cambios de contrato de K2:** repetir la clave de idempotencia de un pago CANCELADO es 409 `pago_cancelado` (EH-12); la fecha de un pago no puede ser de hace más de 400 días (400, EH-13).
