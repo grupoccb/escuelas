@@ -30,6 +30,15 @@ const ponerHora = (iso: string) => {
   m.reloj.ahora = new Date(iso);
 };
 const delPeriodo = (cargos: CargoDeApi[], periodo: string) => cargos.filter((c) => c.concepto === "mensualidad" && c.periodo === periodo);
+/**
+ * Crea un cargo SIN disparadores (`session_replication_role = replica`: un superusuario, o un código que se los salta). Lo que queda es lo que los CHECK imponen por sí solos:
+ * los disparadores de EH-01 rechazan estos mismos cargos antes de llegar a ellos (eso lo prueba `blindaje.itest.ts`).
+ */
+const crearSinDisparadores = (data: Parameters<typeof prisma.cargo.create>[0]["data"]) =>
+  prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    return tx.cargo.create({ data });
+  });
 /** La base debe rechazar la operación (aunque el código no la pidiera): el mensaje nombra la defensa. */
 async function rechaza(op: () => Promise<unknown>, defensa: RegExp): Promise<void> {
   await assert.rejects(op, (e: Error) => defensa.test(e.message), `la base debía rechazar con ${defensa}`);
@@ -204,11 +213,11 @@ test("defensas EN LA BASE saltándose el código: importes incoherentes, sobrepa
   const nuevo = (extra: Record<string, unknown>) => ({ organizacion_id: m.org.organizacionId, tutor_id: c.tutor_id, alumno_id: c.alumno_id, sucursal_id: c.sucursal_id, concepto: "evento" as const, descripcion: "x", monto: "100.00", monto_final: "100.00", fecha_vencimiento: new Date("2026-12-10"), ...extra });
   await rechaza(() => prisma.cargo.create({ data: nuevo({ monto_final: "90.00" }) }), /cargo_importes_check/);
   await rechaza(() => prisma.cargo.create({ data: nuevo({ descuento: "150.00", monto_final: "-50.00" }) }), /cargo_importes_check/);
-  await rechaza(() => prisma.cargo.create({ data: nuevo({ monto_pagado: "100.01" }) }), /cargo_importes_check/);
+  await rechaza(() => crearSinDisparadores(nuevo({ monto_pagado: "100.01" })), /cargo_importes_check/);
   await rechaza(() => prisma.cargo.create({ data: nuevo({ monto: "-1.00", monto_final: "-1.00" }) }), /cargo_importes_check/);
-  await rechaza(() => prisma.cargo.create({ data: nuevo({ estatus: "pagado" }) }), /cargo_estatus_saldo_check/);
-  await rechaza(() => prisma.cargo.create({ data: nuevo({ monto_pagado: "100.00" }) }), /cargo_estatus_saldo_check/);
-  await rechaza(() => prisma.cargo.create({ data: nuevo({ estatus: "cancelado", cancelado_en: new Date(), monto_pagado: "10.00" }) }), /cargo_estatus_saldo_check/);
+  await rechaza(() => crearSinDisparadores(nuevo({ estatus: "pagado" })), /cargo_estatus_saldo_check/);
+  await rechaza(() => crearSinDisparadores(nuevo({ monto_pagado: "100.00" })), /cargo_estatus_saldo_check/);
+  await rechaza(() => crearSinDisparadores(nuevo({ estatus: "cancelado", cancelado_en: new Date(), monto_pagado: "10.00" })), /cargo_estatus_saldo_check/);
   await rechaza(() => prisma.cargo.create({ data: nuevo({ estatus: "cancelado" }) }), /cargo_cancelacion_check/);
   await rechaza(() => prisma.cargo.create({ data: nuevo({ concepto: "mensualidad", periodo: null, inscripcion_id: i.inscripcionId }) }), /cargo_periodo_check/);
   await rechaza(() => prisma.cargo.create({ data: nuevo({ periodo: "2026-13" }) }), /cargo_periodo_check/);
