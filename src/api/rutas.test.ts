@@ -162,6 +162,8 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "POST /api/beneficios/:id/entregar": "beneficios:entregar",
   "GET /api/reportes/clases-muestra": "reportes:clases_muestra",
   "GET /api/reportes/costo-por-alumno": "reportes:costos",
+  "GET /api/reportes/ejecutivo": "reportes:ejecutivo",
+  "GET /api/reportes/ocupacion": "reportes:ocupacion",
   "GET /api/campanas/:id/gastos": "gastos_campana:leer",
   "POST /api/campanas/:id/gastos": "gastos_campana:escribir",
   "DELETE /api/campanas/:id/gastos/:gasto_id": "gastos_campana:escribir",

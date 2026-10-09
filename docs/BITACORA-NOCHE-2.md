@@ -71,7 +71,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H-fix | HECHO (parcial: EH-11 y las BAJA de producto EH-14, EH-15, EH-17 y EH-20 esperan decisión de Eduardo; EH-12, EH-13 y EH-19 pendientes) | 7a2afdd…2af3cc4 y `EG-05` (2e6f1e6) | Correcciones de la auditoría de la etapa H (`docs/auditorias/etapa-H.md`): la ALTA (EH-01) y 9 de las 10 MEDIA corregidas, EG-05 implementada por decisión de Eduardo; ver la sección «Auditoría y correcciones de la etapa H» |
 | H-verif | HECHO | ver `git log` (`H-verif:`) | Verificación independiente de las correcciones H (revertir cada arreglo y ver fallar su prueba, 4 ataques por SQL directo) y 3 blindajes nuevos en la base; ver «Verificación independiente de las correcciones H» |
 | I2 | HECHO | ver `git log` (`I2:`) | Costo por alumno inscrito por campaña: gasto capturado a mano (administrador, registro de cambios, blindado en la base) y reporte por lead, clase muestra y alumno, sin división por cero |
-| I3 | PENDIENTE | | Reporte ejecutivo |
+| I3 | HECHO | ver `git log` (`I3:`) | Reporte ejecutivo: activos por vertical y sucursal, altas y bajas del mes, deserción, ingreso mensual recurrente, cartera vencida (consistente con el estado de cuenta) y % de ocupación por grupo con la fuente real; el asesor ve sus sucursales y el maestro solo la ocupación de sus grupos, sin importes |
 | I4 | PENDIENTE | | Datos de demo |
 | I5 | PENDIENTE | | Exportación a CSV |
 | J1 | HECHO | ver `git log` (`J1:`) | Interfaz web base: `web/` (React + Vite + TS), acceso, navegación por permisos, layout responsivo, sesión expirada, 404/403, selector de sucursal; servida por el backend (y por compose); pruebas en Chromium real (`npm run test:navegador`) |
@@ -2477,6 +2477,32 @@ $ npm run test:int    → exit 0 · tests 1043 · pass 1043 · fail 0   (base re
 - El gasto no distingue concepto (anuncio, impresión, comisión): una sola cifra por captura, con nota libre. ¿Se necesita un tipo de gasto?
 - Una campaña sin gasto muestra costo 0.00 por lead (no «—»): hay leads pero no se capturó lo gastado. ¿Prefiere «—» hasta que haya un gasto?
 - Para J9 (tableros): `GET /api/reportes/costo-por-alumno` y `/api/campanas/:id/gastos` (ver `docs/API.md`).
+
+## I3. Reporte ejecutivo
+
+**Qué se hizo**
+- **`GET /api/reportes/ejecutivo?mes=AAAA-MM`** (`src/reportes/ejecutivo.ts`, `src/api/rutas/reportes-ejecutivo.ts`): alumnos activos por vertical y sucursal (y totales), altas y bajas del mes, deserción (bajas del mes entre las inscripciones vigentes al inicio del mes), ingreso mensual recurrente (Σ de la mensualidad CONGELADA de las inscripciones activas), cartera vencida con su antigüedad y **% de ocupación por grupo**. Las definiciones de cada número están en el encabezado del módulo y en `docs/API.md`.
+- **La ocupación sale de la fuente real** (`FuenteOcupacion`: las inscripciones activas del grupo, la misma del cotizador, la inscripción y la lista de espera), inyectada por `deps`; una prueba cambia la fuente y el reporte cambia sin tocar el código.
+- **La cartera vencida es la del estado de cuenta:** una prueba suma el `vencido` del estado de cuenta de todas las familias y es igual al total del tablero; la cuadratura sigue limpia.
+- **Permisos** (permisos nuevos `reportes:ejecutivo` y `reportes:ocupacion`): el ejecutivo, con dinero, es del administrador y del asesor, y el asesor solo ve lo de SUS sucursales (inscripciones, cartera y grupos); recepción y maestro reciben 403. **`GET /api/reportes/ocupacion`** devuelve solo la ocupación (sin un solo importe) para administrador, asesor y recepción en su alcance y para el maestro en SUS grupos.
+
+**Verificación** (copia limpia del `HEAD` más este bloque, fuera del repo, base propia)
+```
+$ npm run validar     → exit 0 · tests 607 · pass 607 · fail 0 (más los 9 de web)
+$ npm run test:int    → exit 0 · tests 1052 · pass 1052 · fail 0   (base recién creada y vacía)
+```
+`ejecutivo.itest.ts` (9): cifras exactas de noviembre (activos, altas, bajas, deserción 25.0 %, ingreso 2777.77), mes sin base («—»), cartera contra una suma independiente y contra los estados de cuenta, ocupación con la fuente real y una fuente inyectada, ingreso con descuento congelado, bordes del mes (día 1 y último día), permisos y alcance (el asesor del norte y el del sur suman la escuela; recepción y maestro 403; el maestro solo ve sus grupos y su JSON no trae importes; otra organización vacía). Mutaciones muertas: el día 1 y el último día del mes, congeladas como activas, la base con bajas anteriores y con el día 1, cartera e inscripciones sin alcance, ingreso sin descuento, ocupación que ignora la fuente, el umbral de «a reventar» y el maestro viendo todos los grupos. Las pruebas de los bordes del mes y del descuento se agregaron después de la corrida completa (corridas solas, `tsc` y `eslint` en verde).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Activos, ingreso, cartera y ocupación son la foto de HOY; altas, bajas y deserción son del mes pedido.** Alternativa descartada: reconstruir los activos al cierre de un mes pasado (el modelo no guarda historia de estatus por día; las altas y bajas sí tienen fecha).
+2. **Deserción = bajas del mes / vigentes al inicio del mes** (congeladas incluidas). Alternativa descartada: dividir entre los activos de hoy (una escuela que crece parecería desertar menos).
+3. **El asesor ve el ejecutivo de SUS sucursales con importes**, porque ya lee cargos y estados de cuenta; el maestro solo ocupación. Alternativa descartada: un ejecutivo único solo para el administrador (el asesor de una sucursal no podría ver su propia ocupación).
+4. **Las lecturas no van en una transacción de instantánea** (a diferencia de la cuadratura, EH-07): es un tablero, no un chequeo de invariantes; entre dos consultas puede entrar un pago.
+5. **`[SUPUESTO]` los umbrales de «a reventar» (>= 90 %) y «vacío» (<= 25 %)** viven como constantes en `src/reportes/ejecutivo.ts`. Alternativa descartada: columnas de configuración por organización (más superficie para un dato que la escuela aún no ha pedido cambiar).
+
+**Para Eduardo**
+- Decidir los umbrales de ocupación (90 % y 25 % son un supuesto) y si el asesor debe ver importes del ejecutivo.
+- Para J9 (tableros): `GET /api/reportes/ejecutivo?mes=` y `GET /api/reportes/ocupacion` (ver `docs/API.md`).
 
 ## J1. Interfaz web: base
 

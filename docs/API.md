@@ -727,3 +727,20 @@ El gasto de cada campaña lo captura A MANO el administrador (no hay integració
 - **Gasto** = Σ de los gastos con `fecha` en el rango (inclusive). **Leads** = los de la campaña creados en el rango (DÍA LOCAL, zona de su sucursal de interés o, sin ella, de la primera sucursal). **Clases muestra** = las agendadas de esos leads con día local de clase en el rango (sin las reagendadas). **Inscripciones activas** = las ACTIVAS hoy con origen en la campaña (`inscripcion.lead_id → lead.campana_id`) cuya `fecha_inscripcion` cae en el rango (una baja no cuenta).
 - **Costo** = gasto / divisor, al centavo más cercano (la mitad se aleja de cero), en centavos `bigint`. **Sin divisor no hay división por cero:** el valor es `null` y el texto «—».
 - **En la base:** `gasto_campana.monto > 0`, el gasto no se edita ni se borra (solo la baja lógica, que no se revierte) y la campaña debe ser de la misma organización (llave foránea compuesta).
+
+## Reporte ejecutivo (I3)
+
+| Ruta | Quién | Qué |
+|---|---|---|
+| `GET /api/reportes/ejecutivo?mes=AAAA-MM` | `reportes:ejecutivo`: administrador y asesor (el asesor solo ve lo de SUS sucursales); recepción y maestro 403 (trae dinero) | El estado de la escuela en una respuesta. `mes` por omisión es el mes en curso en la zona de la primera sucursal; `mes` inválido, 400. |
+| `GET /api/reportes/ocupacion` | `reportes:ocupacion`: administrador, asesor, recepción y maestro; SIN importes. Cada quien ve sus grupos (asesor y recepción, los de sus sucursales; el maestro, los que imparte) | Solo la ocupación por grupo (`datos[]`). |
+
+Código: `src/reportes/ejecutivo.ts` (las definiciones están en su encabezado), `src/api/rutas/reportes-ejecutivo.ts`. Dinero como texto con dos decimales; conteos enteros; porcentajes con un decimal en texto.
+
+- **Activos** (`activos`): alumnos distintos con al menos una inscripción ACTIVA, por vertical y sucursal (`por_vertical_y_sucursal[]`: `alumnos`, `inscripciones`, `ingreso_mensual_recurrente`), más `total_alumnos` y `total_inscripciones`. Un alumno en dos verticales cuenta en cada una y una sola vez en el total. Las congeladas no cuentan.
+- **Altas / bajas del mes** (`altas_del_mes`, `bajas_del_mes`): inscripciones con `fecha_inscripcion` / `fecha_baja` dentro del mes.
+- **Deserción** (`desercion`, `desercion_texto`) = bajas del mes / inscripciones vigentes al inicio del mes (`base_al_inicio_del_mes`: inscritas antes del día 1 y sin baja antes del día 1, congeladas incluidas). Sin base, `null` y «—»: nunca una división por cero.
+- **Ingreso mensual recurrente** = Σ de la mensualidad CONGELADA de las inscripciones activas (precio de lista menos el descuento fijo, ambos congelados al inscribir).
+- **Cartera vencida** (`cartera_vencida`: `total` y `antiguedad` de 0 a 30, 31 a 60, 61 a 90 y más de 90 días) = Σ del saldo de los cargos abiertos ya vencidos en el calendario de su sucursal; es la MISMA regla del estado de cuenta (la suma de lo vencido de los estados de cuenta de todas las familias da este total; hay prueba).
+- **Ocupación por grupo** (`ocupacion_por_grupo[]`: `ocupados`, `cupo_maximo`, `ocupacion` en %, `estado`) con la FUENTE REAL de ocupación (`FuenteOcupacion`: las inscripciones activas del grupo, la que usan el cotizador, la inscripción y la lista de espera). `estado`: `a_reventar` (>= 90 %: abrir otro grupo), `vacio` (<= 25 %: promoverlo o cerrarlo) o `normal`. **[SUPUESTO]** los dos umbrales viven en `src/reportes/ejecutivo.ts`. Los más llenos primero.
+- «Activos», ingreso, cartera y ocupación son la foto de HOY; altas, bajas y deserción son del mes pedido.

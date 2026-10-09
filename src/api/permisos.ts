@@ -89,6 +89,8 @@ export const MATRIZ_DE_PERMISOS = {
   // ejecutivo) y el gasto de las campañas, solo el administrador.
   "reportes:clases_muestra": ["administrador", "asesor"],
   "reportes:costos": ["administrador"],
+  "reportes:ejecutivo": ["administrador", "asesor"],
+  "reportes:ocupacion": ["administrador", "asesor", "recepcion", "maestro"],
   "gastos_campana:leer": ["administrador"],
   "gastos_campana:escribir": ["administrador"],
   // Oferta

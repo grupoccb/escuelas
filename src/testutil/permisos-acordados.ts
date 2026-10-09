@@ -55,6 +55,8 @@ export const PERMISOS_ACORDADOS = {
   "ventas:anular": ["administrador", "recepcion"],
   "reportes:clases_muestra": ["administrador", "asesor"],
   "reportes:costos": ["administrador"],
+  "reportes:ejecutivo": ["administrador", "asesor"],
+  "reportes:ocupacion": ["administrador", "asesor", "recepcion", "maestro"],
   "gastos_campana:leer": ["administrador"],
   "gastos_campana:escribir": ["administrador"],
   "grupos:leer": ["administrador", "asesor", "maestro", "recepcion"],

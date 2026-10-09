@@ -29,7 +29,7 @@ test("permisosDe(rol) coincide con tienePermiso para cada permiso", () => {
   for (const rol of ROLES) {
     assert.deepEqual(permisosDe(rol), PERMISOS.filter((p) => tienePermiso(rol, p)));
   }
-  assert.deepEqual(permisosDe("maestro"), ["clases_muestra:leer", "clases_muestra:asistencia", "clases_muestra:listo_para_cerrar", "registro_muestra:leer", "registro_muestra:escribir", "avisos_maestro:leer", "avisos_maestro:escribir", "alumnos:leer", "inscripciones:leer", "asistencia:leer", "asistencia:registrar", "progresion:escribir", "eventos:leer", "eventos:participantes", "conversion:leer", "conversion:ejecutar", "grupos:leer", "catalogo:leer", "salud:leer", "salud:escribir"]);
+  assert.deepEqual(permisosDe("maestro"), ["clases_muestra:leer", "clases_muestra:asistencia", "clases_muestra:listo_para_cerrar", "registro_muestra:leer", "registro_muestra:escribir", "avisos_maestro:leer", "avisos_maestro:escribir", "alumnos:leer", "inscripciones:leer", "asistencia:leer", "asistencia:registrar", "progresion:escribir", "eventos:leer", "eventos:participantes", "conversion:leer", "conversion:ejecutar", "reportes:ocupacion", "grupos:leer", "catalogo:leer", "salud:leer", "salud:escribir"]);
 });
 
 test("D5: el registro de la clase muestra lo ven el administrador, el asesor y el maestro; recepción nunca; reabrirlo es solo del administrador", () => {
@@ -44,4 +44,12 @@ test("E3: el QR de una campaña lo bajan el administrador y el asesor; recepció
   assert.deepEqual([...MATRIZ_DE_PERMISOS["campanas:qr"]], ["administrador", "asesor"]);
   assert.equal(tienePermiso("recepcion", "campanas:qr"), false);
   assert.equal(tienePermiso("maestro", "campanas:qr"), false);
+});
+
+test("I3: el reporte ejecutivo (trae dinero) es del administrador y el asesor; la ocupación por grupo (sin importes) además de recepción y el maestro; I2: costos y gastos de campaña, solo del administrador", () => {
+  assert.deepEqual([...MATRIZ_DE_PERMISOS["reportes:ejecutivo"]], ["administrador", "asesor"]);
+  assert.deepEqual([...MATRIZ_DE_PERMISOS["reportes:ocupacion"]], ["administrador", "asesor", "recepcion", "maestro"]);
+  for (const p of ["reportes:costos", "gastos_campana:leer", "gastos_campana:escribir"] as const) assert.deepEqual([...MATRIZ_DE_PERMISOS[p]], ["administrador"]);
+  assert.equal(tienePermiso("maestro", "reportes:ejecutivo"), false);
+  assert.equal(tienePermiso("recepcion", "reportes:ejecutivo"), false);
 });
