@@ -129,6 +129,8 @@ el embudo y las tareas; recepción, pagos, estado de cuenta, uniformes y ventas)
 
 **Mensajería y usuarios (J8, solo administrador).** Plantillas de mensaje (cada una DECLARA si es de servicio o de marketing; una de servicio no puede ser de categoría marketing), automatizaciones (encender, desfase, intentos y horario de envío, siempre dentro de 09:00 a 20:00), usuarios y roles (alta, rol, sucursales, restablecer la contraseña de otra persona, activar o desactivar, agente de Chatwoot), la configuración de la escuela y la **bandeja del administrador** (eventos inesperados y tareas sin lead).
 
+**Tableros (J9, administrador y asesor).** «Tableros» muestra las clases muestra (agendadas, asistidas, no asistidas y conversión por fuente, disciplina y sucursal), el costo por alumno inscrito por campaña (solo administrador; el gasto se captura a mano) y el reporte ejecutivo (activos, altas y bajas, deserción, ingreso recurrente, cartera vencida y ocupación por grupo), con filtros de fecha, sucursal y disciplina y un botón de descarga en CSV. Las gráficas son barras de SVG propio con su cifra escrita y su tabla.
+
 ```bash
 npm run web:instalar     # una vez: las dependencias de web/ (también las instala `npm install` de la raíz)
 npm run web:dev          # desarrollo con recarga en http://localhost:5173 (proxy al backend en :3000; API_URL lo cambia)

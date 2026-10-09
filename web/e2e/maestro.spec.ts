@@ -20,7 +20,8 @@ test.describe("Hoy", () => {
   test("lista SUS clases con alumno, hora y grupo; sin lo ajeno y sin datos de contacto de la familia", async ({ page }) => {
     await page.goto("/hoy");
     await expect(page.getByRole("heading", { name: "Hoy", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: /^(Hoy|Ayer) · \S+ \d+ de \S+$/ })).toBeVisible();
+    // Con la hora cerca de la medianoche la clase empezada hace 90 minutos cae en «Ayer» y puede haber dos encabezados de día.
+    await expect(page.getByRole("heading", { level: 2, name: /^(Hoy|Ayer) · \S+ \d+ de \S+$/ }).first()).toBeVisible();
     const tarjeta = page.getByTestId(`clase-${clase.id}`);
     await expect(tarjeta).toContainText(clase.prospecto);
     await expect(tarjeta).toContainText("Grupo A");

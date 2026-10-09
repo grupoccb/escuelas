@@ -38,6 +38,7 @@ const AdminConfiguracion = lazy(() => import("./pantallas/admin/Configuracion.ts
 const AdminPlantillas = lazy(() => import("./pantallas/admin/Plantillas.tsx"));
 const AdminAutomatizaciones = lazy(() => import("./pantallas/admin/Automatizaciones.tsx"));
 const AdminUsuarios = lazy(() => import("./pantallas/admin/Usuarios.tsx"));
+const Tableros = lazy(() => import("./pantallas/tableros/Tableros.tsx"));
 const AdminBandeja = lazy(() => import("./pantallas/admin/Bandeja.tsx"));
 
 /** Una ruta que solo existe con el permiso. Sin él se muestra «Sin acceso» y la pantalla ni se monta: no pide nada a la API. */
@@ -86,6 +87,7 @@ function Rutas() {
         <Route path="/admin/automatizaciones" element={<RequierePermiso permiso="catalogo:escribir"><AdminAutomatizaciones /></RequierePermiso>} />
         <Route path="/admin/usuarios" element={<RequierePermiso permiso="usuarios:administrar"><AdminUsuarios /></RequierePermiso>} />
         <Route path="/admin/bandeja" element={<RequierePermiso permiso="registro_cambios:leer"><AdminBandeja /></RequierePermiso>} />
+        <Route path="/tableros" element={<RequierePermiso permiso="reportes:clases_muestra"><Tableros /></RequierePermiso>} />
         <Route path="/mas" element={<Mas />} />
         <Route path="*" element={<NoEncontrada />} />
       </Routes>

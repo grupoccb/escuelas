@@ -96,7 +96,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J6 | HECHO | ver `git log` (`J6:`) | Familias y expediente: buscador de alumnos y de familias, ficha con banderas y saldo, expediente por rol (el maestro sin importes), salud en vista aparte con motivo, cambiar de grupo con el cupo real, congelar, reactivar y baja con motivo, «con un solo hijo» |
 | J7 | HECHO | ver `git log` (`J7:`) | Administración del catálogo: disciplinas, sucursales (y qué disciplina se imparte en cuál), programas con traslape de edad, grupos y horarios con choques, instructores y salones, precios versionados, promociones, canales y bandejas y configuración de la escuela; endpoints nuevos con IDOR, registro de cambios y carreras probadas; K1 posible solo con administración |
 | J8 | HECHO | ver `git log` (`J8:`) | Mensajería y usuarios: plantillas con la clase declarada (INV-6), automatizaciones (encender, desfases, horario dentro de 09:00–20:00), usuarios y roles, bandeja de eventos inesperados y tareas sin lead |
-| J9 | PENDIENTE | | Interfaz: tableros |
+| J9 | HECHO | ver `git log` (`J9:`) | Tableros: clases muestra, costo por campaña con el gasto a mano y ejecutivo, con gráficas de SVG propio (texto primero) y descarga de CSV; el dinero siempre como texto exacto |
 | J10 | PENDIENTE | | Interfaz: recorridos en navegador |
 | K1 | PENDIENTE | | Prueba de fuego total |
 | K2 | HECHO (parcial: EF-06, clases muestra vs inscripción, sigue siendo decisión de Eduardo; la ráfaga más grande probada es de 200 peticiones sobre un servidor y una base locales, no sobre AWS) | ver `git log` (`K2:`) | Ráfagas de 40 a 200 peticiones simultáneas contra el servidor HTTP real (cupo, conversión, cambio de grupo, pagos, webhooks de Chatwoot y Twilio, landing): 0 5xx, invariantes intactos, sin interbloqueos; resuelve ED-08, EH-12, EH-13 y EH-19 |
@@ -2901,6 +2901,30 @@ $ DATABASE_URL_PRUEBAS=…_j_pruebas npm run test:int → tests 1113 · pass 111
 - Revisa `docs/capturas/70…73-*.png`. **Pendiente conocido (EF-14):** apagar una automatización impide programar envíos nuevos pero no cancela lo ya programado; la pantalla lo avisa. ¿Quieres que apagar cancele también lo pendiente?
 - Los eventos que no se pudieron atar a ninguna organización (JSON roto, receptor desconocido) no tienen dueño y no aparecen en la bandeja: solo en los logs.
 - Vincular el agente de Chatwoot exige el directorio configurado y una bandeja con cuenta; sin ellos la pantalla muestra el motivo.
+
+## J9. Tableros
+
+**Qué se hizo** (`web/src/pantallas/tableros/`, ruta `/tableros`; sin endpoints nuevos: todo con I1, I2, I3 e I5)
+- **Clases muestra** (I1, administrador y asesor): agendadas, asistidas, no asistidas, inscritas y conversión, **por fuente, disciplina y sucursal**, con filtros de fechas, sucursal y disciplina (el rango parte de hace 90 días y sin fecha final: las clases agendadas hacia adelante también cuentan).
+- **Costo por alumno inscrito por campaña** (I2, solo administrador): gasto total, costo por lead, por clase muestra y por alumno, **al centavo** y «—» cuando no hay con qué dividir; el gasto se **captura a mano** (diálogo «Gastos» por campaña con lista, total y baja; un gasto no se edita); el importe inválido se rechaza en pantalla y en el servidor.
+- **Ejecutivo** (I3, administrador y asesor, este último solo sus sucursales): activos, altas y bajas del mes, deserción, ingreso mensual recurrente, cartera vencida con su antigüedad y **ocupación por grupo** con su estado («a reventar», «vacío», «normal») escrito, no solo de color; selector de mes.
+- **Gráficas de SVG propio** (`Barras.tsx`, sin dependencias nuevas): TEXTO PRIMERO, cada fila trae su cifra escrita y la barra es un adorno (`aria-hidden`); una sola tonalidad de la marca, con el color de fondo y de contraste de las variables claro/oscuro; el largo de cada barra se calcula con **enteros `bigint`** (`graficas.ts`, también para los importes) y siempre hay una tabla con los mismos números. Los importes son texto exacto.
+- **Descarga de CSV** en cada tablero (`?formato=csv`, I5): el resumen, los activos y la ocupación del ejecutivo; el reporte de clases; el de costo.
+- Permisos: el asesor no ve la pestaña de costos (y la API le responde 403); recepción y maestro no ven la sección ni entran por URL y no se hace ninguna petición a los reportes.
+
+**Verificación**: ver la de J7 (mismo árbol).
+`graficas.test.ts` (2): el largo de una barra con enteros (33.3, 66.6, tope 100, centavos de 15 dígitos sin perder exactitud). `tableros.spec.ts` (6, Chromium real): **cada indicador de la pantalla es el de la API** (clases, activos, altas, bajas, deserción, ingreso, cartera); el filtro de sucursal; la campaña sembrada con 4 leads, 4 clases y 1 inscrita: capturar $1,000.00 y $500.50 deja el total en **$1,500.50**, el costo por lead en **$375.13** (1500.50 / 4 = 375.125, redondeo al centavo) y por alumno **$1,500.50**, dar de baja el segundo gasto lo recalcula ($1,000.00 → $250.00 por lead), importes `12.345`, `abc`, `0` y vacío rechazados; una campaña sin alumnos muestra «—»; **un mes sin historia** muestra deserción «—»; los tres CSV se descargan con su BOM y las cifras exactas; el asesor no ve el costo; recepción y maestro, «Sin acceso».
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Barras horizontales con el valor escrito, no una librería.** Alternativa descartada: una librería de gráficas (dependencia, accesibilidad por canvas y color como único canal).
+2. **Siempre una tabla además de la gráfica.** Alternativa descartada: botón «ver como tabla» (esconde los números a quien no usa el ratón).
+3. **El rango de partida no tiene fecha final**, para que lo agendado hacia adelante se vea. Alternativa descartada: «últimos 90 días» (ocultaba las clases de la semana próxima).
+4. **Los importes jamás pasan por `Number`:** `tableros/` es zona estricta de `check:dinero`; el largo de las barras sale de `bigint`.
+
+**Para Eduardo**
+- Revisa `docs/capturas/80…82-*.png` (celular y escritorio).
+- El costo por campaña no distingue el concepto del gasto (anuncio, impresión…): sigue siendo una cifra con nota libre (pregunta abierta de I2).
+- El rango de fechas del tablero ejecutivo es un mes; no hay comparación con el mes anterior (el modelo no guarda el estado por día; ver I3).
 
 ## Cierre de J1 a J5 — para quien siga (J6 a J10)
 

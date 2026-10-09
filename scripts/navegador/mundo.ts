@@ -53,6 +53,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
   const finanzas = await sembrarRecepcion(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id }, administrador);
   const asesorDelMundo = await sembrarAsesor(prisma, org, etapas, { norte: norte.id, sur: sur.id });
   const mensajeria = await sembrarMensajeria(prisma, org);
+  const tableros = await sembrarTableros(prisma, org, { norte: norte.id, grupo: finanzas.grupoD.id, programaId: programa.id, usuarioId: administrador.id });
   const familia = await sembrarFamiliaYExpediente(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id, grupoD: finanzas.grupoD.id, alumnoConSalud: maestroDelMundo.alumnosDelPase[0]! }, administrador);
 
   return {
@@ -71,6 +72,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
     recepcion: finanzas,
     familia,
     mensajeria,
+    tableros,
   };
 }
 
@@ -299,4 +301,45 @@ async function sembrarMensajeria(prisma: PrismaPruebas, org: OrganizacionDePrueb
     evento: { id: evento.id, tareaId: tarea.id, detalle },
     tareaSinLead: { id: sinLead.id, descripcion: sinLead.descripcion },
   };
+}
+
+/** J9: una campaña de Facebook con 4 leads: dos clases asistidas (una con inscripción activa), una que no asistió y una agendada. Cifras fijas por campaña para comprobar los tableros; van en el grupo D (sin horarios) para no alterar los lugares de los grupos que ven las demás pantallas. */
+async function sembrarTableros(prisma: PrismaPruebas, org: OrganizacionDePrueba, ids: { norte: string; grupo: string; programaId: string; usuarioId: string }): Promise<Mundo["tableros"]> {
+  const campana = await prisma.campana.create({ data: { organizacion_id: org.organizacionId, nombre: "Campaña de tablero", origen: "facebook" } });
+  const ahora = Date.now();
+  const lead = async (nombre: string, edad: number) => {
+    const f = await sembrarFamilia(prisma, org, { sucursalId: ids.norte, nombre, edad });
+    await prisma.lead.update({ where: { id: f.leadId }, data: { campana_id: campana.id } });
+    return f;
+  };
+  const clase = (f: { leadId: string; prospectoId: string }, cuando: number, estatus: "asistio" | "no_asistio" | "agendada") =>
+    prisma.clase_muestra.create({
+      data: {
+        organizacion_id: org.organizacionId,
+        lead_id: f.leadId,
+        prospecto_id: f.prospectoId,
+        grupo_id: ids.grupo,
+        fecha_hora: enMinuto(cuando),
+        estatus,
+        agendada_por: "usuario",
+        agendada_por_usuario_id: ids.usuarioId,
+        ...(estatus === "agendada" ? {} : { asistencia_marcada_en: new Date(), asistencia_marcada_por_usuario_id: ids.usuarioId }),
+      },
+    });
+  const a = await lead("Tablero Uno", 7);
+  const b = await lead("Tablero Dos", 8);
+  const c = await lead("Tablero Tres", 9);
+  const d = await lead("Tablero Cuatro", 6);
+  await clase(a, ahora - 5 * 3_600_000, "asistio");
+  await clase(b, ahora - 4 * 3_600_000, "asistio");
+  await clase(c, ahora - 3 * 3_600_000, "no_asistio");
+  await clase(d, ahora + 2 * 86_400_000, "agendada");
+  // El primero se inscribió: un alumno ligado a su prospecto, con inscripción activa de la campaña.
+  const alumno = await prisma.alumno.create({ data: { organizacion_id: org.organizacionId, nombre: "Alumno Tablero", apellidos: "Prueba", fecha_nacimiento: new Date("2018-05-04T00:00:00.000Z"), sucursal_id: ids.norte } });
+  await prisma.prospecto.update({ where: { id: a.prospectoId }, data: { alumno_id: alumno.id } });
+  const hoy = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z");
+  await prisma.inscripcion.create({
+    data: { organizacion_id: org.organizacionId, alumno_id: alumno.id, programa_id: ids.programaId, grupo_id: ids.grupo, lead_id: a.leadId, prospecto_id: a.prospectoId, fecha_inscripcion: hoy, fecha_inicio: hoy, estatus: "activa", precio_inscripcion_aplicado: "500.00", precio_mensualidad_aplicado: "1000.00", dia_corte_pago: 5 },
+  });
+  return { campana: { id: campana.id, nombre: campana.nombre }, leads: 4, clases: { agendadas: 4, asistidas: 2, noAsistidas: 1, inscritas: 1 } };
 }

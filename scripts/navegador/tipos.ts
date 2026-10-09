@@ -74,6 +74,13 @@ export interface Mundo {
     evento: { id: string; tareaId: string; detalle: string };
     tareaSinLead: { id: string; descripcion: string };
   };
+  /** J9: una campaña con leads, clases muestra y una inscripción para los tableros. */
+  tableros: {
+    campana: { id: string; nombre: string };
+    /** Cuatro leads de la campaña: dos con clase asistida (una ya inscrita), uno que no asistió y uno con clase agendada. */
+    leads: number;
+    clases: { agendadas: number; asistidas: number; noAsistidas: number; inscritas: number };
+  };
   /** J3: el embudo del asesor (sucursal norte). */
   asesor: {
     /** Nuevo, con campaña de Facebook, conversación en Chatwoot y una tarea pendiente. */
