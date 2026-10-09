@@ -1,6 +1,6 @@
 // Tareas para el asesor (las que deja el sistema cuando algo no se puede resolver solo).
 //
-//   GET   /api/tareas?estado=&tipo=&limite=&pagina=
+//   GET   /api/tareas?estado=&tipo=&lead_id=&sin_lead=true&limite=&pagina=   (`sin_lead=true`: las que no se pudieron atar a ningún lead; solo las ve el administrador)
 //   PATCH /api/tareas/:id   { estado: "hecha" | "descartada" }
 //
 // Alcance: por la sucursal de interés del lead de la tarea o, si es una tarea de una inscripción (G2), por la sucursal de su grupo (el administrador ve todas). Una tarea
@@ -17,7 +17,7 @@ import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio } from "../registro.ts";
-import { enumerado, objeto, opcional, parsear, parsearQuery, uuid } from "../validar.ts";
+import { booleanoDeTexto, enumerado, objeto, opcional, parsear, parsearQuery, uuid } from "../validar.ts";
 
 const SELECCION = {
   id: true,
@@ -34,7 +34,7 @@ const SELECCION = {
   creado_en: true,
 } as const;
 
-const esquemaListado = objeto({ ...esquemaPaginacion, estado: opcional(enumerado(ESTADOS_DE_TAREA)), tipo: opcional(enumerado(TIPOS_DE_TAREA)), lead_id: opcional(uuid()) });
+const esquemaListado = objeto({ ...esquemaPaginacion, estado: opcional(enumerado(ESTADOS_DE_TAREA)), tipo: opcional(enumerado(TIPOS_DE_TAREA)), lead_id: opcional(uuid()), sin_lead: opcional(booleanoDeTexto()) });
 const esquemaId = objeto({ id: uuid() });
 const esquemaResolver = objeto({ estado: enumerado(["hecha", "descartada"] as const) });
 
@@ -47,7 +47,7 @@ export function rutasDeTareas(_deps: DepsApi): Router {
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
     const filtro = filtroDeSucursal(await ctx.alcance());
-    const where = { ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(q.lead_id ? { lead_id: q.lead_id } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
+    const where = { ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(q.lead_id ? { lead_id: q.lead_id } : {}), ...(q.sin_lead ? { lead_id: null } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
     res.json(
       await paginar(
         pag,

@@ -32,6 +32,15 @@ export const GRUPOS_DE_ADMINISTRACION: { titulo: string; areas: Area[] }[] = [
       { ruta: "/admin/configuracion", titulo: "Configuración", ayuda: "Topes de mensajes, vigencias, umbrales y modo de cierre.", permiso: "catalogo:escribir" },
     ],
   },
+  {
+    titulo: "Mensajería y usuarios",
+    areas: [
+      { ruta: "/admin/plantillas", titulo: "Plantillas de mensaje", ayuda: "Estado de aprobación, clase (servicio o marketing) y variables.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/automatizaciones", titulo: "Automatizaciones", ayuda: "Encender, desfases, intentos y horario de envío.", permiso: "catalogo:escribir" },
+      { ruta: "/admin/usuarios", titulo: "Usuarios y roles", ayuda: "Altas, roles, sucursales, contraseñas y agente de Chatwoot.", permiso: "usuarios:administrar" },
+      { ruta: "/admin/bandeja", titulo: "Bandeja del administrador", ayuda: "Eventos inesperados y tareas sin lead.", permiso: "registro_cambios:leer" },
+    ],
+  },
 ];
 
 export default function Administracion() {

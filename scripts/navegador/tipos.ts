@@ -64,6 +64,16 @@ export interface Mundo {
     /** Un alumno del grupo del maestro con ficha de salud; el texto es un CENTINELA para comprobar que no se filtra a la consola, la URL ni el almacenamiento. */
     salud: { alumnoId: string; nombre: string; centinela: string };
   };
+  /** J8: mensajería para la administración. */
+  mensajeria: {
+    plantillaServicio: { id: string; codigo: string };
+    plantillaMarketing: { id: string; codigo: string };
+    /** Un recordatorio ANTES de la clase (desfase negativo) y un aviso de pago DESPUÉS del vencimiento (positivo). */
+    automatizaciones: { recordatorio: { id: string; nombre: string }; pagoAtrasado: { id: string; nombre: string } };
+    /** Un evento inesperado con su tarea pendiente, y una tarea que no se pudo atar a ningún lead. */
+    evento: { id: string; tareaId: string; detalle: string };
+    tareaSinLead: { id: string; descripcion: string };
+  };
   /** J3: el embudo del asesor (sucursal norte). */
   asesor: {
     /** Nuevo, con campaña de Facebook, conversación en Chatwoot y una tarea pendiente. */

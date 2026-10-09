@@ -35,6 +35,10 @@ const AdminPrecios = lazy(() => import("./pantallas/admin/Precios.tsx"));
 const AdminPromociones = lazy(() => import("./pantallas/admin/Promociones.tsx"));
 const AdminCanales = lazy(() => import("./pantallas/admin/Canales.tsx"));
 const AdminConfiguracion = lazy(() => import("./pantallas/admin/Configuracion.tsx"));
+const AdminPlantillas = lazy(() => import("./pantallas/admin/Plantillas.tsx"));
+const AdminAutomatizaciones = lazy(() => import("./pantallas/admin/Automatizaciones.tsx"));
+const AdminUsuarios = lazy(() => import("./pantallas/admin/Usuarios.tsx"));
+const AdminBandeja = lazy(() => import("./pantallas/admin/Bandeja.tsx"));
 
 /** Una ruta que solo existe con el permiso. Sin él se muestra «Sin acceso» y la pantalla ni se monta: no pide nada a la API. */
 function RequierePermiso({ permiso, children }: { permiso: string; children: ReactNode }) {
@@ -78,6 +82,10 @@ function Rutas() {
         <Route path="/admin/promociones" element={<RequierePermiso permiso="catalogo:escribir"><AdminPromociones /></RequierePermiso>} />
         <Route path="/admin/canales" element={<RequierePermiso permiso="catalogo:escribir"><AdminCanales /></RequierePermiso>} />
         <Route path="/admin/configuracion" element={<RequierePermiso permiso="catalogo:escribir"><AdminConfiguracion /></RequierePermiso>} />
+        <Route path="/admin/plantillas" element={<RequierePermiso permiso="catalogo:escribir"><AdminPlantillas /></RequierePermiso>} />
+        <Route path="/admin/automatizaciones" element={<RequierePermiso permiso="catalogo:escribir"><AdminAutomatizaciones /></RequierePermiso>} />
+        <Route path="/admin/usuarios" element={<RequierePermiso permiso="usuarios:administrar"><AdminUsuarios /></RequierePermiso>} />
+        <Route path="/admin/bandeja" element={<RequierePermiso permiso="registro_cambios:leer"><AdminBandeja /></RequierePermiso>} />
         <Route path="/mas" element={<Mas />} />
         <Route path="*" element={<NoEncontrada />} />
       </Routes>

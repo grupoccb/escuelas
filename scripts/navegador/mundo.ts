@@ -52,6 +52,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
   const conversion = await sembrarConversion(prisma, org, docs, etapas, nuevoCliente, { norte: norte.id, grupoA: grupoA.id, programaId: programa.id }, maestro);
   const finanzas = await sembrarRecepcion(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id }, administrador);
   const asesorDelMundo = await sembrarAsesor(prisma, org, etapas, { norte: norte.id, sur: sur.id });
+  const mensajeria = await sembrarMensajeria(prisma, org);
   const familia = await sembrarFamiliaYExpediente(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id, grupoD: finanzas.grupoD.id, alumnoConSalud: maestroDelMundo.alumnosDelPase[0]! }, administrador);
 
   return {
@@ -69,6 +70,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
     conversion,
     recepcion: finanzas,
     familia,
+    mensajeria,
   };
 }
 
@@ -273,5 +275,28 @@ async function sembrarFamiliaYExpediente(
     rellenoAlumnoId: relleno.alumnoId,
     motivoBaja: { id: motivo.id, nombre: motivo.nombre },
     salud: { alumnoId: ids.alumnoConSalud.alumnoId, nombre: ids.alumnoConSalud.nombre, centinela },
+  };
+}
+
+/** J8: dos plantillas (una de servicio y una de marketing), dos automatizaciones, un evento inesperado con su tarea y una tarea sin lead. */
+async function sembrarMensajeria(prisma: PrismaPruebas, org: OrganizacionDePrueba): Promise<Mundo["mensajeria"]> {
+  const plantilla = (codigo: string, sid: string, clase: "servicio" | "marketing", categoria: "utility" | "marketing", estado: "aprobada" | "pendiente") =>
+    prisma.plantilla_mensaje.create({ data: { organizacion_id: org.organizacionId, codigo, content_sid: sid, categoria, clase_mensaje: clase, estado_aprobacion: estado, variables: [{ pos: 1, nombre: "nombre_familia" }] } });
+  const servicio = await plantilla("recordatorio_de_prueba", "HX00000000000000000000000000000001", "servicio", "utility", "aprobada");
+  const marketing = await plantilla("promocion_de_prueba", "HX00000000000000000000000000000002", "marketing", "marketing", "pendiente");
+  const auto = (nombre: string, evento: "clase_muestra_proxima" | "cargo_vencido", offset: number, plantillaId: string) =>
+    prisma.automatizacion.create({ data: { organizacion_id: org.organizacionId, nombre, evento_disparador: evento, offset_minutos: offset, plantilla_id: plantillaId, max_intentos: 2, espaciado_minutos: 1440 } });
+  const recordatorio = await auto("Recordatorio de prueba antes de la clase", "clase_muestra_proxima", -1440, servicio.id);
+  const pago = await auto("Aviso de prueba de pago atrasado", "cargo_vencido", 4320, servicio.id);
+  const tarea = await prisma.tarea_asesor.create({ data: { organizacion_id: org.organizacionId, tipo: "evento_inesperado", descripcion: "Llegó un mensaje de WhatsApp sin remitente" } });
+  const detalle = "falta el campo del remitente";
+  const evento = await prisma.evento_inesperado.create({ data: { organizacion_id: org.organizacionId, origen: "twilio_entrante", clave: "evento-de-prueba-1", causa: "forma_inesperada", detalle, forma: { cuerpo: "objeto(3)" }, tarea_id: tarea.id } });
+  const sinLead = await prisma.tarea_asesor.create({ data: { organizacion_id: org.organizacionId, tipo: "revision_manual", descripcion: "Revisar un contacto que no se pudo ligar a ningún lead" } });
+  return {
+    plantillaServicio: { id: servicio.id, codigo: servicio.codigo },
+    plantillaMarketing: { id: marketing.id, codigo: marketing.codigo },
+    automatizaciones: { recordatorio: { id: recordatorio.id, nombre: recordatorio.nombre }, pagoAtrasado: { id: pago.id, nombre: pago.nombre } },
+    evento: { id: evento.id, tareaId: tarea.id, detalle },
+    tareaSinLead: { id: sinLead.id, descripcion: sinLead.descripcion },
   };
 }

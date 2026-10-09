@@ -95,7 +95,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J5 | HECHO | ver `git log` (`J5:`) | Recepción: registrar pago (búsqueda de familia, reparto sugerido y a mano entre hijos, parcial, clave de idempotencia por envío, cancelación), estado de cuenta con antigüedad, uniformes por entregar y ventas con existencia; importes siempre texto exacto |
 | J6 | HECHO | ver `git log` (`J6:`) | Familias y expediente: buscador de alumnos y de familias, ficha con banderas y saldo, expediente por rol (el maestro sin importes), salud en vista aparte con motivo, cambiar de grupo con el cupo real, congelar, reactivar y baja con motivo, «con un solo hijo» |
 | J7 | HECHO | ver `git log` (`J7:`) | Administración del catálogo: disciplinas, sucursales (y qué disciplina se imparte en cuál), programas con traslape de edad, grupos y horarios con choques, instructores y salones, precios versionados, promociones, canales y bandejas y configuración de la escuela; endpoints nuevos con IDOR, registro de cambios y carreras probadas; K1 posible solo con administración |
-| J8 | PENDIENTE | | Interfaz: mensajería y usuarios |
+| J8 | HECHO | ver `git log` (`J8:`) | Mensajería y usuarios: plantillas con la clase declarada (INV-6), automatizaciones (encender, desfases, horario dentro de 09:00–20:00), usuarios y roles, bandeja de eventos inesperados y tareas sin lead |
 | J9 | PENDIENTE | | Interfaz: tableros |
 | J10 | PENDIENTE | | Interfaz: recorridos en navegador |
 | K1 | PENDIENTE | | Prueba de fuego total |
@@ -2875,6 +2875,32 @@ $ DATABASE_URL_PRUEBAS=…_j_pruebas npm run test:int → tests 1113 · pass 111
 - Revisa `docs/capturas/60…68-*.png`. Pregunta abierta: ¿el asesor debería ver (solo leer) los programas y precios de su sucursal en pantalla? Hoy la pantalla de administración es solo del administrador (la API de lectura ya es de todos los roles).
 - **[SUPUESTO]** Zonas horarias sugeridas en el campo: América Latina y Madrid; el campo acepta cualquier nombre IANA que el servidor conozca.
 - Dar de alta una vertical nueva deja su landing sin servir hasta publicar su aviso de privacidad: ¿conviene que la pantalla de disciplinas lo pida al crearla? (hoy es un paso aparte por la API).
+
+## J8. Administración de mensajería y usuarios
+
+**Qué se hizo**
+- **Endpoints nuevos** (`docs/API.md`): `GET|POST|PATCH|DELETE /api/plantillas` (`plantillas.ts`), `GET|PATCH /api/automatizaciones` (`automatizaciones.ts`), `GET /api/eventos-inesperados` (`eventos-inesperados.ts`, `registro_cambios:leer`: solo administrador) y `GET /api/tareas?sin_lead=true`. Usuarios y roles ya existían (B1): la pantalla los usa tal cual (alta, rol, sucursales, restablecer la contraseña de OTRA persona, activar o desactivar, vincular al agente de Chatwoot).
+  - **Plantillas:** la **clase (servicio o marketing) se DECLARA** al darla de alta (INV-6: sin valor por omisión, 400 si falta); una de servicio no puede ser de categoría marketing (400 y CHECK en la base); código único por vertical e idioma; variables `[{pos, nombre}]`; el estado de aprobación se fija a mano mientras no haya sincronización con el proveedor (no se llama a Twilio desde aquí, invariante 4); baja 409 si una automatización la usa.
+  - **Automatizaciones:** se encienden, y se ajustan su desfase, intentos, espaciado, **horario de envío (siempre dentro de 09:00–20:00, invariante 14)**, días y plantilla. **No se crean ni se borran por la API**: cada evento disparador tiene su motor y su alta vive en el seed. Reglas puras y probadas en `src/automatizaciones/ajustes.ts` (el sentido del desfase según el evento: un recordatorio «antes» de la clase es negativo; uno «después» del vencimiento, positivo).
+  - **Eventos inesperados:** la bandeja del administrador (WH) con origen, causa, detalle saneado, intentos y su tarea; **nunca trae el contenido del evento**; solo los de la organización. Se atienden con la tarea (`PATCH /api/tareas/:id`). **Tareas sin lead:** `sin_lead=true`; las ve solo el administrador (un asesor ni las ve ni puede resolverlas: 404).
+  - `CAMPOS_AUDITABLES` ganó `plantilla_mensaje` y `automatizacion` (sin cuerpo de referencia).
+- **Pantallas** (`/admin/plantillas`, `/admin/automatizaciones`, `/admin/usuarios`, `/admin/bandeja`; la configuración de la escuela es la de J7): lista de plantillas con su estado de aprobación, clase y variables; automatizaciones con el desfase en palabras («1 día antes»), la plantilla y un aviso si todavía no está aprobada; usuarios con rol, sucursales y agente de Chatwoot; bandeja del administrador con eventos y tareas sin lead. La contraseña nunca se muestra ni se guarda en el navegador (`autoComplete="new-password"`).
+- Datos de prueba: dos plantillas (una de servicio aprobada y una de marketing pendiente), dos automatizaciones, un evento inesperado con su tarea y una tarea sin lead.
+
+**Verificación**: ver la de J7 (mismo árbol).
+`administracion-mensajeria.itest.ts` (3): la clase es obligatoria y «servicio + marketing» se rechaza (también por SQL directo: la base falla cerrada), código repetido (409), variables repetidas, vertical ajena, **IDOR** y roles (403 a asesor, recepción y maestro; 401 sin sesión), cambio de clase que rompería la regla, baja de una plantilla en uso (409), registro de cambios; automatizaciones: horario fuera de 09:00–20:00 en cualquiera de los dos extremos (400, y SQL directo rechazado por el CHECK), desfase con el signo equivocado por evento, intentos, espaciado menor a 60, días vacíos, repetidos o fuera de rango, plantilla de otra organización, no se renombra ni se cambia el evento; eventos inesperados solo de mi organización, filtros, y que **al resolver la tarea el evento deja de estar pendiente**; tareas sin lead invisibles para el asesor. `ajustes.test.ts` (4) y `mensajeria.test.ts` de `web/` (3).
+`admin-mensajeria.spec.ts` (6, Chromium real): quien no administra no entra (ni una petición); plantilla sin clase («Declara si es de servicio o de marketing»), servicio + marketing rechazado en pantalla, alta, aprobación y baja de una en uso rechazada; automatizaciones: apagar y encender, **desfase positivo en un aviso «antes» rechazado, horario 08:00 y 21:00 rechazados**, valores válidos guardados y comprobados en la API; usuarios: contraseña corta rechazada, alta, **al restablecer la contraseña de otra persona la vieja deja de servir** (login por API: 401) y la nueva sirve, desactivarla corta el acceso; no puede desactivarse a sí mismo; vincular al agente sin directorio configurado se explica; bandeja: evento y tarea sin lead, «Marcar atendido» y «Descartar» (comprobado en la API) y el evento atendido sigue como constancia.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Las automatizaciones no se crean desde la pantalla.** Cada una está atada a un motor (evento, entidad, ocurrencia: invariante 8); crear una libre dejaría una fila que ningún motor ejecuta. Alternativa descartada: alta libre con elección de evento.
+2. **La clase de la plantilla se puede editar**, pero cada cambio queda en el registro y la base impide la combinación imposible. Alternativa descartada: inmutable (obligaría a duplicar la plantilla para corregir un error de captura).
+3. **El estado de aprobación se captura a mano** hasta que exista la sincronización con Twilio. Alternativa descartada: ocultarlo (el administrador no podría probar el flujo completo).
+4. **La bandeja de eventos es solo lectura + la tarea**: resolver es una acción sobre la tarea, que ya tiene su regla atómica (409 si ya estaba resuelta). Alternativa descartada: un estado propio del evento (dos fuentes de verdad).
+
+**Para Eduardo**
+- Revisa `docs/capturas/70…73-*.png`. **Pendiente conocido (EF-14):** apagar una automatización impide programar envíos nuevos pero no cancela lo ya programado; la pantalla lo avisa. ¿Quieres que apagar cancele también lo pendiente?
+- Los eventos que no se pudieron atar a ninguna organización (JSON roto, receptor desconocido) no tienen dueño y no aparecen en la bandeja: solo en los logs.
+- Vincular el agente de Chatwoot exige el directorio configurado y una bandeja con cuenta; sin ellos la pantalla muestra el motivo.
 
 ## Cierre de J1 a J5 — para quien siga (J6 a J10)
 
