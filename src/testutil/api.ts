@@ -93,7 +93,9 @@ export class ClienteApi {
       const i = par.indexOf("=");
       const nombre = par.slice(0, i).trim();
       const valor = par.slice(i + 1).trim();
-      const vencida = atributos.some((a) => /^\s*expires=/i.test(a) && new Date(a.split("=")[1] ?? "").getTime() < Date.now());
+      // Un cierre de sesión borra la cookie con una fecha de 1970. Las pruebas con un reloj fijo (`reloj: () => AHORA`) emiten cookies que vencen respecto a ESE reloj, no al real:
+      // comparar con `Date.now()` las daba por vencidas cuando pasaban las horas de la sesión (se rompió solo, un día después).
+      const vencida = atributos.some((a) => /^\s*expires=/i.test(a) && new Date(a.split("=")[1] ?? "").getTime() < Date.UTC(2000, 0, 1));
       if (valor === "" || vencida) this.cookies.delete(nombre);
       else this.cookies.set(nombre, valor);
     }
@@ -120,6 +122,7 @@ export class ClienteApi {
 
   get = <T = unknown>(ruta: string) => this.pedir<T>("GET", ruta);
   post = <T = unknown>(ruta: string, cuerpo?: unknown) => this.pedir<T>("POST", ruta, cuerpo);
+  put = <T = unknown>(ruta: string, cuerpo?: unknown) => this.pedir<T>("PUT", ruta, cuerpo);
   patch = <T = unknown>(ruta: string, cuerpo?: unknown) => this.pedir<T>("PATCH", ruta, cuerpo);
   delete = <T = unknown>(ruta: string) => this.pedir<T>("DELETE", ruta);
 

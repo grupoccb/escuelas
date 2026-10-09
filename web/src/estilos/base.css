@@ -174,6 +174,8 @@ textarea { min-height: 5.5rem; resize: vertical; }
 .pestanas { display: flex; gap: 0.25rem; overflow-x: auto; border-bottom: 1px solid var(--borde); }
 .pestanas button { min-height: 44px; padding: 0 1rem; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--texto-suave); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .pestanas button[aria-selected="true"] { color: var(--primario); border-bottom-color: var(--primario); }
+.pestanas a.pestana-enlace { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1rem; border-bottom: 3px solid transparent; color: var(--texto-suave); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.pestanas a.pestana-enlace[aria-current="page"] { color: var(--primario); border-bottom-color: var(--primario); }
 .tabla-scroll { overflow-x: auto; }
 table.tabla { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 table.tabla th, table.tabla td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--borde); vertical-align: top; }

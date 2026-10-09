@@ -123,6 +123,8 @@ Con `docker compose up -d --build --wait` el backend también sirve la interfaz 
 cualquiera de los usuarios de abajo (la contraseña es `Demo-local-2026!`; el campo «Escuela» se deja vacío mientras haya una sola): cada rol ve solo sus secciones (el maestro, «Hoy» y «Pase de lista»; el asesor,
 el embudo y las tareas; recepción, pagos, estado de cuenta, uniformes y ventas). En el celular la navegación es una barra inferior; en escritorio, una barra lateral.
 
+**Familias y expediente (J6).** «Alumnos» (los cuatro roles; el maestro, solo los suyos) y «Familias» (administrador, asesor y recepción: por teléfono en cualquier formato o por nombre, y «Con un solo hijo» para la venta cruzada). La ficha de la familia muestra los adultos con sus banderas, los hijos y el saldo; el **expediente** del alumno (trayectoria, económico, operativo y comercial; el maestro no ve importes) ofrece cambiar de grupo con los lugares reales, congelar, reactivar y dar de baja con motivo. La **salud** está en una vista aparte (administrador y maestro del grupo): pide un motivo, queda en el registro de accesos y se oculta sola a los 2 minutos.
+
 ```bash
 npm run web:instalar     # una vez: las dependencias de web/ (también las instala `npm install` de la raíz)
 npm run web:dev          # desarrollo con recarga en http://localhost:5173 (proxy al backend en :3000; API_URL lo cambia)

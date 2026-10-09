@@ -51,6 +51,19 @@ export interface Mundo {
     /** Un alumno ya inscribible, para llenar el grupo C desde la API. */
     rellenoAlumnoId: string;
   };
+  /** J6: familia y expediente. */
+  familia: {
+    /** Una familia con dos hijos inscritos en el grupo D: se les cambia de grupo, se congela y se da de baja. */
+    rivera: { tutorId: string; telefono: string; nombre: string; hijos: { alumnoId: string; nombre: string; inscripcionId: string }[] };
+    /** Un grupo del mismo programa con UN solo lugar libre (para la carrera) y otro con lugares de sobra. */
+    grupoDeUnLugar: { id: string; nombre: string };
+    grupoDestino: { id: string; nombre: string };
+    /** Un alumno ya inscribible que se usa para ocupar el último lugar del grupo de un lugar desde la API. */
+    rellenoAlumnoId: string;
+    motivoBaja: { id: string; nombre: string };
+    /** Un alumno del grupo del maestro con ficha de salud; el texto es un CENTINELA para comprobar que no se filtra a la consola, la URL ni el almacenamiento. */
+    salud: { alumnoId: string; nombre: string; centinela: string };
+  };
   /** J3: el embudo del asesor (sucursal norte). */
   asesor: {
     /** Nuevo, con campaña de Facebook, conversación en Chatwoot y una tarea pendiente. */

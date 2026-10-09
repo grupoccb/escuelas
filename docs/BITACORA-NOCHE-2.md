@@ -93,7 +93,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J3 | HECHO | ver `git log` (`J3:`) | Asesor: embudo (tablero y lista, filtros, estancados, mover con motivo/nota), tareas, ficha del lead (atribución, cotizaciones, clase muestra, historial, enlace a Chatwoot); cambios mínimos a la API con test |
 | J4 | HECHO (parcial: el modo `maestro_en_sitio` no tiene prueba en navegador: el modo es configuración y todavía no hay API para cambiarla, J8) | ver `git log` (`J4:`) | Asistente de conversión sin recaptura (familia → alumnos → grupo y horario con lugares reales → precio y promociones → reglamento e imagen → confirmación); cierre en sitio del maestro |
 | J5 | HECHO | ver `git log` (`J5:`) | Recepción: registrar pago (búsqueda de familia, reparto sugerido y a mano entre hijos, parcial, clave de idempotencia por envío, cancelación), estado de cuenta con antigüedad, uniformes por entregar y ventas con existencia; importes siempre texto exacto |
-| J6 | PENDIENTE | | Interfaz: familia y expediente |
+| J6 | HECHO | ver `git log` (`J6:`) | Familias y expediente: buscador de alumnos y de familias, ficha con banderas y saldo, expediente por rol (el maestro sin importes), salud en vista aparte con motivo, cambiar de grupo con el cupo real, congelar, reactivar y baja con motivo, «con un solo hijo» |
 | J7 | PENDIENTE | | Interfaz: administración del catálogo |
 | J8 | PENDIENTE | | Interfaz: mensajería y usuarios |
 | J9 | PENDIENTE | | Interfaz: tableros |
@@ -2796,6 +2796,46 @@ Mutaciones comprobadas: cambiar `claveParaEnvio` para generar siempre una clave 
 - Revisa `docs/capturas/40…45-*.png` (celular y escritorio). El flujo de cobro es el que más se va a usar: dime si el reparto a mano debería partir en blanco en vez de la propuesta.
 - **[SUPUESTO]** Los importes de la demo de pruebas ($500 / $1,000 / $350 / $120 / $80) son de ejemplo; en producción salen de las tablas.
 - Hoy no hay forma de capturar una **entrada de inventario** desde la interfaz (`POST /api/productos/:id/ajuste-stock` existe en la API): queda para J7/J8 (administración).
+
+## J6. Familia y expediente del alumno
+
+**Qué se hizo** (`web/src/pantallas/familia/`, `web/src/salud/VistaDeSalud.tsx`)
+- **Alumnos** (`/alumnos`, `alumnos:leer`: los cuatro roles): buscador por nombre del alumno o por teléfono de un adulto, filtro de estatus, lista paginada. **El maestro ve solo a sus alumnos** (la API ya lo filtra) y no puede buscar por teléfono.
+- **Familias** (`/familias`, `tutores:leer`: administrador, asesor y recepción): buscador por teléfono (en cualquier formato; lo normaliza el servidor, invariante 7) o nombre, lista paginada y la pestaña **«Con un solo hijo»** (`GET /api/familias/un-solo-hijo`: venta cruzada, con las disciplinas en las que ya está y en las que no, y si están en su sucursal).
+- **Ficha de la familia** (`/familias/:tutorId`): contacto del adulto, saldo y vencido (si el rol tiene `estado_cuenta:leer`), cada hijo con su estatus y las **banderas** de la relación (responsable de pago, contacto de urgencia, puede recogerlo, lo lleva) y accesos al expediente, al estado de cuenta y a «Registrar pago» (`/pagos?tutor=<id>` carga a esa familia sin pasar por el buscador).
+- **Expediente del alumno** (`/alumnos/:id`, `GET /api/alumnos/:id/expediente`) en cuatro pestañas accesibles (`role="tab"`): **Trayectoria** (inicio, antigüedad, grupo actual, inscripciones, historial de cambios de grupo, nivel por vertical con la etiqueta de ESA vertical, próximo evento y elegibilidad), **Económico** (mensualidad vigente exacta, día de corte, promoción y beneficios, saldo y vencido), **Operativo** (% de asistencia a 30 días, racha de faltas contra el umbral, eventos, productos) y **Comercial** (cómo llegó, hermanos, motivo de baja). **El maestro no recibe ni la pestaña económica ni la comercial** (la API manda esas secciones en `null`; la pantalla ni las ofrece).
+- **Salud en una vista aparte** (`/alumnos/:id/salud`, solo `salud:leer`: administrador y maestro del grupo): pide un **motivo** (mínimo 3 caracteres) y recién entonces lee `GET /api/salud/alumno/:id`; los datos viven solo en la memoria del componente, se ocultan solos a los 2 minutos, al cambiar de pestaña, al salir de la pantalla y con «Ocultar». Cada lectura queda en el registro de accesos (con el motivo). Un rol sin el permiso ni ve el botón ni hace la petición (la ruta muestra «Sin acceso» y no se monta).
+- **Acciones de F5** sobre cada inscripción (quien tiene `inscripciones:escribir`: administrador, asesor y recepción), cada una con **confirmación en un diálogo**: **cambiar de grupo** (solo grupos activos del MISMO programa, con los lugares reales de cada uno —`/api/reportes/ocupacion`—; los llenos aparecen deshabilitados y, si el último lugar se ocupa mientras se mira la pantalla, el servidor responde 409 y se explica), **congelar / reactivar** y **dar de baja** con un motivo del catálogo editable (avisa que libera el lugar).
+- Pequeños cimientos para J7 a J9: `ui/Paginador.tsx`, el icono `familia` y la pestaña con enlaces (`.pestana-enlace`).
+- **Datos de prueba** (`scripts/navegador/mundo.ts`): una familia con dos hijos inscritos, un grupo de **un solo lugar** libre y otro con lugares de sobra, un motivo de baja, un alumno del maestro con ficha de salud que lleva un **centinela** (`CENTINELA-ALERGIA-J6`) para comprobar que no se filtra a la URL, la consola, el almacenamiento ni la caché. `ClienteApi.put()` en `src/testutil/api.ts`.
+- **No hay endpoints nuevos**: todo se hace con la API de F1, F5, G5 y el registro de accesos.
+
+**Verificación**
+```
+$ npm run validar        → exit 0 · tests 625 · pass 625 · web: tests 35 · pass 35 (vista.test.ts: antigüedad, banderas, nombre, elegibilidad)
+$ npm run test:navegador → exit 0 · 69 passed (11 nuevas en familia.spec.ts)
+$ npm run test:int       → corrida completa en una base propia (DATABASE_URL_PRUEBAS=…_j_pruebas, para no chocar con otras corridas): 1113 tests · 1090 pass · 23 fail. Los 23:
+                           · 22 eran una BOMBA DE TIEMPO de las pruebas con reloj fijo (cotizaciones.itest y cotizador.itest): el cliente de pruebas descartaba las cookies cuyo
+                             `Expires` pasaba de la hora REAL, y la sesión de un reloj fijo del 8 de octubre a las 20:00Z vence 12 h después, a las 08:00Z de hoy. Corregido en
+                             `src/testutil/api.ts` (solo descarta las cookies que un cierre de sesión pone en 1970): los 29 tests de esos archivos pasan.
+                           · 1 es la demo guiada del bloque K8, en curso en otra rama de trabajo (no de este bloque).
+```
+Nota honesta: una primera corrida completa coincidió con otras dos corridas de `test:int` contra la MISMA base de pruebas (de otros agentes) y dio interbloqueos (`40P01`); ambos archivos pasan a solas (21/21). Desde entonces las corridas de esta interfaz usan base propia.
+
+`familia.spec.ts` (11, en Chromium real, por rol): **recepción** busca por `(55) 5503 0303`, abre la ficha (banderas «Responsable de pago», saldo y vencido iguales al estado de cuenta de la API), el expediente (mensualidad `$1,000.00`, saldo igual a la API), no ve «Salud» y por URL directa a la salud ve «Sin acceso» **sin que salga ninguna petición a `/api/salud`**; **cambia de grupo** a un grupo del mismo programa (historial «de Grupo D a Grupo F», la inscripción quedó en el grupo nuevo); **el último lugar se ocupa mientras mira la pantalla** (el diálogo mostraba «1 lugar», otra persona lo toma por la API, el cambio responde «ya no tiene lugares» y la inscripción sigue en su grupo); congela y reactiva con confirmación (cancelar no cambia nada); **baja** con motivo (el botón está desactivado sin motivo; el motivo queda en el movimiento y el alumno pasa a «baja»). **Asesor**: la lista «Con un solo hijo» trae a la familia de un hijo y no a la de dos. **Maestro**: ve a sus alumnos y no a los de otro grupo (un alumno ajeno por URL: «No se encontró»), `/familias` es «Sin acceso», su expediente tiene solo «Trayectoria» y «Operativo», **no contiene un solo «$»** y la API manda `economico` y `comercial` en `null`; la **salud**: el botón está desactivado hasta dar un motivo, la respuesta lleva `Cache-Control: no-store`, el centinela aparece en pantalla, y **no aparece en la URL, en `localStorage`/`sessionStorage`/cookies ni en la consola**; «Ocultar» lo quita; volver a la pantalla pide el motivo otra vez; el registro de accesos tiene la lectura con el motivo «Clase de hoy» y **no contiene el valor**. **Administrador**: cuatro pestañas y el acceso a la salud.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **La salud tiene su pantalla y su motivo, no una pestaña del expediente.** Un expediente se abre para muchas cosas; la salud se pide a propósito, queda registrada y se borra sola. Alternativa descartada: una pestaña más (se vería «de paso» y se quedaría en memoria mientras se navega).
+2. **El cupo de «cambiar de grupo» sale de `/api/reportes/ocupacion`** (la misma fuente real que usan el cotizador y la inscripción) y el servidor decide: la pantalla deshabilita los llenos pero no confía en lo que ve. Alternativa descartada: calcular lugares en la pantalla con el cupo máximo.
+3. **El maestro ve a sus alumnos en «Alumnos», sin teléfono ni importes**, y no hay «Familias» para él. Alternativa descartada: darle la ficha de la familia sin contacto (la API ya se la niega: `tutores:leer`).
+4. **Dos listas, no una**: «Alumnos» (los cuatro roles) y «Familias» (tres roles) porque el maestro no tiene `tutores:leer`. Alternativa descartada: una sola lista con columnas distintas por rol.
+5. **`/pagos?tutor=<id>`** carga a la familia desde la ficha sin pasar por el buscador (un cambio chico a J5). Alternativa descartada: un botón que copie el teléfono.
+6. **El servidor de las pruebas en navegador ya no depende de `/salud` para saber que terminó de sembrar** (otro bloque cambió `/salud` a «vivo» sin tocar la base, y Playwright empezaba antes de que existiera el mundo): borra `mundo.json` al arrancar, lo escribe de forma atómica al terminar y `e2e/preparar.ts` lo espera.
+
+**Para Eduardo**
+- Revisa `docs/capturas/50…57-*.png` (familias, ficha, cambiar de grupo, expediente por rol, salud). Dime si la salud debería poder consultarse sin motivo para el maestro del grupo en el momento de la clase (hoy el motivo es obligatorio para todos).
+- «Con un solo hijo» no filtra por disciplina (el filtro `sin_vertical_id` existe en la API; la pantalla lo ofrecerá cuando haya un selector de disciplinas, J7).
+- Las capturas de pantallas anteriores (`docs/capturas/10…45`) se regeneran en cada corrida de `test:navegador` y cambian de bytes aunque no cambie nada visible: este commit no las incluye.
 
 ## Cierre de J1 a J5 — para quien siga (J6 a J10)
 

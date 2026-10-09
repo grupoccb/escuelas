@@ -20,6 +20,11 @@ const RegistrarPago = lazy(() => import("./pantallas/recepcion/RegistrarPago.tsx
 const EstadoDeCuenta = lazy(() => import("./pantallas/recepcion/EstadoDeCuenta.tsx"));
 const Uniformes = lazy(() => import("./pantallas/recepcion/Uniformes.tsx"));
 const Ventas = lazy(() => import("./pantallas/recepcion/Ventas.tsx"));
+const AlumnosLista = lazy(() => import("./pantallas/familia/AlumnosLista.tsx"));
+const Expediente = lazy(() => import("./pantallas/familia/Expediente.tsx"));
+const SaludDelAlumno = lazy(() => import("./pantallas/familia/SaludDelAlumno.tsx"));
+const Familias = lazy(() => import("./pantallas/familia/Familias.tsx"));
+const FichaFamilia = lazy(() => import("./pantallas/familia/FichaFamilia.tsx"));
 
 /** Una ruta que solo existe con el permiso. Sin él se muestra «Sin acceso» y la pantalla ni se monta: no pide nada a la API. */
 function RequierePermiso({ permiso, children }: { permiso: string; children: ReactNode }) {
@@ -47,6 +52,12 @@ function Rutas() {
         <Route path="/cuenta/:tutorId" element={<RequierePermiso permiso="estado_cuenta:leer"><EstadoDeCuenta /></RequierePermiso>} />
         <Route path="/uniformes" element={<RequierePermiso permiso="beneficios:entregar"><Uniformes /></RequierePermiso>} />
         <Route path="/ventas" element={<RequierePermiso permiso="ventas:registrar"><Ventas /></RequierePermiso>} />
+        <Route path="/alumnos" element={<RequierePermiso permiso="alumnos:leer"><AlumnosLista /></RequierePermiso>} />
+        <Route path="/alumnos/:id" element={<RequierePermiso permiso="alumnos:leer"><Expediente /></RequierePermiso>} />
+        <Route path="/alumnos/:id/salud" element={<RequierePermiso permiso="salud:leer"><SaludDelAlumno /></RequierePermiso>} />
+        <Route path="/familias" element={<RequierePermiso permiso="tutores:leer"><Familias /></RequierePermiso>} />
+        <Route path="/familias/un-solo-hijo" element={<RequierePermiso permiso="tutores:leer"><Familias crucada /></RequierePermiso>} />
+        <Route path="/familias/:tutorId" element={<RequierePermiso permiso="tutores:leer"><FichaFamilia /></RequierePermiso>} />
         <Route path="/mas" element={<Mas />} />
         <Route path="*" element={<NoEncontrada />} />
       </Routes>

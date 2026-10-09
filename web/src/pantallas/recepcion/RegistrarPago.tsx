@@ -3,7 +3,7 @@
 // Todos los importes son texto decimal exacto del servidor; aquí no hay ni un número flotante.
 
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { aCentavos, formatear, normalizarCaptura } from "../../lib/dinero.ts";
@@ -206,13 +206,18 @@ function PagosRecientes({ tutorId, version, alCambiar }: { tutorId: string; vers
 
 export default function RegistrarPago() {
   useTitulo("Registrar pago");
-  const [tutor, setTutor] = useState<Tutor | null>(null);
+  const [elegido, setTutor] = useState<Tutor | null>(null);
   const [version, setVersion] = useState(0);
   const [pago, setPago] = useState<Pago | null>(null);
+  // Se llega desde la ficha de la familia con `?tutor=<id>`: se carga a esa familia sin pasar por el buscador.
+  const [params, ponerParams] = useSearchParams();
+  const idPedido = params.get("tutor");
+  const pedido = useCarga((senal) => api.get<Tutor>(`/api/tutores/${idPedido ?? ""}`, undefined, senal), [idPedido], idPedido !== null && elegido === null);
+  const tutor = elegido ?? (idPedido !== null && pedido.datos?.id === idPedido ? pedido.datos : null);
   const estado = useCarga((senal) => api.get<EstadoDeCuenta>(`/api/tutores/${tutor?.id ?? ""}/estado-cuenta`, undefined, senal), [tutor?.id, version], tutor !== null);
 
   return (
-    <Marco titulo="Registrar pago" subtitulo={tutor ? `${tutor.nombre} ${tutor.apellidos ?? ""} · ${tutor.telefono}` : "Busca a la familia"} acciones={tutor ? <Boton onClick={() => { setTutor(null); setPago(null); }}>Cambiar de familia</Boton> : undefined}>
+    <Marco titulo="Registrar pago" subtitulo={tutor ? `${tutor.nombre} ${tutor.apellidos ?? ""} · ${tutor.telefono}` : "Busca a la familia"} acciones={tutor ? <Boton onClick={() => { setTutor(null); setPago(null); ponerParams({}); }}>Cambiar de familia</Boton> : undefined}>
       {!tutor ? <BuscadorDeFamilia alElegir={(t) => { setTutor(t); setPago(null); }} /> : null}
       {tutor && estado.error ? <ErrorDeCarga error={estado.error} alReintentar={estado.recargar} /> : null}
       {tutor && estado.cargando && !estado.datos ? <Cargando /> : null}

@@ -7,7 +7,7 @@
 // interfaz solo arma el enlace a Chatwoot (el navegador de pruebas bloquea toda petición fuera de este origen).
 
 import { randomBytes } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PARAMETROS_PRUEBA } from "../../src/auth/contrasena.ts";
@@ -26,6 +26,8 @@ const RAIZ = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const url = process.env["DATABASE_URL"];
 if (!url || !/inscripciones_navegador_pruebas$/.test(url)) throw new Error("El servidor del navegador solo corre contra la base inscripciones_navegador_pruebas");
 const puerto = Number(process.env["PUERTO"] ?? 4318);
+// Un `mundo.json` de una corrida anterior no vale: quien espera (e2e/preparar.ts) lo espera NUEVO.
+rmSync(resolve(RAIZ, ".tmp/navegador/mundo.json"), { force: true });
 
 // Datos de salud de prueba: una clave aleatoria por corrida (no es la de nadie).
 process.env["CLAVE_DATOS_SENSIBLES"] = randomBytes(32).toString("base64");
@@ -68,7 +70,9 @@ const servidor = app.listen(puerto, "127.0.0.1", () => {
   void (async () => {
     const mundo = await sembrarMundo(prisma, () => new ClienteApi(`http://127.0.0.1:${puerto}`), `http://127.0.0.1:${puerto}`);
     mkdirSync(resolve(RAIZ, ".tmp/navegador"), { recursive: true });
-    writeFileSync(resolve(RAIZ, ".tmp/navegador/mundo.json"), JSON.stringify(mundo, null, 2));
+    // Escritura atómica: quien espera el archivo nunca lo lee a medias.
+    writeFileSync(resolve(RAIZ, ".tmp/navegador/mundo.json.tmp"), JSON.stringify(mundo, null, 2));
+    renameSync(resolve(RAIZ, ".tmp/navegador/mundo.json.tmp"), resolve(RAIZ, ".tmp/navegador/mundo.json"));
     listo = true;
   })().catch((e: unknown) => {
     process.stderr.write(`No se pudo sembrar el mundo de pruebas: ${e instanceof Error ? e.stack : String(e)}\n`);

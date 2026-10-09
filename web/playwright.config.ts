@@ -26,6 +26,7 @@ export default defineConfig({
   webServer: {
     command: "node scripts/navegador/servidor.ts",
     cwd: RAIZ,
+    // `/salud` responde apenas arranca el proceso: que el mundo de pruebas ya esté sembrado lo espera `e2e/preparar.ts` (hasta que aparece `mundo.json`).
     url: `http://127.0.0.1:${PUERTO}/salud`,
     reuseExistingServer: false,
     timeout: 180_000,

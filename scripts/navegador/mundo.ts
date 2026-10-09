@@ -52,6 +52,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
   const conversion = await sembrarConversion(prisma, org, docs, etapas, nuevoCliente, { norte: norte.id, grupoA: grupoA.id, programaId: programa.id }, maestro);
   const finanzas = await sembrarRecepcion(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id }, administrador);
   const asesorDelMundo = await sembrarAsesor(prisma, org, etapas, { norte: norte.id, sur: sur.id });
+  const familia = await sembrarFamiliaYExpediente(prisma, org, docs, nuevoCliente, { norte: norte.id, programaId: programa.id, grupoD: finanzas.grupoD.id, alumnoConSalud: maestroDelMundo.alumnosDelPase[0]! }, administrador);
 
   return {
     base,
@@ -67,6 +68,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => Cl
     asesor: asesorDelMundo,
     conversion,
     recepcion: finanzas,
+    familia,
   };
 }
 
@@ -222,5 +224,54 @@ async function sembrarRecepcion(
     uniforme: { tutorId: uni.tutorId, alumnoId: uni.alumnoId, nombre: "Alumno Uniforme", beneficioId: beneficio.id },
     productos: { uniforme8: { id: uniforme8.id, nombre: "Uniforme", talla: "8" }, uniforme10: { id: uniforme10.id, nombre: "Uniforme", talla: "10" }, playera: { id: playera.id, nombre: "Playera" }, gorra: { id: gorra.id, nombre: "Gorra" } },
     grupoD: { id: grupoD.id, nombre: grupoD.nombre },
+  };
+}
+
+/** J6: una familia para cambiar de grupo, congelar y dar de baja; dos grupos del mismo programa; un motivo de baja; y la ficha de salud (con un centinela) de un alumno del maestro. */
+async function sembrarFamiliaYExpediente(
+  prisma: PrismaPruebas,
+  org: OrganizacionDePrueba,
+  docs: DocumentosLegalesSembrados,
+  nuevoCliente: () => ClienteApi,
+  ids: { norte: string; programaId: string; grupoD: string; alumnoConSalud: { alumnoId: string; nombre: string } },
+  administrador: UsuarioDelMundo,
+): Promise<Mundo["familia"]> {
+  const a = nuevoCliente();
+  if ((await a.login(org.slug, administrador.correo, administrador.contrasena)).estado !== 201) throw new Error("El administrador no pudo iniciar sesión");
+  const ok = async <T>(r: Promise<{ estado: number; cuerpo: T }>, que: string): Promise<T> => {
+    const x = await r;
+    if (x.estado < 200 || x.estado >= 300) throw new Error(`${que}: ${x.estado} ${JSON.stringify(x.cuerpo)}`);
+    return x.cuerpo;
+  };
+  const grupo = async (nombre: string, cupo: number) => {
+    const g = await prisma.grupo.create({ data: { organizacion_id: org.organizacionId, programa_id: ids.programaId, nombre, cupo_maximo: cupo } });
+    return { id: g.id, nombre: g.nombre };
+  };
+  const grupoDeUnLugar = await grupo("Grupo E", 1);
+  const grupoDestino = await grupo("Grupo F", 6);
+  const motivo = await ok(a.post<{ id: string; nombre: string }>("/api/motivos-baja", { nombre: "Mudanza de ciudad" }), "motivo de baja");
+  const relleno = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Relleno Dos" });
+
+  const telefono = "5555030303";
+  const mayor = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Hija Mayor", telefono: `+52${telefono}` });
+  const menor = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Hijo Menor", conTutor: mayor.tutorId });
+  await prisma.tutor.update({ where: { id: mayor.tutorId }, data: { apellidos: "Rivera", correo: "rivera@ejemplo.test" } });
+  await prisma.alumno.updateMany({ where: { id: { in: [mayor.alumnoId, menor.alumnoId] } }, data: { apellidos: "Rivera" } });
+  const hijos: Mundo["familia"]["rivera"]["hijos"] = [];
+  for (const [al, nombre] of [[mayor, "Hija Mayor"], [menor, "Hijo Menor"]] as const) {
+    const insc = await ok(a.post<{ id: string }>("/api/inscripciones", { alumno_id: al.alumnoId, grupo_id: ids.grupoD }), `inscribir a ${nombre}`);
+    hijos.push({ alumnoId: al.alumnoId, nombre, inscripcionId: insc.id });
+  }
+
+  const centinela = "CENTINELA-ALERGIA-J6";
+  await ok(a.put(`/api/salud/alumno/${ids.alumnoConSalud.alumnoId}`, { motivo: "Alta de la ficha de prueba", alergias: centinela, condiciones_medicas: "Ninguna", medicamentos: "Ninguno" }), "salud de prueba");
+
+  return {
+    rivera: { tutorId: mayor.tutorId, telefono, nombre: "Rosa Rivera", hijos },
+    grupoDeUnLugar,
+    grupoDestino,
+    rellenoAlumnoId: relleno.alumnoId,
+    motivoBaja: { id: motivo.id, nombre: motivo.nombre },
+    salud: { alumnoId: ids.alumnoConSalud.alumnoId, nombre: ids.alumnoConSalud.nombre, centinela },
   };
 }

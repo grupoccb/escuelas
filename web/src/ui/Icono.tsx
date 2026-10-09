@@ -10,6 +10,7 @@ const TRAZOS: Record<NombreDeIcono, string> = {
   cuenta: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6",
   uniforme: "M8 3l-5 3 2 4 3-1v11h8V9l3 1 2-4-5-3a4 4 0 01-8 0z",
   ventas: "M3 4h2l2 12h11l2-8H7M10 20a1 1 0 100-2 1 1 0 000 2zM17 20a1 1 0 100-2 1 1 0 000 2z",
+  familia: "M9 11a3 3 0 100-6 3 3 0 000 6zM3 20v-1a5 5 0 015-5h2a5 5 0 015 5v1M17 11a2.5 2.5 0 100-5M18 14a4 4 0 013 4v2",
   mas: "M5 12h.01M12 12h.01M19 12h.01",
   salir: "M10 4H5a1 1 0 00-1 1v14a1 1 0 001 1h5M15 8l4 4-4 4M19 12H9",
   chatwoot: "M4 5h16v11H9l-5 4z",
