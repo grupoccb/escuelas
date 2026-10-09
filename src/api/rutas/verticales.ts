@@ -12,7 +12,9 @@
 import { Router } from "express";
 import express from "express";
 import { PATRON_DE_COLOR, PATRON_DE_SLUG, esUrlHttpsPublica, slugDe } from "../../catalogo/organizacion.ts";
+import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
+import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
@@ -146,7 +148,7 @@ export function rutasDeVerticales(_deps: DepsApi): Router {
   r.delete("/verticales/:id", requierePermiso("catalogo:escribir"), async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
-    await ctx.db.$transaction(async (tx) => {
+    await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
       const antes = await tx.vertical.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const usos: [string, number][] = [
@@ -162,6 +164,9 @@ export function rutasDeVerticales(_deps: DepsApi): Router {
         ["automatizaciones", await tx.automatizacion.count({ where: { vertical_id: id } })],
         ["documentos legales", await tx.documento_legal.count({ where: { vertical_id: id } })],
         ["códigos de rastreo", await tx.codigo_rastreo.count({ where: { vertical_id: id } })],
+        // K9 (EK-A3): los prospectos y las promociones también apuntan a la vertical.
+        ["prospectos", await tx.prospecto.count({ where: { vertical_interes_id: id } })],
+        ["promociones", await tx.promocion_vertical.count({ where: { vertical_id: id } })],
       ];
       const enUso = usos.filter(([, n]) => n > 0);
       if (enUso.length > 0) throw conflicto(`La vertical se usa en: ${enUso.map(([que, n]) => `${n} ${que}`).join(", ")}. Desactívala en lugar de darla de baja`);

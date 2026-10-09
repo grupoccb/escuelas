@@ -181,6 +181,13 @@ export function rutasDeProgramas(_deps: DepsApi): Router {
       const grupos = await tx.grupo.count({ where: { programa_id: id } });
       const inscripciones = await tx.inscripcion.count({ where: { programa_id: id } });
       if (grupos > 0 || inscripciones > 0) throw conflicto(`El programa tiene ${grupos} grupo(s) y ${inscripciones} inscripción(es): desactívalo en lugar de darlo de baja`);
+      // K9 (EK-A3): una cotización guardada, una sugerencia del bot y una promoción también apuntan al programa.
+      const otros: [string, number][] = [
+        ["cotizaciones", await tx.cotizacion.count({ where: { programa_id: id } })],
+        ["prospectos con este programa sugerido", await tx.prospecto.count({ where: { programa_sugerido_id: id } })],
+        ["promociones", await tx.promocion_programa.count({ where: { programa_id: id } })],
+      ].filter(([, n]) => (n as number) > 0) as [string, number][];
+      if (otros.length > 0) throw conflicto(`El programa se usa en: ${otros.map(([que, n]) => `${n} ${que}`).join(", ")}. Desactívalo en lugar de darlo de baja`);
       await tx.precio.updateMany({ where: { programa_id: id }, data: { eliminado_en: ctx.ahora() } });
       await tx.programa.update({ where: { id }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "programa", entidadId: id, accion: "eliminar", antes: instantanea(antes) });

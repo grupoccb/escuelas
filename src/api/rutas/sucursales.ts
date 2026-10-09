@@ -13,7 +13,9 @@
 import { Router } from "express";
 import express from "express";
 import { esZonaHorariaValida } from "../../catalogo/organizacion.ts";
+import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
+import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { filtroDeSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -120,7 +122,8 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
   r.delete("/sucursales/:id", requierePermiso("catalogo:escribir"), async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
-    await ctx.db.$transaction(async (tx) => {
+    // K9 (EK-A4): bajo el candado del catálogo, el mismo de los programas: contar los usos y dar de baja es una sola cosa.
+    await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
       const antes = await tx.sucursal.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const usos: [string, number][] = [
@@ -133,6 +136,15 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
         ["familias", await tx.tutor.count({ where: { sucursal_id: id } })],
         ["alumnos", await tx.alumno.count({ where: { sucursal_id: id } })],
         ["campañas", await tx.campana.count({ where: { sucursal_id: id } })],
+        // K9 (EK-A3): lo demás que apunta a la sucursal (la llave foránea no frena una baja lógica).
+        ["automatizaciones", await tx.automatizacion.count({ where: { sucursal_id: id } })],
+        ["instructores", await tx.instructor_sucursal.count({ where: { sucursal_id: id } })],
+        ["promociones", await tx.promocion_sucursal.count({ where: { sucursal_id: id } })],
+        ["cotizaciones", await tx.cotizacion.count({ where: { sucursal_id: id } })],
+        ["códigos de rastreo", await tx.codigo_rastreo.count({ where: { sucursal_id: id } })],
+        ["eventos", await tx.evento.count({ where: { sucursal_id: id } })],
+        ["cargos", await tx.cargo.count({ where: { sucursal_id: id } })],
+        ["ventas", await tx.venta.count({ where: { sucursal_id: id } })],
       ];
       const enUso = usos.filter(([, n]) => n > 0);
       if (enUso.length > 0) throw conflicto(`La sucursal se usa en: ${enUso.map(([que, n]) => `${n} ${que}`).join(", ")}. Desactívala en lugar de darla de baja`);
@@ -149,7 +161,7 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
     const { id, vertical_id } = parsear(esquemaRelacion, req.params);
     const { activo } = parsear(esquemaOfrece, req.body);
     try {
-      const fila = await ctx.db.$transaction(async (tx) => {
+      const fila = await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
         if (!(await tx.sucursal.findFirst({ where: { id }, select: { id: true } }))) throw noEncontrado("No se encontró la sucursal");
         if (!(await tx.vertical.findFirst({ where: { id: vertical_id }, select: { id: true } }))) throw noEncontrado("No se encontró la vertical");
         const previa = await tx.sucursal_vertical.findFirst({ where: { sucursal_id: id, vertical_id }, select: { id: true, activo: true } });
@@ -178,7 +190,7 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
   r.delete("/sucursales/:id/verticales/:vertical_id", requierePermiso("catalogo:escribir"), async (req, res) => {
     const ctx = contextoDe(res);
     const { id, vertical_id } = parsear(esquemaRelacion, req.params);
-    await ctx.db.$transaction(async (tx) => {
+    await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
       const previa = await tx.sucursal_vertical.findFirst({ where: { sucursal_id: id, vertical_id }, select: { id: true, activo: true } });
       if (!previa) throw noEncontrado();
       const programas = await tx.programa.count({ where: { sucursal_id: id, vertical_id } });
