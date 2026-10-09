@@ -769,3 +769,15 @@ Detalle en `docs/SEGURIDAD.md`. **Producción (`NODE_ENV=production`)**: el back
 **Contraseñas (EB-20)**: además del largo (10–128), se rechazan las más usadas y la de la demo (`Esa contraseña es de las más usadas: elige otra`).
 
 **Cambios de contrato de K2:** repetir la clave de idempotencia de un pago CANCELADO es 409 `pago_cancelado` (EH-12); la fecha de un pago no puede ser de hace más de 400 días (400, EH-13).
+
+## Salud y métricas (K4)
+
+Detalle en `docs/OBSERVABILIDAD.md`. Fuera de `/api`, sin sesión:
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /salud` | Liveness: `200 {"ok":true}` si el proceso atiende. **No toca la base** (antes sí: una caída de la base reiniciaba las tareas en bucle). Healthcheck del contenedor. |
+| `GET /salud/lista` | Readiness: `200` o `503` con `{listo, degradado, comprobaciones: {base, migraciones, barrido, chatwoot}}` (`ok` / `falla` / `no_aplica`). Migraciones: las de `prisma/migrations` contra `_prisma_migrations`; barrido: un ciclo en los últimos 5 minutos; Chatwoot alcanzable solo la deja «degradada». Sin datos sensibles. Healthcheck del balanceador. |
+| `GET /metricas` | Formato Prometheus. `Authorization: Bearer <METRICAS_TOKEN>`; sin `METRICAS_TOKEN` configurado, 404. El balanceador de AWS no la publica. |
+
+Variable nueva: `METRICAS_TOKEN`. Los logs enmascaran todo teléfono (`+52******5678`), también dentro de mensajes de error.

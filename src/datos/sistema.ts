@@ -111,6 +111,18 @@ export async function pingBaseDatos(raiz: PrismaRaiz): Promise<void> {
   await clienteSinAlcance(raiz).$queryRaw`SELECT 1`;
 }
 
+/**
+ * Excepción de salud (K4): las migraciones que Prisma anotó en `_prisma_migrations` (no es una tabla de negocio: no tiene organización). Solo devuelve nombres:
+ * las terminadas y las que empezaron y no terminaron. Lo usa `/salud/lista` para decir «las migraciones están al día».
+ */
+export async function estadoDeMigraciones(raiz: PrismaRaiz): Promise<{ aplicadas: string[]; sinTerminar: string[] }> {
+  const filas = await clienteSinAlcance(raiz).$queryRaw<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }[]>`SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY migration_name`;
+  return {
+    aplicadas: filas.filter((f) => f.finished_at !== null && f.rolled_back_at === null).map((f) => f.migration_name),
+    sinTerminar: filas.filter((f) => f.finished_at === null && f.rolled_back_at === null).map((f) => f.migration_name),
+  };
+}
+
 /** Organización a partir del identificador corto del login (`slug`). Solo organizaciones vivas. */
 export async function resolverOrganizacionPorSlug(raiz: PrismaRaiz, slug: string): Promise<{ id: string } | null> {
   return clienteSinAlcance(raiz).organizacion.findFirst({ where: { slug, eliminado_en: null }, select: { id: true } });

@@ -6,6 +6,9 @@ import { cabecerasDeSeguridad, hstsActivo } from "../api/cabeceras.ts";
 import { crearApiRouter, resolverDepsApi, type ApiDepsEntrada } from "../api/index.ts";
 import { LIMITE_CUERPO_CHATWOOT, LIMITE_CUERPO_TWILIO } from "../api/cuerpos.ts";
 import { log } from "../lib/log.ts";
+import { contarRespuesta, contarWebhook } from "../observabilidad/proceso.ts";
+import { revisarListo, type DepsDeSalud } from "../observabilidad/salud.ts";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { ConfigLimites } from "./config-limites.ts";
 import type { LimitadorDeTasa } from "./limite.ts";
 import { admitirWebhookValido, rechazar429, registrarFirmaInvalida } from "./limite-http.ts";
@@ -83,6 +86,10 @@ export interface AppDeps {
   limitador?: LimitadorDeTasa;
   /** `trust proxy` de Express: cuántos saltos de proxy creer para leer la IP real. Por omisión ninguno. */
   confiarEnProxy?: boolean | number | string;
+  /** `/salud/lista` (K4): qué se comprueba además de la base (migraciones, barrido, Chatwoot). Sin esto solo se comprueba la base. */
+  salud?: Omit<DepsDeSalud, "pingDb">;
+  /** `/metricas` (K4): formato Prometheus, con el token en `Authorization: Bearer`. Sin token configurado la ruta no existe (404). */
+  metricas?: { token: string | null; texto(): Promise<string> };
   /** Variables de entorno (por omisión `process.env`): de ahí salen la cookie segura y HSTS si no se pasan. */
   entorno?: NodeJS.ProcessEnv;
   reloj?: () => Date;
@@ -98,6 +105,11 @@ export function crearApp(deps: AppDeps): Express {
   const entorno = deps.entorno ?? process.env;
   const cookieSegura = deps.api ? resolverDepsApi({ ...deps.api, entorno: deps.api.entorno ?? entorno }).cookieSegura : false;
   app.use(cabecerasDeSeguridad(hstsActivo(cookieSegura, deps.api?.entorno ?? entorno)));
+  // K4: cuenta las respuestas por grupo de ruta y clase (2xx…5xx) para /metricas. Solo el grupo y la clase: nunca la ruta exacta ni el contenido.
+  app.use((req, res, next) => {
+    res.on("finish", () => contarRespuesta(req.originalUrl.split("?")[0] ?? "/", res.statusCode));
+    next();
+  });
 
   // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
@@ -105,12 +117,37 @@ export function crearApp(deps: AppDeps): Express {
   // Landing pública (E1): sin sesión; su propia protección contra abuso (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
   if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.inesperados ? { inesperados: deps.inesperados } : {}), ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));
 
-  app.get("/salud", async (_req, res) => {
+  // K4. `/salud` (liveness): el proceso atiende. NO toca la base: una caída de la base no debe hacer que el orquestador reinicie las tareas en bucle.
+  app.get("/salud", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true });
+  });
+
+  // `/salud/lista` (readiness): base, migraciones al día y barrido corriendo (503 si algo falla). Sin datos sensibles. Ver src/observabilidad/salud.ts.
+  app.get("/salud/lista", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const r = await revisarListo({ pingDb: deps.pingDb, ...(deps.salud ?? {}) });
+    res.status(r.listo ? 200 : 503).json({ listo: r.listo, degradado: r.degradado, comprobaciones: r.comprobaciones });
+  });
+
+  // `/metricas` (formato Prometheus): protegida por un token compartido; el balanceador no la publica (infra/alb.tf). Sin token configurado, no existe.
+  app.get("/metricas", async (req, res) => {
+    const m = deps.metricas;
+    if (!m || !m.token) {
+      res.status(404).end();
+      return;
+    }
+    const hash = (v: string): Buffer => createHash("sha256").update(v).digest();
+    if (!timingSafeEqual(hash(req.headers.authorization ?? ""), hash(`Bearer ${m.token}`))) {
+      log.warn("metricas_rechazado");
+      res.status(401).set("WWW-Authenticate", "Bearer").end();
+      return;
+    }
     try {
-      await deps.pingDb();
-      res.json({ ok: true, db: "ok" });
-    } catch {
-      res.status(503).json({ ok: false, db: "sin conexión" });
+      res.status(200).type("text/plain; version=0.0.4; charset=utf-8").set("Cache-Control", "no-store").send(await m.texto());
+    } catch (error) {
+      log.error("metricas_error", { error: error instanceof Error ? error.message : String(error) });
+      res.status(503).type("text/plain").send("métricas no disponibles\n");
     }
   });
 
@@ -128,6 +165,7 @@ export function crearApp(deps: AppDeps): Express {
     const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (!verificarWebhookChatwoot(req, cuerpo, deps.secretoWebhookChatwoot, deps.reloj?.())) {
       const fallos = registrarFirmaInvalida(limitador, limites, "chatwoot", req);
+      contarWebhook("chatwoot", fallos.permitido ? "rechazado" : "limitado");
       log.warn("webhook_chatwoot_rechazado");
       if (!fallos.permitido) rechazar429(res, fallos.reintentarEnSegundos);
       else res.status(401).json({ ok: false });
@@ -135,14 +173,21 @@ export function crearApp(deps: AppDeps): Express {
     }
     const techo = admitirWebhookValido(limitador, limites, "chatwoot", req);
     if (!techo.permitido) {
+      contarWebhook("chatwoot", "limitado");
       rechazar429(res, techo.reintentarEnSegundos);
       return;
     }
 
     /** Responde según lo que decidió el manejador: aceptado → 200; reintentar → 503 (el proveedor repite). */
     const responder = (decision: "aceptado" | "reintentar", resultado: string): void => {
+      contarWebhook("chatwoot", decision === "reintentar" ? "reintentar" : "inesperado");
       if (decision === "reintentar") res.status(503).json({ ok: false });
       else res.json({ ok: true, resultado });
+    };
+    /** Un evento entendido y procesado (aunque el resultado sea «ignorado» o «duplicado»). */
+    const aceptar = (resultado: string): void => {
+      contarWebhook("chatwoot", "aceptado");
+      res.json({ ok: true, resultado });
     };
 
     let payload: unknown;
@@ -166,28 +211,28 @@ export function crearApp(deps: AppDeps): Express {
       if (evento) {
         clave = `${evento.llave.proveedor}:${idSeguro(evento.llave.id) ?? huella(cuerpo)}`;
         const { resultado } = await deps.procesarEntrante(evento);
-        res.json({ ok: true, resultado });
+        aceptar(resultado);
         return;
       }
       // No es un mensaje del contacto. Puede ser que una persona tome la conversación...
       const toma = interpretarTomaDeConversacion(payload);
       if (toma) {
         clave = `sha:${huella(cuerpo)}`;
-        res.json({ ok: true, resultado: await deps.registrarTomaDeConversacion(toma) });
+        aceptar(await deps.registrarTomaDeConversacion(toma));
         return;
       }
       // ...o que la conversación se quede sin asesor (B5)...
       const desasignacion = interpretarDesasignacion(payload);
       if (desasignacion && deps.registrarDesasignacion) {
         clave = `sha:${huella(cuerpo)}`;
-        res.json({ ok: true, resultado: await deps.registrarDesasignacion(desasignacion) });
+        aceptar(await deps.registrarDesasignacion(desasignacion));
         return;
       }
       // ...o un cambio de estado de entrega de un saliente.
       const cambio = deps.estadosEntrega.interpretar(payload);
       if (cambio) {
         clave = `sha:${huella(cuerpo)}`;
-        res.json({ ok: true, resultado: await deps.registrarEstadoEntrega(cambio) });
+        aceptar(await deps.registrarEstadoEntrega(cambio));
         return;
       }
       // Un mensaje entrante que no se pudo leer (faltan campos, tipos incorrectos, números fuera de rango) no se ignora en silencio: sería perder lo que
@@ -196,7 +241,7 @@ export function crearApp(deps: AppDeps): Express {
         responder(await inesperados.dato({ origen: "chatwoot", clave, causa: "forma_inesperada", detalle: "Un mensaje entrante no trae los campos que el sistema necesita", forma: formaDe(payload), ...(contexto ? { contexto } : {}) }), "inesperado");
         return;
       }
-      res.json({ ok: true, resultado: "ignorado" });
+      aceptar("ignorado");
     } catch (error) {
       responder(await inesperados.falla({ origen: "chatwoot", clave, error, forma: formaDe(payload), ...(contexto ? { contexto } : {}) }), "inesperado");
     }
@@ -219,6 +264,7 @@ export function crearApp(deps: AppDeps): Express {
       const verificado = verificarWebhookTwilio(req, cuerpo, t?.authToken, t?.publicBaseUrl ? urlPublicaDe(t.publicBaseUrl, req.originalUrl) : null);
       if (!t || !verificado) {
         const fallos = registrarFirmaInvalida(limitador, limites, nombreLimite, req);
+        contarWebhook(origen, fallos.permitido ? "rechazado" : "limitado");
         log.warn("webhook_twilio_rechazado", { ruta });
         if (!fallos.permitido) rechazar429(res, fallos.reintentarEnSegundos);
         else res.status(403).end();
@@ -226,10 +272,12 @@ export function crearApp(deps: AppDeps): Express {
       }
       const techo = admitirWebhookValido(limitador, limites, nombreLimite, req);
       if (!techo.permitido) {
+        contarWebhook(origen, "limitado");
         rechazar429(res, techo.reintentarEnSegundos);
         return;
       }
-      const aceptado = (): void => {
+      const aceptado = (resultado: "aceptado" | "inesperado" = "aceptado"): void => {
+        contarWebhook(origen, resultado);
         if (tipo === "entrante") res.status(200).type("text/xml").send(TWIML_VACIO);
         else res.status(200).end();
       };
@@ -243,14 +291,18 @@ export function crearApp(deps: AppDeps): Express {
           case "sin_identificador": {
             // Un evento sin MessageSid no se puede deduplicar ni reenviar con garantías: constancia + tarea y 2xx (Twilio no lo reintentaría con otro resultado).
             const d = await inesperados.dato({ origen, clave, causa: "sin_identificador", detalle: "El evento de Twilio no trae MessageSid", forma: formaDe(verificado.params), contexto });
-            if (d === "reintentar") res.status(503).set("Retry-After", "5").end();
-            else aceptado();
+            if (d === "reintentar") {
+              contarWebhook(origen, "reintentar");
+              res.status(503).set("Retry-After", "5").end();
+            } else aceptado("inesperado");
             return;
           }
           case "en_curso":
+            contarWebhook(origen, "reintentar");
             res.status(503).set("Retry-After", "5").end();
             return;
           case "fallo_reenvio":
+            contarWebhook(origen, "reintentar");
             res.status(502).end();
             return;
           default:
@@ -260,13 +312,17 @@ export function crearApp(deps: AppDeps): Express {
       } catch (error) {
         const d = await inesperados.falla({ origen, clave, error, forma: formaDe(verificado.params), contexto });
         if (d === "reintentar") {
+          contarWebhook(origen, "reintentar");
           res.status(503).set("Retry-After", "5").end();
           return;
         }
         // Un dato inesperado no debe costar el mensaje de una familia: se reenvía a Chatwoot tal cual, sin registro, y la constancia avisa a una persona.
         const reenviado = await t.borde.reenviarSinRegistro(entrada).catch(() => false);
-        if (reenviado) aceptado();
-        else res.status(502).end();
+        if (reenviado) aceptado("inesperado");
+        else {
+          contarWebhook(origen, "reintentar");
+          res.status(502).end();
+        }
       }
     });
   }

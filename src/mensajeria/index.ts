@@ -108,6 +108,25 @@ export function mensajeriaDesdeEntorno(env: NodeJS.ProcessEnv = process.env): Me
 }
 
 /**
+ * Sonda de alcanzabilidad de Chatwoot para `/salud/lista` (K4): `null` si no hay `CHATWOOT_URL`. Hace un GET a la raíz de la API de Chatwoot con un plazo corto y
+ * dice si contestó (cualquier respuesta menor a 500). Vive aquí, con el resto de lo que habla con Chatwoot, y NO manda mensajes (misma excepción que el
+ * directorio de agentes, EB-10). No sigue redirecciones ni lleva credenciales.
+ */
+export function sondaChatwootDesdeEntorno(env: NodeJS.ProcessEnv = process.env, plazoMs = 2000): (() => Promise<boolean>) | null {
+  const url = env["CHATWOOT_URL"];
+  if (!url) return null;
+  return async () => {
+    try {
+      const r = await fetch(`${url.replace(/\/+$/, "")}/api`, { redirect: "manual", signal: AbortSignal.timeout(plazoMs) });
+      await r.arrayBuffer().catch(() => undefined);
+      return r.status < 500;
+    } catch {
+      return false;
+    }
+  };
+}
+
+/**
  * Directorio de agentes de Chatwoot: real con `CHATWOOT_URL` + `CHATWOOT_ADMIN_TOKEN` (el token de un
  * administrador de la cuenta); sin ellos, `null` en producción (vincular agentes responde que no está
  * configurado) y un directorio falso VACÍO fuera de producción (invariante 11).

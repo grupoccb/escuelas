@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { iniciarBarrido } from "./barrido.ts";
 import { crearCierre } from "./cierre.ts";
 import { correrCiclo } from "./ciclo.ts";
@@ -7,16 +8,19 @@ import { InscripcionesActivas } from "./catalogo/cupo.ts";
 import { ProveedorEconomicoDeFinanzas } from "./finanzas/estado-cuenta.ts";
 import { ProveedorProductosDeFinanzas } from "./finanzas/productos.ts";
 import { crearPrisma } from "./datos/prisma.ts";
-import { pingBaseDatos } from "./datos/sistema.ts";
+import { estadoDeMigraciones, pingBaseDatos } from "./datos/sistema.ts";
 import { origenesPermitidosDesdeEntorno } from "./api/csrf.ts";
 import { crearApp } from "./http/app.ts";
 import { avisoDeTrustProxy, confianzaProxyDesdeEntorno, limitesDesdeEntorno } from "./http/config-limites.ts";
 import { LimitadorDeTasa } from "./http/limite.ts";
 import { log } from "./lib/log.ts";
+import { estadoDelBarrido } from "./observabilidad/proceso.ts";
+import { crearRecolector } from "./observabilidad/recolector.ts";
+import { leerMigracionesEsperadas } from "./observabilidad/salud.ts";
 import { esEntornoDeDemo, impedimentosParaArrancar, revisarEntorno } from "./seguridad/entorno.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
 import { crearManejadorDeInesperados } from "./webhooks/inesperado.ts";
-import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega } from "./mensajeria/index.ts";
+import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega, sondaChatwootDesdeEntorno } from "./mensajeria/index.ts";
 
 // K3: en producción el backend se niega a arrancar con valores de demostración o una configuración que debilita la seguridad (src/seguridad/entorno.ts).
 // La demo local corre también con NODE_ENV=production y declara ENTORNO_DEMO=si: arranca, pero lo dice.
@@ -50,6 +54,14 @@ const app = crearApp({
   limitador: new LimitadorDeTasa({ maxClaves: limites.maxClaves }),
   confiarEnProxy: confianzaProxyDesdeEntorno(),
   pingDb: () => pingBaseDatos(prisma),
+  // K4: `/salud/lista` (base, migraciones al día, barrido corriendo, Chatwoot alcanzable) y `/metricas` (formato Prometheus, con token; sin METRICAS_TOKEN no existe).
+  salud: {
+    estadoDeMigraciones: () => estadoDeMigraciones(prisma),
+    migracionesEsperadas: () => leerMigracionesEsperadas(fileURLToPath(new URL("../prisma/migrations", import.meta.url))),
+    barrido: estadoDelBarrido,
+    chatwoot: sondaChatwootDesdeEntorno(),
+  },
+  metricas: { token: process.env["METRICAS_TOKEN"] ?? null, texto: crearRecolector({ prisma }).texto },
   // WH: un dato inesperado en un webhook o en la landing deja constancia y tarea (nunca un 500); solo una falla del momento da 5xx.
   inesperados: crearManejadorDeInesperados(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,

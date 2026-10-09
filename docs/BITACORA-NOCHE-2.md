@@ -101,7 +101,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K1 | PENDIENTE | | Prueba de fuego total |
 | K2 | HECHO (parcial: EF-06, clases muestra vs inscripción, sigue siendo decisión de Eduardo; la ráfaga más grande probada es de 200 peticiones sobre un servidor y una base locales, no sobre AWS) | ver `git log` (`K2:`) | Ráfagas de 40 a 200 peticiones simultáneas contra el servidor HTTP real (cupo, conversión, cambio de grupo, pagos, webhooks de Chatwoot y Twilio, landing): 0 5xx, invariantes intactos, sin interbloqueos; resuelve ED-08, EH-12, EH-13 y EH-19 |
 | K3 | HECHO (parcial: sin prueba de penetración externa ni revisión de la configuración real de AWS; EB-10, EB-16, EB-18 y EB-19 siguen siendo decisiones o dependen del balanceador; el Terraform solo se revisa como texto) | ver `git log` (`K3:`) | Revisión de seguridad con pruebas: el backend se niega a arrancar en producción con valores de demo, imagen de producción sin la CLI de Prisma (0 vulnerabilidades en lo que corre), cuenta de base de datos sin dueño, guarda de secretos, CORS/cabeceras/inyección/sesiones/límites, contraseñas comunes |
-| K4 | PENDIENTE | | Observabilidad |
+| K4 | HECHO (parcial: las alarmas de CloudWatch solo están escritas y validadas como código, no probadas en AWS; `/metricas` suma todas las organizaciones, sin etiqueta por organización) | ver `git log` (`K4:`) | Observabilidad: `/salud` (vivo) y `/salud/lista` (listo: base, migraciones, barrido), `/metricas` en formato Prometheus con token, teléfonos enmascarados siempre en los logs, `ciclo_completado` y `cuadratura_descuadre` para las alarmas |
 | K5 | PENDIENTE | | Respaldo y restauración |
 | K6 | PENDIENTE | | Infraestructura como código |
 | K7 | PENDIENTE | | Documentación |
@@ -2884,3 +2884,28 @@ $ docker build --target produccion … && docker run --read-only …  →  arran
 **Para Eduardo**
 - Cambio obligatorio de contraseña en el primer acceso (EB-20) y cuánto conservar `acceso_dato_sensible`/`registro_cambio` (EB-19) siguen abiertos (`docs/SUPUESTOS-Y-DECISIONES.md`).
 - Nada contra AWS real: la revisión del Terraform es de texto. Una prueba de penetración externa está en `docs/PENDIENTES-CREDENCIALES-REALES.md`.
+
+## K4. Observabilidad
+
+**Qué se hizo** (detalle en `docs/OBSERVABILIDAD.md`)
+- **Logs.** `src/lib/log.ts` enmascara TODO teléfono (10 a 15 dígitos, con o sin `+` o `whatsapp:`) en cualquier cadena que salga, también dentro de mensajes de error: red de seguridad además de `enmascararTelefono()`. `src/observabilidad/observabilidad.itest.ts` recorre el bot, la landing, los webhooks de Chatwoot y Twilio (válidos, con firma falsa, con NUL, con JSON roto), la API y varias fallas, y exige que ningún teléfono completo aparezca en ningún log (la salud de menores ya la cubría `fuga.itest.ts`; los secretos, `revision.itest.ts`).
+- **Salud.** `GET /salud` ahora es solo «vivo» (no toca la base: una caída de la base reiniciaba las tareas en bucle). `GET /salud/lista`: base, **migraciones al día** (los directorios de `prisma/migrations`, que la imagen de producción lleva, contra `_prisma_migrations`; una a medias o faltante = 503) y **barrido** (un ciclo en los últimos 5 minutos); Chatwoot alcanzable se reporta como `degradado` sin sacar al backend del balanceador. Sin datos sensibles. Probado con la base real: con una migración que falta, 503.
+- **Métricas** `GET /metricas` (Prometheus, `Authorization: Bearer <METRICAS_TOKEN>`; sin token configurado no existe; el balanceador de `infra/` la responde 404). Del PROCESO: webhooks por origen y resultado (aceptado, rechazado, inesperado, reintentar, limitado), respuestas HTTP por grupo y clase, ciclos del barrido y su edad. De la BASE (caché de 15 s, suma de organizaciones por `conAlcance`): mensajes por dirección y estatus, bloqueados por motivo, entregas fallidas, ejecuciones por estatus (incluye descartadas) y omitidas por motivo, tareas pendientes por tipo, cargos vencidos, eventos inesperados. Etiquetas de conjuntos cerrados, nunca datos de una persona (probado).
+- **Para las alarmas de `infra/monitoreo.tf`:** `ciclo_completado` (cada vuelta del barrido), y `cuadratura_descuadre` / `cuadratura_ok` en `scripts/cuadratura.ts`.
+- `/metricas` y `/salud/lista` suman a la tabla de rutas que `src/api/rutas.test.ts` vigila.
+
+**Verificación** (copia limpia del árbol K2 + K3 + K4, base propia `inscripciones_k4_pruebas`)
+```
+$ npm run validar     → exit 0 · tests 650 · pass 650 · fail 0 (más los 31 de web)
+$ npm run test:int    → exit 0 · tests 1093 · pass 1093 · fail 0
+```
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **`/salud` sin base, `/salud/lista` con ella.** Alternativa descartada: una sola ruta que consulta todo (la que había): un parpadeo de la base haría que ECS reiniciara todas las tareas y cortara las peticiones en curso.
+2. **Chatwoot caído = `degradado`, no «no lista».** El brief lista a Chatwoot en la lectura «lista»; se reporta, pero no tumba la ruta: si el balanceador sacara al backend por una caída de Chatwoot, dejaría de recibir webhooks y de atender la interfaz, que es peor. `exigirChatwoot` existe para quien lo quiera. La sonda vive en `src/mensajeria/` (misma excepción que el directorio de agentes, EB-10: no manda mensajes).
+3. **Métricas de la base calculadas al leer (con caché), contadores solo para lo que no queda en la base** (rechazos por firma, 5xx). Alternativa descartada: contadores en el proceso para todo: con varias tareas cada una vería solo lo suyo y un reinicio los pondría en cero.
+4. **Sin etiqueta por organización** (hoy hay una). Cuando haya más, la cardinalidad es baja y se puede agregar.
+5. **Sin una librería de Prometheus**: el formato de texto son 40 líneas; evita una dependencia.
+
+**Para Eduardo**
+- Mira `docs/OBSERVABILIDAD.md`: qué números vigilar a diario. Demo local: `curl -H "Authorization: Bearer demo-local-metricas-token-0001-solo-demo" http://localhost:3000/metricas`.

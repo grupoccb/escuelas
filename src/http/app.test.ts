@@ -66,16 +66,22 @@ function firmado(cuerpo: string, timestamp = String(Math.floor(AHORA.getTime() /
   };
 }
 
-test("/salud responde 200 cuando la base contesta", async () => {
-  const r = await pedir(deps(), "GET", "/salud");
+test("/salud (liveness) responde 200 sin tocar la base: una caída de la base no hace que el orquestador reinicie las tareas", async () => {
+  let consultas = 0;
+  const r = await pedir(deps({ pingDb: async () => { consultas++; throw new Error("caída"); } }), "GET", "/salud");
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { ok: true, db: "ok" });
+  assert.deepEqual(r.body, { ok: true });
+  assert.equal(consultas, 0, "no consulta la base");
 });
 
-test("/salud responde 503 cuando la base falla", async () => {
-  const r = await pedir(deps({ pingDb: async () => { throw new Error("caída"); } }), "GET", "/salud");
-  assert.equal(r.status, 503);
-  assert.deepEqual(r.body, { ok: false, db: "sin conexión" });
+test("/salud/lista (readiness) responde 200 cuando la base contesta y 503 cuando falla, sin detalles internos", async () => {
+  const bien = await pedir(deps(), "GET", "/salud/lista");
+  assert.equal(bien.status, 200);
+  assert.deepEqual(bien.body, { listo: true, degradado: false, comprobaciones: { base: "ok", migraciones: "no_aplica", barrido: "no_aplica", chatwoot: "no_aplica" } });
+  const mal = await pedir(deps({ pingDb: async () => { throw new Error("password authentication failed for user inscripciones_app host 10.0.3.4"); } }), "GET", "/salud/lista");
+  assert.equal(mal.status, 503);
+  assert.equal((mal.body as { listo: boolean }).listo, false);
+  assert.ok(!JSON.stringify(mal.body).includes("password") && !JSON.stringify(mal.body).includes("10.0.3.4"), "ningún mensaje de error sale hacia afuera");
 });
 
 test("webhook con firma válida: procesa el mensaje del contacto", async () => {

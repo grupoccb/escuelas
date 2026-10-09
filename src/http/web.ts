@@ -25,7 +25,7 @@ export const CSP_WEB = [
 ].join("; ");
 
 /** Rutas del backend que la interfaz nunca debe tapar. */
-const PREFIJOS_DEL_BACKEND = ["/api", "/webhooks", "/l", "/salud"];
+const PREFIJOS_DEL_BACKEND = ["/api", "/webhooks", "/l", "/salud", "/metricas"];
 
 /** El enrutador de la interfaz, o `null` si el directorio no tiene un build (`index.html`): entonces el backend sigue sin interfaz. */
 export function rutasDeWeb(directorio: string): Router | null {

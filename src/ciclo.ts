@@ -16,6 +16,7 @@ import { vencerCotizacionesDeTodas, type ResumenVencimiento } from "./cotizador/
 import type { PrismaRaiz } from "./datos/prisma.ts";
 import { barrerFinanzas, type ResumenFinanzas } from "./finanzas/barrido.ts";
 import { log } from "./lib/log.ts";
+import { registrarCiclo } from "./observabilidad/proceso.ts";
 import type { BordeTwilio, MessagingProvider, ResumenReenvio } from "./mensajeria/index.ts";
 
 export interface DepsCiclo {
@@ -151,5 +152,8 @@ export async function correrCiclo(deps: DepsCiclo): Promise<ResumenCiclo> {
     }
   }
   if (errores > 0) log.warn("ciclo_con_errores", { errores });
+  // K4: el barrido dice que corrió (lo leen /salud/lista, /metricas y la alarma «barrido atrasado» de infra/monitoreo.tf).
+  registrarCiclo(errores);
+  log.info("ciclo_completado", { errores });
   return { espera, motor, avisosMaestro, twilio, retencion, cotizaciones, finanzas, errores };
 }

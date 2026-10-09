@@ -10,6 +10,7 @@ import { parseArgs } from "node:util";
 import { conAlcance } from "../src/datos/alcance.ts";
 import { crearPrisma } from "../src/datos/prisma.ts";
 import { listarOrganizaciones } from "../src/datos/sistema.ts";
+import { log } from "../src/lib/log.ts";
 import { cuadratura } from "../src/finanzas/cuadratura.ts";
 
 if (process.argv[1] && process.argv[1].endsWith("cuadratura.ts")) {
@@ -24,6 +25,9 @@ if (process.argv[1] && process.argv[1].endsWith("cuadratura.ts")) {
     for (const org of elegidas) {
       const r = await cuadratura(conAlcance(prisma, org.id));
       if (!r.ok) malas++;
+      // K4: una línea JSON por organización para que la alarma de CloudWatch (infra/monitoreo.tf) y los logs lo vean. Solo conteos, nunca importes de una persona.
+      if (r.ok) log.info("cuadratura_ok", { organizacion: org.id, cargos: r.resumen.cargos, pagos: r.resumen.pagos });
+      else log.error("cuadratura_descuadre", { organizacion: org.id, discrepancias: r.discrepancias.length, reglas: [...new Set(r.discrepancias.map((d) => d.regla))] });
       salida.push({ organizacion: org.nombre, id: org.id, ...r });
       if (!o.json) {
         console.log(`${r.ok ? "✓ cuadra" : "✗ NO CUADRA"} — ${org.nombre}`);
