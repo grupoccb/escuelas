@@ -31,6 +31,9 @@ export type Clasificacion = { clase: "transitorio"; detalle: string } | { clase:
 
 /** Códigos de Prisma que son del momento, no del dato. */
 const PRISMA_TRANSITORIOS = new Set([
+  // EH-10: configuración o infraestructura (nadie puede provocarlas escribiendo por WhatsApp): credenciales rotadas o mal puestas, base que no existe, acceso denegado, TLS, tabla o
+  // columna que falta (migración pendiente, igual que 42P01/42703 de abajo). Clasificarlas «inesperado» perdía el evento: el webhook respondía 200 y nadie lo reintentaba.
+  "P1000", "P1003", "P1010", "P1011", "P2021", "P2022",
   "P1001", // no se alcanza el servidor de la base
   "P1002", // se agotó el tiempo al alcanzar el servidor
   "P1008", // tiempo agotado de la operación
@@ -57,6 +60,12 @@ const CLASES_SQLSTATE_TRANSITORIAS = ["08", "28", "53", "58", "XX"];
 const NODE_TRANSITORIOS = new Set([
   "ECONNREFUSED", "ECONNRESET", "ECONNABORTED", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "ENOTFOUND", "EHOSTUNREACH", "ENETUNREACH", "EMFILE", "ENFILE", "ENOMEM",
   "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_SOCKET", "UND_ERR_CLOSED", "UND_ERR_DESTROYED",
+]);
+
+/** EH-10: el `kind` de los errores del adaptador de Prisma (`DriverAdapterError.cause.kind`) que son de infraestructura y no del dato. */
+const KINDS_DEL_ADAPTADOR_TRANSITORIOS = new Set([
+  "DatabaseNotReachable", "DatabaseDoesNotExist", "DatabaseAccessDenied", "ConnectionClosed", "TlsConnectionError", "AuthenticationFailed",
+  "TransactionWriteConflict", "TableDoesNotExist", "ColumnNotFound", "TooManyConnections", "SocketTimeout", "TransactionAlreadyClosed",
 ]);
 
 /** Errores que Node, undici y Prisma nombran por su clase cuando no traen código: tiempos agotados, el motor de Prisma caído o sin poder arrancar. */
@@ -142,7 +151,7 @@ export function clasificarError(error: unknown): Clasificacion {
   const mensaje = error instanceof Error ? error.message : "";
   // 1. Lo transitorio por código o por clase de error: señales estructuradas, que ninguna persona puede escribir.
   if (
-    codigos.some((c) => PRISMA_TRANSITORIOS.has(c) || SQLSTATE_TRANSITORIOS.has(c) || NODE_TRANSITORIOS.has(c) || CLASES_SQLSTATE_TRANSITORIAS.some((k) => c.length === 5 && c.startsWith(k))) ||
+    codigos.some((c) => PRISMA_TRANSITORIOS.has(c) || SQLSTATE_TRANSITORIOS.has(c) || NODE_TRANSITORIOS.has(c) || KINDS_DEL_ADAPTADOR_TRANSITORIOS.has(c) || CLASES_SQLSTATE_TRANSITORIAS.some((k) => c.length === 5 && c.startsWith(k))) ||
     nombresDe(error).some((n) => NOMBRES_TRANSITORIOS.has(n))
   ) {
     return { clase: "transitorio", detalle };

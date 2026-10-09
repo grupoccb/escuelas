@@ -35,8 +35,19 @@ test("WH: son del MOMENTO (5xx, el proveedor reintenta): base inalcanzable, tiem
     ["por el texto: interbloqueo", new Error("deadlock detected")],
     ["por el texto: conexión terminada", new Error("Connection terminated unexpectedly")],
     ["contención agotada tras reintentar (ErrorTransitorio)", new ErrorTransitorio("la versión no cede")],
+    // EH-10: configuración e infraestructura que no escribe nadie por WhatsApp.
+    ...["P1000", "P1003", "P1010", "P1011", "P2021", "P2022"].map((c): [string, unknown] => [`${c} credenciales, base, acceso, TLS o migración pendiente`, deBase("PrismaClientKnownRequestError", c)]),
+    ...["DatabaseNotReachable", "DatabaseDoesNotExist", "DatabaseAccessDenied", "ConnectionClosed", "TlsConnectionError", "AuthenticationFailed", "TransactionWriteConflict", "TableDoesNotExist", "ColumnNotFound", "TooManyConnections", "SocketTimeout", "TransactionAlreadyClosed"].map(
+      (kind): [string, unknown] => [`kind ${kind} del adaptador`, Object.assign(new Error("x"), { name: "DriverAdapterError", cause: { kind } })],
+    ),
   ];
   for (const [nombre, error] of transitorios) assert.equal(clasificarError(error).clase, "transitorio", nombre);
+});
+
+test("EH-10: el `kind` de un error del adaptador que es del DATO (valor fuera de rango, entrada inválida, único, nulo, llave foránea) sigue siendo inesperado", () => {
+  for (const kind of ["ValueOutOfRange", "InvalidInputValue", "UniqueConstraintViolation", "NullConstraintViolation", "ForeignKeyConstraintViolation", "LengthMismatch", "UnsupportedNativeDataType"]) {
+    assert.equal(clasificarError(Object.assign(new Error("x"), { name: "DriverAdapterError", cause: { kind } })).clase, "inesperado", kind);
+  }
 });
 
 test("WH: son DATOS INESPERADOS (constancia + tarea + 2xx), con su causa: NUL, restricción, registro inexistente, valor fuera de rango, tipos, bandeja sin aprovisionar, error propio", () => {
