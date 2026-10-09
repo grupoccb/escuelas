@@ -4,8 +4,8 @@
 
 1. Rama `noche-2` (desde `noche-fase1`), un commit por bloque salvo H1–H5 (un solo commit, anotado). Etiquetas `etapa-A` … `etapa-H`; `main` y `noche-fase1` no se tocaron, sin `push`.
 2. A–H: construidas, auditadas por subagentes de contexto nuevo (informes en `docs/auditorias/`), corregidas, y las correcciones verificadas por un agente distinto (regla 2 de Eduardo) desde la etapa F.
-3. I1–I5 (reportes, costo por campaña, ejecutivo, datos de demo deterministas, CSV) y J1–J5 (interfaz React + Vite servida por compose, probada en Chromium real) construidas y verificadas por sus implementadores; **no tienen auditoría independiente propia** (desviación de la regla 1 por el tope de turnos de la sesión: la auditoría final K9 las cubre si llegó a correr; ver la tabla).
-4. J6–J10 y K1–K8 se lanzaron en paralelo al final; su estado exacto está en la tabla de abajo (cualquier bloque que no diga HECHO está PENDIENTE: no se terminó dentro del límite de turnos).
+3. I1–I5 (reportes, costo por campaña, ejecutivo, datos de demo deterministas, CSV) y J1–J10 (interfaz React + Vite servida por compose, probada en Chromium real) se construyeron sin auditoría independiente propia (desviación de la regla 1 por el tope de turnos); **la auditoría final K9 las cubrió** (`docs/auditorias/etapa-K9-final.md`).
+4. J6–J10, K1–K8 y K9 terminaron; su estado exacto, con las salvedades, está en la tabla de abajo.
 5. Cambios de Eduardo aplicados durante la sesión: reglas 1–8 de las etapas F–K (en `docs/PLAN-NOCHE-2.md`), invariante 6 reformulado en `CLAUDE.md` (bloque INV-6), bloque WH (webhooks sin 500 por dato inesperado), EG-05 (tope de marketing por clase declarada).
 6. Dinero y cupo: protegidos en la base con disparadores/CHECK/únicos y probados por SQL directo y con concurrencia real; `npm run cuadratura` falla cuando debe.
 7. Incidente a conocer: un agente tocó `wa.me` con Chrome headless (ver «Cierre de las etapas D y E»); la base de la demo quedó desviada en `lead_etapa_historial.secuencia` por una migración editada (reconstruir la demo con `docker compose down -v` + `up`).
@@ -106,7 +106,8 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K6 | HECHO (parcial: escrita y validada, NUNCA desplegada ni con un `terraform plan` real contra AWS; los costos son estimaciones de lista) | ver `git log` (`K6:`) | Infraestructura como código para AWS en `infra/` (Terraform): VPC de tres capas, RDS cifrada, ECS Fargate (backend, Chatwoot, migración, cuadratura), ALB con HTTPS y reglas por ruta, WAF, Secrets Manager, S3 con ciclo de vida, CloudWatch con 10 alarmas, roles mínimos; `npm run infra:validar` |
 | K7 | HECHO | ver `git log` (`K7:`) | Documentación: `docs/OPERACION.md` (por rol, las 19 tareas del asesor, variables de producción, rutina y alarmas), `docs/ALTA-DE-CLIENTE.md` + plantilla de organización probada, `docs/PENDIENTES-CREDENCIALES-REALES.md` y `docs/SUPUESTOS-Y-DECISIONES.md` (más de 100 decisiones abiertas y 45 filas de supuestos en una lista única) |
 | K8 | HECHO | ver `git log` (`K8:`) | `npm run demo:guiada`: recorre y narra en español, con servicios simulados y una base propia, del anuncio simulado (referral) al primer pago repartido, el uniforme por entregar y la cuadratura en verde, con ligas locales a la interfaz; reproducible e idempotente, con prueba que la ejecuta dos veces |
-| K9 | PENDIENTE | | Auditoría final |
+| K8-fix | HECHO | 4fb07ae | La demo guiada ordena los cargos por vencimiento y concepto (el relato no dependía de un orden estable) |
+| K9 | HECHO (parcial: EK-12, EK-15 y 14 BAJA siguen pendientes o esperan decisión de Eduardo; ver «Auditoría final (K9)») | `K9-fix:` (15 commits, ver `git log --grep=K9-fix`) | Auditoría final: informe `docs/auditorias/etapa-K9-final.md` (1 ALTA, 14 MEDIA, 14 BAJA); la ALTA y 12 de las 14 MEDIA corregidas, cada una con prueba verificada por mutación |
 
 ## A0. Preparación
 
@@ -3197,3 +3198,51 @@ $ npm run test:int    → exit 0 · tests 1113 · pass 1113 · fail 0
 
 **Para Eduardo**
 - Decide si las escuelas nuevas deben nacer con las automatizaciones sembradas (opción a) o con un alta por API (opción b); mientras tanto el alta de una escuela incluye pedir ese seed al equipo técnico.
+
+
+## Auditoría final (K9)
+
+Informe completo: `docs/auditorias/etapa-K9-final.md`. Auditor con contexto nuevo, en cinco flujos paralelos (interfaz J1–J10; administración J7/J8 y K1; etapa I, demo y documentación; etapa K e infraestructura; invariantes, H-verif y mutaciones) sobre copias limpias de `d1d41a1` con un Postgres propio cada uno. **1 ALTA, 14 MEDIA, 14 BAJA.** Las correcciones van en 15 commits `K9-fix:`, cada uno con su prueba verificada por mutación.
+
+| Hallazgo | Estado | Dónde |
+|---|---|---|
+| EK-01 (ALTA) la configuración rompe el invariante 6 (clase de plantilla vs evento) | Corregido | `ec787c3` |
+| EK-02 apagar una automatización no frena lo programado | Corregido | `588ad10` |
+| EK-03 baja lógica ignora referencias | Corregido | `cda5032` |
+| EK-04 carreras de «se imparte aquí» sin candado | Corregido | `cda5032` |
+| EK-05 500 por único (idioma de plantilla, primera configuración) | Corregido | `ec787c3`, `365d235` |
+| EK-06 respaldo y restauración contra el contenedor equivocado (rompía `test:int`) | Corregido | `0bfb210` |
+| EK-07 `sslmode=require` hacia RDS | Corregido (no probado contra RDS real) | `68f4817` |
+| EK-08 el respaldo lógico a S3 no existe en la infraestructura | Documentación corregida; implementarlo pendiente | `68f4817`, `PENDIENTES` 4.9 |
+| EK-09 descuento por hermanos según UUID (demo no determinista) | Corregido | `1e86fb4` |
+| EK-10 alta de gasto sin idempotencia | Corregido | `59d2e49` |
+| EK-11 huecos de prueba del ejecutivo y del costo | Corregido | `b459c36` |
+| EK-12 alta de cliente y supuestos desactualizados frente a K1/J7/J8 | Parcial: documentación; decisión pendiente | `9ceade3` |
+| EK-13 Registrar pago mostraba datos de la familia anterior | Corregido | `15e59a4` |
+| EK-14 ventas sin idempotencia | Corregido | `a417d5f` |
+| EK-15 cierre del maestro en sitio sin prueba en navegador | **Pendiente** | |
+| EK-16 `/index.html` sin CSP | Corregido | `19ad594` |
+| EK-17 `--retener -5` borraba todo | Corregido | `ec17623` |
+| EK-18 CSV: invisibles antes de la fórmula, CR | Corregido | `ec17623`, `9ceade3` |
+| EK-19 zonas de `check:dinero` en la interfaz | Corregido | `32ef8e4` |
+| EK-20 `crypto.randomUUID()` sin contexto seguro | Corregido | `a417d5f` |
+| EK-21 a EK-29 (máscara de teléfonos con separadores, pruebas de candados, respaldo, K1, menores de administración y de interfaz, `pg@9`, producto, varios) | Pendiente o decisión de Eduardo | informe, sección 2 |
+
+**Verificación** (copia limpia del HEAD final, Postgres propio, nunca la base de la demo)
+```
+$ npm run validar          → exit 0 · 676 tests (raíz) + 48 (web), 0 fallos
+$ npm run test:int  (1.ª, base vacía)  → exit 0 · tests 1125 · pass 1125 · fail 0
+$ npm run test:int  (2.ª)              → exit 0 · tests 1125 · pass 1125 · fail 0
+$ npm run test:navegador (×2)          → exit 0 · 103 passed en cada corrida (sin intermitencias)
+$ npx prisma migrate diff              → No difference detected
+```
+
+**Decisiones que tomé**
+- La corrección de EK-09 inscribe a los hijos en el orden de captura (`creado_en`, `id`), no el más caro primero: es la opción que no inventa una regla de negocio; la decisión es de Eduardo. Alternativa descartada: ordenar por precio.
+- EK-07 usa `uselibpqcompat=true` (cifra sin verificar la cadena, dentro de una subred privada con `rds.force_ssl`). Alternativa descartada: empaquetar la CA de RDS en la imagen (no se puede probar sin AWS).
+- EK-21 no se tocó: enmascarar números con separadores también enmascara fechas con hora (14 dígitos); hay que diseñarla.
+- La dos migraciones de idempotencia son aditivas (columna opcional + único parcial) y aplican sobre base vacía y con datos.
+
+**Para Eduardo**
+- Las decisiones de la sección 8 del informe (hermanos, automatizaciones de una escuela nueva, mapa evento → clase, reautenticación de administradores, «—» sin gasto, respaldo lógico en AWS).
+- Un auditor mandó un GET a `http://evil.com/` por un descuido de Playwright (sin datos del proyecto) y el test de respaldo intentó leer, sin escribir, una base inexistente en el Postgres de la demo; ver «Incidentes» en el informe. En ese servidor hay cuatro bases `respaldo_*_7b2171_*pruebas` residuales (no son la demo) que puedes borrar, y un archivo suelto `src/automatizaciones/motor 2.ts` sin versionar.
