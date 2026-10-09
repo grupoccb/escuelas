@@ -744,3 +744,20 @@ Código: `src/reportes/ejecutivo.ts` (las definiciones están en su encabezado),
 - **Cartera vencida** (`cartera_vencida`: `total` y `antiguedad` de 0 a 30, 31 a 60, 61 a 90 y más de 90 días) = Σ del saldo de los cargos abiertos ya vencidos en el calendario de su sucursal; es la MISMA regla del estado de cuenta (la suma de lo vencido de los estados de cuenta de todas las familias da este total; hay prueba).
 - **Ocupación por grupo** (`ocupacion_por_grupo[]`: `ocupados`, `cupo_maximo`, `ocupacion` en %, `estado`) con la FUENTE REAL de ocupación (`FuenteOcupacion`: las inscripciones activas del grupo, la que usan el cotizador, la inscripción y la lista de espera). `estado`: `a_reventar` (>= 90 %: abrir otro grupo), `vacio` (<= 25 %: promoverlo o cerrarlo) o `normal`. **[SUPUESTO]** los dos umbrales viven en `src/reportes/ejecutivo.ts`. Los más llenos primero.
 - «Activos», ingreso, cartera y ocupación son la foto de HOY; altas, bajas y deserción son del mes pedido.
+
+## Exportación a CSV (I5)
+
+Los reportes de I1 a I3 se descargan con `?formato=csv` en su propia ruta, y las listas clave tienen la suya en `/api/exportaciones/*`. **Cada descarga respeta el permiso y el alcance de su lista en pantalla:** lo que no puedes ver, no lo puedes descargar (404 para un recurso fuera de alcance, nunca 403 que confirme que existe).
+
+| Ruta | Permiso | Contenido |
+|---|---|---|
+| `GET /api/reportes/clases-muestra?formato=csv&…` | `reportes:clases_muestra` | Una fila por total, fuente, vertical y sucursal (columna «Dimensión»). |
+| `GET /api/reportes/costo-por-alumno?formato=csv&…` | `reportes:costos` | Una fila por campaña y una de total; «—» donde no hay divisor. |
+| `GET /api/reportes/ejecutivo?formato=csv&seccion=resumen\|activos\|ocupacion&mes=` | `reportes:ejecutivo` | `resumen` (por omisión): indicador, valor; `activos`: por vertical y sucursal; `ocupacion`: por grupo. |
+| `GET /api/exportaciones/estado-cuenta?tutor_id=` | `estado_cuenta:leer` | Los cargos de la familia por hijo (saldo, estatus efectivo, días de atraso) y una fila TOTAL. |
+| `GET /api/exportaciones/uniformes-por-entregar?sucursal_id=` | `beneficios:leer` | Lo liberado que recepción debe entregar (alumno, talla, grupo, responsable de pago, teléfono). |
+| `GET /api/exportaciones/leads?etapa_id=&sucursal_id=` | `leads:leer` | Los leads con etapa, campaña y fuente. |
+
+Formato (`src/exportacion/csv.ts`): UTF-8 con **BOM** (Excel abre bien los acentos y la «ñ»), líneas CRLF, coma como separador, escape RFC 4180 (comillas dobles duplicadas) y **protección contra inyección de fórmulas:** una celda de texto que empieza con `=`, `+`, `-`, `@`, tabulador o retorno de carro (también tras espacios o caracteres de control, y sus formas de ancho completo) lleva un apóstrofo delante, y lo mismo los encabezados; por eso un teléfono E.164 sale como `'+5255…`. Solo un importe o un entero que de verdad es numérico (`-12.50`) se deja como está. **El dinero sale como texto decimal exacto con dos decimales** (`1234.50`, sin símbolo ni separador de miles ni notación científica; los cálculos son en centavos `bigint`). Cabeceras: `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="…"; filename*=UTF-8''…` (nombre sin acentos, espacios ni saltos de línea), `Cache-Control: no-store` y `X-Content-Type-Options: nosniff`. Datos de salud: ninguna columna los trae.
+
+Las listas grandes (leads, uniformes) se escriben **por lotes de 500 con cursor**, sin cargarlas enteras en memoria, hasta 100 000 filas. El primer lote se pide antes de escribir las cabeceras (un error de permiso o de base responde como HTTP normal); una falla posterior corta la conexión (el navegador ve una descarga fallida, nunca un archivo truncado que parezca completo) y se registra `exportacion_fallida`.

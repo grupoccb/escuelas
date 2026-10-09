@@ -1,6 +1,6 @@
 // Costo por alumno inscrito por campaña (I2) y el gasto que el administrador captura a mano.
 //
-//   GET    /api/reportes/costo-por-alumno?desde=&hasta=&campana_id=       (reportes:costos: administrador)
+//   GET    /api/reportes/costo-por-alumno?desde=&hasta=&campana_id=&formato=       (reportes:costos: administrador)
 //   GET    /api/campanas/:id/gastos?desde=&hasta=                          (gastos_campana:leer: administrador)
 //   POST   /api/campanas/:id/gastos { fecha, monto, nota? }                (gastos_campana:escribir: administrador)
 //   DELETE /api/campanas/:id/gastos/:gasto_id                              baja lógica (gastos_campana:escribir)
@@ -12,15 +12,18 @@ import express, { Router } from "express";
 import { aFecha, deFecha } from "../../catalogo/precios.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { aTexto, deDecimal, sumar } from "../../lib/dinero.ts";
+import { aCsv } from "../../exportacion/csv.ts";
+import { enviarCsv } from "../../exportacion/http.ts";
 import { reporteDeCostoPorCampana } from "../../reportes/costo-campana.ts";
+import { COLUMNAS_DE_COSTO, filasDeCosto } from "../../reportes/csv-reportes.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { noEncontrado, validacion } from "../errores.ts";
 import { registrarCambio } from "../registro.ts";
-import { dinero, fechaISO, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
+import { dinero, enumerado, fechaISO, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
-const esquemaCosto = objeto({ desde: opcional(fechaISO()), hasta: opcional(fechaISO()), campana_id: opcional(uuid()) });
+const esquemaCosto = objeto({ desde: opcional(fechaISO()), hasta: opcional(fechaISO()), campana_id: opcional(uuid()), formato: opcional(enumerado(["json", "csv"] as const)) });
 const esquemaGastosLista = objeto({ desde: opcional(fechaISO()), hasta: opcional(fechaISO()) });
 const esquemaGasto = objeto({ fecha: fechaISO(), monto: dinero(), nota: opcional(texto({ max: 300 })) });
 const esquemaIdCampana = objeto({ id: uuid() });
@@ -40,7 +43,10 @@ export function rutasDeCostoPorCampana(_deps: DepsApi): express.Router {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaCosto, req.query);
     validarRango(q);
-    res.json(await reporteDeCostoPorCampana(ctx.db, { ...(q.desde ? { desde: q.desde } : {}), ...(q.hasta ? { hasta: q.hasta } : {}), ...(q.campana_id ? { campanaId: q.campana_id } : {}) }));
+    const reporte = await reporteDeCostoPorCampana(ctx.db, { ...(q.desde ? { desde: q.desde } : {}), ...(q.hasta ? { hasta: q.hasta } : {}), ...(q.campana_id ? { campanaId: q.campana_id } : {}) });
+    // I5: `?formato=csv` lo descarga como CSV.
+    if (q.formato === "csv") return enviarCsv(res, `costo-por-alumno-${q.desde ?? "inicio"}-${q.hasta ?? "hoy"}`, aCsv(COLUMNAS_DE_COSTO, filasDeCosto(reporte)));
+    res.json(reporte);
   });
 
   r.get("/campanas/:id/gastos", requierePermiso("gastos_campana:leer"), async (req, res) => {

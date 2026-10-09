@@ -73,7 +73,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | I2 | HECHO | ver `git log` (`I2:`) | Costo por alumno inscrito por campaña: gasto capturado a mano (administrador, registro de cambios, blindado en la base) y reporte por lead, clase muestra y alumno, sin división por cero |
 | I3 | HECHO | ver `git log` (`I3:`) | Reporte ejecutivo: activos por vertical y sucursal, altas y bajas del mes, deserción, ingreso mensual recurrente, cartera vencida (consistente con el estado de cuenta) y % de ocupación por grupo con la fuente real; el asesor ve sus sucursales y el maestro solo la ocupación de sus grupos, sin importes |
 | I4 | PENDIENTE | | Datos de demo |
-| I5 | PENDIENTE | | Exportación a CSV |
+| I5 | HECHO | ver `git log` (`I5:`) | Exportación a CSV de los reportes (I1, I2, I3) y de las listas clave (estado de cuenta, uniformes por entregar, leads): escape RFC 4180, inyección de fórmulas neutralizada, BOM, dinero exacto, `Content-Disposition`, alcance respetado y listas grandes por lotes |
 | J1 | HECHO | ver `git log` (`J1:`) | Interfaz web base: `web/` (React + Vite + TS), acceso, navegación por permisos, layout responsivo, sesión expirada, 404/403, selector de sucursal; servida por el backend (y por compose); pruebas en Chromium real (`npm run test:navegador`) |
 | J2 | HECHO | ver `git log` (`J2:`) | Maestro en celular (390×844): «Hoy» con asistencia y «listo para cerrar», registro del alumno COMPLETO (adultos como filas, salud solo en memoria, antecedentes, observación, reglamento e imagen con evidencia) y pase de lista idempotente; probado en Chromium contra el backend real |
 | J3 | HECHO | ver `git log` (`J3:`) | Asesor: embudo (tablero y lista, filtros, estancados, mover con motivo/nota), tareas, ficha del lead (atribución, cotizaciones, clase muestra, historial, enlace a Chatwoot); cambios mínimos a la API con test |
@@ -2503,6 +2503,31 @@ $ npm run test:int    → exit 0 · tests 1052 · pass 1052 · fail 0   (base re
 **Para Eduardo**
 - Decidir los umbrales de ocupación (90 % y 25 % son un supuesto) y si el asesor debe ver importes del ejecutivo.
 - Para J9 (tableros): `GET /api/reportes/ejecutivo?mes=` y `GET /api/reportes/ocupacion` (ver `docs/API.md`).
+
+## I5. Exportación a CSV
+
+**Qué se hizo**
+- **Reportes** (`?formato=csv` en su ruta, mismos permisos y alcance que el JSON): clases muestra (I1), costo por alumno (I2) y ejecutivo (I3, con `seccion=resumen|activos|ocupacion`). **Listas** en `/api/exportaciones/*`: estado de cuenta de una familia, uniformes por entregar y leads (`docs/API.md`).
+- **`src/exportacion/csv.ts` (puro):** escape RFC 4180 (comillas dobles duplicadas, CRLF), BOM UTF-8, separador `,` o `;`, tipos de columna (`texto`, `dinero`, `entero`, o una función de la fila) y **protección contra inyección de fórmulas:** una celda de texto que empieza con `=`, `+`, `-`, `@`, tabulador o retorno de carro (también tras espacios o caracteres de control, y sus formas de ancho completo) lleva un apóstrofo delante, igual que los encabezados. Solo un importe o un entero que de verdad es numérico (`-12.50`) se deja como está: se valida, no se confía. **Dinero sin punto flotante:** el CSV recibe el texto decimal exacto de los reportes (`1234.50`), sin símbolo ni separador de miles.
+- **`src/exportacion/http.ts`:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment` con nombre seguro (RFC 6266, sin acentos, espacios ni saltos de línea), `Cache-Control: no-store`, `nosniff`. **Listas grandes por lotes con cursor** (500 filas; tope de 100 000): en memoria hay un lote y no la lista; el primer lote se pide antes de escribir cabeceras (un error de permiso o de base es HTTP normal) y una falla posterior corta la conexión en lugar de dejar un archivo truncado que parezca completo.
+- `src/finanzas/por-entregar.ts`: la consulta de «uniformes por entregar» ahora es una sola para la API y el CSV. `ClienteApi.descargar()` (testutil) lee los bytes TAL CUAL: `res.text()` se come el BOM.
+
+**Verificación** (copia limpia del `HEAD` más este bloque, fuera del repo, base propia)
+```
+$ npm run validar     → exit 0 · tests 622 · pass 622 · fail 0 (más los 9 de web)
+$ npm run test:int    → exit 0 · tests 1058 · pass 1058 · fail 0   (base recién creada y vacía)
+```
+`csv.test.ts` (8), `http.test.ts` (7: lotes sin repetir ni perder filas, lista vacía, lote exacto, tope, contrapresión, falla del primer lote y de uno posterior, fórmulas) y `exportacion.itest.ts` (5): ida y vuelta con un lector CSV, el estado de cuenta con su total contra el JSON, **IDOR** (el asesor de otra sucursal y otra organización reciben 404, maestro 403, sin sesión 401), un nombre que es una fórmula (`=HYPERLINK(...)`, `@SUMA`, `-2+3`, `+52…`) sale neutralizado, el BOM llega al cliente, y una descarga de más de 1 100 leads cruza tres lotes sin repetir ni perder filas aun con fechas iguales. Mutaciones muertas: el guion como inicio de fórmula, el tabulador y el retorno de carro, los espacios previos, el BOM, las comillas sin duplicar, el dinero sin validar, el tope de filas, escribir las cabeceras antes del primer lote, no cortar la conexión ante una falla a mitad, y el alcance de leads, uniformes y estado de cuenta (una mutación, cambiar `estado_cuenta:leer` por `leads:leer`, es equivalente: los dos permisos tienen los mismos roles). La prueba del tabulador o retorno de carro seguidos de texto normal y la de la lista de «una descarga con fórmulas» se afinaron después de la corrida completa (corridas solas, `tsc` y `eslint` en verde).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **El apóstrofo delante, también en teléfonos.** Un teléfono E.164 empieza con `+` y sale como `'+5255…`. Alternativa descartada: dejar pasar lo que parezca un teléfono (un valor controlado por quien capturó el lead que parezca teléfono y no lo sea abriría el agujero); y `=` + comillas (es una fórmula).
+2. **Por lotes con cursor, no con `LIMIT/OFFSET`** (el desplazamiento se vuelve lento y repite o pierde filas si entra un lead durante la descarga). Alternativa descartada: cargar 100 000 filas y serializar (memoria proporcional a la lista).
+3. **Una falla a mitad de descarga corta la conexión.** Alternativa descartada: terminar el archivo con un renglón de error (se vería como un dato más).
+4. **No se exporta salud ni nada que `leads:leer`/`estado_cuenta:leer`/`beneficios:leer` no dé:** cada ruta usa el permiso y el alcance de su lista en pantalla.
+
+**Para Eduardo**
+- Los teléfonos salen con apóstrofo delante (`'+5255…`): Excel lo muestra como texto. Si prefieren verlo sin él, el costo es abrir la posibilidad de fórmulas.
+- Para J9: cada tablero puede ofrecer «Descargar CSV» con el mismo `GET` y `?formato=csv` (`/api/exportaciones/*` para las listas).
 
 ## J1. Interfaz web: base
 

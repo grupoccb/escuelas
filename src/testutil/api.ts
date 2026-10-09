@@ -75,7 +75,8 @@ export class ClienteApi {
     else this.cookies.set(nombre, valor);
   }
 
-  async pedir<T = unknown>(metodo: string, ruta: string, cuerpo?: unknown, cabeceras: Record<string, string> = {}): Promise<RespuestaApi<T>> {
+  /** Manda la petición (con las cookies de la sesión) y devuelve la respuesta cruda. */
+  private async enviar(metodo: string, ruta: string, cuerpo?: unknown, cabeceras: Record<string, string> = {}): Promise<Response> {
     const h: Record<string, string> = { ...this.cabecerasExtra, ...cabeceras };
     if (this.cookies.size > 0) h["cookie"] = [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
     let body: string | undefined;
@@ -96,6 +97,17 @@ export class ClienteApi {
       if (valor === "" || vencida) this.cookies.delete(nombre);
       else this.cookies.set(nombre, valor);
     }
+    return res;
+  }
+
+  /** Una descarga: los bytes TAL CUAL (`res.text()` se come el BOM UTF-8 del CSV) y las cabeceras. */
+  async descargar(ruta: string): Promise<{ estado: number; cabeceras: Headers; bytes: Buffer }> {
+    const res = await this.enviar("GET", ruta);
+    return { estado: res.status, cabeceras: res.headers, bytes: Buffer.from(await res.arrayBuffer()) };
+  }
+
+  async pedir<T = unknown>(metodo: string, ruta: string, cuerpo?: unknown, cabeceras: Record<string, string> = {}): Promise<RespuestaApi<T>> {
+    const res = await this.enviar(metodo, ruta, cuerpo, cabeceras);
     const texto = await res.text();
     let json: unknown;
     try {

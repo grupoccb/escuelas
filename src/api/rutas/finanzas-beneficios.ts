@@ -11,6 +11,7 @@
 import express, { Router } from "express";
 import { dondeInscripcionVisible } from "../../inscripciones/alcance.ts";
 import { entregarBeneficio, type ResultadoDeEntregaDeBeneficio } from "../../finanzas/entrega.ts";
+import { dondePorEntregar, presentarPorEntregar, SELECCION_POR_ENTREGAR } from "../../finanzas/por-entregar.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -31,17 +32,6 @@ const esquemaId = objeto({ id: uuid() });
 const esquemaListado = objeto({ ...esquemaPaginacion, sucursal_id: opcional(uuid()) });
 const esquemaEntregar = objeto({ producto_id: opcional(uuid()), cantidad: opcional(entero({ min: 1, max: 1 })) });
 
-const SELECCION = {
-  id: true,
-  inscripcion_id: true,
-  estatus: true,
-  liberado_en: true,
-  fecha_entrega: true,
-  revision_en: true,
-  promocion: { select: { id: true, nombre: true } },
-  beneficio: { select: { tipo: true, descripcion: true, producto_id: true } },
-  inscripcion: { select: { alumno: { select: { id: true, nombre: true, apellidos: true, talla_uniforme: true, tutores: { where: { eliminado_en: null, es_responsable_pago: true }, take: 1, select: { tutor: { select: { id: true, nombre: true, apellidos: true, telefono: true } } } } } }, grupo: { select: { nombre: true, programa: { select: { sucursal_id: true, nombre: true } } } } } },
-} as const;
 
 export function rutasDeBeneficios(_deps: DepsApi): express.Router {
   const r = Router();
@@ -52,28 +42,12 @@ export function rutasDeBeneficios(_deps: DepsApi): express.Router {
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
     const visible = await dondeInscripcionVisible(ctx);
-    const where = {
-      estatus: "liberado" as const,
-      inscripcion: { estatus: { not: "baja" as const }, ...visible, ...(q.sucursal_id ? { grupo: { programa: { sucursal_id: q.sucursal_id } } } : {}) },
-    };
+    const where = dondePorEntregar(visible, q.sucursal_id);
     res.json(
       await paginar(
         pag,
         () => ctx.db.promocion_aplicacion.count({ where }),
-        async (saltar, tomar) =>
-          (await ctx.db.promocion_aplicacion.findMany({ where, select: SELECCION, orderBy: [{ liberado_en: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => ({
-            id: f.id,
-            inscripcion_id: f.inscripcion_id,
-            alumno: { id: f.inscripcion.alumno.id, nombre: f.inscripcion.alumno.nombre, apellidos: f.inscripcion.alumno.apellidos, talla_uniforme: f.inscripcion.alumno.talla_uniforme },
-            tutor: f.inscripcion.alumno.tutores[0]?.tutor ?? null,
-            sucursal_id: f.inscripcion.grupo.programa.sucursal_id,
-            grupo: f.inscripcion.grupo.nombre,
-            promocion: f.promocion.nombre,
-            tipo: f.beneficio.tipo,
-            descripcion: f.beneficio.descripcion,
-            producto_id: f.beneficio.producto_id,
-            liberado_en: f.liberado_en,
-          })),
+        async (saltar, tomar) => (await ctx.db.promocion_aplicacion.findMany({ where, select: SELECCION_POR_ENTREGAR, orderBy: [{ liberado_en: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentarPorEntregar(f)),
       ),
     );
   });
