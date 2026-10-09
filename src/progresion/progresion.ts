@@ -57,7 +57,7 @@ export async function nivelActual(db: Consultas, alumnoId: string, verticalId: s
   return (await historialDeVertical(db, alumnoId, verticalId))[0] ?? null;
 }
 
-export type MotivoDeRechazoDeNivel = "alumno_inexistente" | "nivel_inexistente" | "vertical_sin_progresion" | "sin_inscripcion_en_la_vertical" | "fecha_futura" | "nivel_ya_obtenido" | "instructor_inexistente";
+export type MotivoDeRechazoDeNivel = "alumno_inexistente" | "nivel_inexistente" | "vertical_sin_progresion" | "sin_inscripcion_en_la_vertical" | "fecha_futura" | "nivel_ya_obtenido" | "instructor_inexistente" | "fecha_incoherente_con_el_orden";
 
 export type ResultadoDeNivel = { ok: true; progresionId: string; verticalId: string; nivelId: string } | { ok: false; motivo: MotivoDeRechazoDeNivel; mensaje: string };
 
@@ -72,7 +72,7 @@ export async function otorgarNivel(
   tx: Consultas,
   p: { alumnoId: string; nivelId: string; fechaObtenido: string; ahora: Date; usuarioId: string | null; instructorId?: string | null; eventoId?: string | null; observaciones?: string | null },
 ): Promise<ResultadoDeNivel> {
-  const nivel = await tx.nivel_progresion.findFirst({ where: { id: p.nivelId }, select: { id: true, vertical_id: true, vertical: { select: { usa_progresion: true } } } });
+  const nivel = await tx.nivel_progresion.findFirst({ where: { id: p.nivelId }, select: { id: true, vertical_id: true, orden: true, vertical: { select: { usa_progresion: true } } } });
   if (!nivel) return rechazo("nivel_inexistente", "No se encontró el nivel");
   if (!(await tx.alumno.findFirst({ where: { id: p.alumnoId }, select: { id: true } }))) return rechazo("alumno_inexistente", "No se encontró el alumno");
   if (!nivel.vertical.usa_progresion) return rechazo("vertical_sin_progresion", "Esta vertical no lleva progresión");
@@ -85,6 +85,13 @@ export async function otorgarNivel(
   if (p.fechaObtenido > fechaLocal(p.ahora, insc.grupo.programa.sucursal.zona_horaria)) return rechazo("fecha_futura", "La fecha en que se obtuvo no puede ser futura");
   if (p.instructorId && !(await tx.instructor.findFirst({ where: { id: p.instructorId }, select: { id: true } }))) return rechazo("instructor_inexistente", "No se encontró el instructor");
   if (await tx.alumno_progresion.findFirst({ where: { alumno_id: p.alumnoId, nivel_id: p.nivelId }, select: { id: true } })) return rechazo("nivel_ya_obtenido", "El alumno ya obtuvo este nivel");
+  // EG-07: el nivel actual es el más reciente por fecha, así que un peldaño más bajo con una fecha POSTERIOR a la de uno más alto haría retroceder al alumno (y uno más alto con
+  // una fecha anterior a la de uno más bajo lo dejaría sin efecto). El historial a mano sigue siendo posible —peldaños más bajos con fechas anteriores—, el retroceso no.
+  for (const h of await historialDeVertical(tx, p.alumnoId, nivel.vertical_id)) {
+    if ((nivel.orden < h.nivel.orden && p.fechaObtenido > h.fechaObtenido) || (nivel.orden > h.nivel.orden && p.fechaObtenido < h.fechaObtenido)) {
+      return rechazo("fecha_incoherente_con_el_orden", `Un peldaño más alto no puede haberse obtenido antes que uno más bajo: «${h.nivel.nombre}» se obtuvo el ${h.fechaObtenido}`);
+    }
+  }
   const fila = await tx.alumno_progresion.create({
     data: altaConAlcance({
       alumno_id: p.alumnoId,

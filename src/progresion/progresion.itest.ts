@@ -185,3 +185,21 @@ test("G3 SQL directo: un mismo peldaño dos veces al mismo alumno, o dos peldañ
   await assert.rejects(prisma.nivel_progresion.create({ data: { organizacion_id: m.org.organizacionId, vertical_id: m.org.verticalId, nombre: "Distinto", orden: niveles[0]!.orden } }), /Unique constraint|nivel_progresion_vertical_orden_key/);
   await assert.rejects(prisma.nivel_progresion.create({ data: { organizacion_id: m.org.organizacionId, vertical_id: m.org.verticalId, nombre: "X", orden: 77, color_hex: "azul" } }), /nivel_progresion_color_chk|check/i);
 });
+
+test("EG-07: un peldaño más bajo con una fecha POSTERIOR a la de uno más alto no hace retroceder al alumno (y uno más alto con fecha anterior a uno más bajo tampoco); el historial a mano con fechas coherentes sí se puede capturar", async () => {
+  const a = await m.inscribir(m.grupoA, { nombre: "Eva" });
+  const [uno, dos, tres] = niveles.map((n) => n.id) as [string, string, string];
+  assert.equal((await otorgar(m.admin, a.alumnoId, tres, "2026-11-01")).estado, 201);
+  // El retroceso: el peldaño 1 con una fecha posterior a la del 3.
+  const retroceso = await otorgar(m.admin, a.alumnoId, uno, "2026-11-10");
+  assert.equal(retroceso.estado, 409);
+  assert.equal(retroceso.cuerpo.error?.detalles?.[0]?.mensaje, "fecha_incoherente_con_el_orden");
+  const v = (await leer(m.admin, a.alumnoId)).cuerpo.verticales[0]!;
+  assert.deepEqual([v.nivel_actual?.id, v.siguiente_nivel], [tres, null], "el nivel actual no cambió");
+  assert.equal(await prisma.alumno_progresion.count({ where: { alumno_id: a.alumnoId } }), 1, "no se guardó");
+  // El mismo día cuenta como coherente (no se sabe el orden dentro del día); antes, también: así se captura el historial de quien llega con varios peldaños.
+  assert.equal((await otorgar(m.admin, a.alumnoId, uno, "2026-11-01")).estado, 201);
+  assert.equal((await otorgar(m.admin, a.alumnoId, dos, "2026-08-15")).estado, 409, "el 2 no pudo obtenerse antes que el 1 (2026-11-01 es la fecha del 1)");
+  assert.equal((await otorgar(m.admin, a.alumnoId, dos, "2026-11-01")).estado, 201);
+  assert.equal((await leer(m.admin, a.alumnoId)).cuerpo.verticales[0]!.historial.length, 3);
+});
