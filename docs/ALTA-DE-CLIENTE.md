@@ -21,6 +21,8 @@ Una escuela nueva trabaja solo con la captación. Cuando esté lista para más, 
 
 ## 3. Todo lo demás, desde Administración (con el administrador)
 
+**El catálogo (pasos 1 a 7 de la tabla de abajo) se puede cargar de una vez desde hojas de Excel** (V6): Administración → **Cargar catálogo** (o `npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta> [--aplicar --administrador <correo>]`). Descarga las plantillas, la escuela las llena (`docs/QUE-PEDIRLE-A-LA-ESCUELA.md` es el correo listo para mandarle), se revisan con la simulación (que no guarda nada) y se aplican. Es idempotente y no borra. Crea disciplinas, sucursales, salones, instructores, programas, grupos, horarios y precios; lo demás de la tabla (promociones, productos, documentos legales, canales, usuarios…) sigue siendo por su pantalla. Está probado con una disciplina nueva solo con CSV, sin tocar código (`src/catalogo/importacion/prueba-de-fuego.itest.ts`). Detalle: `docs/OPERACION.md` y `docs/API.md`.
+
 Qué se puede cambiar, quién lo cambia y con qué comando cuando no hay pantalla: **`docs/CONFIGURACION-INVENTARIO.md`** (el inventario de V5). Una escuela nueva nace con los valores de siempre en todo (horario de 09:00 a 20:00, 3 mensajes al día, 30 minutos para avisar de un lead a medias, 3 respuestas sin entender, textos del asistente de siempre): solo hay que tocarlos si la escuela lo pide.
 
 En este orden, porque cada paso usa el anterior. «API» es el recurso de `docs/API.md`:
@@ -54,5 +56,7 @@ En este orden, porque cada paso usa el anterior. «API» es el recurso de `docs/
 6. `npm run demo:guiada` muestra el recorrido completo con datos de ejemplo (en otra base) para enseñárselo al equipo.
 
 ## 5. Lo que la escuela debe entregar (antes de abrir)
+
+La lista completa, con para qué sirve cada dato y qué pasa si falta, por prioridad y lista para mandarse: **`docs/QUE-PEDIRLE-A-LA-ESCUELA.md`**. Resumen:
 
 Nombres y direcciones de sucursales; verticales, programas, edades, grupos, horarios, cupos y salones reales; precios, promociones y reglas de hermanos; textos del reglamento, uso de imagen y aviso de privacidad; los números de WhatsApp y su verificación en Meta; qué plantillas quiere y su texto; quiénes son los asesores, maestros y recepcionistas; el día de corte y las reglas de cobranza. Lo que hoy es ejemplo `[SUPUESTO]` está en `docs/SUPUESTOS-Y-DECISIONES.md`.

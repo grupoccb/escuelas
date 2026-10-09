@@ -19,6 +19,19 @@ Lo que pasa con un módulo apagado: su sección no aparece en la barra y su dire
 
 Las organizaciones que ya existían (la demo incluida) tienen todo encendido; una escuela nueva nace con solo la captación (`docs/ALTA-DE-CLIENTE.md`).
 
+## Cargar el catálogo desde Excel (V6)
+
+**Administración → Cargar catálogo** (solo el administrador). Sirve para dar de alta, de una sola vez, las disciplinas, sucursales, salones, instructores, programas, grupos, horarios y precios de la escuela, o para cambiarlos en bloque. Qué pedirle a la escuela y para qué sirve cada dato: `docs/QUE-PEDIRLE-A-LA-ESCUELA.md` (listo para mandarse).
+
+1. **Descargar las plantillas** (todas juntas o una por una). Cada una trae una fila de ejemplo inventada (se ignora) y el `LEEME.txt` explica cómo llenarlas. También están en `docs/plantillas-catalogo/`.
+2. **Subir los archivos llenos** (puede elegir varios a la vez; uno con el mismo nombre reemplaza al anterior) y pulsar **Revisar**. La revisión valida todo y **no guarda nada**.
+3. Si hay errores, se listan por archivo, con la fila y la columna («Fila 7, columna “Salón”: no existe el salón “Sala 3” en la sucursal “Centro”…»). Se corrigen en Excel, se vuelven a subir y se revisa de nuevo. No aparece «Aplicar» hasta que la revisión sale limpia.
+4. Con la revisión limpia se ve el resumen (nuevos, actualizados y sin cambios) y cada cambio con palabras; **Aplicar** pide confirmar y guarda todo o nada. Subir lo mismo otra vez dice **Sin cambios**.
+
+Lo que conviene saber: nunca borra (si quita una fila del archivo, lo que ya estaba se queda; para dar de baja algo se usa su pantalla); una celda vacía en algo que ya existe no borra su dato; un precio nuevo empieza en su fecha y no cambia lo que ya se cobró ni las inscripciones hechas; los horarios solo se agregan. Las mismas verificaciones del catálogo que las pantallas (traslape de edades, choque de salón o de instructor, cupo contra capacidad) corren antes de aceptar. No crea canales de WhatsApp, usuarios, promociones, productos ni documentos legales: esos se dan de alta en su pantalla.
+
+Desde la línea de comandos (por ejemplo, una carga inicial hecha por Grupo CCB): `npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta con los .csv>` simula; con `--aplicar --administrador <correo>` carga, a nombre de ese administrador en el registro de cambios. Detalle técnico: `docs/API.md`, «Carga del catálogo (V6)».
+
 ## Configuración sin SQL (V5)
 
 Todo lo que la escuela cambia en la operación normal se edita en **Administración** (solo el administrador), sin reiniciar nada y sin tocar la base. Cada cambio queda en el registro de cambios.

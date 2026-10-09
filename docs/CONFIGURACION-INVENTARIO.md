@@ -16,7 +16,7 @@ Regla de oro de V5: **ningún ajuste nuevo cambió el comportamiento de nadie.**
 ## Cómo se hace cada cosa
 
 ### A. Desde Administración (lo normal)
-Entrar como administrador → **Administración**. Las áreas: Disciplinas, Sucursales, Programas, Grupos y horarios, Instructores y salones, Precios, Promociones, Canales de WhatsApp, Módulos, **Configuración**, **Textos del asistente**, **Etapas del embudo**, **Motivos de pérdida y de baja**, Plantillas de mensaje, Automatizaciones, Usuarios y roles, Bandeja del administrador.
+Entrar como administrador → **Administración**. Las áreas: **Cargar catálogo** (V6: sube hojas de Excel con disciplinas, sucursales, salones, instructores, programas, grupos, horarios y precios; `docs/OPERACION.md`), Disciplinas, Sucursales, Programas, Grupos y horarios, Instructores y salones, Precios, Promociones, Canales de WhatsApp, Módulos, **Configuración**, **Textos del asistente**, **Etapas del embudo**, **Motivos de pérdida y de baja**, Plantillas de mensaje, Automatizaciones, Usuarios y roles, Bandeja del administrador.
 
 ### B. Por la API (lo que aún no tiene pantalla)
 La API es la misma que usa la interfaz (`docs/API.md`). Con un administrador:

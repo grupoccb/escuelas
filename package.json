@@ -37,7 +37,9 @@
     "demo:guiada": "node scripts/demo-guiada.ts",
     "infra:validar": "node scripts/infra-validar.ts",
     "respaldo": "node scripts/respaldo.ts",
-    "restaurar": "node scripts/restaurar.ts"
+    "restaurar": "node scripts/restaurar.ts",
+    "catalogo:plantillas": "node scripts/catalogo-plantillas.ts",
+    "catalogo:importar": "node --env-file-if-exists=.env scripts/catalogo-importar.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {

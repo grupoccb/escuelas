@@ -31,6 +31,8 @@ const ACORDADO: Record<string, Modulo> = {
   "GET /api/grupos": "captacion",
   "GET /api/programas": "captacion",
   "GET /api/precios": "captacion",
+  "GET /api/catalogo/plantillas": "captacion",
+  "POST /api/catalogo/importacion": "captacion",
   "GET /api/promociones": "captacion",
   "GET /api/plantillas": "captacion",
   "GET /api/automatizaciones": "captacion",

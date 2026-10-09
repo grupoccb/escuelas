@@ -11,3 +11,5 @@ export const LIMITE_CUERPO_CHATWOOT = "1mb";
 export const LIMITE_CUERPO_TWILIO = "100kb";
 /** Futura landing pública (E1): el cuestionario son unos campos de texto. */
 export const LIMITE_CUERPO_LANDING = "16kb";
+/** Carga del catálogo (V6): hasta 12 archivos CSV de a lo más 5 000 filas, en base64 o en texto dentro del JSON. */
+export const LIMITE_CUERPO_IMPORTACION = "8mb";

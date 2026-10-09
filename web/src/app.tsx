@@ -45,6 +45,7 @@ const AdminModulos = lazy(() => import("./pantallas/admin/Modulos.tsx"));
 const AdminTextos = lazy(() => import("./pantallas/admin/TextosDelAsistente.tsx"));
 const AdminEtapas = lazy(() => import("./pantallas/admin/EtapasDelEmbudo.tsx"));
 const AdminMotivos = lazy(() => import("./pantallas/admin/Motivos.tsx"));
+const AdminCatalogo = lazy(() => import("./pantallas/admin/CargarCatalogo.tsx"));
 
 /**
  * Una ruta que solo existe con el permiso y con el módulo al que pertenece encendido (V1). Sin el módulo se muestra «No disponible»; sin el permiso, «Sin acceso». En los dos casos la
@@ -98,6 +99,7 @@ function Rutas() {
         <Route path="/admin/modulos" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminModulos /></RequierePermiso>} />
         <Route path="/admin/textos" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminTextos /></RequierePermiso>} />
         <Route path="/admin/etapas" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminEtapas /></RequierePermiso>} />
+        <Route path="/admin/catalogo" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminCatalogo /></RequierePermiso>} />
         <Route path="/admin/motivos" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminMotivos /></RequierePermiso>} />
         <Route path="/admin/bandeja" element={<RequierePermiso permiso="registro_cambios:leer" modulo="captacion"><AdminBandeja /></RequierePermiso>} />
         <Route path="/tableros" element={<RequierePermiso permiso="reportes:clases_muestra" modulo="tableros"><Tableros /></RequierePermiso>} />

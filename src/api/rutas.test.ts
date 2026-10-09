@@ -88,6 +88,10 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "POST /api/promociones/:id/beneficios": "catalogo:escribir",
   "PATCH /api/promociones/:id/beneficios/:beneficio_id": "catalogo:escribir",
   "DELETE /api/promociones/:id/beneficios/:beneficio_id": "catalogo:escribir",
+  // V6: carga del catálogo desde Excel (CSV), solo el administrador.
+  "GET /api/catalogo/plantillas": "catalogo:escribir",
+  "GET /api/catalogo/plantillas/:nombre": "catalogo:escribir",
+  "POST /api/catalogo/importacion": "catalogo:escribir",
   "GET /api/instructores": "catalogo:leer",
   "GET /api/instructores/:id": "catalogo:leer",
   "POST /api/instructores": "catalogo:escribir",

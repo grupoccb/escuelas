@@ -16,6 +16,7 @@ export const GRUPOS_DE_ADMINISTRACION: { titulo: string; areas: Area[] }[] = [
   {
     titulo: "Catálogo",
     areas: [
+      { ruta: "/admin/catalogo", titulo: "Cargar catálogo", ayuda: "Sube tus hojas de Excel con sucursales, programas, grupos, horarios y precios; se revisan antes de guardar.", permiso: "catalogo:escribir" },
       { ruta: "/admin/verticales", titulo: "Disciplinas", ayuda: "Lo que imparte la escuela, sus etiquetas y su color.", permiso: "catalogo:escribir" },
       { ruta: "/admin/sucursales", titulo: "Sucursales", ayuda: "Dirección, zona horaria y qué disciplinas se imparten en cada una.", permiso: "catalogo:escribir" },
       { ruta: "/admin/programas", titulo: "Programas", ayuda: "Rango de edad, fecha de corte y traslape.", permiso: "catalogo:escribir" },

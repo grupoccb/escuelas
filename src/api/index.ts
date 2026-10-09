@@ -40,6 +40,7 @@ import { rutasDeSucursales } from "./rutas/sucursales.ts";
 import { rutasDeVerticales } from "./rutas/verticales.ts";
 import { rutasDeInstructores } from "./rutas/instructores.ts";
 import { rutasDeSalones } from "./rutas/salones.ts";
+import { rutasDeImportacionDeCatalogo } from "./rutas/catalogo-importacion.ts";
 import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { PROVEEDORES_NULOS, type ProveedoresDelExpediente } from "../expediente/proveedores.ts";
 import { urlPublicaDeChatwoot, type DirectorioAgentes } from "../mensajeria/index.ts";
@@ -161,6 +162,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeAutomatizaciones(deps));
   api.use(rutasDeEventosInesperados(deps));
   api.use(rutasDeSalones(deps));
+  api.use(rutasDeImportacionDeCatalogo(deps));
   api.use(rutasDeInstructores(deps));
   api.use(rutasDePrecios(deps));
   api.use(rutasDePromociones(deps));

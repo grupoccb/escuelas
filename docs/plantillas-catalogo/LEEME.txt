@@ -1,0 +1,88 @@
+﻿CÓMO LLENAR LAS PLANTILLAS DEL CATÁLOGO
+========================================
+
+Son hasta ocho archivos de Excel (CSV). Llena solo los que necesites; los que no cambian no hace falta subirlos. Si algo sale mal, el sistema te dice en qué
+archivo, fila y columna está el problema; no guarda nada hasta que todo esté bien y tú confirmes.
+
+ORDEN SUGERIDO (cada archivo usa nombres que escribiste en los anteriores):
+  1. disciplinas.csv    Lo que imparte la escuela (cada disciplina o actividad). Una fila por disciplina.
+  2. sucursales.csv     Los lugares donde se dan clases. Una fila por sucursal.
+  3. salones.csv        Los salones de cada sucursal. Una fila por salón.
+  4. instructores.csv   Quienes imparten las clases. Una fila por persona.
+  5. programas.csv      Cada oferta de una disciplina en una sucursal para un rango de edades. Una fila por programa y sucursal.
+  6. grupos.csv         Los grupos de cada programa, con su cupo, salón e instructor. Una fila por grupo.
+  7. horarios.csv       Los días y las horas de cada grupo. Una fila por cada día de clase (un grupo que se reúne dos días lleva dos filas).
+  8. precios.csv        Lo que cuesta cada programa. Una fila por precio; un precio nuevo empieza en su fecha y no cambia lo que ya se cobró.
+
+REGLAS GENERALES
+  - No cambies ni borres la primera fila (los encabezados). Puedes dejar vacías las columnas opcionales.
+  - La segunda fila de cada archivo es un EJEMPLO inventado (empieza con la palabra EJEMPLO). Bórrala o déjala: el sistema la ignora.
+  - Los nombres se escriben igual en todos los archivos (por ejemplo, la sucursal de un salón). No importan las mayúsculas ni los acentos.
+  - Guarda cada archivo como «CSV UTF-8 (delimitado por comas)». Si tu Excel solo ofrece «CSV (delimitado por comas)» o separa con punto y coma, también funciona.
+  - Fechas: día/mes/año, por ejemplo 15/09/2026. Horas: de 24 horas, por ejemplo 17:00. Días: lunes, martes, miércoles… Sí/No: escribe Sí o No.
+  - Dinero: 500 o 500.50 (también 500,50). Sin signo de pesos ni separador de miles.
+  - Varias sucursales en una misma celda: sepáralas con |, por ejemplo  Centro | Norte.
+
+LO QUE HACE EL SISTEMA CON LO QUE SUBES
+  - Lo que no existe, lo crea. Lo que ya existe y cambió en el archivo, lo actualiza. Lo que ya está igual, lo deja igual y dice «Sin cambios».
+  - NUNCA borra nada: si quitas una fila del archivo, lo que ya estaba en el sistema se queda. Para dar de baja algo, usa Administración.
+  - Una celda vacía en una fila que ya existe NO borra el dato que tenía: lo deja como está.
+  - Un precio nuevo empieza en su fecha «Vigente desde» y cierra el anterior. Los precios que ya se cobraron no cambian.
+  - Puedes subir el mismo archivo otra vez sin miedo: no duplica nada.
+
+DETALLE DE CADA ARCHIVO (OBLIGATORIAS marcadas con *)
+
+disciplinas.csv
+  - Disciplina *: El nombre como lo conocen las familias.
+  - Color: Color de la marca, como #2E7D32. Si lo dejas vacío, se usa el de la escuela.
+
+sucursales.csv
+  - Sucursal *: El nombre de la sucursal. No uses los signos | ; ni / en el nombre.
+  - Dirección: Calle, número, colonia y ciudad, como la leerías en un mapa.
+  - Zona horaria *: Centro, Pacífico, Sonora, Noroeste o Quintana Roo. De ahí sale el horario de los mensajes.
+
+salones.csv
+  - Sucursal *: La sucursal donde está el salón, escrita igual que en el archivo de sucursales.
+  - Salón *: El nombre del salón.
+  - Capacidad: Cuántas personas caben. El cupo de un grupo no puede ser mayor.
+
+instructores.csv
+  - Instructor *: Nombre y apellido.
+  - Teléfono: Con lada. A este número le llegan los avisos de las clases muestra por WhatsApp.
+  - Correo: Correo electrónico (opcional).
+  - Sucursales: Dónde da clases; si son varias, sepáralas con |. Vacío: en cualquiera.
+
+programas.csv
+  - Disciplina *: La disciplina, escrita igual que en el archivo de disciplinas.
+  - Sucursal *: La sucursal donde se imparte.
+  - Programa *: El nombre del programa (por ejemplo, el nivel o el grupo de edad). No se repite dentro de una sucursal.
+  - Edad mínima *: En años cumplidos, de 0 a 99.
+  - Edad máxima *: En años cumplidos. Debe ser igual o mayor que la mínima.
+  - Fecha de corte de edad: Si la edad se mide a una fecha fija (por ejemplo, el inicio del ciclo). Vacío: la edad de hoy.
+  - Nivel: El nivel, si lo hay (opcional).
+  - Descripción: Una o dos frases que verán las familias (opcional).
+  - Alternativa para la misma edad: Sí solo si este programa y otro de la misma disciplina y sucursal aceptan la misma edad y la familia elige entre ellos. Vacío: No.
+
+grupos.csv
+  - Sucursal *: La sucursal del programa.
+  - Programa *: El programa al que pertenece, escrito igual que en el archivo de programas.
+  - Grupo *: El nombre del grupo. No se repite dentro de un programa.
+  - Cupo *: Cuántos alumnos caben, de 1 a 500.
+  - Salón: El salón, escrito igual que en el archivo de salones.
+  - Instructor: Quien lo imparte, escrito igual que en el archivo de instructores.
+  - Lista de espera: Sí si, cuando se llene, se anota a las familias en una lista de espera. Vacío: No.
+
+horarios.csv
+  - Sucursal: Solo hace falta si hay grupos con el mismo nombre en varias sucursales.
+  - Programa: Solo hace falta si hay grupos con el mismo nombre en varios programas.
+  - Grupo *: El grupo, escrito igual que en el archivo de grupos.
+  - Día *: lunes, martes, miércoles, jueves, viernes, sábado o domingo.
+  - Hora de inicio *: En formato de 24 horas, por ejemplo 17:00.
+  - Hora de fin *: En formato de 24 horas, por ejemplo 18:00. Debe ser después de la de inicio.
+
+precios.csv
+  - Sucursal: Solo hace falta si hay programas con el mismo nombre en varias sucursales.
+  - Programa *: El programa, escrito igual que en el archivo de programas.
+  - Inscripción *: Lo que se paga una sola vez al inscribirse, en pesos (500 o 500.50). Si no hay, escribe 0.
+  - Mensualidad *: Lo que se paga cada mes, en pesos.
+  - Vigente desde *: Primer día en que rige este precio, como 01/09/2026.

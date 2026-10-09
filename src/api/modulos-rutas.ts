@@ -39,7 +39,7 @@ const REGLAS: readonly (readonly [Modulo, readonly string[]])[] = [
       "/api/usuarios", "/api/usuarios/*",
       "/api/grupos", "/api/grupos/:id",
       "/api/verticales", "/api/verticales/*", "/api/sucursales", "/api/sucursales/*", "/api/programas", "/api/programas/*", "/api/salones", "/api/salones/*",
-      "/api/instructores", "/api/instructores/*", "/api/precios", "/api/precios/*", "/api/promociones", "/api/promociones/*",
+      "/api/instructores", "/api/instructores/*", "/api/catalogo/*", "/api/precios", "/api/precios/*", "/api/promociones", "/api/promociones/*",
       "/api/canales-whatsapp", "/api/canales-whatsapp/*", "/api/bandejas-chatwoot", "/api/bandejas-chatwoot/*", "/api/plantillas", "/api/plantillas/*",
       "/api/automatizaciones", "/api/automatizaciones/*", "/api/documentos-legales", "/api/documentos-legales/*", "/api/motivos-baja", "/api/motivos-baja/*",
       "/api/campanas", "/api/campanas/*", "/api/codigos-rastreo", "/api/codigos-rastreo/*", "/api/tareas", "/api/tareas/*", "/api/leads", "/api/leads/*", "/api/etapas", "/api/etapas/*",
