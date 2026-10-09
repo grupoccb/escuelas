@@ -104,7 +104,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | K4 | HECHO (parcial: las alarmas de CloudWatch solo están escritas y validadas como código, no probadas en AWS; `/metricas` suma todas las organizaciones, sin etiqueta por organización) | ver `git log` (`K4:`) | Observabilidad: `/salud` (vivo) y `/salud/lista` (listo: base, migraciones, barrido), `/metricas` en formato Prometheus con token, teléfonos enmascarados siempre en los logs, `ciclo_completado` y `cuadratura_descuadre` para las alarmas |
 | K5 | HECHO | ver `git log` (`K5:`) | Respaldo y restauración probados en local: `npm run respaldo` / `npm run restaurar` (pg_dump -Fc, cifrado AES-256-GCM opcional, suma de verificación, retención); prueba con la historia de la demo: respaldar, restaurar en una base nueva y comparar conteos por tabla, migraciones y cuadratura; RPO/RTO documentados |
 | K6 | HECHO (parcial: escrita y validada, NUNCA desplegada ni con un `terraform plan` real contra AWS; los costos son estimaciones de lista) | ver `git log` (`K6:`) | Infraestructura como código para AWS en `infra/` (Terraform): VPC de tres capas, RDS cifrada, ECS Fargate (backend, Chatwoot, migración, cuadratura), ALB con HTTPS y reglas por ruta, WAF, Secrets Manager, S3 con ciclo de vida, CloudWatch con 10 alarmas, roles mínimos; `npm run infra:validar` |
-| K7 | PENDIENTE | | Documentación |
+| K7 | HECHO | ver `git log` (`K7:`) | Documentación: `docs/OPERACION.md` (por rol, las 20 tareas del asesor, variables de producción, rutina y alarmas), `docs/ALTA-DE-CLIENTE.md` + plantilla de organización probada, `docs/PENDIENTES-CREDENCIALES-REALES.md` y `docs/SUPUESTOS-Y-DECISIONES.md` (más de 100 decisiones abiertas y 45 filas de supuestos en una lista única) |
 | K8 | PENDIENTE | | Demo guiada |
 | K9 | PENDIENTE | | Auditoría final |
 
@@ -2958,3 +2958,20 @@ $ npm run infra:validar   → fmt, init (sin backend) y validate: «The configur
 **Para Eduardo**
 - Costo aproximado `[SUPUESTO]`: ~200 USD al mes en staging y ~370 en producción (tabla en `docs/INFRA-AWS.md`, con dónde se ahorra).
 - Nada se desplegó: antes de producción hace falta un `terraform plan` real, revisado, y los pasos de `docs/PENDIENTES-CREDENCIALES-REALES.md`.
+
+## K7. Documentación
+
+**Qué se hizo**
+- `docs/OPERACION.md`: la operación diaria de administrador, asesor, maestro y recepción; **qué hacer con cada uno de los 20 tipos de tarea** del asesor; las variables de producción (y que el backend se niega a arrancar sin ellas); la rutina diaria, semanal, mensual y trimestral; qué hacer cuando suena cada alarma; la advertencia de que la demo usa valores públicos.
+- `docs/ALTA-DE-CLIENTE.md`: cómo dar de alta una escuela nueva — la organización por seed (el invariante 1 prohíbe construir su alta) con `prisma/seed/plantilla-organizacion.sql` (nueva, idempotente, SIN usuarios de demo; probada en `src/seguridad/plantilla-organizacion.itest.ts`) y el primer administrador con `scripts/crear-usuario.ts`; después, en orden, verticales, sucursales, salones, programas, instructores, grupos y horarios, precios, promociones, productos, documentos legales, canal y bandeja, plantillas y automatizaciones, usuarios y roles, campañas y QR, catálogos; verificación antes de abrir y lo que la escuela debe entregar.
+- `docs/PENDIENTES-CREDENCIALES-REALES.md`: todo lo que falta con credenciales reales, por tabla y con «listo cuando»: cuentas y dominio, Twilio/WABA/plantillas aprobadas, vía de atribución A o C y estados de entrega de la vía A, Chatwoot en AWS, pruebas con teléfonos Telcel/AT&T/Movistar, navegadores y celulares reales, QR impreso, carga real, ensayo de restauración, prueba de penetración, y lo que depende de la escuela.
+- `docs/SUPUESTOS-Y-DECISIONES.md` (la compiló un subagente a partir de la bitácora, las auditorías, los seeds y los documentos de decisión; verifiqué sus conteos y una muestra de identificadores): una lista única de las decisiones de producto abiertas por tema (con columna para que Eduardo escriba la suya) y de todos los `[SUPUESTO]`, más las decisiones técnicas con su alternativa descartada.
+
+**Verificación**: documentación y una plantilla de seed con su prueba de integración; el árbol de K7 es el de K6 más esos archivos (la prueba nueva pasó sola y en la corrida completa del árbol final, ver K8).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **No se construyó una herramienta de alta de organizaciones** (invariante 1): una plantilla SQL con tres valores a cambiar. Alternativa descartada: `scripts/alta-organizacion.ts` (sería el «alta de organizaciones» que el invariante prohíbe construir).
+2. **Una sola lista de supuestos y decisiones**, en un archivo con columnas en blanco para Eduardo, en vez de repartirlas en 40 secciones de la bitácora.
+
+**Para Eduardo**
+- `docs/SUPUESTOS-Y-DECISIONES.md` es lo que tienes que decidir; empieza por «mensajería e INV-6» y «finanzas y cobranza».

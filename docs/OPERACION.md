@@ -1,0 +1,101 @@
+# Operación diaria (bloque K7)
+
+Para quien usa el sistema (administrador, asesor, maestro, recepción) y para quien lo mantiene. Las pantallas se llaman como en la barra de la interfaz. Todo lo que dice «el sistema manda…» pasa por `MessagingProvider`: respeta la ventana de 24 h (fuera de ella solo sale una plantilla aprobada), el horario de 09:00 a 20:00 de la sucursal, las bajas, el tope de frecuencia y la atención humana.
+
+## Por rol
+
+### Recepción (inicio: Registrar pago)
+- **Cobrar** (`Registrar pago`): busca a la familia por nombre o teléfono; escribe el monto; el sistema propone el reparto (el cargo más antiguo primero, entre todos los hijos). Si la familia pide otro reparto, se ajusta a mano y TIENE que sumar exactamente el pago. Un pago de más se rechaza (no hay saldo a favor): se cobra lo adeudado. Cada envío lleva una clave: si la caja se traba y se reenvía, no se cobra dos veces.
+- **Corregir un cobro equivocado**: se cancela el pago (queda registrado, no se borra) y se registra el correcto. Un cargo con pagos no se cancela suelto.
+- **Estado de cuenta**: saldo por hijo y total, y cuánto lleva vencido (0–30, 31–60, 60+ días).
+- **Uniformes y ventas**: `Uniformes` lista lo que se ganó con una promoción y ya se puede entregar (cuando se pagó la primera mensualidad). Se entrega eligiendo la talla del inventario. `Ventas` vende un producto (nace un cargo a nombre del responsable de pago) o anula una venta sin pagos.
+- **Pase de lista** en mostrador cuando el maestro no lo toma.
+- Ve alumnos y familias de SUS sucursales, nunca datos de salud.
+
+### Asesor (inicio: Embudo)
+- **Embudo**: cada lead en su etapa (Nuevo → Contactado → Clase muestra agendada → asistida → Negociación → Inscrito / Perdido). Mover de etapa deja historial; marcar «Perdido» pide el motivo, y recuperarlo pide una nota. «Estancados» son los que llevan más días sin movimiento de lo que marca su etapa.
+- **Tareas**: la bandeja de trabajo humano del sistema (ver la tabla de abajo). Cada tarea se marca «hecha» o «descartada».
+- **Ficha del lead**: atribución (de qué anuncio o QR llegó), cotizaciones, clase muestra, historial y el enlace directo a la conversación en Chatwoot. Cuando una persona escribe o se asigna la conversación en Chatwoot, el sistema marca «atención humana»: el bot y el marketing callan; los recordatorios de lo ya acordado (clase muestra, pago) siguen saliendo.
+- **Cotizar a mano**, **agendar / reprogramar / cancelar la clase muestra**, **convertir** al lead en familia, alumno e inscripción (el asistente solo pide lo que falta; nunca vuelve a pedir lo ya capturado) y cobrarlo en recepción.
+- Ve los leads y las familias de SUS sucursales.
+
+### Maestro (inicio: Hoy; pensado para el celular)
+- **Hoy**: las clases muestra de sus grupos (de hace 24 h a 14 días), con la hora local de la sucursal. No ve teléfonos ni correos de la familia ni importes.
+- **Registro del alumno** de la clase muestra: alumno completo, adultos como filas (quién paga, quién lo lleva, quién puede recogerlo), antecedentes, observación y **salud** (cifrada; solo el administrador y el maestro de ese grupo la ven, cada lectura queda registrada con su motivo). Se guarda como borrador, se «completa» (el sistema dice qué falta), y se acepta el reglamento y el uso de imagen con evidencia (versión, quién, cuándo).
+- **Asistencia**: asistió / no asistió (se puede corregir hasta 24 h después). Si no asistió, el sistema le escribe a la familia para reagendar y deja una tarea de llamada al asesor.
+- **Listo para cerrar**: avisa al asesor que la familia está lista para inscribirse (una tarea por lead). Con el modo `maestro_en_sitio` el maestro puede cerrar la inscripción de SUS alumnos.
+- **Avisos**: cada clase que se agenda, reprograma o cancela le llega por WhatsApp (plantilla) y a su pantalla. Si no llegó por WhatsApp, lo ve igual en la aplicación.
+- **Pase de lista** de sus grupos; **progresión** de sus alumnos.
+
+### Administrador (inicio: Embudo; todos los permisos)
+- Todo lo anterior, más: **Administración** (verticales, sucursales, programas, grupos, horarios, instructores, precios, promociones, plantillas, automatizaciones, límites, usuarios y roles; la interfaz y `docs/API.md`), **registro de cambios** y **quién vio la salud de quién**, **reportes** (ejecutivo, clases muestra, costo por alumno inscrito, exportaciones CSV) y la conciliación (`npm run cuadratura`).
+- **Dar de baja un usuario** lo desconecta al instante. Nunca queda la organización sin administrador activo.
+- Qué NO se edita a mano: un precio ya cobrado (se congela en cada inscripción), un pago (se cancela y se registra otro), el historial de etapas, las aceptaciones legales (solo se anexan; el texto nuevo es una versión nueva).
+
+## Qué hacer con cada tarea del asesor
+
+| Tarea | Qué pasó | Qué hacer |
+|---|---|---|
+| `sin_plantilla_apta` | Había que escribirle a alguien fuera de la ventana de 24 h y no hay plantilla aprobada que sirva | Escríbele tú por Chatwoot (plantilla o llamada) o pide aprobar la plantilla que falta |
+| `revision_manual` | Una automatización no salió por datos faltantes o de configuración | Lee la descripción, corrige el dato o la plantilla y, si procede, contacta a la familia a mano |
+| `automatizacion_omitida` | Una automatización no se mandó por un problema de configuración | Igual que arriba; avisa al administrador si se repite |
+| `baja_volvio_a_escribir` | Quien pidió la baja volvió a escribir. El sistema calla | Decide: si quiere regresar, atiéndelo; si no, confirma la baja |
+| `baja_solicitada` | Pidieron la baja mientras los atendía una persona | Confirma la baja (o aclara con la familia) |
+| `entrega_fallida` | WhatsApp reportó que un mensaje no se entregó (con el código de error) | Revisa el teléfono; llama o escribe por otro medio; corrige el teléfono del tutor |
+| `envio_incierto` | Un mensaje quedó a medias y no se sabe si salió. **No se reenvía solo** | Mira la conversación en Chatwoot: si la familia no lo recibió, escríbele tú |
+| `nota_fallida` | No se pudo dejar la nota interna del resumen | El resumen está en la ficha; lee la conversación |
+| `lista_espera_nueva` | Alguien entró a la lista de espera de un grupo lleno | Ofrécele otra opción o avísale cuando se libere un lugar |
+| `lista_espera_lugar_liberado` | Se liberó un lugar y le toca al primero de la fila | Ofrécele el lugar (tiene 48 h por omisión) y, si acepta, inscríbelo; si no, pasa al siguiente |
+| `aviso_maestro_no_enviado` | El aviso de una clase muestra al maestro no salió por WhatsApp (sin teléfono, sin plantilla, fallo) | Avisa al maestro por otro medio y corrige su teléfono en Administración |
+| `llamar_no_asistio` | La familia no llegó a su clase muestra | Llámale para reagendar (el sistema ya le escribió una vez) |
+| `lead_frio` | El lead lleva más días sin movimiento de lo que marca su etapa | Retómalo (llamada, mensaje) o márcalo como perdido con su motivo |
+| `listo_para_cerrar` | El maestro o un asesor marcó que la familia está lista | Convierte al lead (la vista previa dice qué falta) y pasa a recepción a cobrar. Se resuelve sola al convertir |
+| `faltas_consecutivas` | Una inscripción llegó al umbral de faltas seguidas (3 por omisión) | Contacta a la familia; se resuelve sola cuando vuelve a asistir |
+| `evento_inesperado` | Llegó algo raro por un webhook o la landing que el sistema no pudo procesar (el mensaje de la familia NO se pierde: se reenvía) | Revisa la conversación; si no hay conversación, la ve solo el administrador: avisa al equipo técnico con la hora |
+| `beneficio_en_revision` | Se canceló el pago que había liberado un beneficio ya entregado | Decide con recepción si se cobra el beneficio o se deja así |
+| `deuda_vencida` | Una familia lleva más de 15 días de atraso | Llámale; ofrece regularizar; se resuelve sola al saldarse |
+| `cobranza_sin_canal` | No hay conversación de WhatsApp para mandar el recordatorio de pago | Cobra por llamada o por otro medio |
+
+## Variables de producción
+
+El backend **se niega a arrancar** en producción si falta o es débil algo de esto (`src/seguridad/entorno.ts`; mensaje `entorno_inseguro` con el código de cada problema). En AWS las pone `infra/ecs.tf`; para otro despliegue:
+
+| Variable | Qué es |
+|---|---|
+| `NODE_ENV=production` | Activa cookie `Secure`, HSTS y las revisiones de arranque |
+| `DATABASE_URL` | La cuenta SIN dueño (`inscripciones_app`, creada por `scripts/preparar-roles.ts`), con `sslmode=require` |
+| `CLAVE_DATOS_SENSIBLES` | 32 bytes en base64 (`openssl rand -base64 32`). **Respáldala aparte** (`docs/RESPALDO.md`): sin ella no se leen las fichas de salud |
+| `ORIGEN_PUBLICO`, `PUBLIC_BASE_URL` | `https://…` del sistema (lo que firma Twilio; el origen de las peticiones que cambian algo) |
+| `COOKIE_SEGURA=true`, `TRUST_PROXY=1` | La cookie solo por https; un salto de confianza (el balanceador) para leer la IP real |
+| `CHATWOOT_URL`, `CHATWOOT_BOT_TOKEN`, `CHATWOOT_ADMIN_TOKEN`, `CHATWOOT_WEBHOOK_SECRETO`, `CHATWOOT_URL_PUBLICA` | Chatwoot (el secreto: 24 o más caracteres) |
+| `TWILIO_AUTH_TOKEN` | Para validar la firma de los webhooks de Twilio (con `PUBLIC_BASE_URL`) |
+| `METRICAS_TOKEN` | Para leer `/metricas` (sin él, la ruta no existe) |
+| `LIMITE_*` | Límites por IP (valores por omisión sensatos; `docs/API.md`) |
+
+NO existen en producción: `ENTORNO_DEMO`, `config/demo-local.env` ni ningún valor que contenga «demo-local». Los usuarios de la demo (`admin@demo.test`… con la contraseña pública `Demo-local-2026!`) solo se crean con el seed de la demo: **nunca corras `prisma/seed/demo.sql` en la base de una escuela real** (usa `prisma/seed/plantilla-organizacion.sql`; `docs/ALTA-DE-CLIENTE.md`).
+
+## Rutina
+
+| Cuándo | Qué | Cómo |
+|---|---|---|
+| Cada día | Ver la bandeja de tareas y el correo de alarmas | Interfaz → Tareas; CloudWatch → SNS |
+| Cada día (automático) | Cuadratura del dinero | EventBridge → `npm run cuadratura`; alarma `descuadre` |
+| Cada semana | Revisar `inscripciones_mensajes_bloqueados` y `inscripciones_entregas_fallidas`; plantillas rechazadas por Meta | `/metricas` desde la VPC; consola de Twilio |
+| Cada mes | `npm audit` (raíz y `web/`); rotar la contraseña de la cuenta de la aplicación si cambió alguien del equipo técnico | `docs/SEGURIDAD.md` |
+| Cada trimestre | Ensayo de restauración (base nueva, conteos, cuadratura, migraciones) y anotar la fecha | `docs/RESPALDO.md` |
+| Al desplegar | Tarea de migración ANTES de actualizar el servicio; verificar `/salud/lista` y la cuadratura | `docs/INFRA-AWS.md` |
+
+## Si suena una alarma
+
+| Alarma | Qué significa | Primer paso |
+|---|---|---|
+| `barrido-atrasado` | El ciclo de cada minuto no corre: no salen recordatorios ni cobranza ni se recuperan envíos | Logs del backend (`ciclo_error`, `barrido_error`); reiniciar la tarea si está colgada (ECS la reemplaza solo si `/salud/lista` falla) |
+| `ciclos-con-errores` | El barrido corre pero algo falla en cada vuelta | Logs `ciclo_error` con el nombre del barrido |
+| `descuadre` | Los cargos, pagos y aplicaciones no cuadran | `npm run cuadratura -- --json`; NO corregir a mano: investigar con el registro de cambios; avisar al equipo técnico |
+| `5xx` / `sin-tareas-sanas` | El backend falla o no hay tareas listas | `/salud/lista` dice cuál comprobación falla (base, migraciones, barrido) |
+| `eventos-inesperados` | Muchos webhooks con datos raros | Tareas `evento_inesperado`; ¿cambió Chatwoot o Twilio de formato? |
+| `rds-*` | La base de datos está saturada o sin espacio | Subir clase o disco (`infra/variables.tf`) |
+
+## Demo local frente a producción
+
+La demo (`docker compose up -d --build --wait`, `npm run demo:guiada`) usa contraseñas, tokens y claves PÚBLICAS, transporte de mensajes falso y puertos solo en 127.0.0.1. Es para enseñar y probar; nunca para datos reales. El backend de producción no arranca con esos valores.
