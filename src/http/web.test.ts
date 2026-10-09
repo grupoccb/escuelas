@@ -52,6 +52,18 @@ test("la raíz y cualquier ruta de la interfaz devuelven index.html, sin caché 
   });
 });
 
+test("EK-I05: index.html pedido por su nombre lleva la misma política de seguridad y no se guarda en caché", async () => {
+  await conBuild(async (pedir) => {
+    for (const ruta of ["/index.html", "/INDEX.HTML"]) {
+      const r = await pedir("GET", ruta);
+      if (r.estado === 404) continue; // sistemas de archivos sensibles a mayúsculas
+      assert.equal(r.estado, 200, ruta);
+      assert.equal(r.cabeceras.get("content-security-policy"), CSP_WEB, ruta);
+      assert.equal(r.cabeceras.get("cache-control"), "no-cache", ruta);
+    }
+  });
+});
+
 test("/assets son inmutables; un asset que no existe es 404 (nunca el HTML) y un archivo con extensión tampoco cae al fallback", async () => {
   await conBuild(async (pedir) => {
     const a = await pedir("GET", "/assets/app-abc123.js");

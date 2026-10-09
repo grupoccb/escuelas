@@ -40,15 +40,28 @@ export function rutasDeWeb(directorio: string): Router | null {
     else next();
   });
   r.use("/assets", express.static(join(raiz, "assets"), { fallthrough: false, immutable: true, maxAge: "365d", index: false, dotfiles: "ignore" }));
-  r.use(express.static(raiz, { index: false, maxAge: "1h", dotfiles: "ignore" }));
+  // EK-I05: `/index.html` pedido por su nombre también lleva la CSP y no se guarda en caché (antes salía de aquí sin ninguna de las dos).
+  const cabecerasDelHtml = (res: express.Response): void => {
+    res.setHeader("Content-Security-Policy", CSP_WEB);
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  };
+  r.use(
+    express.static(raiz, {
+      index: false,
+      maxAge: "1h",
+      dotfiles: "ignore",
+      setHeaders: (res, ruta) => {
+        if (extname(ruta).toLowerCase() === ".html") cabecerasDelHtml(res);
+      },
+    }),
+  );
   r.use((req, res, next) => {
     if ((req.method !== "GET" && req.method !== "HEAD") || extname(req.path) !== "") {
       next();
       return;
     }
-    res.setHeader("Content-Security-Policy", CSP_WEB);
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+    cabecerasDelHtml(res);
     res.sendFile(indice, { dotfiles: "allow" }, (err) => {
       if (err) next(err);
     });
