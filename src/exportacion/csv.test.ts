@@ -78,3 +78,8 @@ test("el tipo de una columna puede depender de la fila (indicador, valor): diner
   assert.equal(filaDeCsv(columnas, { v: "a,b", t: "texto" }), '"a,b"');
   assert.equal(encabezadoDeCsv(columnas), "Valor");
 });
+
+test("EK-I06: una celda con un retorno de carro en medio va entre comillas (si no, parte la fila en Excel)", () => {
+  assert.equal(celda("a\rb"), '"a\rb"');
+  assert.equal(celda("a\nb"), '"a\nb"');
+});

@@ -1,7 +1,7 @@
 -- PLANTILLA para dar de alta una escuela nueva (K7, docs/ALTA-DE-CLIENTE.md). NO se corre sola ni la corre docker compose.
 --
--- El alta de organizaciones NO está construida a propósito (invariante 1): la organización nace por seed, como esta. Copia el archivo, cambia SOLO los tres valores marcados
--- con CAMBIAR (nombre, identificador de inicio de sesión y, si la escuela lo pide, la zona horaria por omisión de sus sucursales se pone al darlas de alta) y córrelo UNA vez
+-- El alta de organizaciones NO está construida a propósito (invariante 1): la organización nace por seed, como esta. Copia el archivo, cambia SOLO los dos valores marcados
+-- con CAMBIAR (nombre e identificador de inicio de sesión; la zona horaria de cada sucursal se pone al darlas de alta) y córrelo UNA vez
 -- contra la base de la escuela con la cuenta que migra:
 --
 --     DATABASE_URL=<cuenta dueña> npx prisma db execute --file prisma/seed/mi-escuela.sql

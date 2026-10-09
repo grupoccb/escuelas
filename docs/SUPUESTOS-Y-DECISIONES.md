@@ -169,7 +169,7 @@ Lista única de lo que Eduardo debe decidir y de lo que la escuela debe confirma
 
 ## 3. Supuestos que la escuela debe confirmar
 
-Dónde vive cada uno: "API" significa que el administrador puede cambiarlo por la API (la pantalla de administración, J7 y J8, aún no existe); "SQL" significa que hoy solo se cambia en la base; "código" significa que hay que tocar el programa.
+Dónde vive cada uno: "API" significa que el administrador puede cambiarlo por la API (las pantallas de administración, J7 y J8, YA existen: lo que dice «SQL» en las filas de abajo se redactó antes de J7 y J8 y hoy casi todo se edita desde Administración o por la API: direcciones, edades, `fecha_corte_edad`, colores, `permite_traslape`, los límites de `configuracion_organizacion` y los desfases de las automatizaciones; K9, EK-I03: pendiente reescribir fila por fila); "SQL" significa que hoy solo se cambia en la base; "código" significa que hay que tocar el programa.
 
 ### 3.1 Catálogo, salones y personas
 

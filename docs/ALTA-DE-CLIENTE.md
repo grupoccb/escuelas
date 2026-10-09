@@ -1,6 +1,6 @@
 # Alta de un cliente nuevo (bloque K7)
 
-Cómo poner el sistema a trabajar para otra escuela **sin tocar una línea de código**. La prueba de que se puede es `src/captacion/prueba-de-fuego.itest.ts` (una vertical nueva solo con filas) y `src/robustez/prueba-de-fuego-total.itest.ts` (una sucursal y una vertical nuevas dadas de alta solo por la API de administración, operando de punta a punta).
+Cómo poner el sistema a trabajar para otra escuela **sin tocar una línea de código** (con UNA salvedad que la auditoría K9 dejó a la vista, EK-I02: las automatizaciones no se pueden crear por la API —solo editar, encender y apagar— y la plantilla de organización no las trae; mientras no se decida, una escuela nueva necesita que alguien técnico corra los seeds de plantillas y automatizaciones, `clase-muestra.sql` y `seguimiento.sql`, adaptados a su organización). La prueba de que se puede es `src/captacion/prueba-de-fuego.itest.ts` (una vertical nueva solo con filas) y `src/robustez/prueba-de-fuego-total.itest.ts` (una sucursal y una vertical nuevas dadas de alta solo por la API de administración, operando de punta a punta).
 
 ## Lo que SÍ y lo que NO se construye
 
@@ -32,7 +32,7 @@ En este orden, porque cada paso usa el anterior. «API» es el recurso de `docs/
 | 9 | **Productos** | Uniformes y artículos, con talla, precio y existencia; la entrega de un beneficio de producto descuenta del inventario |
 | 10 | **Documentos legales** | Reglamento, uso de imagen y aviso de privacidad (versión 1); sin reglamento vigente no se puede inscribir. **El aviso de privacidad debe revisarlo un abogado** |
 | 11 | **Canal de WhatsApp y bandeja de Chatwoot** | Un canal por vertical (y sucursal si la escuela separa números); su bandeja en Chatwoot con el Agent Bot apuntando a `https://<dominio>/webhooks/chatwoot`. En local lo hace `scripts/preparar-chatwoot.ts`; en AWS, a mano (`docs/INFRA-AWS.md`, paso 9) |
-| 12 | **Plantillas y automatizaciones** | Las plantillas se registran y aprueban en Twilio/Meta con el MISMO código; cada una declara si es de servicio o de marketing. Las automatizaciones (reenganche, recordatorios, cobranza…) se encienden por vertical y sucursal |
+| 12 | **Plantillas y automatizaciones** | Las plantillas se registran y aprueban en Twilio/Meta con el MISMO código; cada una declara si es de servicio o de marketing. Las automatizaciones (reenganche, recordatorios, cobranza…) hoy las crea un paso técnico (seed) y desde Administración se encienden, se apagan y se ajustan por vertical y sucursal (EK-I02: pendiente decidir si nacen sembradas o con alta por API) |
 | 13 | **Usuarios y roles** | Asesores (por sucursal), maestros (con su instructor), recepción (por sucursal), administradores. Vincular cada asesor con su agente de Chatwoot |
 | 14 | **Campañas y códigos QR** | Una campaña por fuente (anuncio, QR de sucursal…); el QR lleva el código de rastreo; los gastos de campaña se capturan a mano para el costo por alumno |
 | 15 | **Catálogos editables** | Motivos de pérdida y de baja, niveles de progresión, límites de frecuencia, modo de cierre de la inscripción (`maestro_en_sitio` o con asesor) |
