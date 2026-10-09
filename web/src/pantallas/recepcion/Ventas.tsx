@@ -1,7 +1,7 @@
 // Ventas de productos (uniformes, playeras…): la existencia a la vista, vender a un alumno (el cargo queda a nombre del responsable de pago) y anular. La última pieza
 // la gana una sola venta: el servidor descuenta la existencia de forma atómica y rechaza la otra con 409; la pantalla lo explica y refresca la existencia.
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import { formatear, multiplicar } from "../../lib/dinero.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
@@ -11,6 +11,7 @@ import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina a
 import { CampoArea, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
+import { claveParaEnvio } from "./reparto.ts";
 import type { Producto, Venta } from "./tipos.ts";
 
 interface AlumnoBuscado {
@@ -30,6 +31,8 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState("1");
   const accion = useAccion();
+  // UI-03: el mismo envío reintentado (corte de red, doble clic) lleva la MISMA clave y no duplica la venta; otro envío (o uno ya registrado) lleva una nueva.
+  const claveRef = useRef<{ firma: string; clave: string } | null>(null);
   const alumnos = useCarga((senal) => api.get<Pagina<AlumnoBuscado>>("/api/alumnos", { nombre: consulta ?? "", limite: 10 }, senal), [consulta], consulta !== null);
   const disponibles = productos.filter((p) => p.activo && p.stock > 0);
   const producto = disponibles.find((p) => p.id === productoId) ?? disponibles[0];
@@ -41,9 +44,12 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
   const vender = (e: FormEvent) => {
     e.preventDefault();
     if (!alumno || !producto || n === null || n < 1) return;
+    claveRef.current = claveParaEnvio(claveRef.current, JSON.stringify([alumno.id, producto.id, n]), "venta");
+    const clave = claveRef.current.clave;
     void accion
       .ejecutar(async () => {
-        alVender(await api.post<Venta>("/api/ventas", { alumno_id: alumno.id, producto_id: producto.id, cantidad: n }));
+        alVender(await api.post<Venta>("/api/ventas", { alumno_id: alumno.id, producto_id: producto.id, cantidad: n, clave_idempotencia: clave }));
+        claveRef.current = null;
         return true;
       })
       // Si falla (p. ej. alguien vendió la última pieza), la existencia que se ve ya no es la real: se vuelve a leer.

@@ -3003,6 +3003,8 @@ model venta {
   /// El día (calendario local de la sucursal) de la venta.
   fecha                    DateTime      @db.Date
   estatus                  estatus_venta @default(registrada)
+  /// K9 (UI-03): un reintento del mismo envío no duplica la venta (ni su cargo ni el descuento de existencia). Único parcial (organización, clave) entre las vivas, en la migración.
+  clave_idempotencia       String?       @db.VarChar(120)
   registrada_por_usuario_id String?      @db.Uuid
   anulada_en               DateTime?     @db.Timestamptz(6)
   anulada_por_usuario_id   String?       @db.Uuid

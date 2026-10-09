@@ -71,7 +71,7 @@ export interface VentaRegistrada {
 }
 
 /** Vende `cantidad` piezas de un producto a la familia de un alumno, con su cargo. Lanza `RechazoDeVenta`. */
-export async function venderProducto(tx: Consultas, ctx: ContextoDeVenta, e: { alumnoId: string; productoId: string; cantidad: number; tutorId?: string | null; sucursalId?: string | null }): Promise<VentaRegistrada> {
+export async function venderProducto(tx: Consultas, ctx: ContextoDeVenta, e: { alumnoId: string; productoId: string; cantidad: number; tutorId?: string | null; sucursalId?: string | null; clave?: string | null }): Promise<VentaRegistrada> {
   const producto = await tx.producto.findFirst({ where: { id: e.productoId, activo: true }, select: { id: true, nombre: true, talla: true, precio: true, stock: true } });
   if (!producto) throw new RechazoDeVenta("producto_inexistente", "No se encontró el producto, o ya no está activo");
   const alumno = await tx.alumno.findFirst({ where: { id: e.alumnoId }, select: { id: true, sucursal_id: true } });
@@ -93,7 +93,7 @@ export async function venderProducto(tx: Consultas, ctx: ContextoDeVenta, e: { a
   const hoy = await hoyDe(tx, sucursalId, ctx.ahora);
   try {
     const venta = await tx.venta.create({
-      data: altaConAlcance({ tutor_id: tutorId, alumno_id: alumno.id, producto_id: producto.id, sucursal_id: sucursalId, cantidad: e.cantidad, precio_unitario: aTexto(precio), es_promocional: false, fecha: aFecha(hoy), registrada_por_usuario_id: ctx.usuarioId }),
+      data: altaConAlcance({ tutor_id: tutorId, alumno_id: alumno.id, producto_id: producto.id, sucursal_id: sucursalId, cantidad: e.cantidad, precio_unitario: aTexto(precio), es_promocional: false, fecha: aFecha(hoy), clave_idempotencia: e.clave ?? null, registrada_por_usuario_id: ctx.usuarioId }),
       select: { id: true },
     });
     const cargo = await tx.cargo.create({

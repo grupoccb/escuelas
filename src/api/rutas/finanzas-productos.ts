@@ -18,6 +18,7 @@
 
 import express, { Router } from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
+import { esViolacionUnica } from "../../datos/prisma.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
 import { ajustarStock, anularVenta, RechazoDeVenta, venderProducto } from "../../finanzas/productos.ts";
 import { deFecha } from "../../catalogo/precios.ts";
@@ -37,7 +38,7 @@ const esquemaProducto = objeto({ vertical_id: uuid(), nombre: texto({ min: 2, ma
 const esquemaCambio = objeto({ nombre: opcional(texto({ min: 2, max: 120 })), talla: opcional(texto({ min: 1, max: 20 })), precio: opcional(dinero()), activo: opcional(booleano()) });
 const esquemaAjuste = objeto({ delta: entero({ min: -100000, max: 100000 }), motivo: texto({ min: 3, max: 200 }) });
 const esquemaListadoVentas = objeto({ ...esquemaPaginacion, alumno_id: opcional(uuid()), tutor_id: opcional(uuid()), producto_id: opcional(uuid()), estatus: opcional(enumerado(["registrada", "anulada"] as const)) });
-const esquemaVenta = objeto({ alumno_id: uuid(), producto_id: uuid(), cantidad: entero({ min: 1, max: 100 }), tutor_id: opcional(uuid()), sucursal_id: opcional(uuid()) });
+const esquemaVenta = objeto({ alumno_id: uuid(), producto_id: uuid(), cantidad: entero({ min: 1, max: 100 }), tutor_id: opcional(uuid()), sucursal_id: opcional(uuid()), clave_idempotencia: opcional(texto({ min: 8, max: 120, patron: /^[A-Za-z0-9._:-]+$/, mensajePatron: "Solo letras, números y . _ : -" })) });
 const esquemaAnular = objeto({ motivo: texto({ min: 3, max: 300 }) });
 
 const SELECCION_PRODUCTO = { id: true, vertical_id: true, nombre: true, talla: true, precio: true, stock: true, activo: true, creado_en: true, vertical: { select: { id: true, nombre: true } } } as const;
@@ -228,15 +229,30 @@ export function rutasDeProductos(_deps: DepsApi): express.Router {
       const alcance = await ctx.alcance();
       if (!alcance.todas && !alcance.sucursalIds.includes(e.sucursal_id)) throw noEncontrado("No se encontró la sucursal");
     }
+    // UI-03: con `clave_idempotencia`, un reintento devuelve la misma venta (200, `repetido: true`); la misma clave con otro contenido es 409.
+    const clave = e.clave_idempotencia ?? null;
+    const repetida = async (): Promise<ReturnType<typeof presentarVenta> | null> => {
+      if (!clave) return null;
+      const previa = await ctx.db.venta.findFirst({ where: { clave_idempotencia: clave }, select: { id: true, alumno_id: true, producto_id: true, cantidad: true } });
+      if (!previa) return null;
+      if (previa.alumno_id !== e.alumno_id || previa.producto_id !== e.producto_id || previa.cantidad !== e.cantidad) throw conflicto("Esa clave de idempotencia ya registró otra venta");
+      return presentarVenta(await leerVenta(ctx, previa.id));
+    };
+    const previa = await repetida();
+    if (previa) return void res.status(200).json({ ...previa, repetido: true });
     let ventaId: string;
     try {
       ventaId = await ctx.db.$transaction(async (tx) => {
-        const v = await venderProducto(tx, { ahora: ctx.ahora(), usuarioId: ctx.usuario.id }, { alumnoId: e.alumno_id, productoId: e.producto_id, cantidad: e.cantidad, tutorId: e.tutor_id ?? null, sucursalId: e.sucursal_id ?? null });
+        const v = await venderProducto(tx, { ahora: ctx.ahora(), usuarioId: ctx.usuario.id }, { alumnoId: e.alumno_id, productoId: e.producto_id, cantidad: e.cantidad, tutorId: e.tutor_id ?? null, sucursalId: e.sucursal_id ?? null, clave });
         await registrarCambio(tx, ctx, { entidad: "venta", entidadId: v.ventaId, accion: "crear", despues: { tutor_id: v.tutorId, alumno_id: e.alumno_id, producto_id: e.producto_id, cantidad: e.cantidad, total: aTexto(v.total), estatus: "registrada" } });
         return v.ventaId;
       });
     } catch (error) {
       if (error instanceof RechazoDeVenta) errorDeVenta(error);
+      if (clave && esViolacionUnica(error)) {
+        const igual = await repetida();
+        if (igual) return void res.status(200).json({ ...igual, repetido: true });
+      }
       throw error;
     }
     res.status(201).json(presentarVenta(await leerVenta(ctx, ventaId)));

@@ -9,6 +9,7 @@ import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Tarjeta } from "../../ui/
 import { CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
+import { claveParaEnvio } from "../recepcion/reparto.ts";
 import { Barras, Indicador } from "./Barras.tsx";
 import { Filtros, type ValoresDeFiltro } from "./Filtros.tsx";
 import type { FilaDeCosto, GastoDeCampana, ReporteDeCosto } from "./tipos.ts";
@@ -76,7 +77,7 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
           setLocal(e);
           if (Object.keys(e).length > 0 || m === null) return;
           const firma = JSON.stringify([campana.id, fecha, m, nota.trim()]);
-          claveRef.current = claveRef.current?.firma === firma ? claveRef.current : { firma, clave: `gasto-${crypto.randomUUID()}` };
+          claveRef.current = claveParaEnvio(claveRef.current, firma, "gasto");
           const clave = claveRef.current.clave;
           void guardar.ejecutar(async () => {
             await api.post(`/api/campanas/${campana.id}/gastos`, { fecha, monto: m, ...(nota.trim() ? { nota: nota.trim() } : {}), clave_idempotencia: clave });

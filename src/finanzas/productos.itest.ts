@@ -382,3 +382,29 @@ test("EH-18 (S14): una venta promocional por beneficio, también por SQL directo
     await apagar();
   }
 });
+
+test("UI-03: vender es idempotente con clave: el reintento (y una ráfaga de 15 envíos iguales) deja UNA venta, UN cargo y UN descuento de existencia; la misma clave con otro contenido es 409", async () => {
+  const p = await producto({ stock: 10, precio: "100.00" });
+  const a = await m.alumno();
+  const b = await m.alumno();
+  const clave = `venta-${randomUUID()}`;
+  const primera = await vender(m.recepcion, a.alumnoId, p.id, 2, { clave_idempotencia: clave });
+  assert.equal(primera.estado, 201, JSON.stringify(primera.cuerpo));
+  const otra = await vender(m.recepcion, a.alumnoId, p.id, 2, { clave_idempotencia: clave });
+  assert.deepEqual([otra.estado, otra.cuerpo.id, (otra.cuerpo as { repetido?: boolean }).repetido], [200, primera.cuerpo.id, true]);
+  assert.equal(await stockDe(p.id), 8, "solo se descontó una vez");
+  assert.equal((await vender(m.recepcion, a.alumnoId, p.id, 3, { clave_idempotencia: clave })).estado, 409, "otra cantidad");
+  assert.equal((await vender(m.recepcion, b.alumnoId, p.id, 2, { clave_idempotencia: clave })).estado, 409, "otro alumno");
+  const clave2 = `venta-${randomUUID()}`;
+  const rafaga = await Promise.all(Array.from({ length: 15 }, () => vender(m.recepcion, b.alumnoId, p.id, 1, { clave_idempotencia: clave2 })));
+  assert.equal(rafaga.filter((r) => r.estado === 201).length, 1, JSON.stringify(rafaga.map((r) => r.estado)));
+  assert.ok(rafaga.every((r) => r.estado === 201 || r.estado === 200), "ningún 5xx ni 409");
+  assert.equal(new Set(rafaga.map((r) => r.cuerpo.id)).size, 1);
+  assert.equal(await stockDe(p.id), 7);
+  assert.equal(await prisma.cargo.count({ where: { organizacion_id: m.org.organizacionId, venta_id: primera.cuerpo.id } }), 1);
+  // Sin clave todo sigue igual: dos envíos son dos ventas.
+  await vender(m.recepcion, b.alumnoId, p.id, 1);
+  await vender(m.recepcion, b.alumnoId, p.id, 1);
+  assert.equal(await stockDe(p.id), 5);
+  assert.equal((await vender(m.recepcion, a.alumnoId, p.id, 1, { clave_idempotencia: "corta" })).estado, 400);
+});

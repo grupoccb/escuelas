@@ -48,9 +48,13 @@ export function firmaDelPago(p: { tutor_id: string; monto: string; metodo: strin
 }
 
 /** Una clave de idempotencia nueva (8 a 120 caracteres de `A-Za-z0-9._:-`, como pide la API). */
-export const claveNueva = (): string => `pago-${crypto.randomUUID()}`;
+export function claveNueva(prefijo = "pago"): string {
+  // `crypto.randomUUID()` solo existe en contexto seguro (HTTPS o localhost): por HTTP desde la red local (la demo en un celular) se arma con `getRandomValues` (UI-07).
+  const uuid = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${prefijo}-${uuid}`;
+}
 
 /** Misma firma → misma clave (un doble clic o un reintento no duplica el pago); otra firma → clave nueva. */
-export function claveParaEnvio(anterior: { firma: string; clave: string } | null, firma: string): { firma: string; clave: string } {
-  return anterior && anterior.firma === firma ? anterior : { firma, clave: claveNueva() };
+export function claveParaEnvio(anterior: { firma: string; clave: string } | null, firma: string, prefijo = "pago"): { firma: string; clave: string } {
+  return anterior && anterior.firma === firma ? anterior : { firma, clave: claveNueva(prefijo) };
 }
