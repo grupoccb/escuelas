@@ -98,3 +98,12 @@ test("EH-02: el cargo de una venta no se cancela suelto (ni por la API ni por SQ
   assert.equal((await prisma.producto.findFirstOrThrow({ where: { id: v.producto_id } })).stock, 5);
   assert.deepEqual((await cuadratura(m.db)).discrepancias, []);
 });
+
+test("EH-09: un pago cubre un cargo UNA vez: una segunda aplicación del mismo pago al mismo cargo la rechaza el único de la base", async () => {
+  const i = await m.inscribir();
+  const c = (await prisma.cargo.findFirst({ where: { inscripcion_id: i.inscripcionId, concepto: "mensualidad" } }))!;
+  const p = await m.recepcion.post<{ id: string }>("/api/pagos", { tutor_id: i.tutorId, monto: "100.00", metodo: "efectivo", aplicaciones: [{ cargo_id: c.id, monto: "100.00" }] });
+  assert.equal(p.estado, 201);
+  await rechaza(() => sql(`INSERT INTO pago_aplicacion (organizacion_id, pago_id, cargo_id, monto_aplicado) VALUES ($1::uuid, $2::uuid, $3::uuid, 1)`, c.organizacion_id, p.cuerpo.id, c.id), /pago_aplicacion_pago_cargo_key|Unique constraint/);
+  assert.deepEqual((await cuadratura(m.db)).discrepancias, []);
+});

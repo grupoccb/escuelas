@@ -2944,6 +2944,8 @@ model pago_aplicacion {
   cargo        cargo        @relation(fields: [cargo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([id, organizacion_id])
+  // EH-09: un pago cubre un cargo UNA vez. El índice lo crea la migración de pagos; sin declararlo aquí, `prisma migrate dev` generaba un DROP INDEX.
+  @@unique([pago_id, cargo_id], map: "pago_aplicacion_pago_cargo_key")
   @@index([organizacion_id])
   @@index([pago_id])
   @@index([cargo_id])
