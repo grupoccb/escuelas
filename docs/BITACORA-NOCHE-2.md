@@ -2096,3 +2096,38 @@ Mutaciones atrapadas: el maestro que ve lo económico, la mensualidad sin el des
 - **[SUPUESTO]** qué ve el maestro (trayectoria y operativo), y que el comercial sea de asesor, recepción y administrador.
 - **Para H:** implementar `ProveedorEconomico` (H1 a H3) y `ProveedorProductos` (H5) y pasarlos en `server.ts` (`api: { …, expediente: { economico, productos } }`).
 - Decisión abierta: ¿el expediente debe mostrar al asesor los beneficios pendientes de una inscripción congelada? Hoy sí (solo se excluyen las bajas).
+
+
+## Cierre de INV-6, WH y la etapa G — para quien audite y para la etapa H
+
+**Estado.** `bitácora: estados con salvedades`, INV-6, WH, G1, G2, G3, G4 y G5 HECHOS (commits `bitácora: estados con salvedades`, `INV-6:`, `WH:`, `G1:` … `G5:`). Sin auditar ni etiquetar la etapa G (lo hace quien coordina). Ninguna salvedad nueva quedó sin anotar en su sección.
+
+**Verificación del último commit de código (`G5:`)**
+```
+$ npm run validar                                          → exit 0 · tests 537 · pass 537 · fail 0
+$ npm run test:int                                         → exit 0 · tests 924 · pass 924 · fail 0   (1.ª corrida)
+$ npm run test:int                                         → exit 0 · tests 924 · pass 924 · fail 0   (2.ª corrida seguida)
+$ DATABASE_URL_PRUEBAS=…/vacia_g_pruebas npm run test:int  → exit 0 · tests 924 · pass 924 · fail 0   (base NUEVA y vacía; luego se borró)
+```
+Las migraciones nuevas (`20261018000000` a `20261020010000`) se aplicaron también sobre una COPIA de la base de la demo con sus datos (pg_dump → otra base): `migrate deploy` exit 0, la plantilla de la demo (`reenganche_captacion`) quedó clasificada `marketing`, y sobre `inscripciones_pruebas` `migrate diff` da «No difference detected». **Aviso:** la copia de la demo muestra un desvío que NO es de este trabajo (`lead_etapa_historial.secuencia`: la base de la demo se migró antes de que se editara esa migración de D7); la demo se recrea con `docker compose down -v` y `up`, pero no se tocó.
+Corridas intermedias: `landing.itest.ts` («EE-02 concurrencia FORZADA», barrera de 3 s) falló una vez bajo carga y pasó 3 de 3 aislada y en las corridas completas siguientes (ya anotada en D/E).
+
+**Tablas nuevas:** `evento_inesperado` (WH), `asistencia` (G1), `nivel_progresion` y `alumno_progresion` (G3), `evento` y `evento_alumno` (G4). **Columnas nuevas:** `plantilla_mensaje.clase_mensaje` (INV-6, NOT NULL sin default), `tarea_asesor.lead_id` ahora admite nulo (WH), `tarea_asesor.inscripcion_id|referencia_fecha` y `configuracion_organizacion.umbral_faltas_consecutivas` (G2), `evento.otorga_progresion` (G4). **Enums:** `clase_mensaje`, `origen_evento_inesperado`, `causa_evento_inesperado`, `estatus_asistencia`, `metodo_asistencia`, `estatus_evento_alumno`, `resultado_evento`; valores `tipo_tarea_asesor.evento_inesperado|faltas_consecutivas`. **Migraciones:** `20261018000000_clase_mensaje`, `20261018010000_evento_inesperado`, `20261019000000_asistencia`, `20261019010000_asistencia_derivados`, `20261020000000_progresion`, `20261020010000_eventos`. La siguiente debe usar `20261021…` o mayor.
+
+**Helpers nuevos:** `src/webhooks/{clasificar,inesperado,forma}.ts` y `src/lib/transitorio.ts` (WH), `pasaConAtencionHumana`/`esDeServicio` en `src/mensajeria/reglas.ts` (INV-6), `src/asistencia/{pase,derivados,alcance}.ts`, `src/progresion/{progresion,elegibilidad}.ts`, `src/eventos/{eventos,alcance}.ts`, `src/expediente/{expediente,proveedores}.ts`; testutil `mundoDeOperacion` (`src/testutil/operacion.ts`: dos sucursales, un maestro por grupo, un cliente por rol y un reloj movible).
+**Permisos nuevos:** `asistencia:leer|registrar`, `progresion:escribir|corregir`, `eventos:leer|escribir|participantes`.
+
+**Clasificación de plantillas (INV-6) `[SUPUESTO]`:** servicio = `recordatorio_clase_muestra`, `bienvenida_inscripcion`, `aviso_maestro_*`; marketing = `reenganche_captacion`, `recuperacion_no_asistio`, `reenganche_lead_frio`, `promocion_por_vencer` (ver la tabla de INV-6).
+
+**Decisiones abiertas para Eduardo (resumen)**
+1. INV-6: el tope de «1 de marketing cada 7 días» cuenta por categoría de Meta, no por la clase declarada (si cuenta por clase, la recuperación de quien no llegó necesita otro tope); ED-11 (una tarea por cada omisión por atención humana: hoy solo el lead frío conserva la suya); la clasificación misma.
+2. WH: quién ve los eventos inesperados sin lead (hoy solo el administrador, por `GET /api/tareas?tipo=evento_inesperado`); si Chatwoot reintenta ante un 503 (no se probó con uno real).
+3. G1/G2: quién registra el pase (maestro, recepción, administrador); la justificada no cuenta ni corta la racha; umbral de 3.
+4. G3/G4: si se puede dar un peldaño que se salta uno; `otorga_progresion` por evento (campo agregado); una cuota por evento y no por alumno; excepciones del administrador para convocar a quien no cumple las clases.
+5. G5: qué ve el maestro del expediente (trayectoria y operativo, sin económico ni comercial).
+
+**Lo que necesita la etapa H**
+- **Cargos, pagos y estado de cuenta (H1 a H3):** implementar `ProveedorEconomico` (`estadoDeCuenta` → `{ disponible: true, saldo, vencido, antiguedadCarteraVencidaDias }`, dinero como texto con dos decimales) y pasarlo en `server.ts` dentro de `api: { …, expediente: { economico } }`. El expediente ya muestra `mensualidad_vigente` (lista − descuento en centavos), `dia_de_corte`/`proximo_corte`, `promocion_aplicada` y `beneficios_pendientes` (los de `promocion_aplicacion` sin entregar de inscripciones no dadas de baja); `evento.cuota` y `evento_alumno.estatus = pagado` esperan su cargo y su pago (hoy `pagado` es una marca manual de recepción).
+- **Recordatorio de pago (H6):** la plantilla debe DECLARAR `clase_mensaje = servicio` (NOT NULL: no se puede dar de alta sin decidirlo) y, como todo aviso de servicio, saldrá aunque una persona atienda la conversación (con plantilla aprobada, horario 09:00–20:00, baja total y frecuencia diaria; la baja de marketing no la frena). La verificación vive solo en `MessagingProvider`; la guarda estática impide que la automatización pregunte por el estado.
+- **Productos (H5):** `ProveedorProductos.productosComprados` para el expediente; `promocion_beneficio.producto_id` sigue siendo un uuid sin FK.
+- **Defensas en la base que H debe seguir:** cupo (`inscripcion_cupo_maximo`, `evento_alumno_cupo`), únicos parciales, CHECK de importes; el dinero solo con `src/lib/dinero.ts`; toda pantalla/endpoint nuevo con su test de concurrencia real (`src/testutil/carrera.ts`: barrera forzada, no `Promise.all` a secas).
