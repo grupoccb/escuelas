@@ -3246,3 +3246,9 @@ $ npx prisma migrate diff              → No difference detected
 **Para Eduardo**
 - Las decisiones de la sección 8 del informe (hermanos, automatizaciones de una escuela nueva, mapa evento → clase, reautenticación de administradores, «—» sin gasto, respaldo lógico en AWS).
 - Un auditor mandó un GET a `http://evil.com/` por un descuido de Playwright (sin datos del proyecto) y el test de respaldo intentó leer, sin escribir, una base inexistente en el Postgres de la demo; ver «Incidentes» en el informe. En ese servidor hay cuatro bases `respaldo_*_7b2171_*pruebas` residuales (no son la demo) que puedes borrar, y un archivo suelto `src/automatizaciones/motor 2.ts` sin versionar.
+
+## Cierre de la sesión (coordinación)
+
+- Verificación personal en `c5e30aa`: `npm run validar` exit 0 (676 tests de la raíz + 48 de `web/`; `check:generico` 705 archivos, `check:capas` 230); `npm run test:int` exit 0 (1125 tests).
+- Etiquetas `etapa-A` … `etapa-K`. Las etapas D y E comparten commit; `etapa-I`, `etapa-J` y `etapa-K` apuntan al HEAD final (I, J y K se auditaron juntas en K9, no una por una: desviación de la regla 1 por el tope de turnos; las correcciones de K9 no las verificó un agente distinto).
+- Incidentes: dos agentes tocaron servicios externos desde un navegador (`wa.me` / `api.whatsapp.com`, y un GET a un dominio de prueba); 16 procesos de saturación de CPU dejados por un agente se mataron; archivos duplicados `* 2.ts` (artefactos de sincronización) se movieron fuera del repo.
