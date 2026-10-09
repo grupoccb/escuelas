@@ -31,6 +31,33 @@ async function elegirFamilia(page: import("@playwright/test").Page): Promise<voi
   await page.getByTestId(`familia-${gomez.tutorId}`).getByRole("button", { name: "Elegir" }).click();
 }
 
+test.describe("cambiar de familia (EK-UI-01)", () => {
+  test("mientras carga la familia nueva NO se ve el saldo ni los cargos de la anterior, y el formulario de pago no está disponible", async ({ page }) => {
+    const otros = (await json<{ datos: { id: string; telefono: string; nombre: string }[] }>(admin, "/api/tutores?limite=50")).datos.filter((t) => t.id !== gomez.tutorId);
+    const otro = otros[0]!;
+    await elegirFamilia(page);
+    await expect(page.getByText("Hijo Uno").first()).toBeVisible();
+    // El estado de cuenta de la nueva familia tarda: durante la espera no debe quedar nada de la anterior.
+    let liberar: () => void = () => {};
+    const espera = new Promise<void>((r) => (liberar = r));
+    await page.route(`**/api/tutores/${otro.id}/estado-cuenta`, async (ruta) => {
+      await espera;
+      await ruta.continue();
+    });
+    await page.getByRole("button", { name: "Cambiar de familia" }).click();
+    await page.getByLabel("Teléfono o nombre de la familia").fill(otro.telefono);
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByTestId(`familia-${otro.id}`).getByRole("button", { name: "Elegir" }).click();
+    await expect(page.getByText("Hijo Uno")).toHaveCount(0);
+    await expect(page.getByText("Hija Dos")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Registrar pago" })).toHaveCount(0);
+    const llegó = page.waitForResponse((r) => r.url().includes(`/api/tutores/${otro.id}/estado-cuenta`));
+    liberar();
+    expect((await llegó).status()).toBe(200);
+    await expect(page.getByText("Hijo Uno")).toHaveCount(0);
+  });
+});
+
 test.describe("buscar a la familia", () => {
   test("por teléfono en cualquier formato y por nombre; lo que no existe se dice", async ({ page }) => {
     await page.goto("/pagos");

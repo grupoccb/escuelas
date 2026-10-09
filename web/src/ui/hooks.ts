@@ -26,12 +26,16 @@ export function useCarga<T>(cargar: (senal: AbortSignal) => Promise<T>, deps: re
   useEffect(() => {
     cargarRef.current = cargar;
   });
+  // EK-UI-01: si cambia de qué recurso se trata (`deps`), lo mostrado es de OTRO recurso y no se conserva (antes, al cambiar de familia en «Registrar pago» se veía el nombre
+  // de la nueva con el saldo y los cargos de la anterior). Una recarga del MISMO recurso (`recargar`, `poner`) sí conserva lo mostrado.
+  const depsPrevias = useRef<readonly unknown[]>(deps);
 
   useEffect(() => {
     if (!activo) return;
     const control = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- marcar «cargando» al empezar a pedir es el propósito del efecto
-    setEstado((e) => ({ ...e, cargando: true, error: null }));
+    const cambioElRecurso = depsPrevias.current.length !== deps.length || depsPrevias.current.some((d, i) => !Object.is(d, deps[i]));
+    depsPrevias.current = deps;
+    setEstado((e) => ({ datos: cambioElRecurso ? null : e.datos, cargando: true, error: null }));
     cargarRef
       .current(control.signal)
       .then((datos) => {
