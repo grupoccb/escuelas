@@ -1,0 +1,90 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ErrorDeApi } from "../api/cliente.ts";
+
+export function comoErrorDeApi(e: unknown): ErrorDeApi {
+  if (e instanceof ErrorDeApi) return e;
+  return new ErrorDeApi(0, "desconocido", "Algo salió mal. Inténtalo de nuevo.");
+}
+
+export interface Carga<T> {
+  datos: T | null;
+  cargando: boolean;
+  error: ErrorDeApi | null;
+  recargar(): void;
+  /** Reemplaza lo cargado sin pedirlo otra vez (después de una acción que ya devolvió el valor nuevo). */
+  poner(valor: T): void;
+}
+
+/**
+ * Carga un recurso al montar y cada vez que cambian `deps`. Cancela lo que quedó atrás (`AbortController`), conserva lo ya mostrado mientras recarga
+ * y deja el error a la vista (`error`) para que la pantalla ofrezca reintentar. Nunca registra nada en la consola.
+ */
+export function useCarga<T>(cargar: (senal: AbortSignal) => Promise<T>, deps: readonly unknown[], activo = true): Carga<T> {
+  const [estado, setEstado] = useState<{ datos: T | null; cargando: boolean; error: ErrorDeApi | null }>({ datos: null, cargando: activo, error: null });
+  const [version, setVersion] = useState(0);
+  const cargarRef = useRef(cargar);
+  useEffect(() => {
+    cargarRef.current = cargar;
+  });
+
+  useEffect(() => {
+    if (!activo) return;
+    const control = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- marcar «cargando» al empezar a pedir es el propósito del efecto
+    setEstado((e) => ({ ...e, cargando: true, error: null }));
+    cargarRef
+      .current(control.signal)
+      .then((datos) => {
+        if (!control.signal.aborted) setEstado({ datos, cargando: false, error: null });
+      })
+      .catch((e: unknown) => {
+        if (control.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
+        setEstado((anterior) => ({ datos: anterior.datos, cargando: false, error: comoErrorDeApi(e) }));
+      });
+    return () => control.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `deps` lo decide quien llama
+  }, [...deps, version, activo]);
+
+  const recargar = useCallback(() => setVersion((v) => v + 1), []);
+  const poner = useCallback((valor: T) => setEstado({ datos: valor, cargando: false, error: null }), []);
+  return { ...estado, recargar, poner };
+}
+
+export interface Accion {
+  ocupado: boolean;
+  error: ErrorDeApi | null;
+  /** Corre la acción; devuelve su valor, o `undefined` si falló (el error queda en `error`). Ignora un segundo clic mientras corre. */
+  ejecutar<R>(f: () => Promise<R>): Promise<R | undefined>;
+  limpiar(): void;
+}
+
+/** Una acción de escritura (guardar, mover, cobrar): estado de «ocupado» y error, y NUNCA se ejecuta dos veces a la vez. */
+export function useAccion(): Accion {
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<ErrorDeApi | null>(null);
+  const corriendo = useRef(false);
+  const ejecutar = useCallback(async <R,>(f: () => Promise<R>): Promise<R | undefined> => {
+    if (corriendo.current) return undefined;
+    corriendo.current = true;
+    setOcupado(true);
+    setError(null);
+    try {
+      return await f();
+    } catch (e) {
+      setError(comoErrorDeApi(e));
+      return undefined;
+    } finally {
+      corriendo.current = false;
+      setOcupado(false);
+    }
+  }, []);
+  const limpiar = useCallback(() => setError(null), []);
+  return { ocupado, error, ejecutar, limpiar };
+}
+
+/** Pone el título de la pestaña (lo lee un lector de pantalla al cambiar de pantalla). */
+export function useTitulo(titulo: string): void {
+  useEffect(() => {
+    document.title = `${titulo} · Gestión`;
+  }, [titulo]);
+}

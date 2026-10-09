@@ -79,6 +79,22 @@ asesor convierte; con `configuracion_organizacion.modo_cierre = 'maestro_en_siti
 El seed trae los motivos de baja de ejemplo `[SUPUESTO]` y la plantilla/automatización de **bienvenida de inscripción** (`bienvenida_inscripcion`, de servicio): con el
 motor corriendo, al inscribir sale a la conversación del tutor responsable (por el transporte configurado; sin Twilio real, solo se registra).
 
+## Interfaz web
+
+Con `docker compose up -d --build --wait` el backend también sirve la interfaz en **http://localhost:3000** (la compila una etapa del `Dockerfile`; no hace falta instalar nada). Entra con
+cualquiera de los usuarios de abajo (la contraseña es `Demo-local-2026!`; el campo «Escuela» se deja vacío mientras haya una sola): cada rol ve solo sus secciones (el maestro, «Hoy» y «Pase de lista»; el asesor,
+el embudo y las tareas; recepción, pagos, estado de cuenta, uniformes y ventas). En el celular la navegación es una barra inferior; en escritorio, una barra lateral.
+
+```bash
+npm run web:instalar     # una vez: las dependencias de web/ (también las instala `npm install` de la raíz)
+npm run web:dev          # desarrollo con recarga en http://localhost:5173 (proxy al backend en :3000; API_URL lo cambia)
+npm run web:build        # el build que sirve el backend (web/dist)
+npm run test:navegador   # pruebas en Chromium contra el backend real y una base PROPIA (nunca la de la demo)
+```
+
+La primera vez para las pruebas en navegador: `npx --prefix web playwright install chromium`. La ficha del lead abre su conversación en Chatwoot con `CHATWOOT_URL_PUBLICA`
+(en compose ya es `http://localhost:3001`). Las capturas de las pantallas (celular y escritorio, con datos de prueba) quedan en `docs/capturas/`.
+
 ## Usuarios de la aplicación (API)
 
 La API vive en `http://localhost:3000/api` (ver `docs/API.md`). El seed de la demo crea la

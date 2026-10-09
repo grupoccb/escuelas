@@ -32,6 +32,8 @@ export interface DepsApi {
   fuenteOcupacion: FuenteOcupacion;
   /** Los enchufes del expediente del alumno hacia finanzas y productos (G5): por omisión, las implementaciones nulas documentadas. */
   expediente: ProveedoresDelExpediente;
+  /** URL pública de Chatwoot (sin barra final) para armar el enlace a una conversación desde la interfaz (J3). Nulo = no configurada. */
+  chatwootUrlPublica: string | null;
 }
 
 export interface ContextoApi {

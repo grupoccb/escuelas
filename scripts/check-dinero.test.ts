@@ -130,3 +130,16 @@ test("el script sale con código 1 si hay violaciones y 0 si no", () => {
     rmSync(raiz, { recursive: true, force: true });
   }
 });
+
+test("J1: la interfaz (web/src) también: recepción, conversión y su formateador de dinero son zonas estrictas", () => {
+  assert.deepEqual(hallazgos({ "web/src/pantallas/recepcion/a.tsx": `const x = Number(fila.v);` }), ["web/src/pantallas/recepcion/a.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/conversion/a.tsx": `const x = parseFloat(t);` }), ["web/src/pantallas/conversion/a.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/recepcion/a.tsx": `const d = importe * 0.15;` }), ["web/src/pantallas/recepcion/a.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/lib/dinero.ts": `return Number(texto);` }), ["web/src/lib/dinero.ts:1"]);
+  assert.deepEqual(hallazgos({ "web/src/lib/dinero.ts": `return d.toFixed(2);` }), ["web/src/lib/dinero.ts:1"], "en la interfaz ni siquiera dinero.ts usa toFixed");
+  // Fuera de esas zonas, solo las líneas con palabra de dinero.
+  assert.deepEqual(hallazgos({ "web/src/pantallas/asesor/a.tsx": `const n = Number(params.pagina);` }), []);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/asesor/a.tsx": `const n = Number(cotizacion.precio);` }), ["web/src/pantallas/asesor/a.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/asesor/a.tsx": `const n = parseFloat(x);` }), ["web/src/pantallas/asesor/a.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/recepcion/a.test.ts": `Number("1")` }), []);
+});

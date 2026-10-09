@@ -49,6 +49,7 @@ export { DirectorioAgentesChatwoot } from "./chatwoot/directorio.ts";
 export { AtribucionSimulada, SinAtribucion, type Atribucion, type FuenteAtribucion } from "./atribucion.ts";
 export { AtribucionDesdeChatwoot } from "./chatwoot/atribucion.ts";
 export { EstadosEntregaChatwoot } from "./chatwoot/estados.ts";
+export { urlPublicaDeChatwoot } from "./chatwoot/url-publica.ts";
 export {
   barrerEventosEntrega,
   conciliarEventosPendientes,

@@ -10,6 +10,7 @@ import type { ConfigLimites } from "./config-limites.ts";
 import type { LimitadorDeTasa } from "./limite.ts";
 import { admitirWebhookValido, rechazar429, registrarFirmaInvalida } from "./limite-http.ts";
 import { rutasDeLanding } from "./landing.ts";
+import { rutasDeWeb } from "./web.ts";
 import { manejadorSoloLog, type ContextoDeEvento, type ManejadorDeInesperados } from "../webhooks/inesperado.ts";
 import { formaDe, formaDeBytes, huella, idSeguro } from "../webhooks/forma.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
@@ -69,6 +70,8 @@ export interface AppDeps {
   registrarEstadoEntrega(cambio: CambioDeEstado): Promise<string>;
   /** Borde de Twilio. Sin él, las rutas /webhooks/twilio/* rechazan todo. */
   twilio?: AppTwilio;
+  /** Interfaz web (J1): el build estático de Vite en `/`. Sin build (`index.html`) en el directorio, el backend sigue sin interfaz. */
+  web?: { directorio: string };
   /** API de la aplicación (/api). Sin ella, /api no existe. */
   api?: ApiDepsEntrada;
   /** Qué hacer con un evento que no se pudo procesar (WH). Sin él solo se clasifica y se loguea; `server.ts` pasa el que guarda la constancia y la tarea. */
@@ -266,6 +269,13 @@ export function crearApp(deps: AppDeps): Express {
         else res.status(502).end();
       }
     });
+  }
+
+  // Interfaz web (J1): al final, para que no tape nada del backend; `/api`, `/webhooks`, `/l` y `/salud` pasan de largo (src/http/web.ts).
+  if (deps.web) {
+    const web = rutasDeWeb(deps.web.directorio);
+    if (web) app.use(web);
+    else log.warn("web_sin_build", { directorio: deps.web.directorio });
   }
 
   // Errores de Express (cuerpo demasiado grande, etc.): sin detalles hacia afuera.

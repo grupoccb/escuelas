@@ -58,3 +58,34 @@ jobs:
       - run: npm run demo:contacto
       - if: failure()
         run: docker compose logs chatwoot-setup demo-preparar backend
+
+  navegador:
+    name: Pruebas en navegador real (J)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: inscripciones
+          POSTGRES_PASSWORD: inscripciones
+          POSTGRES_DB: inscripciones
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inscripciones"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # El postinstall de la raíz también instala web/.
+      - run: npm ci
+      - run: npx --prefix web playwright install --with-deps chromium
+      # Compila la interfaz, crea la base inscripciones_navegador_pruebas y corre Playwright contra el backend real.
+      - run: npm run test:navegador
+        env:
+          DATABASE_URL_NAVEGADOR: postgresql://inscripciones:inscripciones@localhost:5432/inscripciones_navegador_pruebas

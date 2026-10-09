@@ -34,7 +34,7 @@ const SELECCION = {
   creado_en: true,
 } as const;
 
-const esquemaListado = objeto({ ...esquemaPaginacion, estado: opcional(enumerado(ESTADOS_DE_TAREA)), tipo: opcional(enumerado(TIPOS_DE_TAREA)) });
+const esquemaListado = objeto({ ...esquemaPaginacion, estado: opcional(enumerado(ESTADOS_DE_TAREA)), tipo: opcional(enumerado(TIPOS_DE_TAREA)), lead_id: opcional(uuid()) });
 const esquemaId = objeto({ id: uuid() });
 const esquemaResolver = objeto({ estado: enumerado(["hecha", "descartada"] as const) });
 
@@ -47,7 +47,7 @@ export function rutasDeTareas(_deps: DepsApi): Router {
     const q = parsearQuery(esquemaListado, req.query);
     const pag = leerPaginacion(q);
     const filtro = filtroDeSucursal(await ctx.alcance());
-    const where = { ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
+    const where = { ...(q.estado ? { estado: q.estado } : {}), ...(q.tipo ? { tipo: q.tipo } : {}), ...(q.lead_id ? { lead_id: q.lead_id } : {}), ...(filtro ? { OR: [{ lead: { sucursal_interes_id: filtro } }, { inscripcion: { grupo: { programa: { sucursal_id: filtro } } } }, { cargo: { sucursal_id: filtro } }] } : {}) };
     res.json(
       await paginar(
         pag,

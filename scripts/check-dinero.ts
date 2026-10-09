@@ -24,7 +24,7 @@
 // `dinero.ts`, los de cada módulo con importes exactos (p. ej. 15 % de $1,234.50) y la revisión: todo cálculo de dinero
 // entra por `src/lib/dinero.ts`.
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sinComentarios } from "./check-sensibles.ts";
@@ -35,6 +35,8 @@ const PALABRAS_DE_DINERO = /(?:monto|precio|costo|importe|saldo|pago|cargo|descu
 const LLAMADAS_DE_FLOTANTE = /\bNumber\s*\(|\bparseInt\s*\(|\.toFixed\s*\(|\bMath\s*\.\s*(?:round|floor|ceil|trunc|fround)\s*\(/;
 const ZONAS_DE_DINERO = ["promociones/", "cotizador/", "finanzas/", "pagos/", "cobranza/", "inscripciones/", "conversion/", "eventos/", "expediente/", "catalogo/precios.ts", "api/rutas/eventos.ts", "api/rutas/expediente.ts", "api/rutas/finanzas-", "api/rutas/reportes-", "reportes/", "demo/", "exportacion/"];
 const EXENTO_DE_TOFIXED = "lib/dinero.ts";
+/** La interfaz (J1): lo que maneja importes es zona estricta. El formateador de dinero (`lib/dinero.ts`) opera en `bigint` y texto. */
+const ZONAS_DE_DINERO_WEB = ["pantallas/recepcion/", "pantallas/conversion/", "lib/dinero.ts"];
 
 /** Funciones que bajan un importe a flotante, por su nombre (para el acceso por corchetes). */
 const NOMBRES_DE_FLOTANTE = "toNumber|toFixed|parseFloat|parseInt|Number|round|floor|ceil|trunc|fround";
@@ -86,50 +88,59 @@ function archivosDe(src: string): string[] {
 }
 
 export function escanearDinero(raiz: string): { archivos: number; hallazgos: HallazgoDinero[] } {
-  const src = join(raiz, "src");
-  const archivos = archivosDe(src);
   const hallazgos: HallazgoDinero[] = [];
-  for (const archivo of archivos) {
-    const rel = relative(src, archivo).split(sep).join("/");
-    const enZona = ZONAS_DE_DINERO.some((z) => rel.startsWith(z) || rel === z);
-    const texto = sinComentarios(readFileSync(archivo, "utf8"));
-    const lineas = texto.split("\n");
-    const vistos = new Set<string>();
-    const anotar = (linea: number, regla: string): void => {
-      const llave = `${linea}|${regla}`;
-      if (vistos.has(llave)) return;
-      vistos.add(llave);
-      hallazgos.push({ archivo: `src/${rel}`, linea, regla, texto: (lineas[linea - 1] ?? "").trim().slice(0, 120) });
-    };
+  let total = 0;
+  // El backend (src/) y, si existe, la interfaz (web/src/).
+  const raices = [
+    { dir: join(raiz, "src"), prefijo: "src", zonas: ZONAS_DE_DINERO },
+    { dir: join(raiz, "web", "src"), prefijo: "web/src", zonas: ZONAS_DE_DINERO_WEB },
+  ];
+  for (const { dir, prefijo, zonas } of raices) {
+    if (!existsSync(dir)) continue;
+    const archivos = archivosDe(dir);
+    total += archivos.length;
+    for (const archivo of archivos) {
+      const rel = relative(dir, archivo).split(sep).join("/");
+      const enZona = zonas.some((z) => rel.startsWith(z) || rel === z);
+      const texto = sinComentarios(readFileSync(archivo, "utf8"));
+      const lineas = texto.split("\n");
+      const vistos = new Set<string>();
+      const anotar = (linea: number, regla: string): void => {
+        const llave = `${linea}|${regla}`;
+        if (vistos.has(llave)) return;
+        vistos.add(llave);
+        hallazgos.push({ archivo: `${prefijo}/${rel}`, linea, regla, texto: (lineas[linea - 1] ?? "").trim().slice(0, 120) });
+      };
 
-    // 1. Reglas sobre el texto entero (no las esquiva un salto de línea).
-    for (const r of REGLAS_DE_TEXTO) {
-      for (const m of texto.matchAll(r.re)) {
-        const linea = texto.slice(0, m.index).split("\n").length;
-        if (r.donde === "zona" && !enZona) continue;
-        if (r.donde === "dinero" && !enZona && !PALABRAS_DE_DINERO.test(lineas[linea - 1] ?? "")) continue;
-        anotar(linea, r.regla);
+      // 1. Reglas sobre el texto entero (no las esquiva un salto de línea).
+      for (const r of REGLAS_DE_TEXTO) {
+        for (const m of texto.matchAll(r.re)) {
+          const linea = texto.slice(0, m.index).split("\n").length;
+          if (r.donde === "zona" && !enZona) continue;
+          if (r.donde === "dinero" && !enZona && !PALABRAS_DE_DINERO.test(lineas[linea - 1] ?? "")) continue;
+          anotar(linea, r.regla);
+        }
       }
-    }
 
-    // 2. Llamadas a Number(, parseInt(, .toFixed( y Math.round…( : línea por línea.
-    lineas.forEach((linea, i) => {
-      const llama = LLAMADAS_DE_FLOTANTE.exec(linea);
-      if (!llama) return;
-      if (llama[0].includes("toFixed") && rel === EXENTO_DE_TOFIXED) return;
-      if (enZona) return anotar(i + 1, `${llama[0].replace(/\s*\($/, "")}() en una zona de dinero: usa centavos (src/lib/dinero.ts)`);
-      if (PALABRAS_DE_DINERO.test(linea)) anotar(i + 1, `${llama[0].replace(/\s*\($/, "")}() sobre una línea de dinero: usa centavos (src/lib/dinero.ts)`);
-    });
+      // 2. Llamadas a Number(, parseInt, .toFixed( y Math.round…( : línea por línea.
+      lineas.forEach((linea, i) => {
+        const llama = LLAMADAS_DE_FLOTANTE.exec(linea);
+        if (!llama) return;
+        if (llama[0].includes("toFixed") && prefijo === "src" && rel === EXENTO_DE_TOFIXED) return;
+        if (enZona) return anotar(i + 1, `${llama[0].replace(/\s*\($/, "")}() en una zona de dinero: usa centavos (src/lib/dinero.ts)`);
+        if (PALABRAS_DE_DINERO.test(linea)) anotar(i + 1, `${llama[0].replace(/\s*\($/, "")}() sobre una línea de dinero: usa centavos (src/lib/dinero.ts)`);
+      });
+    }
   }
   hallazgos.sort((a, b) => (a.archivo < b.archivo ? -1 : a.archivo > b.archivo ? 1 : a.linea - b.linea));
-  return { archivos: archivos.length, hallazgos };
+  return { archivos: total, hallazgos };
 }
 
 function main(): void {
   const i = process.argv.indexOf("--raiz");
   const raiz = i >= 0 && process.argv[i + 1] ? resolve(process.argv[i + 1]!) : RAIZ_REPO;
   const { archivos, hallazgos } = escanearDinero(raiz);
-  console.log(`check:dinero: ${archivos} archivos de src/ escaneados.`);
+  console.log(`check:dinero: ${archivos} archivos de src/ y web/src/ escaneados.`);
   if (hallazgos.length === 0) {
     console.log("✓ Ningún importe pasa por punto flotante (revisión de texto).");
     return;

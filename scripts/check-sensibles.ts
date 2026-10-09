@@ -14,6 +14,11 @@
 //      no puede salir de la ficha con un nombre neutro (`vals`, `x`) hacia un log o un texto: para
 //      tenerlo en claro hay que pasar por la ruta de salud, que ya pasó el permiso y el registro.
 //
+//   5. (J1) en la INTERFAZ (`web/src/`): los mismos campos solo se nombran en `web/src/salud/` (el único módulo que los captura y los
+//      muestra); ninguna llamada a `console.*`, `localStorage/sessionStorage.setItem` ni `sendBeacon` los lleva; y `web/src/salud/` no toca
+//      el almacenamiento del navegador (`localStorage`, `sessionStorage`, `indexedDB`, `document.cookie`, `caches`): lo escrito de salud vive
+//      solo en la memoria de la página.
+//
 //   npm run check:sensibles
 //   node scripts/check-sensibles.ts --raiz <dir>
 //
@@ -27,7 +32,7 @@
 // (src/sensibles/fuga.itest.ts, que ejecuta los flujos que existen) y la revisión de quien toque esas
 // dos carpetas. Cada flujo nuevo que toque datos de salud debe sumarse a fuga.itest.ts.
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RAICES_SENSIBLES, normalizarNombre } from "../src/sensibles/campos.ts";
@@ -46,13 +51,22 @@ const LLAMADAS_VIGILADAS = [
   /\bresumenParaAsesor\s*\(/g,
   /\bresumenAsesor\s*\(/g,
   /\basegurarTarea(?:Asesor|DeMensaje|EnTransaccion)\s*\(/g,
+  // La interfaz (J1): lo que va a la consola, al almacenamiento del navegador o a un beacon de telemetría.
+  /\bconsole\s*\.\s*(?:log|info|warn|error|debug|trace)\s*\(/g,
+  /\b(?:localStorage|sessionStorage)\s*\.\s*setItem\s*\(/g,
+  /\bsendBeacon\s*\(/g,
 ];
+
+/** En la interfaz, el módulo de salud no toca el almacenamiento del navegador. */
+const ALMACENAMIENTO_DEL_NAVEGADOR = /\b(?:localStorage|sessionStorage|indexedDB|caches)\b|document\s*\.\s*cookie/;
 
 /** `.revelar(`, `?.revelar(`, `["revelar"]`: las formas de pedirle a un `Sensible` su valor. */
 const REVELAR = /\.\s*revelar\b|\[\s*["'`]revelar["'`]\s*\]/;
 
 /** Rutas (relativas a src/, con "/") donde SÍ se nombran los campos sensibles. */
 const PERMITIDAS = ["sensibles/", "api/rutas/salud.ts"];
+/** Lo mismo en la interfaz (relativas a web/src/). */
+const PERMITIDAS_WEB = ["salud/"];
 
 export interface HallazgoSensible {
   archivo: string;
@@ -141,50 +155,66 @@ function archivosDe(src: string): string[] {
 }
 
 export function escanearSensibles(raiz: string): { archivos: number; hallazgos: HallazgoSensible[] } {
-  const src = join(raiz, "src");
-  const archivos = archivosDe(src);
   const hallazgos: HallazgoSensible[] = [];
-  for (const archivo of archivos) {
-    const rel = relative(src, archivo).split(sep).join("/");
-    const codigo = sinComentarios(readFileSync(archivo, "utf8"));
-    const vistos = new Set<string>();
-    const anotar = (linea: number, regla: string, campo: string): void => {
-      const llave = `${linea}|${regla}`;
-      if (vistos.has(llave)) return;
-      vistos.add(llave);
-      hallazgos.push({ archivo: `src/${rel}`, linea, regla, campo });
-    };
+  let total = 0;
+  // El backend (src/) y, si existe, la interfaz (web/src/).
+  const raices = [
+    { dir: join(raiz, "src"), prefijo: "src", permitidas: PERMITIDAS, web: false },
+    { dir: join(raiz, "web", "src"), prefijo: "web/src", permitidas: PERMITIDAS_WEB, web: true },
+  ];
+  for (const { dir, prefijo, permitidas, web } of raices) {
+    if (!existsSync(dir)) continue;
+    const archivos = archivosDe(dir);
+    total += archivos.length;
+    for (const archivo of archivos) {
+      const rel = relative(dir, archivo).split(sep).join("/");
+      const codigo = sinComentarios(readFileSync(archivo, "utf8"));
+      const vistos = new Set<string>();
+      const anotar = (linea: number, regla: string, campo: string): void => {
+        const llave = `${linea}|${regla}`;
+        if (vistos.has(llave)) return;
+        vistos.add(llave);
+        hallazgos.push({ archivo: `${prefijo}/${rel}`, linea, regla, campo });
+      };
 
-    // 1 y 2: dentro de las llamadas vigiladas, en cualquier archivo (también en los permitidos).
-    for (const patron of LLAMADAS_VIGILADAS) {
-      patron.lastIndex = 0;
-      for (let m = patron.exec(codigo); m; m = patron.exec(codigo)) {
-        const apertura = m.index + m[0].length - 1;
-        const { texto } = cuerpoDeLlamada(codigo, apertura);
-        const campo = campoSensibleEn(texto);
-        if (campo) anotar(lineaDe(codigo, apertura), `dentro de ${m[0].replace(/\s*\($/, "")}()`, campo);
+      // 1 y 2: dentro de las llamadas vigiladas, en cualquier archivo (también en los permitidos).
+      for (const patron of LLAMADAS_VIGILADAS) {
+        patron.lastIndex = 0;
+        for (let m = patron.exec(codigo); m; m = patron.exec(codigo)) {
+          const apertura = m.index + m[0].length - 1;
+          const { texto } = cuerpoDeLlamada(codigo, apertura);
+          const campo = campoSensibleEn(texto);
+          if (campo) anotar(lineaDe(codigo, apertura), `dentro de ${m[0].replace(/\s*\($/, "")}()`, campo);
+        }
+      }
+
+      // 3: mención en cualquier parte, salvo donde se permite.
+      // 4: revelar un valor sensible o leer la ficha, salvo donde se permite (EB-06). Solo el backend: la interfaz no tiene `Sensible`.
+      if (!permitidas.some((p) => rel.startsWith(p) || rel === p)) {
+        codigo.split("\n").forEach((texto, i) => {
+          const campo = campoSensibleEn(texto);
+          if (campo) anotar(i + 1, `nombre de campo sensible fuera de ${prefijo}/${permitidas[0]}`, campo);
+          if (!web && REVELAR.test(texto)) anotar(i + 1, "revelar() un valor sensible fuera de src/sensibles/ y api/rutas/salud.ts", "revelar");
+          if (!web && /\bleerSensible\b/.test(texto)) anotar(i + 1, "leerSensible fuera de src/sensibles/ y api/rutas/salud.ts", "leerSensible");
+        });
+      }
+
+      // 5: el módulo de salud de la interfaz no guarda nada en el navegador.
+      if (web && rel.startsWith("salud/")) {
+        codigo.split("\n").forEach((texto, i) => {
+          if (ALMACENAMIENTO_DEL_NAVEGADOR.test(texto)) anotar(i + 1, "el módulo de salud no toca el almacenamiento del navegador", "almacenamiento");
+        });
       }
     }
-
-    // 3: mención en cualquier parte, salvo donde se permite.
-    // 4: revelar un valor sensible o leer la ficha, salvo donde se permite (EB-06).
-    if (!PERMITIDAS.some((p) => rel.startsWith(p) || rel === p)) {
-      codigo.split("\n").forEach((texto, i) => {
-        const campo = campoSensibleEn(texto);
-        if (campo) anotar(i + 1, "nombre de campo sensible fuera de src/sensibles/", campo);
-        if (REVELAR.test(texto)) anotar(i + 1, "revelar() un valor sensible fuera de src/sensibles/ y api/rutas/salud.ts", "revelar");
-        if (/\bleerSensible\b/.test(texto)) anotar(i + 1, "leerSensible fuera de src/sensibles/ y api/rutas/salud.ts", "leerSensible");
-      });
-    }
   }
-  return { archivos: archivos.length, hallazgos };
+  return { archivos: total, hallazgos };
 }
 
 function main(): void {
   const i = process.argv.indexOf("--raiz");
   const raiz = i >= 0 && process.argv[i + 1] ? resolve(process.argv[i + 1]!) : RAIZ_REPO;
   const { archivos, hallazgos } = escanearSensibles(raiz);
-  console.log(`check:sensibles: ${archivos} archivos de src/ escaneados.`);
+  console.log(`check:sensibles: ${archivos} archivos de src/ y web/src/ escaneados.`);
   if (hallazgos.length === 0) {
     console.log("✓ Ningún dato de salud en logs, notas ni mensajes (revisión de texto).");
     return;

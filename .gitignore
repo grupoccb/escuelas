@@ -7,3 +7,7 @@ coverage/
 *.log
 .DS_Store
 .tmp/
+web/node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/

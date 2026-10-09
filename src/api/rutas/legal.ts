@@ -143,6 +143,8 @@ export function rutasDeLegal(_deps: DepsApi): Router {
     });
     res.json({
       prospecto_id: clase.prospecto_id,
+      // J2: con la vertical la interfaz pide los documentos vigentes (`GET /api/documentos-legales/vigentes?vertical_id=`) sin necesitar leer el lead.
+      vertical_id: clase.prospecto.vertical_interes_id,
       estado: (await estadoLegal(ctx.db, clase.prospecto_id, clase.prospecto.vertical_interes_id, ctx.ahora())).map((e) => ({ tipo: e.tipo, estado: e.estado, version_aceptada: e.versionAceptada, aceptado_en: e.aceptadoEn, aceptante: e.aceptante, version_vigente: e.versionVigente, al_corriente: e.alCorriente, texto: e.texto })),
       historial: historial.map((h) =>
         presentarAceptacion({ id: h.id, documentoId: h.documento_id, tipo: h.tipo, versionAceptada: h.version_aceptada, resultado: h.resultado, aceptanteNombre: h.aceptante_nombre, aceptanteParentesco: h.aceptante_parentesco, registroTutorId: h.registro_tutor_id, canal: h.canal, capturadaPorUsuarioId: h.capturada_por_usuario_id, aceptadoEn: h.aceptado_en, textoHash: h.texto_hash, evidencia: h.evidencia, ip: h.ip, agenteUsuario: h.agente_usuario, secuencia: h.secuencia }),

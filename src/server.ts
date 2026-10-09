@@ -41,6 +41,8 @@ const app = crearApp({
   // WH: un dato inesperado en un webhook o en la landing deja constancia y tarea (nunca un 500); solo una falla del momento da 5xx.
   inesperados: crearManejadorDeInesperados(prisma),
   secretoWebhookChatwoot: mensajeria.secretoWebhookChatwoot,
+  // Interfaz web (J1): el build de Vite. En la imagen está en /app/web/dist; en desarrollo se usa `npm run web:dev` (proxy a este backend).
+  web: { directorio: process.env["WEB_DIR"] ?? "web/dist" },
   twilio,
   // Landing pública por vertical (/l/:vertical): el cuestionario que crea el lead y manda a WhatsApp con su código de rastreo (E1).
   // El POST de la landing solo se acepta desde el origen público configurado (ORIGEN_PUBLICO), o desde el propio host si no hay uno (EE-08).

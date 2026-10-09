@@ -97,6 +97,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "DELETE /api/motivos-perdida/:id": "catalogo:escribir",
   "GET /api/leads": "leads:leer",
   "GET /api/leads/:id": "leads:leer",
+  "GET /api/etapas": "leads:leer",
   "GET /api/leads/:id/cotizaciones": "leads:leer",
   "POST /api/leads/:id/cotizaciones": "leads:escribir",
   "GET /api/conversaciones": "conversaciones:leer",

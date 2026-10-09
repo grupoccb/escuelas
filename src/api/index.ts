@@ -29,7 +29,7 @@ import { rutasDeInstructores } from "./rutas/instructores.ts";
 import { rutasDeSalones } from "./rutas/salones.ts";
 import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { PROVEEDORES_NULOS, type ProveedoresDelExpediente } from "../expediente/proveedores.ts";
-import type { DirectorioAgentes } from "../mensajeria/index.ts";
+import { urlPublicaDeChatwoot, type DirectorioAgentes } from "../mensajeria/index.ts";
 import type { OpcionesSensibles } from "../sensibles/index.ts";
 import { rutasDeAsistencia } from "./rutas/asistencia.ts";
 import { rutasDeCampanas } from "./rutas/campanas.ts";
@@ -52,6 +52,7 @@ import { rutasDeFamilias } from "./rutas/familias.ts";
 import { rutasDeInscripciones } from "./rutas/inscripciones.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeConversion } from "./rutas/conversion.ts";
+import { rutasDeInterfaz } from "./rutas/interfaz.ts";
 import { rutasDeLeads } from "./rutas/leads.ts";
 import { rutasDeMotivosBaja } from "./rutas/motivos-baja.ts";
 import { rutasDeLegal } from "./rutas/legal.ts";
@@ -104,6 +105,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     directorio: e.directorio ?? null,
     fuenteOcupacion: e.fuenteOcupacion ?? new InscripcionesActivas(),
     expediente: { ...PROVEEDORES_NULOS, ...e.expediente },
+    chatwootUrlPublica: urlPublicaDeChatwoot(e.entorno ?? process.env),
   };
 }
 
@@ -137,6 +139,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeConversion(deps));
   api.use(rutasDeLeads(deps));
   api.use(rutasDeCotizaciones(deps));
+  api.use(rutasDeInterfaz(deps));
   api.use(rutasDeListaEspera(deps));
   api.use(rutasDeClasesMuestra(deps));
   api.use(rutasDeCierre(deps));

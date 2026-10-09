@@ -96,3 +96,23 @@ test("el comando sale con 1 si hay violaciones y con 0 si no", () => {
     rmSync(raiz, { recursive: true, force: true });
   }
 });
+
+test("J1: en la interfaz (web/src) los campos de salud solo se nombran en web/src/salud/, y nunca van a la consola ni al almacenamiento", () => {
+  // Fuera del módulo de salud, ni siquiera nombrarlos.
+  assert.deepEqual(hallazgos({ "web/src/pantallas/maestro/a.tsx": `const x = registro.alergias;` }), ["web/src/pantallas/maestro/a.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/maestro/a.tsx": `const campos = ["contacto_emergencia"];` }), ["web/src/pantallas/maestro/a.tsx:1"]);
+  // Dentro del módulo de salud sí se pueden nombrar...
+  assert.deepEqual(hallazgos({ "web/src/salud/FormularioSalud.tsx": `const [alergias, setAlergias] = useState("");` }), []);
+  // ...pero tampoco ahí van a la consola, a localStorage ni a un beacon.
+  assert.deepEqual(hallazgos({ "web/src/salud/f.tsx": `console.log(alergias);` }), ["web/src/salud/f.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/salud/f.tsx": `localStorage.setItem("x", medicamentos);` }), ["web/src/salud/f.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/salud/f.tsx": `navigator.sendBeacon("/t", JSON.stringify({ alergias }));` }), ["web/src/salud/f.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/pantallas/a.tsx": `console.error("no se pudo", condiciones_medicas);` }), ["web/src/pantallas/a.tsx:1"]);
+  // El módulo de salud no toca el almacenamiento del navegador, ni siquiera para otra cosa.
+  assert.deepEqual(hallazgos({ "web/src/salud/f.tsx": `const v = sessionStorage.getItem("a");` }), ["web/src/salud/f.tsx:1"]);
+  assert.deepEqual(hallazgos({ "web/src/salud/f.tsx": `indexedDB.open("x");` }), ["web/src/salud/f.tsx:1"]);
+  // Otras pantallas pueden usar el almacenamiento (la sucursal elegida) y los comentarios no cuentan.
+  assert.deepEqual(hallazgos({ "web/src/sesion/a.tsx": `sessionStorage.setItem("sucursal", id);\n// la alergia nunca se guarda aquí` }), []);
+  // Los tests de la interfaz no se revisan.
+  assert.deepEqual(hallazgos({ "web/src/lib/a.test.ts": `const alergias = 1; console.log(alergias);` }), []);
+});

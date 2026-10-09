@@ -67,6 +67,8 @@ services:
       # único origen que puede hacer peticiones que cambian algo es el propio backend.
       COOKIE_SEGURA: "false"
       ORIGEN_PUBLICO: http://localhost:3000
+      # Interfaz web (J3): la ficha del lead arma el enlace a su conversación con esta URL pública de Chatwoot (la que abre el navegador).
+      CHATWOOT_URL_PUBLICA: http://localhost:3001
       # IP real de los clientes (EB-04). En la demo el puerto 3000 se publica directamente (no hay balanceador):
       # ningún salto de confianza. Detrás de un balanceador de AWS (ALB) se pone `1`; con `false` explícito el
       # backend no avisa. Sin ningún valor y con NODE_ENV=production el backend loguea una alerta fuerte al arrancar.

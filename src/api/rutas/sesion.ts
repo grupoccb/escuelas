@@ -19,6 +19,7 @@ import { soloSesion } from "../autorizar.ts";
 import { permisosDe } from "../permisos.ts";
 import { registrarCambio } from "../registro.ts";
 import { LIMITE_CUERPO_LOGIN } from "../cuerpos.ts";
+import { leerConfiguracion } from "../../configuracion/index.ts";
 
 const esquemaLogin = objeto({
   organizacion: opcional(texto({ max: 63, minusculas: true })),
@@ -88,6 +89,8 @@ export function rutasDeSesionPropia(deps: DepsApi): Router {
       organizacion,
       sucursales,
       permisos: permisosDe(ctx.usuario.rol),
+      // J1: lo que la interfaz necesita para armarse sin pedir más (quién cierra la inscripción y dónde está Chatwoot).
+      configuracion: { modo_cierre: (await leerConfiguracion(ctx.db)).modoCierre, chatwoot_url_publica: deps.chatwootUrlPublica },
     });
   });
 
