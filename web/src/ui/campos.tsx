@@ -97,8 +97,8 @@ export function GrupoDeOpciones({ etiqueta, valor, opciones, alCambiar, error }:
       <legend>{etiqueta}</legend>
       <div className="grupo-opciones-fila">
         {opciones.map((o) => (
-          <label key={o.valor} className={`opcion${valor === o.valor ? " opcion-activa" : ""}`}>
-            <input type="radio" name={id} value={o.valor} checked={valor === o.valor} onChange={() => alCambiar(o.valor)} />
+          <label key={o.valor} className={`opcion${valor === o.valor ? " opcion-activa" : ""}${o.deshabilitada ? " opcion-inactiva" : ""}`}>
+            <input type="radio" name={id} value={o.valor} checked={valor === o.valor} disabled={o.deshabilitada} onChange={() => alCambiar(o.valor)} />
             <span>{o.texto}</span>
           </label>
         ))}

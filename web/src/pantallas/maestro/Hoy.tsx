@@ -10,6 +10,7 @@ import { diaEnZona, formatearFechaLarga, hoyLocal, sumarDias } from "../../lib/f
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { useAccion, useAhora, useCarga, useTitulo } from "../../ui/hooks.ts";
+import { CierreEnSitio } from "../conversion/CierreEnSitio.tsx";
 
 interface AvisoMaestro {
   id: string;
@@ -127,6 +128,7 @@ function TarjetaDeClase({ clase, alCambiar }: { clase: ClaseMuestra; alCambiar: 
               Listo para cerrar la inscripción
             </Boton>
             {listo ? <Aviso tono="exito">{listo}</Aviso> : null}
+            <CierreEnSitio leadId={clase.lead_id} />
           </div>
         ) : null}
         <ErrorDeAccion error={accion.error} />

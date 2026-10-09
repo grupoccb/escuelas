@@ -77,7 +77,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | J1 | HECHO | ver `git log` (`J1:`) | Interfaz web base: `web/` (React + Vite + TS), acceso, navegación por permisos, layout responsivo, sesión expirada, 404/403, selector de sucursal; servida por el backend (y por compose); pruebas en Chromium real (`npm run test:navegador`) |
 | J2 | HECHO | ver `git log` (`J2:`) | Maestro en celular (390×844): «Hoy» con asistencia y «listo para cerrar», registro del alumno COMPLETO (adultos como filas, salud solo en memoria, antecedentes, observación, reglamento e imagen con evidencia) y pase de lista idempotente; probado en Chromium contra el backend real |
 | J3 | HECHO | ver `git log` (`J3:`) | Asesor: embudo (tablero y lista, filtros, estancados, mover con motivo/nota), tareas, ficha del lead (atribución, cotizaciones, clase muestra, historial, enlace a Chatwoot); cambios mínimos a la API con test |
-| J4 | PENDIENTE | | Interfaz: conversión e inscripción |
+| J4 | HECHO (parcial: el modo `maestro_en_sitio` no tiene prueba en navegador: el modo es configuración y todavía no hay API para cambiarla, J8) | ver `git log` (`J4:`) | Asistente de conversión sin recaptura (familia → alumnos → grupo y horario con lugares reales → precio y promociones → reglamento e imagen → confirmación); cierre en sitio del maestro |
 | J5 | PENDIENTE | | Interfaz: recepción |
 | J6 | PENDIENTE | | Interfaz: familia y expediente |
 | J7 | PENDIENTE | | Interfaz: administración del catálogo |
@@ -2618,4 +2618,42 @@ Hallazgo corregido en el camino: el historial devuelve etapas, usuario y motivo 
 **Para Eduardo**
 - Una tarea generada por el sistema aparece sola al agendar/cancelar una clase cuando el maestro no tiene teléfono (aviso al maestro no enviado): es el comportamiento de D2, ahora visible.
 - **[SUPUESTO]** los nombres de las fuentes en pantalla (Facebook, Instagram, «En sucursal (QR)», «Página de captación»…) están en `FUENTES` (`Embudo.tsx`); el código de la fuente viene del servidor.
+
+## J4. Conversión e inscripción, paso a paso y sin recaptura
+
+**Qué se hizo** (`web/src/pantallas/conversion/`)
+- **Asistente** (`Conversion.tsx`, ruta `/leads/:id/convertir`, administrador y asesor): seis pasos — **Familia → Alumnos → Grupo y horario → Precio → Reglamento e imagen → Confirmar** — con indicador de pasos, «Atrás» / «Siguiente» (deshabilitado mientras falte algo de ESE paso, diciendo qué) y la pantalla de resultado (con enlace a la ficha y al estado de cuenta). Parte de `GET /api/leads/:id/conversion` (que dice SOLO lo que falta) y junta lo ya capturado: el lead, la clase muestra y el **registro del maestro** de cada alumno (`GET /api/clases-muestra?prospecto_id=` + `…/registro`, aunque esté en borrador) y la cotización vigente con el horario que eligió la familia.
+- **Cero recaptura**: lo ya capturado se **muestra con su valor** («Nombre: Emilio · Capturado», fecha de nacimiento, sexo, escuela, turno, talla, antecedentes, los adultos con sus banderas) y **no se pide**; solo hay campos para lo que el servidor reporta como faltante (`faltantes.ts`, pura y con 8 pruebas: cada `campo` del servidor pertenece a un paso y se descarta cuando ya se escribió lo que pedía). Corregir algo capturado es explícito («Corregir» abre el campo con su valor). Lo que viaja en el `POST` es **solo lo escrito o corregido** (`cuerpoDeConversion`): el grupo del expediente (cotización o recomendación del maestro) lo deduce el servidor igual que la pantalla.
+- **Grupo y horario con cupo real**: el cotizador del servidor (`GET /api/cotizador`, con la fecha de nacimiento si ya se conoce) da los programas de esa edad con sus grupos y los **lugares reales**; el grupo que eligió la familia o recomendó el maestro viene elegido y marcado; un grupo lleno se ve deshabilitado («Lleno»). **Precio y promociones**: inscripción y mensualidad con y sin promoción, meses gratis, promociones y cuáles quedan al cumplirse la condición (todo texto del servidor, con el formateador es-MX). **Reglamento e imagen**: reutiliza `Aceptaciones` (registrar con evidencia ahí mismo; al hacerlo la vista previa se recarga y el servidor deja de pedirlo); sin clase muestra no hay dónde registrarla y la pantalla lo dice con un enlace a la ficha.
+- **Errores del servidor, explicados y con salida**: un rechazo de la inscripción (`grupo_lleno`, `fuera_de_edad`, `ya_inscrito` → paso «Grupo y horario»; `sin_precio` → «Precio»; `reglamento` → «Reglamento e imagen»; `faltan_datos` → el paso de lo que falta) se muestra con el mensaje del servidor y un botón «Volver al paso …» que recarga la oferta. Un grupo que se llena mientras la persona revisa se trata como una falta del paso (y se ve deshabilitado). La conversión es **una transacción**: tras un rechazo no queda nada a medias (las pruebas lo comprueban por la API).
+- **Doble clic**: `useAccion` ignora el segundo clic mientras corre el primero y el servidor es idempotente: el `dblclick` de la prueba deja UN alumno, UNA inscripción y dos cargos (inscripción y primera mensualidad).
+- **Quién cierra (F6)**: en `asesor_whatsapp` (por omisión) el maestro solo marca «listo para cerrar» (J2) y el asesor ve el aviso «El maestro marcó a esta familia como lista para cerrar» arriba del asistente; en `maestro_en_sitio`, `CierreEnSitio.tsx` (dentro de la tarjeta de «Hoy» de una clase a la que el alumno asistió) permite al maestro inscribir a SU alumno **solo cuando ya no falta nada**, o le dice qué falta.
+- Cambios de apoyo: `GrupoDeOpciones` ahora respeta las opciones deshabilitadas; los tipos del cotizador (`ProgramaCotizado`, `PromocionesCotizadas`) salieron a `api/tipos.ts` y los comparten la ficha y el asistente.
+- **Datos de prueba**: «Familia Épsilon» (clase muestra a la que asistió, registro del maestro capturado POR LA API con todo menos los apellidos, grupo recomendado de un solo lugar), «Familia Zeta» (sin clase ni registro) y un alumno de relleno para llenar el grupo desde la API.
+
+**Verificación**
+```
+$ npm run validar        → exit 0 · tests 606 · pass 606 · web: tests 26 · pass 26
+$ npm run test:navegador → 47 passed. conversion.spec.ts (4): Épsilon — la vista previa del servidor pide exactamente apellidos y reglamento; paso 1 sin un solo
+   campo; paso 2: nombre y fecha de nacimiento capturados (se ven, no se piden: ningún `textbox` de nombre, ningún `input[type=date]`, un único campo —apellidos—);
+   «Siguiente» deshabilitado hasta escribirlos; el grupo recomendado viene elegido con «1 lugar»; precio $500.00 / $1,000.00; reglamento aceptado ahí mismo;
+   mientras se revisa, OTRA persona llena el grupo (por la API) → «El grupo ya no tiene lugares», el alumno NO se creó, se vuelve al paso, el grupo sale «Lleno» y
+   deshabilitado, se elige otro; doble clic → un alumno (apellidos, fecha, sexo y escuela capturados por el maestro; adulto con teléfono normalizado y responsable de
+   pago), UNA inscripción con precios congelados 500.00/1000.00, cargos {inscripcion, mensualidad}, el lead en «inscrito»; reabrir el asistente → «Todo está convertido».
+   Zeta — pide solo parentesco, apellidos, fecha y grupo; sin clase muestra el reglamento no se puede registrar y el servidor lo rechaza con «Volver al paso
+   Reglamento e imagen» (nada creado, el lead sigue «contactado»); un maestro no entra ni por URL directa.
+$ npm run test:int       → exit 0 · tests 1044 · pass 1044 · fail 0
+```
+Mutaciones comprobadas (ambas hacen fallar `faltantes.test.ts`): que `restantes` no descarte lo escrito en «apellidos»; y que el cuerpo del `POST` agregue un campo que la persona no escribió.
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Lo ya capturado se muestra, no se precarga en campos.** Alternativa descartada: campos con valor precargado (la persona los vuelve a ver como «cosas por llenar» y el cuerpo del `POST` los reenviaría; el brief pide que ningún campo capturado se vuelva a pedir).
+2. **Todo se junta en memoria y se manda UNA vez** (la conversión del servidor es una transacción). Alternativa descartada: guardar por paso (la API no tiene estados intermedios y un abandono dejaría a medias).
+3. **El reglamento se registra dentro del asistente** (única escritura previa a la confirmación: es evidencia de solo anexar y no cambia aunque no se convierta). Alternativa descartada: mandar al asesor a otra pantalla y volver.
+4. **El asistente completo es de asesor y administrador.** El maestro en `maestro_en_sitio` solo inscribe cuando ya no falta nada (`CierreEnSitio`); si falta algo debe completarlo en el registro o pedir al asesor, porque el catálogo (cotizador, grupos) no está en su alcance.
+5. **Sin sucursal el lead no se puede inscribir desde aquí** (no hay oferta que calcular): se dice en pantalla. Hoy solo el administrador ve esos leads.
+
+**Para Eduardo**
+- Revisa `docs/capturas/30…33-conversion-*.png`. Decide si el reglamento debe poder registrarse sin clase muestra (hoy la API lo liga a la clase: D6).
+- **HECHO (parcial)**: sin prueba en navegador del modo `maestro_en_sitio` (la configuración no tiene API todavía —J8—); la lógica de la API sí está probada (F6) y `CierreEnSitio` solo aparece con ese modo.
 

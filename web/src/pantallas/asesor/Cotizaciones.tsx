@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
-import type { LeadDetalle } from "../../api/tipos.ts";
+import type { LeadDetalle, ProgramaCotizado } from "../../api/tipos.ts";
 import { formatear } from "../../lib/dinero.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { aEntero } from "../../lib/numeros.ts";
@@ -11,21 +11,6 @@ import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Tarjeta,
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
 
-interface GrupoCotizado {
-  grupo_id: string;
-  nombre: string;
-  horario_texto: string;
-  lugares_disponibles: number;
-  oferta: string;
-}
-interface ProgramaCotizado {
-  programa_id: string;
-  nombre: string;
-  precio: { costo_inscripcion: string; costo_mensualidad: string } | null;
-  sin_precio: boolean;
-  grupos: GrupoCotizado[];
-  promociones: { aplicadas: { nombre: string }[]; inscripcion: { final_ahora: string }; mensualidad: { final_ahora: string } } | null;
-}
 interface Cotizacion {
   id: string;
   prospecto_id: string;

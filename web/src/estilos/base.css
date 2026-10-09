@@ -206,3 +206,5 @@ table.tabla td.derecha, table.tabla th.derecha { text-align: right; }
 .sin-borde { border: 0; padding: 0; margin: 0; min-width: 0; }
 .texto-legal { white-space: pre-wrap; max-height: 14rem; overflow-y: auto; border: 1px solid var(--borde); border-radius: 8px; padding: 0.6rem; background: var(--superficie-2); }
 .lista-historial { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.opcion-inactiva { opacity: 0.6; cursor: not-allowed; border-style: dashed; }
+.opcion-inactiva input { cursor: not-allowed; }

@@ -31,6 +31,17 @@ export interface Mundo {
     /** Los alumnos inscritos en el grupo A (el pase de lista). */
     alumnosDelPase: { alumnoId: string; inscripcionId: string; nombre: string }[];
   };
+  /** J4: conversión e inscripción. */
+  conversion: {
+    /** Con clase muestra y registro del maestro (falta solo el apellido y el reglamento); recomendado: un grupo de un solo lugar. */
+    epsilon: LeadDelMundo & { claseId: string };
+    /** Sin clase muestra y sin registro: falta casi todo. */
+    zeta: LeadDelMundo;
+    /** Un grupo de cupo 1. */
+    grupoC: { id: string; nombre: string };
+    /** Un alumno ya inscribible, para llenar el grupo C desde la API. */
+    rellenoAlumnoId: string;
+  };
   /** J3: el embudo del asesor (sucursal norte). */
   asesor: {
     /** Nuevo, con campaña de Facebook, conversación en Chatwoot y una tarea pendiente. */

@@ -19,7 +19,7 @@ async function usuario(prisma: PrismaPruebas, org: OrganizacionDePrueba, rol: Ro
   return { id: u.id, correo: u.correo, contrasena: u.contrasena, nombre, rol };
 }
 
-export async function sembrarMundo(prisma: PrismaPruebas, _nuevoCliente: () => ClienteApi, base: string): Promise<Mundo> {
+export async function sembrarMundo(prisma: PrismaPruebas, nuevoCliente: () => ClienteApi, base: string): Promise<Mundo> {
   const org = await sembrarOrganizacion(prisma, "Escuela de prueba");
   const etapas = await sembrarEmbudo(prisma, org);
   const docs = await sembrarDocumentosLegales(prisma, org);
@@ -49,6 +49,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, _nuevoCliente: () => C
 
   const maestroDelMundo = await sembrarMaestro(prisma, org, docs, { norte: norte.id, grupoA: grupoA.id, grupoB: grupoB.id, programaId: programa.id });
 
+  const conversion = await sembrarConversion(prisma, org, docs, etapas, nuevoCliente, { norte: norte.id, grupoA: grupoA.id, programaId: programa.id }, maestro);
   const asesorDelMundo = await sembrarAsesor(prisma, org, etapas, { norte: norte.id, sur: sur.id });
 
   return {
@@ -63,6 +64,7 @@ export async function sembrarMundo(prisma: PrismaPruebas, _nuevoCliente: () => C
     instructorId: instructor.id,
     maestro: maestroDelMundo,
     asesor: asesorDelMundo,
+    conversion,
   };
 }
 
@@ -119,4 +121,45 @@ async function sembrarAsesor(prisma: PrismaPruebas, org: OrganizacionDePrueba, e
   const tareaGamma = await prisma.tarea_asesor.create({ data: { organizacion_id: org.organizacionId, lead_id: gamma.leadId, tipo: "lead_frio", descripcion: "Retomar el contacto con Familia Gamma" } });
   const delta = await lead("Familia Delta", { sucursalId: ids.sur, etapaId: etapas["nuevo"]!, edad: 7, alumno: "Niño Delta" });
   return { alfa: { ...alfa, tareaId: tarea.id, chatwoot: { cuentaId: org.chatwootAccountId, bandejaId: org.chatwootInboxId, conversacionId } }, beta, gamma: { ...gamma, tareaId: tareaGamma.id }, delta, motivos: { precio: precio.id, horario: horario.id }, campanaNombre };
+}
+
+/** J4: dos familias para el asistente de conversión, y un grupo de un solo lugar para provocar el rechazo por cupo. */
+async function sembrarConversion(
+  prisma: PrismaPruebas,
+  org: OrganizacionDePrueba,
+  docs: DocumentosLegalesSembrados,
+  etapas: Record<string, string>,
+  nuevoCliente: () => ClienteApi,
+  ids: { norte: string; grupoA: string; programaId: string },
+  maestro: UsuarioDelMundo,
+): Promise<Mundo["conversion"]> {
+  const grupoC = await prisma.grupo.create({ data: { organizacion_id: org.organizacionId, programa_id: ids.programaId, nombre: "Grupo C", cupo_maximo: 1 } });
+  for (const dia of [0, 1, 2, 3, 4, 5, 6]) await prisma.grupo_horario.create({ data: { organizacion_id: org.organizacionId, grupo_id: grupoC.id, dia_semana: dia, hora_inicio_min: 960, hora_fin_min: 1020 } });
+  const relleno = await sembrarAlumno(prisma, org, { docs, sucursalId: ids.norte, nombre: "Relleno" });
+
+  const admin = await prisma.usuario.findFirstOrThrow({ where: { organizacion_id: org.organizacionId, rol: "administrador" }, select: { id: true } });
+  const familia = async (nombre: string, alumno: string, edad: number, etapaId: string) => {
+    const f = await sembrarFamilia(prisma, org, { sucursalId: ids.norte, nombre: alumno, edad, etapaId });
+    await prisma.lead.update({ where: { id: f.leadId }, data: { nombre_contacto: nombre, ultima_interaccion_en: new Date() } });
+    return { leadId: f.leadId, prospectoId: f.prospectoId, nombre };
+  };
+  const epsilon = await familia("Familia Épsilon", "Niño Épsilon", 8, etapas["muestra_asistida"]!);
+  const cuando = new Date(Math.floor((Date.now() - 3 * 3_600_000) / 60_000) * 60_000);
+  const clase = await prisma.clase_muestra.create({
+    data: { organizacion_id: org.organizacionId, lead_id: epsilon.leadId, prospecto_id: epsilon.prospectoId, grupo_id: ids.grupoA, fecha_hora: cuando, estatus: "asistio", agendada_por: "usuario", agendada_por_usuario_id: admin.id, asistencia_marcada_en: new Date(), asistencia_marcada_por_usuario_id: admin.id },
+  });
+  // El registro lo captura el maestro, por la API (como en la vida real): todo menos los apellidos del alumno.
+  const m = nuevoCliente();
+  const login = await m.login(org.slug, maestro.correo, maestro.contrasena);
+  if (login.estado !== 201) throw new Error(`El maestro no pudo iniciar sesión (${login.estado})`);
+  const r = await m.patch(`/api/clases-muestra/${clase.id}/registro`, {
+    alumno: { nombre: "Emilio", fecha_nacimiento: "2018-03-02", sexo: "masculino", escuela: "Escuela Nueva", turno_escolar: "matutino", talla_uniforme: "8" },
+    tutores: [{ nombre: "Rosa", apellidos: "Épsilon", parentesco: "madre", telefono: "5544332211", es_responsable_pago: true, lo_lleva: true }],
+    antecedentes: { practico_antes: false, motivo_clase: "disciplina" },
+    observacion: { grupo_recomendado_id: grupoC.id, interes_percibido: "alto" },
+  });
+  if (r.estado !== 200) throw new Error(`No se pudo capturar el registro de prueba (${r.estado}): ${JSON.stringify(r.cuerpo)}`);
+
+  const zeta = await familia("Familia Zeta", "Niña Zeta", 6, etapas["contactado"]!);
+  return { epsilon: { ...epsilon, claseId: clase.id }, zeta, grupoC: { id: grupoC.id, nombre: grupoC.nombre }, rellenoAlumnoId: relleno.alumnoId };
 }

@@ -158,3 +158,39 @@ export interface Tutor {
   sucursal_id: string | null;
   alumnos: { alumno_id: string; nombre: string; apellidos: string; estatus: string; parentesco: string; es_responsable_pago: boolean }[];
 }
+
+// ── El cotizador (`GET /api/cotizador`, y el `snapshot` de una cotización guardada). Importes: texto del servidor. ──
+
+export interface TotalesDeImporte {
+  original: string;
+  descuento_ahora: string;
+  descuento_diferido: string;
+  final_ahora: string;
+  final_con_diferidos: string;
+}
+
+export interface PromocionesCotizadas {
+  aplicadas: { promocion_id: string; nombre: string }[];
+  lineas: { promocion_id: string; promocion_nombre: string; tipo: string; estado: string; descuento: string; meses: number | null; descripcion: string | null }[];
+  inscripcion: TotalesDeImporte;
+  mensualidad: TotalesDeImporte;
+  meses_gratis_ahora: number;
+  meses_gratis_diferidos: number;
+}
+
+export interface GrupoCotizado {
+  grupo_id: string;
+  nombre: string;
+  horario_texto: string;
+  lugares_disponibles: number;
+  lleno: boolean;
+  oferta: string;
+}
+export interface ProgramaCotizado {
+  programa_id: string;
+  nombre: string;
+  precio: { costo_inscripcion: string; costo_mensualidad: string } | null;
+  sin_precio: boolean;
+  grupos: GrupoCotizado[];
+  promociones: PromocionesCotizadas | null;
+}
