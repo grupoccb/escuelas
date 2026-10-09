@@ -22,6 +22,12 @@
 //    falla; si estaba en `enviando` sin id (envío incierto), falla y se avisa al asesor.
 
 import { PASOS_A_MEDIAS } from "../captacion/maquina.ts";
+import { cargarCobro, conversacionDeCobro, hoyDelCobro, type CobroCargado } from "../cobranza/cargar.ts";
+import { limiteDeRecordatorioPorVencer, type EventoDeCobranza } from "../cobranza/plan.ts";
+import { esEventoDeCobranza, programarCobranza } from "../cobranza/programar.ts";
+import { revalidarCobro } from "../cobranza/revalidar.ts";
+import { asegurarTareaDeCobro } from "../cobranza/tareas.ts";
+import { formatear } from "../lib/dinero.ts";
 import { describirSesion } from "../clases-muestra/sesiones.ts";
 import { altaConAlcance, conAlcance, type BaseDatos } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
@@ -107,7 +113,7 @@ async function programarReenganches(db: BaseDatos, ahora: Date, resumen: Resumen
   // Una sola consulta para las automatizaciones que PROGRAMA el motor: el reenganche y, desde D8, el lead frío y la promoción por vencer.
   // (Las de la clase muestra las programa el alta de la clase.)
   const automatizaciones = await db.automatizacion.findMany({
-    where: { activo: true, evento_disparador: { in: ["lead_sin_respuesta", "lead_frio", "promocion_por_vencer"] } },
+    where: { activo: true, evento_disparador: { in: ["lead_sin_respuesta", "lead_frio", "promocion_por_vencer", "cargo_por_vencer", "cargo_vencido"] } },
     orderBy: { creado_en: "asc" },
   });
 
@@ -116,6 +122,7 @@ async function programarReenganches(db: BaseDatos, ahora: Date, resumen: Resumen
     await aislado(resumen, { automatizacionId: a.id, fase: "programar" }, async () => {
       if (a.evento_disparador === "lead_frio") programadas += await programarLeadsFrios(db, a, ahora);
       else if (a.evento_disparador === "promocion_por_vencer") programadas += await programarAvisosDePromocion(db, a, ahora);
+      else if (esEventoDeCobranza(a.evento_disparador)) programadas += await programarCobranza(db, a, ahora);
       else programadas += await programarUna(db, a, ahora, resumen);
     });
   }
@@ -244,7 +251,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     log.info("automatizacion_omitida", { ejecucionId: e.id, motivo });
   };
 
-  const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion", "inscripcion"];
+  const entidadesSoportadas = ["conversacion", "clase_muestra", "lead", "aviso_promocion", "inscripcion", "cargo"];
   if (!entidadesSoportadas.includes(e.entidad_tipo)) return omitir("entidad_no_soportada");
   const evento = e.automatizacion.evento_disparador;
   // D8: el lead frío (entidad `lead`) y la promoción por vencer (entidad `aviso_promocion`).
@@ -253,6 +260,24 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   // F7: la bienvenida de inscripción (entidad `inscripcion`).
   const esInscripcion = e.entidad_tipo === "inscripcion";
   if ((esLeadFrio && evento !== "lead_frio") || (esPromocion && evento !== "promocion_por_vencer") || (esInscripcion !== (evento === "inscripcion_creada"))) return omitir("evento_no_soportado");
+  // H6: el recordatorio de pago (entidad `cargo`).
+  const esCobro = e.entidad_tipo === "cargo";
+  if (esCobro !== esEventoDeCobranza(evento)) return omitir("evento_no_soportado");
+  const cobro = esCobro ? await cargarCobro(db, e.entidad_id) : null;
+  if (esCobro) {
+    if (!cobro) return omitir("cargo_inexistente");
+    // Lo que se programó hace días solo se manda si el cargo sigue abierto y vale lo que decía (la familia pudo pagar, el cargo cancelarse o la inscripción darse de baja).
+    const rev = revalidarCobro(evento as EventoDeCobranza, { estatus: cobro.estatus, vencimiento: cobro.vencimiento, inscripcionEstatus: cobro.inscripcionEstatus }, hoyDelCobro(cobro, ahora));
+    if (!rev.ok) {
+      if (rev.motivo === "evento_pasado") {
+        await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "descartado", motivo_omision: "evento_pasado" } });
+        resumen.descartadas++;
+        log.info("automatizacion_descartada", { ejecucionId: e.id, motivo: "evento_pasado" });
+        return;
+      }
+      return omitir(rev.motivo);
+    }
+  }
   const inscr = esInscripcion ? await cargarInscripcion(db, e.entidad_id) : null;
   if (esInscripcion) {
     if (!inscr) return omitir("inscripcion_inexistente");
@@ -278,7 +303,9 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   if (e.entidad_tipo === "clase_muestra" && !clase) return omitir("clase_inexistente");
   const incluir = { lead: true, bandeja_chatwoot: { include: { canal_whatsapp: { include: { vertical: true } } } } } as const;
   const leadDeLaEntidad = esLeadFrio ? e.entidad_id : (aviso?.leadId ?? clase?.lead_id ?? null);
-  const conv = inscr
+  const conv = cobro
+    ? await conversacionDeCobro(db, cobro)
+    : inscr
     ? await conversacionDeBienvenida(db, inscr)
     : leadDeLaEntidad
     ? await db.conversacion.findFirst({ where: { lead_id: leadDeLaEntidad }, orderBy: [{ creado_en: "desc" }, { id: "asc" }], include: incluir })
@@ -300,6 +327,12 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     if (!e.automatizacion.plantilla) return omitir("solo_tarea");
   }
   if (!conv && esPromocion) return omitir("sin_conversacion");
+  if (!conv && cobro) {
+    // La familia no tiene una conversación de WhatsApp en el canal de esa vertical: no hay por dónde recordarle el pago y una persona cobra.
+    await omitir("sin_conversacion");
+    await asegurarTareaDeCobro(db, { cargoId: cobro.id, inscripcionId: cobro.inscripcionId, leadId: cobro.leadId, tipo: "cobranza_sin_canal", descripcion: `El recordatorio de pago de ${cobro.alumnoNombre} (${formatear(cobro.saldo)}) no se mandó: la familia no tiene una conversación de WhatsApp en el canal de esa vertical. Cóbrales tú.` });
+    return;
+  }
   if (!conv && inscr) {
     // El tutor responsable no tiene una conversación de WhatsApp (se dio de alta por mostrador): no hay por dónde mandarle la bienvenida y una persona decide.
     await omitir("sin_conversacion");
@@ -366,7 +399,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     if (silencioCumplidoEn === null || silencioCumplidoEn > ahora.getTime()) return omitir("contacto_respondio");
   }
 
-  const zona = await zonaHorariaDeContacto(db, conv.lead.sucursal_interes_id, conv.bandeja_chatwoot.canal_whatsapp.sucursal_id, conv.lead.vertical_interes_id);
+  const zona = cobro ? cobro.zona : await zonaHorariaDeContacto(db, conv.lead.sucursal_interes_id, conv.bandeja_chatwoot.canal_whatsapp.sucursal_id, conv.lead.vertical_interes_id);
   // Lo programado fuera de rango se recorre; si con eso llegaría después del evento, se descarta.
   const reprogramarODescartar = async (ventana?: VentanaHoraria): Promise<void> => {
     // Un recordatorio tiene la clase como evento: llegar a su hora o después ya no sirve (límite exclusivo). La recuperación de quien no llegó y
@@ -375,6 +408,8 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
     const siguiente = zona
       ? clase && evento === "clase_muestra_proxima"
         ? recorrerODescartar(ahora, zona, clase.fecha_hora, ventana, true)
+        : cobro && evento === "cargo_por_vencer"
+          ? recorrerODescartar(ahora, zona, limiteDeRecordatorioPorVencer(cobro.vencimiento, zona), ventana, true)
         : aviso
           ? recorrerODescartar(ahora, zona, aviso.limite, ventana, true)
           : recorrerODescartar(ahora, zona, clase ? null : (deps.limiteDe?.(e) ?? null), ventana)
@@ -393,7 +428,7 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   const propia: VentanaHoraria = { inicioMin: e.automatizacion.hora_inicio_min, finMin: e.automatizacion.hora_fin_min, dias: e.automatizacion.dias_permitidos };
   if (zona && !dentroDeHorario(ahora, zona, propia)) return reprogramarODescartar(propia);
 
-  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso, inscr);
+  const variables = await resolverVariables(db, plantilla.variables, conv, clase, aviso, inscr, cobro);
   if (typeof variables === "string") return omitirConTarea(variables);
   const cuerpo = (plantilla.cuerpo_referencia ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_, pos: string) => variables[pos] ?? "");
   if (cuerpo.trim() === "") return omitirConTarea("plantilla_sin_cuerpo");
@@ -516,6 +551,7 @@ async function resolverVariables(
   clase: ClaseDeEjecucion | null = null,
   aviso: AvisoCargado | null = null,
   inscr: InscripcionDeEjecucion | null = null,
+  cobro: CobroCargado | null = null,
 ): Promise<Record<string, string> | string> {
   if (!Array.isArray(definidas)) return "variables_invalidas";
   const resultado: Record<string, string> = {};
@@ -533,15 +569,28 @@ async function resolverVariables(
         break;
       case "nombre_prospecto":
         // De una clase muestra o de un aviso de promoción: el alumno de ESA clase o cotización (el lead puede tener varios hijos).
-        valor = inscr ? inscr.alumno.nombre : clase ? clase.prospecto.nombre : aviso ? aviso.prospectoNombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] }))?.nombre;
+        valor = cobro ? cobro.alumnoNombre : inscr ? inscr.alumno.nombre : clase ? clase.prospecto.nombre : aviso ? aviso.prospectoNombre : (await db.prospecto.findFirst({ where: { lead_id: conv.lead.id }, orderBy: [{ creado_en: "asc" }, { id: "asc" }] }))?.nombre;
         break;
       case "nombre_promocion":
         if (!aviso) return "variable_desconocida";
         valor = aviso.promocionNombre;
         break;
       case "fecha_vencimiento":
+        if (cobro) {
+          valor = fechaLarga(cobro.vencimiento);
+          break;
+        }
         if (!aviso) return "variable_desconocida";
         valor = fechaLarga(aviso.venceEl);
+        break;
+      case "monto_pendiente":
+        // Lo que falta por pagar de ESE cargo (no el saldo de toda la familia): dinero exacto, formateado sin pasar por flotantes.
+        if (!cobro) return "variable_desconocida";
+        valor = formatear(cobro.saldo);
+        break;
+      case "concepto_cargo":
+        if (!cobro) return "variable_desconocida";
+        valor = cobro.descripcion ?? cobro.concepto;
         break;
       case "nombre_grupo":
         if (!clase && !inscr) return "variable_desconocida";
@@ -561,6 +610,10 @@ async function resolverVariables(
         valor = describirSesion(clase.fecha_hora, clase.grupo.programa.sucursal.zona_horaria).hora;
         break;
       case "nombre_sucursal":
+        if (cobro) {
+          valor = cobro.sucursalNombre;
+          break;
+        }
         if (inscr) {
           valor = inscr.grupo.programa.sucursal.nombre;
           break;

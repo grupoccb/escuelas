@@ -92,3 +92,30 @@ INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_i
   ('00000000-0000-4000-8000-000000000807', '00000000-0000-4000-8000-000000000001', 'Bienvenida de inscripción', NULL, NULL,
    'inscripcion_creada', 0, '00000000-0000-4000-8000-000000000709', 1, '{}', ARRAY[1,2,3,4,5,6])
 ON CONFLICT DO NOTHING;
+
+-- ── H6: recordatorios de pago [SUPUESTO] ──────────────────────────────────────────────────────────────────
+-- Dos avisos de SERVICIO (plantilla `utility`, `clase_mensaje = servicio`, INV-6) sobre algo que la familia ya acordó: pagar su cargo. Salen aunque una persona atienda la
+-- conversación; MessagingProvider les aplica TODO lo demás (baja total, ventana de servicio / plantilla aprobada, horario 09:00–20:00 de la sucursal, tope de 3 automáticos al día).
+-- Variables: el nombre de pila del alumno, el concepto del cargo («Mensualidad de noviembre de 2026»), lo que FALTA por pagar de ese cargo y su fecha de vencimiento: nunca datos de salud.
+--   · cargo_por_vencer: 3 días antes del vencimiento (-4320 min desde el inicio del día de vencimiento), un intento.
+--   · cargo_vencido: 1 día después de vencer (1440 min), hasta 2 intentos separados por 7 días (10080 min); `condiciones.max_atraso_dias` = no se persigue deuda de más de 60 días (esa la ve el asesor en su tarea).
+-- Ficticias y «aprobadas» solo para la demo local: en un ambiente real se sincronizan de Twilio y solo sale lo que Meta aprobó. Lunes a sábado.
+INSERT INTO plantilla_mensaje (id, organizacion_id, codigo, content_sid, vertical_id, categoria, clase_mensaje, tipo_content, idioma, variables, cuerpo_referencia, estado_aprobacion, activo) VALUES
+  ('00000000-0000-4000-8000-000000000710', '00000000-0000-4000-8000-000000000001', 'recordatorio_pago_por_vencer',
+   'HX00000000000000000000000000000010', NULL, 'utility', 'servicio', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"concepto_cargo"},{"pos":3,"nombre":"monto_pendiente"},{"pos":4,"nombre":"fecha_vencimiento"}]',
+   'Te recordamos que el pago «{{2}}» de {{1}} por {{3}} vence el {{4}}. Si ya pagaste, ignora este mensaje; si tienes dudas, responde aquí.',
+   'aprobada', true),
+  ('00000000-0000-4000-8000-000000000711', '00000000-0000-4000-8000-000000000001', 'recordatorio_pago_vencido',
+   'HX00000000000000000000000000000011', NULL, 'utility', 'servicio', 'text', 'es_MX',
+   '[{"pos":1,"nombre":"nombre_prospecto"},{"pos":2,"nombre":"concepto_cargo"},{"pos":3,"nombre":"monto_pendiente"},{"pos":4,"nombre":"fecha_vencimiento"}]',
+   'El pago «{{2}}» de {{1}} por {{3}} venció el {{4}}. Si ya lo hiciste, ignora este mensaje; si no, responde aquí y te ayudamos a ponerte al corriente.',
+   'aprobada', true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO automatizacion (id, organizacion_id, nombre, vertical_id, sucursal_id, evento_disparador, offset_minutos, plantilla_id, max_intentos, espaciado_minutos, condiciones, dias_permitidos) VALUES
+  ('00000000-0000-4000-8000-000000000808', '00000000-0000-4000-8000-000000000001', 'Cobranza: recordatorio 3 días antes', NULL, NULL,
+   'cargo_por_vencer', -4320, '00000000-0000-4000-8000-000000000710', 1, NULL, '{}', ARRAY[1,2,3,4,5,6]),
+  ('00000000-0000-4000-8000-000000000809', '00000000-0000-4000-8000-000000000001', 'Cobranza: recordatorio de pago vencido', NULL, NULL,
+   'cargo_vencido', 1440, '00000000-0000-4000-8000-000000000711', 2, 10080, '{"max_atraso_dias":60}', ARRAY[1,2,3,4,5,6])
+ON CONFLICT DO NOTHING;

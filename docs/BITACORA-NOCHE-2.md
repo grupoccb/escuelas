@@ -65,7 +65,7 @@ Sesión del 7 de octubre de 2026. Rama `noche-2` (desde `noche-fase1`). Plan: `d
 | H3 | HECHO (parcial: la «vista de solo lectura» es el endpoint JSON; la pantalla es de la etapa J) | ver `git log` (`H1-H5:`) | Estado de cuenta por familia y por hijo con antigüedad de lo vencido; `ProveedorEconomico` real enchufado en `server.ts` |
 | H4 | HECHO | ver `git log` (`H1-H5:`) | Beneficios diferidos: liberados en la misma transacción del pago que salda la primera mensualidad, lista de por entregar, cancelar el pago los regresa o los marca en revisión |
 | H5 | HECHO | ver `git log` (`H1-H5:`) | Productos y ventas: stock que nunca baja de cero (disparador + CHECK, carrera de 20 hilos), cargo por venta, anulación, entrega de beneficios de producto como venta promocional |
-| H6 | PENDIENTE | | Cobranza |
+| H6 | HECHO | ver `git log` (`H6:`) | Cobranza: recordatorios de pago de SERVICIO con el motor y todas las reglas del provider, cancelados al saldarse/cancelarse/darse de baja, tarea por deuda sobre un umbral de días |
 | H7 | PENDIENTE | | Cuadratura |
 | I1 | PENDIENTE | | Reporte de clases muestra |
 | I2 | PENDIENTE | | Costo por alumno inscrito por campaña |
@@ -2285,3 +2285,27 @@ Los archivos nuevos de integración: `cargos.itest.ts` (14), `pagos.itest.ts` (1
 4. Stock global por producto, no por sucursal.
 5. Ventana para cancelar un pago viejo (hoy sin límite) y quién puede cancelar (hoy administrador y recepción).
 6. Un solo responsable de pago por cargo, fijado al generarlo; los cargos abiertos no migran si cambia el responsable.
+
+## H6. Cobranza
+
+**Qué se hizo**
+- **Migraciones `20261021040000_cobranza` y `…040100_cobranza_defensas`:** eventos `cargo_por_vencer` y `cargo_vencido`, tareas `deuda_vencida` y `cobranza_sin_canal`, `tarea_asesor.cargo_id` (FK compuesta), `configuracion_organizacion.umbral_dias_deuda` (15, CHECK 1–365; `leerConfiguracion` lo expone como `umbralDiasDeuda`), únicos parciales (una tarea pendiente por (cargo, tipo); una de deuda por cargo en toda su vida).
+- **`src/cobranza/`:** `plan.ts` (PURO: referencia, nominal de cada recordatorio, qué ocurrencia toca, tope de atraso), `programar.ts` (el motor programa las ejecuciones `entidad_tipo = cargo`), `revalidar.ts` (PURO: ¿sigue valiendo?), `cargar.ts` (datos del cargo y su conversación: la del responsable de pago EN LA VERTICAL del cargo), `ejecuciones.ts` (cancelar recordatorios al saldar, cancelar o dar de baja), `tareas.ts` (tarea por deuda y su limpieza). El motor entiende la entidad `cargo` y las variables `monto_pendiente` y `concepto_cargo`. Los ganchos están dentro de las transacciones de lo que invalida: el pago (`alRegistrarPago`), `cancelarCargo`, `anularVenta`, `darDeBaja`.
+- **Seed `[SUPUESTO]`** (`prisma/seed/seguimiento.sql`): plantillas 710/711 (`utility`, `clase_mensaje = servicio`) y automatizaciones 808 (3 días antes) y 809 (1 día después, 2 intentos cada 7 días). El barrido de finanzas (`barrerFinanzas`) ahora también crea y resuelve las tareas por deuda.
+
+**Verificación**
+```
+$ npm run validar     → exit 0 (586 tests con los de H7 ya escritos; 576 en este commit)
+$ npm run test:int    → exit 0 · tests 995 · pass 995 · fail 0
+```
+Pruebas: `plan.test.ts` (8), `revalidar.test.ts` (2), `cobranza.itest.ts` (8: horario con el reloj en la mano —las 06:00 salen a las 09:00—, domingo → lunes, dos intentos y no un tercero, cancelar al pagar/cancelar/dar de baja, baja total, atención humana con plantilla de servicio y de marketing, tope diario, sin conversación, 6 motores a la vez, umbral de deuda, sin datos de salud).
+
+**Decisiones que tomé (con la alternativa descartada)**
+1. **Referencia en el día de vencimiento, no en una hora.** Un cargo vence un DÍA; «3 días antes» se mide desde el inicio de ese día y se recorre al horario de envío (09:00). Alternativa descartada: guardar una hora de vencimiento (inventa un dato que la escuela no da).
+2. **Un recordatorio vencido solo se programa si el anterior SALIÓ** (como D4) y hasta `max_intentos`; si el anterior no salió (baja, tope, sin plantilla) no se insiste. El tope por defecto del atraso perseguible es 60 días.
+3. **El umbral de la tarea es de la organización** (`umbral_dias_deuda`), no de la automatización: la tarea existe aunque no haya automatizaciones. Alternativa descartada: ponerlo en `condiciones` de la automatización.
+4. **Una tarea por familia (cargo vencido más antiguo) y por cargo en toda su vida:** evita el ciclo «una persona la resuelve y el barrido la recrea».
+5. **Aserción de prueba que cambió (no se debilitó):** `atencion-humana-matriz.itest.ts` «las plantillas de los seeds DECLARAN su clase» ahora lista también `recordatorio_pago_por_vencer` y `recordatorio_pago_vencido` como `servicio` (así lo acordó INV-6 para el recordatorio de pago); y `configuracion.itest.ts` espera el campo nuevo `umbralDiasDeuda: 15` en las tres comparaciones completas de la configuración.
+6. **Residuo conocido:** entre que el motor revalida el cargo y que MessagingProvider envía hay milisegundos en los que un pago podría llegar; el recordatorio saldría una vez más. Cerrarlo exigiría que el envío ocurra dentro de la transacción del pago.
+
+**Para Eduardo**: `[SUPUESTO]` el texto, el calendario (lunes a sábado), 3 días antes / 1 día después / cada 7 días y el umbral de 15 días. Que el recordatorio de pago salga con una persona atendiendo es la regla INV-6 (clase servicio).

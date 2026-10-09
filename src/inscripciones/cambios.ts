@@ -19,6 +19,7 @@
 import { InscripcionesActivas, bloquearCupoDeGrupo } from "../catalogo/cupo.ts";
 import { aFecha, deFecha, type FechaISO } from "../catalogo/precios.ts";
 import { altaConAlcance, type Consultas } from "../datos/alcance.ts";
+import { cancelarEjecucionesDeInscripcion } from "../cobranza/ejecuciones.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import type { ContextoDeInscripcion } from "./inscribir.ts";
 
@@ -151,5 +152,7 @@ export async function darDeBaja(tx: Consultas, ctx: ContextoDeInscripcion, e: { 
   const r = await tx.inscripcion.updateMany({ where: { id: i.id, estatus: { in: ["activa", "congelada"] } }, data: { estatus: "baja", fecha_baja: aFecha(fechaBaja), motivo_baja_id: e.motivoBajaId, congelada_desde: null } });
   if (r.count !== 1) return rechazo("cambio_concurrente", "La inscripción cambió mientras tanto: vuelve a intentarlo");
   await movimiento(tx, ctx, { inscripcionId: i.id, tipo: "baja", fecha: fechaBaja, motivoBajaId: e.motivoBajaId });
+  // H6: a una inscripción dada de baja no se le siguen mandando recordatorios de pago (la deuda sigue siendo deuda; la cobra una persona).
+  await cancelarEjecucionesDeInscripcion(tx, i.id, "inscripcion_baja");
   return ok(tx, i, antes, i.estatus === "activa" ? i.grupo_id : null);
 }

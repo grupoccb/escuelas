@@ -40,6 +40,8 @@ export interface ConfiguracionOrganizacion {
   modoCierre: ModoDeCierre;
   /** Faltas consecutivas (sesiones con pase tomado) con las que una inscripción genera su tarea para el asesor (G2). Entre 1 y 30. */
   umbralFaltasConsecutivas: number;
+  /** Días de atraso con los que una familia con deuda vencida genera su tarea para el asesor (H6). Entre 1 y 365. */
+  umbralDiasDeuda: number;
 }
 
 /** Lo que vale cuando la organización no tiene fila. Mismos valores que los defaults de la columna. */
@@ -55,6 +57,7 @@ export const CONFIGURACION_POR_DEFECTO: Readonly<ConfiguracionOrganizacion> = Ob
   claseMuestraCorreccionHoras: 48,
   modoCierre: "asesor_whatsapp",
   umbralFaltasConsecutivas: 3,
+  umbralDiasDeuda: 15,
 });
 
 interface FilaConfiguracion {
@@ -69,6 +72,7 @@ interface FilaConfiguracion {
   clase_muestra_correccion_horas: number;
   modo_cierre: ModoDeCierre;
   umbral_faltas_consecutivas: number;
+  umbral_dias_deuda: number;
 }
 
 function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
@@ -84,13 +88,14 @@ function desdeFila(f: FilaConfiguracion): ConfiguracionOrganizacion {
     claseMuestraCorreccionHoras: f.clase_muestra_correccion_horas,
     modoCierre: f.modo_cierre,
     umbralFaltasConsecutivas: f.umbral_faltas_consecutivas,
+    umbralDiasDeuda: f.umbral_dias_deuda,
   };
 }
 
 /** La configuración de la organización del scope; los valores por defecto si no hay fila. */
 export async function leerConfiguracion(db: Consultas): Promise<ConfiguracionOrganizacion> {
   const fila = await db.configuracion_organizacion.findFirst({
-    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true, cotizacion_vigencia_dias: true, lista_espera_oferta_horas: true, clase_muestra_anticipacion_min: true, clase_muestra_horizonte_dias: true, clase_muestra_correccion_horas: true, modo_cierre: true, umbral_faltas_consecutivas: true },
+    select: { max_automaticos_por_dia: true, max_marketing_por_ventana: true, ventana_marketing_dias: true, sucursal_sin_programa: true, cotizacion_vigencia_dias: true, lista_espera_oferta_horas: true, clase_muestra_anticipacion_min: true, clase_muestra_horizonte_dias: true, clase_muestra_correccion_horas: true, modo_cierre: true, umbral_faltas_consecutivas: true, umbral_dias_deuda: true },
   });
   return fila ? desdeFila(fila) : { ...CONFIGURACION_POR_DEFECTO };
 }

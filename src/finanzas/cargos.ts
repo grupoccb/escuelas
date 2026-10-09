@@ -17,6 +17,7 @@
 
 import { aFecha, deFecha, type FechaISO } from "../catalogo/precios.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
+import { cancelarEjecucionesDeCobro } from "../cobranza/ejecuciones.ts";
 import { fechaDeCorte } from "../inscripciones/corte.ts";
 import { aTexto, deDecimal, minimo, restar, type Centavos } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
@@ -303,7 +304,10 @@ export async function cancelarCargo(tx: Consultas, ctx: ContextoDeCargo, e: { ca
     where: { id: e.cargoId, venta_id: null, estatus: { in: ["pendiente", "vencido"] }, monto_pagado: "0.00" },
     data: { estatus: "cancelado", cancelado_en: ctx.ahora, cancelado_por_usuario_id: ctx.usuarioId, motivo_cancelacion: e.motivo },
   });
-  if (r.count === 1) return { ok: true, cargoId: e.cargoId };
+  if (r.count === 1) {
+    await cancelarEjecucionesDeCobro(tx, [e.cargoId], "cargo_cancelado");
+    return { ok: true, cargoId: e.cargoId };
+  }
   const c = await tx.cargo.findFirst({ where: { id: e.cargoId }, select: { estatus: true, monto_pagado: true, monto_final: true, venta_id: true } });
   if (!c) return { ok: false, motivo: "inexistente" };
   // El cargo de una venta se cancela anulando la venta (devuelve las piezas); cancelarlo suelto dejaría la venta sin su cargo.

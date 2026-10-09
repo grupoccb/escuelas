@@ -12,6 +12,7 @@ import { esViolacionUnica } from "../datos/prisma.ts";
 import type { ProductosDelAlumno, ProveedorProductos } from "../expediente/proveedores.ts";
 import { aTexto, deDecimal, multiplicar, type Centavos } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
+import { cancelarEjecucionesDeCobro } from "../cobranza/ejecuciones.ts";
 import { responsableDePago } from "./cargos.ts";
 import { marcarEntregado, type ContextoDeBeneficio } from "./beneficios.ts";
 
@@ -126,6 +127,8 @@ export async function anularVenta(tx: Consultas, ctx: ContextoDeVenta, e: { vent
   if (r.count !== 1) throw new RechazoDeVenta("ya_anulada", "La venta ya estaba anulada");
   const c = await tx.cargo.updateMany({ where: { venta_id: v.id, estatus: { in: ["pendiente", "vencido"] }, monto_pagado: "0.00" }, data: { estatus: "cancelado", cancelado_en: ctx.ahora, cancelado_por_usuario_id: ctx.usuarioId, motivo_cancelacion: `Venta anulada: ${e.motivo}` } });
   if (c.count !== 1) throw new RechazoDeVenta("cargo_con_pagos", "El cargo de la venta tiene pagos: cancela primero el pago");
+  const cargos = await tx.cargo.findMany({ where: { venta_id: v.id }, select: { id: true } });
+  await cancelarEjecucionesDeCobro(tx, cargos.map((x) => x.id), "cargo_cancelado");
   return { ventaId: v.id };
 }
 

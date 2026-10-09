@@ -156,6 +156,8 @@ model configuracion_organizacion {
   modo_cierre               modo_cierre_inscripcion        @default(asesor_whatsapp)
   /// Cuántas faltas consecutivas (sesiones con pase tomado) disparan la tarea para el asesor (G2). Entre 1 y 30 (CHECK).
   umbral_faltas_consecutivas Int                           @default(3)
+  /// Días de atraso con los que una familia con deuda vencida genera su tarea para el asesor (H6). Entre 1 y 365 (CHECK).
+  umbral_dias_deuda         Int                            @default(15)
   creado_en                 DateTime                       @default(now()) @db.Timestamptz(6)
   actualizado_en            DateTime                       @default(now()) @updatedAt @db.Timestamptz(6)
   eliminado_en              DateTime?                      @db.Timestamptz(6)
@@ -791,6 +793,11 @@ enum evento_disparador {
   /// Se acaba de inscribir un alumno (F7): la bienvenida de inscripción al tutor responsable. La entidad es la `inscripcion`; `offset_minutos` = minutos
   /// después de inscribirse (0 = en cuanto el horario de envío lo permita). Es un aviso de SERVICIO sobre algo ya acordado (plantilla `utility`), no marketing.
   inscripcion_creada
+  /// Antes de vencer un cargo (H6): el recordatorio de pago. La entidad es el `cargo`; `offset_minutos` NEGATIVO se mide desde el inicio del día de vencimiento (-4320 = 3 días antes).
+  cargo_por_vencer
+  /// Después de vencer un cargo (H6): el recordatorio de pago atrasado. La entidad es el `cargo`; `offset_minutos` se mide desde el inicio del día siguiente al vencimiento y los
+  /// intentos siguientes salen cada `espaciado_minutos` (7 días por omisión), hasta `max_intentos`.
+  cargo_vencido
 }
 
 /// Reglas de automatización configurables. Hoy solo el reenganche (Fase 1.6); los demás
@@ -909,6 +916,10 @@ enum tipo_tarea_asesor {
   evento_inesperado
   /// Se canceló el pago que cumplió la condición de un beneficio que ya se había entregado (H4). Una pendiente por inscripción: una persona decide.
   beneficio_en_revision
+  /// Una familia lleva más de `umbral_dias_deuda` días de atraso (H6). Una pendiente por familia, ligada a su cargo vencido más antiguo; se resuelve sola al saldarse.
+  deuda_vencida
+  /// No hay una conversación de WhatsApp a la cual mandar el recordatorio de pago (H6): una persona cobra. Una pendiente por cargo.
+  cobranza_sin_canal
 }
 
 enum estado_tarea_asesor {
@@ -931,6 +942,8 @@ model tarea_asesor {
   clase_muestra_id String?            @db.Uuid
   /// La inscripción a la que se refiere la tarea (faltas consecutivas, G2).
   inscripcion_id  String?             @db.Uuid
+  /// El cargo al que se refiere la tarea (deuda vencida, recordatorio sin canal; H6).
+  cargo_id        String?             @db.Uuid
   /// Desde cuándo corre lo que la tarea avisa (faltas consecutivas: la fecha de la PRIMERA falta de la racha). Con `inscripcion_id` y `tipo` hace única la tarea de una racha.
   referencia_fecha DateTime?          @db.Date
   tipo            tipo_tarea_asesor
@@ -950,6 +963,7 @@ model tarea_asesor {
   mensaje      mensaje?      @relation(fields: [mensaje_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   clase_muestra clase_muestra? @relation(fields: [clase_muestra_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   inscripcion  inscripcion?  @relation(fields: [inscripcion_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
+  cargo        cargo?        @relation(fields: [cargo_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   eventos_inesperados evento_inesperado[]
 
   @@unique([id, organizacion_id])
@@ -2847,6 +2861,7 @@ model cargo {
   creado_por    usuario?      @relation("cargo_creado_por", fields: [creado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   cancelado_por usuario?      @relation("cargo_cancelado_por", fields: [cancelado_por_usuario_id, organizacion_id], references: [id, organizacion_id], onDelete: Restrict, onUpdate: Restrict)
   aplicaciones  pago_aplicacion[]
+  tareas_asesor tarea_asesor[]
 
   @@unique([id, organizacion_id])
   @@index([organizacion_id])

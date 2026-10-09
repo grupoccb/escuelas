@@ -135,7 +135,7 @@ test("INV-6: cada plantilla DECLARA su clase: sin ella la base rechaza el alta, 
 
 test("INV-6: las plantillas de los seeds DECLARAN su clase y la clasificación es la acordada (servicio: recordatorio, bienvenida, aviso al maestro; el resto, marketing)", () => {
   const esperada = (codigo: string): "servicio" | "marketing" =>
-    codigo === "recordatorio_clase_muestra" || codigo === "bienvenida_inscripcion" || codigo.startsWith("aviso_maestro_") ? "servicio" : "marketing";
+    codigo === "recordatorio_clase_muestra" || codigo === "bienvenida_inscripcion" || codigo.startsWith("aviso_maestro_") || codigo.startsWith("recordatorio_pago_") ? "servicio" : "marketing";
   const visto: string[] = [];
   for (const f of readdirSync("prisma/seed").filter((n) => n.endsWith(".sql"))) {
     const sql = readFileSync(join("prisma/seed", f), "utf8");
@@ -148,7 +148,7 @@ test("INV-6: las plantillas de los seeds DECLARAN su clase y la clasificación e
       }
     }
   }
-  assert.deepEqual(visto.sort(), ["aviso_maestro_agendada", "aviso_maestro_cancelada", "aviso_maestro_reprogramada", "bienvenida_inscripcion", "recordatorio_clase_muestra", "recuperacion_no_asistio", "reenganche_captacion", "reenganche_lead_frio", "promocion_por_vencer"].sort());
+  assert.deepEqual(visto.sort(), ["aviso_maestro_agendada", "aviso_maestro_cancelada", "aviso_maestro_reprogramada", "bienvenida_inscripcion", "recordatorio_clase_muestra", "recordatorio_pago_por_vencer", "recordatorio_pago_vencido", "recuperacion_no_asistio", "reenganche_captacion", "reenganche_lead_frio", "promocion_por_vencer"].sort());
 });
 
 test("INV-6: ninguna automatización verifica el estado de la conversación por su cuenta — la verificación vive solo en MessagingProvider", () => {

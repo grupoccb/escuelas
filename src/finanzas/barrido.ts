@@ -8,6 +8,8 @@ import { conAlcance } from "../datos/alcance.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import { listarOrganizaciones } from "../datos/sistema.ts";
 import { log } from "../lib/log.ts";
+import { barrerTareasDeCobranza } from "../cobranza/tareas.ts";
+import { leerConfiguracion } from "../configuracion/index.ts";
 import { generarMensualidades, materializarVencidos } from "./cargos.ts";
 
 export interface ResumenFinanzas {
@@ -15,12 +17,14 @@ export interface ResumenFinanzas {
   mensualidadesGeneradas: number;
   sinResponsable: number;
   vencidosMaterializados: number;
+  tareasDeCobranza: number;
+  tareasResueltas: number;
   errores: number;
 }
 
 export async function barrerFinanzas(deps: { prisma: PrismaRaiz; reloj?: () => Date; organizacionId?: string }): Promise<ResumenFinanzas> {
   const ahora = (deps.reloj ?? (() => new Date()))();
-  const resumen: ResumenFinanzas = { organizaciones: 0, mensualidadesGeneradas: 0, sinResponsable: 0, vencidosMaterializados: 0, errores: 0 };
+  const resumen: ResumenFinanzas = { organizaciones: 0, mensualidadesGeneradas: 0, sinResponsable: 0, vencidosMaterializados: 0, tareasDeCobranza: 0, tareasResueltas: 0, errores: 0 };
   for (const org of await listarOrganizaciones(deps.prisma)) {
     if (deps.organizacionId !== undefined && org.id !== deps.organizacionId) continue;
     resumen.organizaciones++;
@@ -38,6 +42,14 @@ export async function barrerFinanzas(deps: { prisma: PrismaRaiz; reloj?: () => D
     } catch (e) {
       resumen.errores++;
       log.error("finanzas_vencer_error", { organizacion: org.id, error: (e as Error).message });
+    }
+    try {
+      const t = await barrerTareasDeCobranza(db, ahora, (await leerConfiguracion(db)).umbralDiasDeuda);
+      resumen.tareasDeCobranza += t.creadas;
+      resumen.tareasResueltas += t.resueltas;
+    } catch (e) {
+      resumen.errores++;
+      log.error("finanzas_cobranza_error", { organizacion: org.id, error: (e as Error).message });
     }
   }
   if (resumen.mensualidadesGeneradas > 0 || resumen.vencidosMaterializados > 0) log.info("finanzas_barrido", { ...resumen });
