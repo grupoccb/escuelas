@@ -7,13 +7,13 @@ import { Link } from "react-router-dom";
 import type { LeadDetalle, ProgramaCotizado } from "../../api/tipos.ts";
 import { formatear } from "../../lib/dinero.ts";
 import { ESTATUS_DE_CLASE, MOTIVOS_DE_CLASE, SEXOS, TURNOS } from "../../lib/etiquetas.ts";
-import { formatearFecha } from "../../lib/fechas.ts";
-import { Aviso, Boton, ErrorDeAccion, Insignia, Tarjeta } from "../../ui/basicos.tsx";
+import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
+import { Aviso, Boton, ErrorDeAccion, Insignia, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { useAccion } from "../../ui/hooks.ts";
 import { CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Aceptaciones } from "../maestro/Aceptaciones.tsx";
 import type { CapturadoDeProspecto, Oferta } from "./datos.ts";
-import { etiquetaDeFalta, type Entrada, type EntradaDeAlumno, type Falta } from "./faltantes.ts";
+import { etiquetaDeFalta, nacimientoValido, type Entrada, type EntradaDeAlumno, type Falta } from "./faltantes.ts";
 
 export interface Opciones {
   fecha_inicio: string;
@@ -51,17 +51,17 @@ export function programaDeGrupo(c: ContextoDePasos, id: string, grupoId: string)
 }
 
 /** Un dato ya capturado: se ve su valor; «Corregir» abre el campo. Un dato que falta: el campo, obligatorio. */
-function Dato({ etiqueta, capturado, escrito, falta, tipo = "text", alEscribir }: { etiqueta: string; capturado: string | null | undefined; escrito: string | undefined; falta: boolean; tipo?: string; alEscribir: (v: string) => void }) {
+function Dato({ etiqueta, capturado, escrito, falta, tipo = "text", error, alEscribir }: { etiqueta: string; capturado: string | null | undefined; escrito: string | undefined; falta: boolean; tipo?: string; error?: string | undefined; alEscribir: (v: string) => void }) {
   const valor = capturado && capturado.trim() !== "" ? capturado : null;
   if (valor === null && !falta) return null;
   if (valor === null || escrito !== undefined) {
     return (
-      <CampoTexto etiqueta={etiqueta} type={tipo} value={escrito ?? ""} onChange={(e) => alEscribir(e.target.value)} requerido={valor === null} ayuda={valor !== null ? `Antes: ${tipo === "date" ? formatearFecha(valor) : valor}` : undefined} />
+      <CampoTexto etiqueta={etiqueta} type={tipo} value={escrito ?? ""} onChange={(e) => alEscribir(e.target.value)} requerido={valor === null} error={error} ayuda={valor !== null ? `Antes: ${tipo === "date" ? formatearFecha(valor) : valor}` : undefined} />
     );
   }
   return (
-    <div className="fila fila-entre" data-prueba="dato-capturado">
-      <span>
+    <div className="dato-capturado" data-prueba="dato-capturado">
+      <span className="dato-capturado-texto">
         <span className="muted">{etiqueta}: </span>
         <strong>{tipo === "date" ? formatearFecha(valor) : valor}</strong> <Insignia tono="exito">Capturado</Insignia>
       </span>
@@ -82,23 +82,31 @@ export function PasoFamilia({ c }: { c: ContextoDePasos }) {
       <p className="muted">La familia (los adultos) se crea con lo que ya se capturó.</p>
       {primero ? (
         <Tarjeta titulo="Adultos que capturó el maestro">
-          <ul className="lista-tarjetas" data-prueba="adultos-capturados">
+          <ul className="adultos" data-prueba="adultos-capturados">
             {primero.tutores.map((t) => (
               <li key={t.id}>
-                <strong>
-                  {t.nombre} {t.apellidos ?? ""}
-                </strong>{" "}
-                · {t.parentesco} · {t.telefono}
-                {t.es_responsable_pago ? <Insignia tono="info">Responsable de pago</Insignia> : null}
-                {t.lo_lleva ? <Insignia>Lo lleva</Insignia> : null}
-                {t.puede_recoger ? <Insignia>Puede recoger</Insignia> : null}
+                <span className="adulto-datos">
+                  <strong>
+                    {t.nombre} {t.apellidos ?? ""}
+                  </strong>{" "}
+                  <span className="muted numero">
+                    · {t.parentesco} · {t.telefono}
+                  </span>
+                </span>
+                {t.es_responsable_pago || t.lo_lleva || t.puede_recoger ? (
+                  <span className="adulto-etiquetas">
+                    {t.es_responsable_pago ? <Insignia tono="info">Responsable de pago</Insignia> : null}
+                    {t.lo_lleva ? <Insignia>Lo lleva</Insignia> : null}
+                    {t.puede_recoger ? <Insignia>Puede recoger</Insignia> : null}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
         </Tarjeta>
       ) : (
         <Tarjeta titulo="Contacto que escribió">
-          <dl className="datos">
+          <dl className="datos resumen-datos">
             <dt>Nombre</dt>
             <dd>{c.lead.nombre_contacto ?? "—"}</dd>
             <dt>Teléfono</dt>
@@ -107,7 +115,7 @@ export function PasoFamilia({ c }: { c: ContextoDePasos }) {
           {sinTelefono ? <Aviso tono="peligro">Este contacto no tiene un teléfono válido: sin él no se puede crear la familia.</Aviso> : null}
           {hayFalta(c, "tutor.nombre") ? <CampoTexto etiqueta="Nombre del adulto" value={c.entrada.tutor.nombre} onChange={(e) => c.ponerTutor("nombre", e.target.value)} requerido /> : null}
           {hayFalta(c, "tutor.parentesco") ? <CampoTexto etiqueta="Parentesco con el alumno" ayuda="Madre, padre, abuela, tío…" value={c.entrada.tutor.parentesco} onChange={(e) => c.ponerTutor("parentesco", e.target.value)} requerido /> : null}
-          <details>
+          <details className="mas-opciones">
             <summary>Datos opcionales del adulto</summary>
             <div className="pila">
               <CampoTexto etiqueta="Apellidos del adulto" value={c.entrada.tutor.apellidos} onChange={(e) => c.ponerTutor("apellidos", e.target.value)} />
@@ -135,10 +143,10 @@ export function PasoAlumnos({ c }: { c: ContextoDePasos }) {
             <div className="pila" data-prueba={`alumno-${id}`}>
               <Dato etiqueta="Nombre" capturado={reg?.alumno.nombre ?? prospecto?.nombre} escrito={e?.nombre} falta={rutas("nombre")} alEscribir={(v) => c.ponerAlumno(id, { nombre: v })} />
               <Dato etiqueta="Apellidos" capturado={reg?.alumno.apellidos ?? prospecto?.apellidos} escrito={e?.apellidos} falta={rutas("apellidos")} alEscribir={(v) => c.ponerAlumno(id, { apellidos: v })} />
-              <Dato etiqueta="Fecha de nacimiento" tipo="date" capturado={reg?.alumno.fecha_nacimiento ?? prospecto?.fecha_nacimiento} escrito={e?.fecha_nacimiento} falta={rutas("fecha_nacimiento")} alEscribir={(v) => c.ponerAlumno(id, { fecha_nacimiento: v })} />
+              <Dato etiqueta="Fecha de nacimiento" tipo="date" capturado={reg?.alumno.fecha_nacimiento ?? prospecto?.fecha_nacimiento} escrito={e?.fecha_nacimiento} falta={rutas("fecha_nacimiento")} error={e?.fecha_nacimiento && !nacimientoValido(e.fecha_nacimiento, hoyLocal()) ? "Escribe una fecha real que no sea futura (de 1 a 99 años de edad)." : undefined} alEscribir={(v) => c.ponerAlumno(id, { fecha_nacimiento: v })} />
               {prospecto?.edad_declarada !== null && prospecto?.edad_declarada !== undefined && !reg?.alumno.fecha_nacimiento && !prospecto?.fecha_nacimiento ? <p className="muted">Edad que dijo la familia: {prospecto.edad_declarada} años.</p> : null}
               {reg ? (
-                <dl className="datos" data-prueba="capturado-del-maestro">
+                <dl className="datos resumen-datos" data-prueba="capturado-del-maestro">
                   {textoDe(SEXOS, reg.alumno.sexo) ? (<><dt>Sexo</dt><dd>{textoDe(SEXOS, reg.alumno.sexo)}</dd></>) : null}
                   {reg.alumno.escuela ? (<><dt>Escuela</dt><dd>{reg.alumno.escuela}</dd></>) : null}
                   {textoDe(TURNOS, reg.alumno.turno_escolar) ? (<><dt>Turno</dt><dd>{textoDe(TURNOS, reg.alumno.turno_escolar)}</dd></>) : null}
@@ -147,7 +155,7 @@ export function PasoAlumnos({ c }: { c: ContextoDePasos }) {
                   {textoDe(MOTIVOS_DE_CLASE, reg.antecedentes.motivo_clase) ? (<><dt>Motivo</dt><dd>{textoDe(MOTIVOS_DE_CLASE, reg.antecedentes.motivo_clase)}</dd></>) : null}
                 </dl>
               ) : (
-                <Aviso>Todavía no hay registro del maestro de este alumno: solo se pide lo indispensable.</Aviso>
+                <Vacio titulo="Todavía no hay registro del maestro de este alumno: solo se pide lo indispensable." icono="alumnos" />
               )}
               {nada ? <Aviso tono="exito">Nada por capturar de este alumno: todo salió del registro.</Aviso> : null}
             </div>
@@ -169,7 +177,7 @@ export function PasoGrupo({ c }: { c: ContextoDePasos }) {
         const programas = oferta?.programas ?? [];
         return (
           <Tarjeta key={id} titulo={`Grupo de ${nombreDeProspecto(c, id)}`}>
-            <div className="pila" data-prueba={`grupo-${id}`}>
+            <div className="pila paso-grupo" data-prueba={`grupo-${id}`}>
               {!c.lead.sucursal ? <Aviso tono="alerta">Este lead no tiene sucursal: sin ella no se pueden ver los grupos.</Aviso> : null}
               {oferta === undefined || oferta === null ? (c.lead.sucursal ? <Aviso tono="alerta">No se pudo calcular la oferta de esta edad.</Aviso> : null) : null}
               {oferta && programas.length === 0 ? <Aviso tono="alerta">No hay programas para esta edad en la sucursal del lead.</Aviso> : null}
@@ -178,17 +186,38 @@ export function PasoGrupo({ c }: { c: ContextoDePasos }) {
                   key={p.programa_id}
                   etiqueta={`${p.nombre}${p.sin_precio ? " (sin precio)" : ""}`}
                   valor={elegido}
+                  rejilla
                   alCambiar={(v) => c.ponerGrupo(id, v)}
-                  opciones={p.grupos.map((g) => ({
-                    valor: g.grupo_id,
-                    texto: `${g.horario_texto} · ${g.nombre} · ${g.lleno ? "Lleno" : `${g.lugares_disponibles} ${g.lugares_disponibles === 1 ? "lugar" : "lugares"}`}${g.grupo_id === c.capturado[id]?.grupoElegido ? " · lo eligió la familia" : g.grupo_id === reg?.observacion.grupo_recomendado_id ? " · recomendado por el maestro" : ""}`,
-                    deshabilitada: g.lleno,
-                  }))}
+                  opciones={p.grupos.map((g) => {
+                    const cupo = g.lleno ? "Lleno" : `${g.lugares_disponibles} ${g.lugares_disponibles === 1 ? "lugar" : "lugares"}`;
+                    const nota = g.grupo_id === c.capturado[id]?.grupoElegido ? "lo eligió la familia" : g.grupo_id === reg?.observacion.grupo_recomendado_id ? "recomendado por el maestro" : null;
+                    return {
+                      valor: g.grupo_id,
+                      texto: `${g.nombre} · ${cupo}${nota ? ` · ${nota}` : ""} · ${g.horario_texto}`,
+                      deshabilitada: g.lleno,
+                      // El nombre del grupo y el cupo son lo que se elige: van arriba y en grande; el horario, debajo. Los « · » quedan solo para el lector de pantalla.
+                      contenido: (
+                        <span className="grupo-opcion">
+                          <span className="grupo-nombre">{g.nombre}</span>
+                          <span className="solo-lectores"> · </span>
+                          <span className={g.lleno ? "grupo-cupo grupo-cupo-lleno" : "grupo-cupo"}>{cupo}</span>
+                          {nota ? (
+                            <>
+                              <span className="solo-lectores"> · </span>
+                              <span className="grupo-nota">{nota}</span>
+                            </>
+                          ) : null}
+                          <span className="solo-lectores"> · </span>
+                          <span className="grupo-horario">{g.horario_texto}</span>
+                        </span>
+                      ),
+                    };
+                  })}
                 />
               ))}
               {elegido !== "" && programas.some((p) => p.grupos.some((g) => g.grupo_id === elegido && g.lleno)) ? <Aviso tono="alerta">El grupo elegido ya no tiene lugares: elige otro.</Aviso> : null}
               {elegido !== "" && !programas.some((p) => p.grupos.some((g) => g.grupo_id === elegido)) && oferta ? <Aviso tono="alerta">El grupo que traía el expediente ya no aplica a esta edad: elige otro.</Aviso> : null}
-              <details>
+              <details className="mas-opciones">
                 <summary>Más opciones de la inscripción</summary>
                 <div className="pila">
                   <CampoTexto etiqueta="Fecha de inicio (opcional)" type="date" value={o.fecha_inicio} onChange={(e) => c.ponerOpcion(id, "fecha_inicio", e.target.value)} ayuda="Si la dejas vacía, empieza hoy." />
@@ -200,6 +229,26 @@ export function PasoGrupo({ c }: { c: ContextoDePasos }) {
           </Tarjeta>
         );
       })}
+    </div>
+  );
+}
+
+/** Un importe: el original tachado y el que de verdad se cobra, cuando una promoción lo cambia. */
+function Importe({ etiqueta, original, final }: { etiqueta: string; original: string; final: string }) {
+  return (
+    <div className="importe">
+      <dt>{etiqueta}</dt>
+      <dd>
+        {final !== original ? (
+          <>
+            <s className="importe-antes">{formatear(original)}</s>
+            <span className="importe-flecha">{" → "}</span>
+            <span className="importe-final">{formatear(final)}</span>
+          </>
+        ) : (
+          <span className="importe-final">{formatear(original)}</span>
+        )}
+      </dd>
     </div>
   );
 }
@@ -218,33 +267,34 @@ export function PasoPrecio({ c }: { c: ContextoDePasos }) {
               {!programa ? <Aviso tono="alerta">Elige primero el grupo.</Aviso> : null}
               {programa ? (
                 <>
-                  <p>
+                  <p className="precio-programa">
                     <strong>{programa.nombre}</strong> · {grupo?.horario_texto} ({grupo?.nombre})
                   </p>
                   {(c.previsiones[id]?.hermanos ?? 0) > 0 ? (
-                    <p className="muted" data-prueba={`hermanos-${id}`}>
-                      Se cotiza con {c.previsiones[id]!.hermanos} {c.previsiones[id]!.hermanos === 1 ? "hermano ya inscrito" : "hermanos ya inscritos"} (contando a los que se inscriben antes en esta operación).
-                    </p>
+                    <div data-prueba={`hermanos-${id}`}>
+                      <Aviso tono="info">
+                        Se cotiza con {c.previsiones[id]!.hermanos} {c.previsiones[id]!.hermanos === 1 ? "hermano ya inscrito" : "hermanos ya inscritos"} (contando a los que se inscriben antes en esta operación).
+                      </Aviso>
+                    </div>
                   ) : null}
                   {programa.precio === null || programa.promociones === null ? (
                     <Aviso tono="peligro">Este programa no tiene un precio vigente: no se puede inscribir hasta que el administrador lo publique.</Aviso>
                   ) : (
                     <>
-                      <dl className="datos">
-                        <dt>Inscripción</dt>
-                        <dd>
-                          {formatear(programa.promociones.inscripcion.original)}
-                          {programa.promociones.inscripcion.final_ahora !== programa.promociones.inscripcion.original ? ` → ${formatear(programa.promociones.inscripcion.final_ahora)}` : ""}
-                        </dd>
-                        <dt>Mensualidad</dt>
-                        <dd>
-                          {formatear(programa.promociones.mensualidad.original)}
-                          {programa.promociones.mensualidad.final_ahora !== programa.promociones.mensualidad.original ? ` → ${formatear(programa.promociones.mensualidad.final_ahora)}` : ""}
-                        </dd>
-                        {programa.promociones.meses_gratis_ahora > 0 ? (<><dt>Meses gratis</dt><dd>{programa.promociones.meses_gratis_ahora}</dd></>) : null}
+                      <dl className="importes">
+                        <Importe etiqueta="Inscripción" original={programa.promociones.inscripcion.original} final={programa.promociones.inscripcion.final_ahora} />
+                        <Importe etiqueta="Mensualidad" original={programa.promociones.mensualidad.original} final={programa.promociones.mensualidad.final_ahora} />
+                        {programa.promociones.meses_gratis_ahora > 0 ? (
+                          <div className="importe">
+                            <dt>Meses gratis</dt>
+                            <dd>
+                              <span className="importe-final">{programa.promociones.meses_gratis_ahora}</span>
+                            </dd>
+                          </div>
+                        ) : null}
                       </dl>
                       {programa.promociones.aplicadas.length > 0 ? (
-                        <div>
+                        <div className="promociones">
                           <strong>Promociones que aplican</strong>
                           <ul>
                             {programa.promociones.lineas.map((l, i) => (
@@ -279,7 +329,6 @@ function AceptarComoElHermano({ c, id, desde }: { c: ContextoDePasos; id: string
       <p className="muted">La misma persona, por el mismo medio y con el reglamento vigente. Queda como una aceptación nueva de este niño, con la nota de que se extendió de su hermano.</p>
       <div>
         <Boton
-          variante="primario"
           cargando={accion.ocupado}
           onClick={() =>
             void accion.ejecutar(async () => {
@@ -331,12 +380,12 @@ export function PasoReglamento({ c }: { c: ContextoDePasos }) {
   );
 }
 
-export function PasoConfirmar({ c, quedan, alIrAlPaso, nombreDeFalta, children }: { c: ContextoDePasos; quedan: readonly Falta[]; alIrAlPaso: (campo: string) => void; nombreDeFalta?: ((prospectoId: string) => string | null) | undefined; children: ReactNode }) {
+export function PasoConfirmar({ c, quedan, hayError = false, alIrAlPaso, nombreDeFalta, children }: { c: ContextoDePasos; quedan: readonly Falta[]; hayError?: boolean; alIrAlPaso: (campo: string) => void; nombreDeFalta?: ((prospectoId: string) => string | null) | undefined; children: ReactNode }) {
   return (
     <div className="pila">
       {quedan.length > 0 ? (
         <Aviso tono="alerta" titulo="Todavía falta para poder inscribir">
-          <ul data-prueba="lo-que-falta">
+          <ul className="lo-que-falta" data-prueba="lo-que-falta">
             {quedan.map((f) => (
               <li key={f.campo}>
                 {etiquetaDeFalta(f.campo, nombreDeFalta)}{" "}
@@ -347,7 +396,7 @@ export function PasoConfirmar({ c, quedan, alIrAlPaso, nombreDeFalta, children }
             ))}
           </ul>
         </Aviso>
-      ) : c.pendientes.some((id) => c.previsiones[id]?.reglamentoPendiente === true) ? (
+      ) : hayError ? null : c.pendientes.some((id) => c.previsiones[id]?.reglamentoPendiente === true) ? (
         // V7: antes decía «Todo listo para inscribir» y el servidor lo rechazaba al confirmar por el reglamento. Se avisa aquí; el botón sigue activo porque el servidor es quien manda.
         <Aviso tono="info" titulo="Todavía falta el reglamento">
           La familia no ha aceptado el reglamento de {c.pendientes.filter((id) => c.previsiones[id]?.reglamentoPendiente === true).map((id) => nombreDeProspecto(c, id)).join(" ni de ")}: sin eso el sistema no inscribe. Se registra en el paso «Reglamento e imagen».
@@ -356,8 +405,8 @@ export function PasoConfirmar({ c, quedan, alIrAlPaso, nombreDeFalta, children }
         <Aviso tono="exito">Todo listo para inscribir.</Aviso>
       )}
       <Tarjeta titulo="Resumen" className="pila">
-        <div className="pila" data-prueba="resumen-conversion">
-          <p>
+        <div className="pila resumen" data-prueba="resumen-conversion">
+          <p className="resumen-familia">
             <strong>Familia:</strong>{" "}
             {c.pendientes.map((id) => c.capturado[id]?.registro?.tutores).find((t) => t && t.length > 0)?.map((t) => `${t.nombre} (${t.parentesco})`).join(", ") ?? `${c.lead.nombre_contacto ?? "Contacto"} (${c.entrada.tutor.parentesco || "parentesco por capturar"})`}
           </p>
@@ -367,13 +416,26 @@ export function PasoConfirmar({ c, quedan, alIrAlPaso, nombreDeFalta, children }
             const grupo = programa?.grupos.find((x) => x.grupo_id === g);
             const apellidos = c.entrada.alumnos[id]?.apellidos || c.capturado[id]?.registro?.alumno.apellidos || c.lead.prospectos.find((p) => p.id === id)?.apellidos || "";
             return (
-              <p key={id} data-prueba={`resumen-${id}`}>
-                <strong>
-                  {nombreDeProspecto(c, id)} {apellidos}
-                </strong>
-                : {grupo ? `${programa?.nombre} · ${grupo.horario_texto} (${grupo.nombre})` : "sin grupo"}
-                {programa?.promociones ? ` · inscripción ${formatear(programa.promociones.inscripcion.final_ahora)} · mensualidad ${formatear(programa.promociones.mensualidad.final_ahora)}` : ""}
-              </p>
+              <div key={id} className="resumen-alumno" data-prueba={`resumen-${id}`}>
+                <div className="resumen-alumno-texto">
+                  <strong>
+                    {nombreDeProspecto(c, id)} {apellidos}
+                  </strong>
+                  <span className="muted">{grupo ? `${programa?.nombre} · ${grupo.horario_texto} (${grupo.nombre})` : "sin grupo"}</span>
+                </div>
+                {programa?.promociones ? (
+                  <div className="resumen-importes">
+                    <p className="importe-resumen">
+                      <span className="importe-etiqueta">inscripción</span>{" "}
+                      <strong className="importe-cifra">{formatear(programa.promociones.inscripcion.final_ahora)}</strong>
+                    </p>
+                    <p className="importe-resumen importe-principal">
+                      <span className="importe-etiqueta">mensualidad</span>{" "}
+                      <strong className="importe-cifra">{formatear(programa.promociones.mensualidad.final_ahora)}</strong>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </div>

@@ -168,7 +168,7 @@ export async function estadoLegal(tx: Consultas | BaseDatos, prospectoId: string
       aceptante: quien,
       versionVigente: vigente?.version ?? null,
       alCorriente: vigente === null ? true : ultima !== null && ultima.resultado !== "revocada" && ultima.documentoId === vigente.id,
-      texto: ultima ? `${verbo} ${NOMBRE_DE_TIPO[tipo]} v${ultima.versionAceptada} el ${dia} (${quien})` : `Todavía no responde a ${NOMBRE_DE_TIPO[tipo]}`,
+      texto: ultima ? `${verbo} ${NOMBRE_DE_TIPO[tipo]} v${ultima.versionAceptada} el ${dia} (${quien})` : `Todavía no responde ${NOMBRE_DE_TIPO[tipo].replace(/^el /, "al ").replace(/^(la |los |las )/, "a $1")}`,
     });
   }
   return salida;

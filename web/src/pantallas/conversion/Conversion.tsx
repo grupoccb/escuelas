@@ -9,8 +9,9 @@ import type { LeadDetalle, Tarea } from "../../api/tipos.ts";
 import { hoyLocal } from "../../lib/fechas.ts";
 import { aEntero } from "../../lib/numeros.ts";
 import { useSesion, useYo } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoCasilla } from "../../ui/campos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { formatear, restar } from "../../lib/dinero.ts";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { cargarCapturado, cargarOferta, type Oferta, type ResultadoDeConversion, type Vista } from "./datos.ts";
@@ -110,23 +111,34 @@ function Asistente({ lead, vista, marcados, vistaAlDia, recargar, alDejarFuera }
 
   const rechazo = confirmar.error?.detalles.find((d) => d.campo === "motivo")?.mensaje;
   const idDelLleno = confirmar.error?.detalles.find((d) => d.campo === "prospecto_id")?.mensaje;
+  // Un solo mensaje por error: con detalle (campos, rechazo del servidor o paso que lo arregla) lo dice el aviso de este paso; sin detalle, el aviso general de abajo.
   const pasoDelError: Paso | null = confirmar.error ? (rechazo === "faltan_datos" ? (pasoDe(confirmar.error.detalles.find((d) => d.campo && d.campo !== "motivo")?.campo ?? "") ?? "otros") : (PASO_DEL_RECHAZO[rechazo ?? ""] ?? null)) : null;
 
   return (
-    <div className="pila">
+    <div className="pila asistente">
       {tareas.datos && tareas.datos.datos.length > 0 ? <Aviso tono="info">El maestro marcó a esta familia como «lista para cerrar».</Aviso> : null}
       <ol className="pasos" aria-label="Pasos de la inscripción">
         {PASOS.map((p, i) => (
           <li key={p.id} aria-current={i === paso ? "step" : undefined} className={i < paso ? "hecho" : undefined}>
-            {i + 1}. {p.titulo}
+            <span className="paso-marca" aria-hidden="true">
+              {i < paso ? <Icono nombre="exito" tamano={16} /> : i + 1}
+            </span>
+            <span className="paso-titulo">
+              {i + 1}. {p.titulo}
+            </span>
           </li>
         ))}
-        <li aria-current={enConfirmar ? "step" : undefined}>{PASOS.length + 1}. Confirmar</li>
+        <li aria-current={enConfirmar ? "step" : undefined}>
+          <span className="paso-marca" aria-hidden="true">
+            {PASOS.length + 1}
+          </span>
+          <span className="paso-titulo">{PASOS.length + 1}. Confirmar</span>
+        </li>
       </ol>
 
       {!enConfirmar ? (
         <>
-          <h2>{pasoActual.titulo}</h2>
+          <h2 className="paso-encabezado">{pasoActual.titulo}</h2>
           {pasoActual.id === "familia" ? <PasoFamilia c={ctx} /> : null}
           {pasoActual.id === "alumnos" ? <PasoAlumnos c={ctx} /> : null}
           {pasoActual.id === "grupo" ? <PasoGrupo c={ctx} /> : null}
@@ -135,9 +147,9 @@ function Asistente({ lead, vista, marcados, vistaAlDia, recargar, alDejarFuera }
         </>
       ) : (
         <>
-          <h2>Confirmar</h2>
-          <PasoConfirmar c={ctx} quedan={quedan} alIrAlPaso={irAlPaso} nombreDeFalta={nombreDeFalta}>
-            {confirmar.error ? (
+          <h2 className="paso-encabezado">Confirmar</h2>
+          <PasoConfirmar c={ctx} quedan={quedan} hayError={confirmar.error !== null} alIrAlPaso={irAlPaso} nombreDeFalta={nombreDeFalta}>
+            {confirmar.error && (pasoDelError !== null || (confirmar.error instanceof ErrorDeApi && confirmar.error.detalles.length > 0)) ? (
               <Aviso tono="peligro" titulo={confirmar.error.message}>
                 {confirmar.error.detalles.filter((d) => d.campo && !["motivo", "prospecto_id"].includes(d.campo)).length > 0 ? (
                   <ul>
@@ -179,7 +191,12 @@ function Asistente({ lead, vista, marcados, vistaAlDia, recargar, alDejarFuera }
                         </Boton>
                       ) : null}
                     </div>
-                    <ErrorDeAccion error={espera.error} />
+                    {espera.error ? (
+                      <p className="error-en-aviso" role="alert" data-prueba="error-de-guardado">
+                        {espera.error.message}
+                        {espera.error.reintentarEn ? ` Intenta de nuevo en ${espera.error.reintentarEn} s.` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
                 {pasoDelError ? (
@@ -202,20 +219,21 @@ function Asistente({ lead, vista, marcados, vistaAlDia, recargar, alDejarFuera }
 
       <ErrorDeAccion error={confirmar.error && pasoDelError === null && !(confirmar.error instanceof ErrorDeApi && confirmar.error.detalles.length > 0) ? confirmar.error : null} />
       {faltasDelPaso.length > 0 ? (
-        <p className="muted" data-prueba="falta-en-el-paso">
-          Para seguir falta: {faltasDelPaso.map((f) => etiquetaDeFalta(f.campo, nombreDeFalta)).join(", ")}.
+        <p className="falta-del-paso" data-prueba="falta-en-el-paso">
+          <Icono nombre="alerta" tamano={18} />
+          <span>Para seguir falta: {faltasDelPaso.map((f) => etiquetaDeFalta(f.campo, nombreDeFalta)).join(", ")}.</span>
         </p>
       ) : null}
-      <div className="barra-guardado">
-        <Boton onClick={() => setPaso((p) => Math.max(0, p - 1))} disabled={paso === 0}>
+      <div className="barra-guardado barra-conversion">
+        <Boton grande onClick={() => setPaso((p) => Math.max(0, p - 1))} disabled={paso === 0}>
           Atrás
         </Boton>
         {!enConfirmar ? (
-          <Boton variante="primario" onClick={() => setPaso((p) => p + 1)} disabled={faltasDelPaso.length > 0}>
+          <Boton variante="primario" grande onClick={() => setPaso((p) => p + 1)} disabled={faltasDelPaso.length > 0}>
             {paso === PASOS.length - 1 ? "Revisar y confirmar" : "Siguiente"}
           </Boton>
         ) : (
-          <Boton variante="primario" cargando={confirmar.ocupado} disabled={quedan.length > 0 || !vistaAlDia} onClick={() => void convertir()}>
+          <Boton variante="primario" grande cargando={confirmar.ocupado} disabled={quedan.length > 0 || !vistaAlDia} onClick={() => void convertir()}>
             Convertir e inscribir
           </Boton>
         )}
@@ -224,23 +242,41 @@ function Asistente({ lead, vista, marcados, vistaAlDia, recargar, alDejarFuera }
   );
 }
 
-/** Lo que quedó de UNA inscripción: el programa y lo que de verdad se cobra, con la promoción por hermanos si la hubo. */
+/** Lo que quedó de UNA inscripción: el programa y lo que de verdad se cobra (la mensualidad es la cifra grande), con la promoción por hermanos si la hubo. */
 function LineaDeResultado({ a, nombre }: { a: ResultadoDeConversion["alumnos"][number]; nombre: string }) {
   const insc = useCarga(
     (senal) => (a.inscripcion ? api.get<InscripcionResumen>(`/api/inscripciones/${a.inscripcion.id}`, undefined, senal) : Promise.resolve(null)),
     [a.inscripcion?.id],
   );
   const i = insc.datos;
+  const promociones = i ? [...new Set(i.promociones.map((x) => x.promocion))] : [];
   return (
-    <li data-prueba={`resultado-${a.prospecto_id}`}>
-      <strong>{nombre}</strong>: {a.creado ? "Alumno creado" : "El alumno ya existía"} · {a.inscripcion ? (a.inscripcion.creada ? "inscrito" : "ya estaba inscrito en ese grupo") : "sin inscripción"}
+    <li className="resultado-alumno" data-prueba={`resultado-${a.prospecto_id}`}>
+      <p className="resultado-nombre">
+        <strong>{nombre}</strong>: {a.creado ? "Alumno creado" : "El alumno ya existía"} · {a.inscripcion ? (a.inscripcion.creada ? "inscrito" : "ya estaba inscrito en ese grupo") : "sin inscripción"}
+      </p>
       {i ? (
         <>
-          <br />
-          <span className="muted">
-            {i.programa} · inscripción {formatear(restar(i.precio_inscripcion_aplicado, i.descuento_inscripcion_aplicado))} · mensualidad {formatear(restar(i.precio_mensualidad_aplicado, i.descuento_mensualidad_aplicado))}
-            {i.promociones.length > 0 ? ` · ${[...new Set(i.promociones.map((x) => x.promocion))].join(", ")}` : ""}
-          </span>
+          <p className="muted resultado-programa">{i.programa}</p>
+          <div className="resultado-importes">
+            <p className="importe-resumen">
+              <span className="importe-etiqueta">inscripción</span>{" "}
+              <strong className="importe-cifra">{formatear(restar(i.precio_inscripcion_aplicado, i.descuento_inscripcion_aplicado))}</strong>
+            </p>
+            <p className="importe-resumen importe-principal">
+              <span className="importe-etiqueta">mensualidad</span>{" "}
+              <strong className="importe-cifra">{formatear(restar(i.precio_mensualidad_aplicado, i.descuento_mensualidad_aplicado))}</strong>
+            </p>
+          </div>
+          {promociones.length > 0 ? (
+            <p className="resultado-promociones">
+              {promociones.map((x) => (
+                <Insignia key={x} tono="exito">
+                  {x}
+                </Insignia>
+              ))}
+            </p>
+          ) : null}
         </>
       ) : null}
     </li>
@@ -250,18 +286,28 @@ function LineaDeResultado({ a, nombre }: { a: ResultadoDeConversion["alumnos"][n
 function Resultado({ r, lead }: { r: ResultadoDeConversion; lead: LeadDetalle }) {
   const { puede } = useSesion();
   return (
-    <Tarjeta titulo="Listo: familia e inscripción creadas" className="pila">
+    <Tarjeta className="resultado-conversion">
       <div className="pila" data-prueba="conversion-lista">
-        <ul>
+        <div className="resultado-cabeza">
+          <span className="resultado-icono">
+            <Icono nombre="exito" tamano={28} />
+          </span>
+          <h2 className="resultado-titulo">Listo: familia e inscripción creadas</h2>
+        </div>
+        <ul className="resultado-lista">
           {r.alumnos.map((a) => (
             <LineaDeResultado key={a.prospecto_id} a={a} nombre={lead.prospectos.find((p) => p.id === a.prospecto_id)?.nombre ?? "Alumno"} />
           ))}
         </ul>
-        <div className="fila">
-          <EnlaceBoton to={`/leads/${lead.id}`} variante="primario">
+        <div className="fila resultado-acciones">
+          <EnlaceBoton to={`/leads/${lead.id}`} variante="primario" className="boton-grande">
             Volver a la ficha
           </EnlaceBoton>
-          {r.tutor_id && puede("estado_cuenta:leer") ? <EnlaceBoton to={`/cuenta/${r.tutor_id}`}>Ver el estado de cuenta</EnlaceBoton> : null}
+          {r.tutor_id && puede("estado_cuenta:leer") ? (
+            <EnlaceBoton to={`/cuenta/${r.tutor_id}`} className="boton-grande">
+              Ver el estado de cuenta
+            </EnlaceBoton>
+          ) : null}
         </div>
       </div>
     </Tarjeta>
@@ -297,15 +343,15 @@ export default function Conversion() {
   };
   const error = lead.error ?? vista.error;
   return (
-    <Marco titulo="Convertir e inscribir" subtitulo={<Link to={`/leads/${id}`}>← Volver a la ficha{lead.datos ? ` de ${lead.datos.nombre_contacto ?? "este lead"}` : ""}</Link>}>
+    <Marco titulo="Convertir e inscribir" subtitulo={<Link to={`/leads/${id}`} className="enlace-tactil">← Volver a la ficha{lead.datos ? ` de ${lead.datos.nombre_contacto ?? "este lead"}` : ""}</Link>}>
       {error ? <ErrorDeCarga error={error} alReintentar={() => { lead.recargar(); vista.recargar(); }} /> : null}
       {!error && (!lead.datos || !vista.datos) ? <Cargando /> : null}
       {lead.datos && porInscribir.length > 1 ? (
         <Tarjeta titulo="¿A quiénes se inscribe ahora?">
-          <div className="pila" data-prueba="marcar-ninos">
+          <div className="pila marcar-ninos" data-prueba="marcar-ninos">
             <p className="muted">Se inscriben todos juntos, en una sola operación: entran todos o ninguno. Los que no marques se quedan en la ficha para después.</p>
             {porInscribir.map((p) => (
-              <CampoCasilla key={p.id} data-prueba={`marcar-${p.id}`} etiqueta={[p.nombre ?? "Sin nombre", p.apellidos].filter(Boolean).join(" ")} checked={marcados.includes(p.id)} disabled={marcados.includes(p.id) && marcados.length === 1} onChange={(e) => marcar(p.id, e.target.checked)} />
+              <CampoCasilla key={p.id} data-prueba={`marcar-${p.id}`} etiqueta={[p.nombre ?? "Sin nombre", p.apellidos].filter(Boolean).join(" ")} checked={marcados.includes(p.id)} disabled={marcados.includes(p.id) && marcados.length === 1} ayuda={marcados.includes(p.id) && marcados.length === 1 ? "Debe quedar al menos un niño marcado." : undefined} onChange={(e) => marcar(p.id, e.target.checked)} />
             ))}
           </div>
         </Tarjeta>

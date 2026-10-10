@@ -49,8 +49,8 @@ export function CierreEnSitio({ leadId, claseId, alumno }: { leadId: string; cla
   const rechazado = accion.error?.estado === 409;
 
   return (
-    <div className="pila" data-prueba="cierre-en-sitio">
-      <strong>Inscribir ahora</strong>
+    <div className="pila cierre-sitio" data-prueba="cierre-en-sitio">
+      <strong className="cierre-sitio-titulo">Inscribir ahora</strong>
       {v.listo ? (
         rechazado ? null : <p className="muted">Ya está todo lo necesario: se inscribe con lo que capturaste.</p>
       ) : (
@@ -81,42 +81,49 @@ export function CierreEnSitio({ leadId, claseId, alumno }: { leadId: string; cla
           {avisado ? (
             <Aviso tono="exito">Listo: el asesor recibió el aviso y se encarga.</Aviso>
           ) : (
-            <div>
-              <Boton
-                cargando={aviso.ocupado}
-                onClick={() =>
-                  void aviso.ejecutar(async () => {
-                    await api.post(`/api/clases-muestra/${claseId}/listo-para-cerrar`);
-                    setAvisado(true);
-                  })
-                }
-              >
-                Avisar al asesor
-              </Boton>
-            </div>
+            <Boton
+              ancho
+              cargando={aviso.ocupado}
+              onClick={() =>
+                void aviso.ejecutar(async () => {
+                  await api.post(`/api/clases-muestra/${claseId}/listo-para-cerrar`);
+                  setAvisado(true);
+                })
+              }
+            >
+              Avisar al asesor
+            </Boton>
           )}
         </div>
       ) : null}
-      <div>
-        <Boton
-          variante="primario"
-          disabled={!v.listo}
-          cargando={accion.ocupado}
-          onClick={() => {
-            accion.limpiar();
-            setConfirmando(true);
-          }}
-        >
-          Inscribir a mi alumno
-        </Boton>
-      </div>
+      <Boton
+        variante={v.listo ? "primario" : "secundario"}
+        grande
+        ancho
+        disabled={!v.listo}
+        cargando={accion.ocupado}
+        onClick={() => {
+          accion.limpiar();
+          setConfirmando(true);
+        }}
+      >
+        Inscribir a mi alumno
+      </Boton>
       <Dialogo abierto={confirmando} titulo={`Inscribir a ${nombre}`} alCerrar={() => setConfirmando(false)}>
         <p>
-          {grupo ? `Quedará inscrito en el grupo ${grupo}.` : "Quedará inscrito en el grupo que recomendaste."} Se aparta su lugar y a la familia se le genera el cobro de la inscripción y de la primera mensualidad.
+          {grupo ? (
+            <>
+              Quedará inscrito en el grupo <strong>{grupo}</strong>.
+            </>
+          ) : (
+            "Quedará inscrito en el grupo que recomendaste."
+          )}{" "}
+          Se aparta su lugar y a la familia se le genera el cobro de la inscripción y de la primera mensualidad.
         </p>
         <div className="formulario-acciones">
           <Boton
             variante="primario"
+            grande
             cargando={accion.ocupado}
             onClick={() =>
               void accion.ejecutar(async () => {
@@ -127,7 +134,7 @@ export function CierreEnSitio({ leadId, claseId, alumno }: { leadId: string; cla
           >
             Sí, inscribir
           </Boton>
-          <Boton variante="fantasma" disabled={accion.ocupado} onClick={() => setConfirmando(false)}>
+          <Boton grande disabled={accion.ocupado} onClick={() => setConfirmando(false)}>
             Todavía no
           </Boton>
         </div>

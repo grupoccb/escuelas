@@ -47,7 +47,7 @@ function TarjetaDeDocumento({ doc, estado, claseId, tutores, bloqueado, alCambia
 
   const aceptada = estado?.estado === "aceptada";
   return (
-    <div className="pila" data-prueba={`documento-${doc.tipo}`}>
+    <div className="pila documento-legal" data-prueba={`documento-${doc.tipo}`}>
       <div className="fila fila-entre">
         <h2 className="titulo-menor">
           {NOMBRE[doc.tipo]} (v{doc.version})
@@ -59,29 +59,33 @@ function TarjetaDeDocumento({ doc, estado, claseId, tutores, bloqueado, alCambia
       <p className="muted" data-prueba="frase-legal">
         {estado?.texto ?? ""}
       </p>
-      <details>
+      <details className="mas-opciones">
         <summary>Leer el texto que se le muestra a la familia</summary>
         <p className="texto-legal">
           {doc.texto ?? "(sin texto)"}
         </p>
       </details>
       <fieldset className="pila sin-borde" disabled={bloqueado}>
-        <CampoSelect
-          etiqueta="¿Quién responde?"
-          value={eligeOtra ? OTRA : quien}
-          onChange={(e) => setQuien(e.target.value)}
-          opciones={[...tutores.map((t) => ({ valor: t.id, texto: `${t.nombre} (${t.parentesco})` })), { valor: OTRA, texto: "Otra persona" }]}
-        />
-        {eligeOtra ? (
-          <>
-            <CampoTexto etiqueta="Nombre de quien responde" value={nombre} onChange={(e) => setNombre(e.target.value)} requerido />
-            <CampoTexto etiqueta="Parentesco" value={parentesco} onChange={(e) => setParentesco(e.target.value)} />
-          </>
-        ) : null}
-        <CampoSelect etiqueta="¿Cómo respondió?" value={canal} onChange={(e) => setCanal(e.target.value)} opciones={CANALES} />
-        <CampoArea etiqueta="Nota de evidencia (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} ayuda="Por ejemplo: «firmó la hoja impresa»." maxLength={500} />
-        <div className="fila">
-          <Boton variante="primario" cargando={accion.ocupado} disabled={eligeOtra && nombre.trim() === ""} onClick={() => responder("aceptada")}>
+        <div className="rejilla rejilla-2 documento-campos">
+          <CampoSelect
+            etiqueta="¿Quién responde?"
+            value={eligeOtra ? OTRA : quien}
+            onChange={(e) => setQuien(e.target.value)}
+            opciones={[...tutores.map((t) => ({ valor: t.id, texto: `${t.nombre} (${t.parentesco})` })), { valor: OTRA, texto: "Otra persona" }]}
+          />
+          {eligeOtra ? (
+            <>
+              <CampoTexto etiqueta="Nombre de quien responde" value={nombre} onChange={(e) => setNombre(e.target.value)} requerido />
+              <CampoTexto etiqueta="Parentesco" value={parentesco} onChange={(e) => setParentesco(e.target.value)} />
+            </>
+          ) : null}
+          <CampoSelect etiqueta="¿Cómo respondió?" value={canal} onChange={(e) => setCanal(e.target.value)} opciones={CANALES} />
+          <div className="documento-nota">
+            <CampoArea etiqueta="Nota de evidencia (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} ayuda="Por ejemplo: «firmó la hoja impresa»." maxLength={500} />
+          </div>
+        </div>
+        <div className="fila documento-acciones">
+          <Boton cargando={accion.ocupado} disabled={eligeOtra && nombre.trim() === ""} onClick={() => responder("aceptada")}>
             Aceptan
           </Boton>
           <Boton cargando={accion.ocupado} disabled={eligeOtra && nombre.trim() === ""} onClick={() => responder("rechazada")}>
