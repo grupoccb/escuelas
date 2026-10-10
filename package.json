@@ -47,6 +47,7 @@
     "diseno:inventario": "node scripts/diseno-inventario.ts",
     "diseno:a11y": "node scripts/test-navegador.ts -- --config playwright.diseno.config.ts e2e-diseno/accesibilidad.spec.ts",
     "diseno:teclado": "node scripts/test-navegador.ts -- --config playwright.diseno.config.ts e2e-diseno/teclado.spec.ts",
+    "diseno:todo": "node scripts/diseno-todo.ts",
     "diseno:capturas": "node scripts/test-navegador.ts -- --config playwright.diseno.config.ts e2e-diseno/capturar.spec.ts",
     "capturas:escribir": "CAPTURAS_ESCRIBIR=1 node scripts/test-navegador.ts",
     "guias:capturas": "GUIAS_ESCRIBIR=1 node scripts/test-navegador.ts -- e2e/v8-guias.spec.ts e2e/v8-impresion-guias.spec.ts",

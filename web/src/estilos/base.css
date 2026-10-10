@@ -1241,3 +1241,18 @@ table.tabla-leads td a:hover { color: var(--primario); }
   .config-pares select option { min-height: var(--alto-toque); padding: var(--e2) var(--e3); white-space: normal; border-radius: var(--radio-etiqueta); }
   .config-pares select option:checked { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
 }
+/* Administración, ajustes de la revisión: contexto del nombre, vacíos visibles, campos alineados por arriba, errores de horario, avisos con un diálogo abierto. */
+.item-catalogo-contexto { flex-basis: 100%; color: var(--texto-suave); overflow-wrap: anywhere; }
+.vacio-catalogo > .vacio { background: var(--superficie); border: 1px dashed var(--borde-campo); }
+.rejilla-arriba { align-items: start; }
+.horario-con-error select, .horario-con-error input:not([type="checkbox"]):not([type="radio"]) { border: 2px solid var(--peligro); padding-left: 11px; padding-right: 11px; }
+.tarjeta-precios .tarjeta-cabecera { flex-wrap: wrap; }
+.tarjeta-precios .tarjeta-cabecera .boton { white-space: nowrap; }
+/* El aviso de «ya quedó» no tapa el pie de un diálogo: con uno abierto sube a la parte de arriba y, en pantallas anchas, se va al lado libre. */
+body:has(dialog.dialogo[open]) .avisos-vivos { top: var(--e4); bottom: auto; }
+@media (min-width: 1200px) {
+  body:has(dialog.dialogo[open]) .avisos-vivos { top: auto; bottom: var(--e4); justify-content: flex-end; padding-right: var(--e5); }
+  body:has(dialog.dialogo[open]) .aviso-global { max-width: calc((100vw - 32rem) / 2 - var(--e6)); }
+}
+/* Una lista desplegable cuyo texto no cabe lo corta con puntos suspensivos (la letra no baja de 16 px en celular: menos provoca zoom automático). */
+select { text-overflow: ellipsis; }

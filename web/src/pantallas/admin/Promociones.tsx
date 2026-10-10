@@ -5,14 +5,14 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
 import { CONDICIONES, MOMENTOS, OPCIONES_DE_BENEFICIO, textoDeBeneficio, valorDeBeneficio } from "./beneficios.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
 import type { BeneficioAdmin, ProgramaAdmin, PromocionAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 interface CuerpoDeBeneficio {
@@ -34,7 +34,7 @@ function CapturaDeBeneficio({ alAgregar }: { alAgregar: (b: CuerpoDeBeneficio) =
   const { avisar } = useAvisos();
   const opcion = OPCIONES_DE_BENEFICIO.find((o) => o.clave === clave)!;
   return (
-    <div className="pila" data-prueba="captura-de-beneficio">
+    <div className="pila captura-beneficio" data-prueba="captura-de-beneficio">
       <CampoSelect etiqueta="Qué da" value={clave} opciones={OPCIONES_DE_BENEFICIO.map((o) => ({ valor: o.clave, texto: o.texto }))} onChange={(e) => { setClave(e.target.value); setValor(""); setError(null); }} />
       {opcion.valor !== "ninguno" ? <CampoTexto etiqueta={opcion.valor === "porcentaje" ? "Porcentaje" : opcion.valor === "meses" ? "Cuántos meses" : "Monto (MXN)"} inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} error={error ?? undefined} /> : null}
       <CampoTexto etiqueta="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} ayuda={opcion.tipo === "producto_gratis" ? "Qué producto se entrega (por ejemplo, «Uniforme»)." : undefined} />
@@ -132,64 +132,64 @@ function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCer
     >
       <CampoTexto etiqueta="Nombre de la promoción" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
       <CampoTexto etiqueta="Código" requerido value={codigo} onChange={(e) => setCodigo(e.target.value)} error={err("codigo")} ayuda="Único entre las promociones; se guarda en mayúsculas." />
-      <div className="rejilla rejilla-2">
+      <div className="rejilla rejilla-2 rejilla-arriba">
         <CampoTexto etiqueta="Vigente desde" type="date" requerido value={desde} onChange={(e) => setDesde(e.target.value)} error={err("vigencia_desde")} />
         <CampoTexto etiqueta="Hasta (opcional)" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} error={err("vigencia_hasta")} />
       </div>
       <CampoSelect etiqueta="Condición" value={condicion} opciones={CONDICIONES.map((c) => ({ valor: c.valor, texto: c.texto }))} onChange={(e) => setCondicion(e.target.value)} />
       {condicion === "min_hermanos" ? <CampoTexto etiqueta="Hermanos inscritos mínimos" inputMode="numeric" value={hermanos} onChange={(e) => setHermanos(e.target.value)} error={err("condicion_valor")} /> : null}
       {condicion === "pago_anticipado" ? <CampoTexto etiqueta="Meses pagados por adelantado" inputMode="numeric" value={meses} onChange={(e) => setMeses(e.target.value)} error={err("condicion_valor")} /> : null}
-      <div className="rejilla rejilla-2">
+      <div className="rejilla rejilla-2 rejilla-arriba">
         <CampoTexto etiqueta="Cupo máximo (opcional)" inputMode="numeric" value={cupo} onChange={(e) => setCupo(e.target.value)} error={err("cupo_maximo")} ayuda={promo ? `Usado: ${promo.cupo_usado}` : "Cuántas veces se puede aplicar."} />
         <CampoTexto etiqueta="Prioridad" inputMode="numeric" value={prioridad} onChange={(e) => setPrioridad(e.target.value)} error={err("prioridad")} ayuda="Mayor número, se aplica primero. Si dos promociones no se pueden juntar, gana la de mayor número; si empatan, la que más le ahorra a la familia." />
       </div>
       <CampoCasilla etiqueta="Se puede acumular con otras promociones" ayuda="Si no la marcas, esta promoción nunca se junta con otra: cuando aplica, aplica sola." checked={acumulable} onChange={(e) => setAcumulable(e.target.checked)} />
       <CampoCasilla etiqueta="Activa" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
 
-      <fieldset className="pila sin-borde">
-        <legend>
-          <strong>Dónde vale</strong>
-        </legend>
+      <fieldset className="formulario-seccion">
+        <legend>Dónde vale</legend>
         <p className="campo-ayuda">Sin nada marcado en un grupo, vale en todas partes.</p>
-        <strong>Disciplinas</strong>
-        {verticales.map((v) => <CampoCasilla key={v.id} etiqueta={v.nombre} checked={vs.includes(v.id)} onChange={(e) => alternar(vs, setVs, v.id, e.target.checked)} />)}
-        <strong>Sucursales</strong>
-        {sucursales.map((s) => <CampoCasilla key={s.id} etiqueta={s.nombre} checked={ss.includes(s.id)} onChange={(e) => alternar(ss, setSs, s.id, e.target.checked)} />)}
-        <strong>Programas</strong>
-        {programas.map((p) => <CampoCasilla key={p.id} etiqueta={p.nombre} checked={ps.includes(p.id)} onChange={(e) => alternar(ps, setPs, p.id, e.target.checked)} />)}
+        <strong className="etiqueta-panel">Disciplinas</strong>
+        <div className="casillas-rejilla">
+          {verticales.map((v) => <CampoCasilla key={v.id} etiqueta={v.nombre} checked={vs.includes(v.id)} onChange={(e) => alternar(vs, setVs, v.id, e.target.checked)} />)}
+        </div>
+        <strong className="etiqueta-panel">Sucursales</strong>
+        <div className="casillas-rejilla">
+          {sucursales.map((s) => <CampoCasilla key={s.id} etiqueta={s.nombre} checked={ss.includes(s.id)} onChange={(e) => alternar(ss, setSs, s.id, e.target.checked)} />)}
+        </div>
+        <strong className="etiqueta-panel">Programas</strong>
+        <div className="casillas-rejilla">
+          {programas.map((p) => <CampoCasilla key={p.id} etiqueta={p.nombre} checked={ps.includes(p.id)} onChange={(e) => alternar(ps, setPs, p.id, e.target.checked)} />)}
+        </div>
       </fieldset>
 
-      <fieldset className="pila sin-borde" data-prueba="beneficios">
-        <legend>
-          <strong>Beneficios</strong>
-        </legend>
+      <fieldset className="formulario-seccion" data-prueba="beneficios">
+        <legend>Beneficios</legend>
         {err("beneficios") ? <p className="campo-error">{err("beneficios")}</p> : null}
-        <ul>
+        <ul className="lista-beneficios-form">
           {existentes.map((b) => (
-            <li key={b.id} className="fila fila-entre">
+            <li key={b.id}>
               <span>{textoDeBeneficio(b)}</span>
               {promo ? (
-                <Boton
-                  variante="fantasma"
-                  cargando={quitar.ocupado}
+                <BotonDeIcono
+                  icono="papelera"
+                  nombre="Quitar"
+                  peligro
+                  disabled={quitar.ocupado}
                   onClick={() =>
                     void quitar.ejecutar(async () => {
                       await api.delete(`/api/promociones/${promo.id}/beneficios/${b.id}`);
                       setExistentes((x) => x.filter((y) => y.id !== b.id));
                     })
                   }
-                >
-                  Quitar
-                </Boton>
+                />
               ) : null}
             </li>
           ))}
           {nuevos.map((b, i) => (
-            <li key={i} className="fila fila-entre">
+            <li key={i}>
               <span>{textoDeBeneficio(b)}</span>
-              <Boton variante="fantasma" onClick={() => setNuevos((n) => n.filter((_, j) => j !== i))}>
-                Quitar
-              </Boton>
+              <BotonDeIcono icono="papelera" nombre="Quitar" peligro onClick={() => setNuevos((n) => n.filter((_, j) => j !== i))} />
             </li>
           ))}
         </ul>
@@ -229,33 +229,34 @@ export default function Promociones() {
     <Pagina titulo="Promociones" subtitulo="Descuentos, meses y productos gratis con su condición y su alcance." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva promoción</Boton></>}>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay promociones" /> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay promociones">Crea la primera con «Nueva promoción».</VacioDeLista> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-promociones">
         {(lista.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="tarjeta pila" data-prueba={`promocion-${p.codigo}`}>
-            <div className="fila fila-entre">
-              <strong>
-                {p.nombre} <span className="muted">· {p.codigo}</span>
-              </strong>
-              <span className="fila">
-                <Insignia tono={p.activo ? "exito" : "neutro"}>{p.activo ? "Activa" : "Inactiva"}</Insignia>
-                <Insignia>Prioridad {p.prioridad}</Insignia>
-                {p.acumulable ? <Insignia tono="info">Acumulable</Insignia> : null}
-              </span>
+          <li key={p.id} className="item-catalogo" data-prueba={`promocion-${p.codigo}`}>
+            <div className="item-catalogo-cabeza">
+              <div className="item-catalogo-titulo">
+                <strong className="nombre-tarjeta">{p.nombre}</strong>
+                <span className="item-catalogo-contexto">{p.codigo}</span>
+              </div>
+              <AccionesDeTarjeta alEditar={() => edicion.editar(p)} alDarDeBaja={() => setBaja(p)} />
             </div>
-            <p className="muted">
-              Del {formatearFecha(p.vigencia_desde)} {p.vigencia_hasta ? `al ${formatearFecha(p.vigencia_hasta)}` : "sin fecha de fin"} · {CONDICIONES.find((c) => c.valor === p.condicion_tipo)?.texto ?? p.condicion_tipo}
-              {p.cupo_maximo ? ` · cupo ${p.cupo_usado}/${p.cupo_maximo}` : ""}
-            </p>
-            <ul>
+            <div className="item-catalogo-etiquetas">
+              <Insignia tono={p.activo ? "exito" : "neutro"}>{p.activo ? "Activa" : "Inactiva"}</Insignia>
+              <Insignia>Prioridad {p.prioridad}</Insignia>
+              {p.acumulable ? <Insignia tono="info">Acumulable</Insignia> : null}
+            </div>
+            <ul className="beneficios-lista" aria-label="Lo que da">
               {p.beneficios.map((b) => (
                 <li key={b.id}>{textoDeBeneficio(b)}</li>
               ))}
             </ul>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(p)}>Editar</Boton>
-              <Boton variante="peligro" onClick={() => setBaja(p)}>Dar de baja</Boton>
-            </div>
+            <p className="meta-linea">
+              <span>
+                Del {formatearFecha(p.vigencia_desde)} {p.vigencia_hasta ? `al ${formatearFecha(p.vigencia_hasta)}` : "sin fecha de fin"}
+              </span>
+              <span>{CONDICIONES.find((c) => c.valor === p.condicion_tipo)?.texto ?? p.condicion_tipo}</span>
+              {p.cupo_maximo ? <span>{`cupo ${p.cupo_usado}/${p.cupo_maximo}`}</span> : null}
+            </p>
           </li>
         ))}
       </ul>

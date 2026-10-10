@@ -5,13 +5,13 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoArea, CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
 import type { ProgramaAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: { programa: ProgramaAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
@@ -66,7 +66,7 @@ function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: {
         <p className="muted">La disciplina y la sucursal de un programa no cambian: sus grupos, precios e inscripciones dependen de ellas.</p>
       )}
       <CampoTexto etiqueta="Nombre del programa" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
-      <div className="rejilla rejilla-2">
+      <div className="rejilla rejilla-2 rejilla-arriba">
         <CampoTexto etiqueta="Edad mínima (años cumplidos)" requerido inputMode="numeric" value={edadMin} onChange={(e) => setEdadMin(e.target.value)} error={err("edad_min")} />
         <CampoTexto etiqueta="Edad máxima (años cumplidos)" requerido inputMode="numeric" value={edadMax} onChange={(e) => setEdadMax(e.target.value)} error={err("edad_max")} />
       </div>
@@ -101,32 +101,30 @@ export default function Programas() {
   const nombreS = (id: string) => sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—";
   return (
     <Pagina titulo="Programas" subtitulo="Edades, fecha de corte y traslape por disciplina y sucursal." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo programa</Boton></>}>
-      <div className="rejilla rejilla-2">
+      <div className="rejilla rejilla-2 rejilla-arriba">
         <CampoSelect etiqueta="Disciplina" value={verticalId} vacio="Todas" opciones={(verticales.datos?.datos ?? []).map((v) => ({ valor: v.id, texto: v.nombre }))} onChange={(e) => { setPagina(1); setVerticalId(e.target.value); }} />
         <CampoSelect etiqueta="Sucursal" value={sucursalId} vacio="Todas" opciones={(sucursales.datos?.datos ?? []).map((s) => ({ valor: s.id, texto: s.nombre }))} onChange={(e) => { setPagina(1); setSucursalId(e.target.value); }} />
       </div>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay programas con ese filtro" /> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay programas con ese filtro">Prueba con otra disciplina u otra sucursal, o da de alta el primero con «Nuevo programa».</VacioDeLista> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-programas">
         {(lista.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="tarjeta pila" data-prueba={`programa-${p.id}`}>
-            <div className="fila fila-entre">
-              <strong>{p.nombre}</strong>
-              <span className="fila">
+          <li key={p.id} className="item-catalogo" data-prueba={`programa-${p.id}`}>
+            <div className="item-catalogo-cabeza">
+              <div className="item-catalogo-titulo">
+                <strong className="nombre-tarjeta">{p.nombre}</strong>
                 <Insignia tono={p.activo ? "exito" : "neutro"}>{p.activo ? "Activo" : "Inactivo"}</Insignia>
                 {p.permite_traslape ? <Insignia tono="info">Alternativa</Insignia> : null}
-              </span>
+              </div>
+              <AccionesDeTarjeta alEditar={() => edicion.editar(p)} alDarDeBaja={() => setBaja(p)} />
             </div>
-            <p className="muted">
-              {nombreV(p.vertical_id)} · {nombreS(p.sucursal_id)} · {p.edad_min} a {p.edad_max} años{p.fecha_corte_edad ? ` · la edad se mide al ${formatearFecha(p.fecha_corte_edad)}` : ""}
+            <p className="meta-linea">
+              <span>{nombreV(p.vertical_id)}</span>
+              <span>{nombreS(p.sucursal_id)}</span>
+              <span className="meta-destacada">{p.edad_min} a {p.edad_max} años</span>
+              {p.fecha_corte_edad ? <span>{`la edad se mide al ${formatearFecha(p.fecha_corte_edad)}`}</span> : null}
             </p>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(p)}>Editar</Boton>
-              <Boton variante="peligro" onClick={() => setBaja(p)}>
-                Dar de baja
-              </Boton>
-            </div>
           </li>
         ))}
       </ul>

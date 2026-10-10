@@ -6,9 +6,10 @@ import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { CanalAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 /** Cómo califica Meta al número (lo dice el proveedor; aquí solo se lee). */
@@ -128,27 +129,30 @@ export default function Canales() {
       <Aviso>Las claves de acceso de Twilio y de Chatwoot no se capturan en esta pantalla: las pone quien instala el sistema. Aquí solo dices qué número es de cada disciplina y en qué bandeja lo atiende el asesor.</Aviso>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay canales" /> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay canales">Da de alta el primero con «Nuevo canal».</Vacio></div> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-canales">
         {(lista.datos?.datos ?? []).map((c) => (
-          <li key={c.id} className="tarjeta pila" data-prueba={`canal-${c.id}`}>
-            <div className="fila fila-entre">
-              <strong>{c.nombre_publico}</strong>
-              <span className="fila">
-                <Insignia tono={c.activo ? "exito" : "neutro"}>{c.activo ? "Activo" : "Inactivo"}</Insignia>
-                <Insignia>Calidad del número: {CALIDAD[c.calidad_meta] ?? c.calidad_meta}</Insignia>
-              </span>
+          <li key={c.id} className="item-admin" data-prueba={`canal-${c.id}`}>
+            <div className="item-admin-principal">
+              <strong className="item-admin-nombre">{c.nombre_publico}</strong>
+              <p className="item-admin-meta">
+                {nombreV(c.vertical_id)} · sucursal: {nombreS(c.sucursal_id)} · <span className="numero">{c.numero_whatsapp ?? "sin número"}</span>
+              </p>
             </div>
-            <p className="muted">
-              {nombreV(c.vertical_id)} · sucursal: {nombreS(c.sucursal_id)} · {c.numero_whatsapp ?? "sin número"}
+            <div className="item-admin-etiquetas">
+              <Insignia tono={c.activo ? "exito" : "neutro"}>{c.activo ? "Activo" : "Inactivo"}</Insignia>
+              <Insignia>Calidad del número: {CALIDAD[c.calidad_meta] ?? c.calidad_meta}</Insignia>
+            </div>
+            <div className="item-admin-acciones">
+              <BotonDeIcono icono="lapiz" nombre="Editar canal" onClick={() => edCanal.editar(c)} />
+              <BotonDeIcono icono="chatwoot" nombre={c.bandeja ? "Editar bandeja" : "Agregar bandeja"} onClick={() => setConBandeja(c)} />
+              {c.bandeja ? <BotonDeIcono icono="cerrar" nombre="Quitar bandeja" peligro onClick={() => setBajaBandeja(c)} /> : null}
+              <BotonDeIcono icono="papelera" nombre="Dar de baja" peligro onClick={() => setBajaCanal(c)} />
+            </div>
+            <p className="item-admin-detalle item-admin-bandeja">
+              <Icono nombre="chatwoot" tamano={16} />
+              <span>{c.bandeja ? `Bandeja: ${c.bandeja.nombre}${c.bandeja.chatwoot_inbox_id ? ` (cuenta ${c.bandeja.chatwoot_account_id ?? "?"}, bandeja ${c.bandeja.chatwoot_inbox_id})` : ""}` : "Sin bandeja de Chatwoot"}</span>
             </p>
-            <p>{c.bandeja ? `Bandeja: ${c.bandeja.nombre}${c.bandeja.chatwoot_inbox_id ? ` (cuenta ${c.bandeja.chatwoot_account_id ?? "?"}, bandeja ${c.bandeja.chatwoot_inbox_id})` : ""}` : "Sin bandeja de Chatwoot"}</p>
-            <div className="fila">
-              <Boton onClick={() => edCanal.editar(c)}>Editar canal</Boton>
-              <Boton onClick={() => setConBandeja(c)}>{c.bandeja ? "Editar bandeja" : "Agregar bandeja"}</Boton>
-              {c.bandeja ? <Boton variante="peligro" onClick={() => setBajaBandeja(c)}>Quitar bandeja</Boton> : null}
-              <Boton variante="peligro" onClick={() => setBajaCanal(c)}>Dar de baja</Boton>
-            </div>
           </li>
         ))}
       </ul>

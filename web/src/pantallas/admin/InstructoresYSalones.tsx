@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
 import type { InstructorAdmin, SalonAdmin, SucursalAdmin } from "./tipos.ts";
 
 interface UsuarioMinimo {
@@ -51,10 +51,8 @@ function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alC
       <CampoTexto etiqueta="Teléfono" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} error={err("telefono")} ayuda="Para los avisos de las clases muestra." />
       <CampoTexto etiqueta="Correo" type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} error={err("correo")} />
       <CampoSelect etiqueta="Usuario con el que entra (maestro)" value={usuarioId} vacio="Sin usuario" opciones={usuarios.filter((u) => u.rol === "maestro" && u.activo).map((u) => ({ valor: u.id, texto: u.nombre }))} onChange={(e) => setUsuarioId(e.target.value)} error={err("usuario_id")} ayuda="De ahí sale «sus grupos» en la aplicación." />
-      <fieldset className="pila sin-borde">
-        <legend>
-          <strong>Sucursales donde da clases</strong>
-        </legend>
+      <fieldset className="formulario-seccion">
+        <legend>Sucursales donde da clases</legend>
         <p className="campo-ayuda">Sin ninguna marcada = sin restricción.</p>
         {sucursales.map((s) => (
           <CampoCasilla key={s.id} etiqueta={s.nombre} checked={donde.includes(s.id)} onChange={(e) => setDonde((d) => (e.target.checked ? [...d, s.id] : d.filter((x) => x !== s.id)))} />
@@ -130,48 +128,58 @@ export default function InstructoresYSalones() {
   const nombreSucursal = (id: string) => sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—";
   return (
     <Pagina titulo="Instructores y salones" subtitulo="Quién imparte y dónde." acciones={<Regreso />}>
-      <Tarjeta titulo="Instructores" acciones={<Boton variante="primario" onClick={edI.nuevo}>Nuevo instructor</Boton>}>
+      <section className="seccion-catalogo" aria-labelledby="titulo-instructores">
+        <header className="seccion-catalogo-cabecera">
+          <h2 id="titulo-instructores">Instructores</h2>
+          <Boton variante="primario" onClick={edI.nuevo}>Nuevo instructor</Boton>
+        </header>
         {instructores.error ? <ErrorDeCarga error={instructores.error} alReintentar={instructores.recargar} /> : null}
         {instructores.cargando && !instructores.datos ? <Cargando /> : null}
-        {instructores.datos && instructores.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay instructores" /> : null}
+        {instructores.datos && instructores.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay instructores">Da de alta al primero con «Nuevo instructor».</VacioDeLista> : null}
         <ul className="lista-tarjetas" data-prueba="lista-de-instructores">
           {(instructores.datos?.datos ?? []).map((i) => (
-            <li key={i.id} className="pila" data-prueba={`instructor-${i.id}`}>
-              <div className="fila fila-entre">
-                <strong>{i.nombre}</strong>
-                <Insignia tono={i.activo ? "exito" : "neutro"}>{i.activo ? "Activo" : "Inactivo"}</Insignia>
+            <li key={i.id} className="item-catalogo" data-prueba={`instructor-${i.id}`}>
+              <div className="item-catalogo-cabeza">
+                <div className="item-catalogo-titulo">
+                  <strong className="nombre-tarjeta">{i.nombre}</strong>
+                  <Insignia tono={i.activo ? "exito" : "neutro"}>{i.activo ? "Activo" : "Inactivo"}</Insignia>
+                </div>
+                <AccionesDeTarjeta alEditar={() => edI.editar(i)} alDarDeBaja={() => setBajaI(i)} />
               </div>
-              <p className="muted">{i.sucursales.length === 0 ? "Sin restricción de sucursal" : i.sucursales.map(nombreSucursal).join(", ")}{i.usuario_id ? " · con usuario" : ""}</p>
-              <div className="fila">
-                <Boton onClick={() => edI.editar(i)}>Editar</Boton>
-                <Boton variante="peligro" onClick={() => setBajaI(i)}>Dar de baja</Boton>
-              </div>
+              <p className="meta-linea">
+                <span>{i.sucursales.length === 0 ? "Sin restricción de sucursal" : i.sucursales.map(nombreSucursal).join(", ")}</span>
+                {i.usuario_id ? <span>con usuario</span> : null}
+              </p>
             </li>
           ))}
         </ul>
-      </Tarjeta>
-      <Tarjeta titulo="Salones" acciones={<Boton variante="primario" onClick={edS.nuevo}>Nuevo salón</Boton>}>
+      </section>
+      <section className="seccion-catalogo" aria-labelledby="titulo-salones">
+        <header className="seccion-catalogo-cabecera">
+          <h2 id="titulo-salones">Salones</h2>
+          <Boton onClick={edS.nuevo}>Nuevo salón</Boton>
+        </header>
         {salones.error ? <ErrorDeCarga error={salones.error} alReintentar={salones.recargar} /> : null}
         {salones.cargando && !salones.datos ? <Cargando /> : null}
-        {salones.datos && salones.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay salones" /> : null}
+        {salones.datos && salones.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay salones">Da de alta el primero con «Nuevo salón».</VacioDeLista> : null}
         <ul className="lista-tarjetas" data-prueba="lista-de-salones">
           {(salones.datos?.datos ?? []).map((s) => (
-            <li key={s.id} className="pila" data-prueba={`salon-${s.id}`}>
-              <div className="fila fila-entre">
-                <strong>
-                  {s.nombre} <span className="muted">· {nombreSucursal(s.sucursal_id)}</span>
-                </strong>
-                <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activo" : "Inactivo"}</Insignia>
+            <li key={s.id} className="item-catalogo" data-prueba={`salon-${s.id}`}>
+              <div className="item-catalogo-cabeza">
+                <div className="item-catalogo-titulo">
+                  <strong className="nombre-tarjeta">{s.nombre}</strong>
+                  <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activo" : "Inactivo"}</Insignia>
+                  <span className="item-catalogo-contexto">{nombreSucursal(s.sucursal_id)}</span>
+                </div>
+                <AccionesDeTarjeta alEditar={() => edS.editar(s)} alDarDeBaja={() => setBajaS(s)} />
               </div>
-              <p className="muted">{s.capacidad ? `Capacidad ${s.capacidad}` : "Sin capacidad registrada"}</p>
-              <div className="fila">
-                <Boton onClick={() => edS.editar(s)}>Editar</Boton>
-                <Boton variante="peligro" onClick={() => setBajaS(s)}>Dar de baja</Boton>
-              </div>
+              <p className="meta-linea">
+                <span>{s.capacidad ? `Capacidad ${s.capacidad}` : "Sin capacidad registrada"}</span>
+              </p>
             </li>
           ))}
         </ul>
-      </Tarjeta>
+      </section>
       <Dialogo abierto={edI.actual !== null} titulo={edI.actual === "nuevo" ? "Nuevo instructor" : "Editar instructor"} alCerrar={edI.cerrar}>
         {edI.actual !== null ? <FormularioInstructor instructor={edI.actual === "nuevo" ? null : edI.actual} sucursales={sucursales.datos?.datos ?? []} usuarios={usuarios.datos?.datos ?? []} alGuardar={(nombre) => { edI.cerrar(); instructores.recargar(); avisar(`${nombre} se guardó como instructor.`); }} alCerrar={edI.cerrar} /> : null}
       </Dialogo>

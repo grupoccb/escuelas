@@ -5,8 +5,9 @@ import { useState, type ChangeEvent } from "react";
 import { api } from "../../api/cliente.ts";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { ConfirmarAccion, Regreso } from "./comunes.tsx";
+import { BotonDeIcono, ConfirmarAccion, Regreso } from "./comunes.tsx";
 import { erroresPorArchivo, frase, leerArchivo, problemaConLosArchivos, tamanoTexto, type ArchivoElegido, type InformeDeCarga } from "./catalogo.ts";
 
 interface Plantillas {
@@ -16,7 +17,7 @@ interface Plantillas {
 function Resumen({ informe }: { informe: InformeDeCarga }) {
   return (
     <div className="pila">
-      <div className="tabla-scroll">
+      <div className="tabla-scroll tabla-apilada">
         <table className="tabla" data-prueba="resumen-carga">
           <thead>
             <tr>
@@ -29,19 +30,19 @@ function Resumen({ informe }: { informe: InformeDeCarga }) {
           <tbody>
             {informe.resumen.map((r) => (
               <tr key={r.clave}>
-                <td>{r.nombre}</td>
-                <td className="derecha">{r.creados}</td>
-                <td className="derecha">{r.actualizados}</td>
-                <td className="derecha">{r.sin_cambios}</td>
+                <td className="celda-titulo">{r.nombre}</td>
+                <td className="derecha numero" data-etiqueta="Nuevos">{r.creados}</td>
+                <td className="derecha numero" data-etiqueta="Actualizados">{r.actualizados}</td>
+                <td className="derecha numero" data-etiqueta="Sin cambios">{r.sin_cambios}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {informe.cambios.length > 0 ? (
-        <details>
+        <details className="mas-opciones">
           <summary>Ver cada cambio</summary>
-          <ul className="lista-simple" data-prueba="detalle-de-cambios">
+          <ul className="lista-simple lista-detalle" data-prueba="detalle-de-cambios">
             {informe.cambios.map((c, i) => (
               <li key={i}>{c.descripcion}</li>
             ))}
@@ -56,9 +57,9 @@ function Resumen({ informe }: { informe: InformeDeCarga }) {
 function Avisos({ informe }: { informe: InformeDeCarga }) {
   if (informe.avisos.length === 0) return null;
   return (
-    <details data-prueba="avisos-de-carga">
+    <details className="mas-opciones" data-prueba="avisos-de-carga">
       <summary>Para tomar en cuenta ({informe.avisos.length})</summary>
-      <ul className="lista-simple">
+      <ul className="lista-simple lista-detalle">
         {informe.avisos.map((a, i) => (
           <li key={i}>
             <span className="muted">{a.archivo}:</span> {a.texto}
@@ -81,7 +82,7 @@ function Errores({ informe }: { informe: InformeDeCarga }) {
           <h3>
             {g.archivo} <Insignia tono="peligro">{g.errores.length}</Insignia>
           </h3>
-          <ul className="lista-simple">
+          <ul className="lista-simple lista-errores">
             {g.errores.map((e, i) => (
               <li key={i} data-prueba="error-de-carga">
                 {e.fila !== null ? <strong>Fila {e.fila}{e.columna ? `, columna “${e.columna}”` : ""}: </strong> : null}
@@ -145,14 +146,15 @@ export default function CargarCatalogo() {
           {plantillas.cargando && !plantillas.datos ? <Cargando /> : null}
           {plantillas.datos ? (
             <>
-              <p>
-                <a className="boton boton-primario" href="/api/catalogo/plantillas/plantillas-catalogo.zip" download data-prueba="descarga-todas">
+              <div>
+                <a className="boton boton-secundario" href="/api/catalogo/plantillas/plantillas-catalogo.zip" download data-prueba="descarga-todas">
+                  <Icono nombre="descargar" tamano={18} />
                   Descargar todas las plantillas
                 </a>
-              </p>
-              <details>
+              </div>
+              <details className="mas-opciones">
                 <summary>Descargar una por una</summary>
-                <ul className="lista-simple" data-prueba="catalogo-descargas">
+                <ul className="lista-simple lista-detalle" data-prueba="catalogo-descargas">
                   {plantillas.datos.datos
                     .filter((d) => d.nombre !== "plantillas-catalogo.zip")
                     .map((d) => (
@@ -172,6 +174,7 @@ export default function CargarCatalogo() {
 
       <Tarjeta titulo="2. Sube tus archivos y revísalos">
         <div className="pila">
+          <div className="carga-archivos">
           <CampoTexto
             etiqueta="Archivos llenos"
             type="file"
@@ -181,17 +184,19 @@ export default function CargarCatalogo() {
             ayuda="Puedes elegir varios a la vez. Si eliges uno con el mismo nombre, reemplaza al anterior."
             data-prueba="entrada-de-archivos"
           />
+          </div>
           <ErrorDeAccion error={leer.error} />
           {archivos.length > 0 ? (
-            <ul className="lista-simple" data-prueba="archivos-elegidos">
+            <ul className="lista-simple lista-archivos" data-prueba="archivos-elegidos">
               {archivos.map((a) => (
-                <li key={a.nombre} className="fila fila-entre">
-                  <span>
-                    {a.nombre} <span className="muted">({tamanoTexto(a.tamano)})</span>
+                <li key={a.nombre}>
+                  <span className="archivo-nombre">
+                    <Icono nombre="archivo" tamano={18} />
+                    <span>
+                      {a.nombre} <span className="muted">({tamanoTexto(a.tamano)})</span>
+                    </span>
                   </span>
-                  <Boton variante="fantasma" onClick={() => cambiarArchivos(archivos.filter((x) => x.nombre !== a.nombre))} aria-label={`Quitar ${a.nombre}`}>
-                    Quitar
-                  </Boton>
+                  <BotonDeIcono icono="cerrar" nombre={`Quitar ${a.nombre}`} onClick={() => cambiarArchivos(archivos.filter((x) => x.nombre !== a.nombre))} />
                 </li>
               ))}
             </ul>
@@ -204,7 +209,7 @@ export default function CargarCatalogo() {
             </Aviso>
           ) : null}
           <div className="formulario-acciones">
-            <Boton variante="primario" onClick={revisarAhora} cargando={revisar.ocupado} disabled={archivos.length === 0 || problema !== null} data-prueba="boton-revisar">
+            <Boton variante={puedeAplicar ? "secundario" : "primario"} onClick={revisarAhora} cargando={revisar.ocupado} disabled={archivos.length === 0 || problema !== null} data-prueba="boton-revisar">
               Revisar
             </Boton>
           </div>
@@ -242,8 +247,8 @@ export default function CargarCatalogo() {
             ) : null}
             <Avisos informe={informe} />
             {puedeAplicar ? (
-              <div className="formulario-acciones">
-                <Boton variante="primario" onClick={() => setConfirmando(true)} data-prueba="boton-aplicar">
+              <div className="formulario-acciones carga-aplicar">
+                <Boton variante="primario" grande onClick={() => setConfirmando(true)} data-prueba="boton-aplicar">
                   Aplicar
                 </Boton>
                 <span className="muted">Se guarda todo o nada. Si lo subes otra vez no se duplica.</span>

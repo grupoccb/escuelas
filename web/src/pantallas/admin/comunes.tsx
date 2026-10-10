@@ -1,14 +1,51 @@
 // Piezas que comparten las pantallas de administración: el regreso al menú, la confirmación de una baja y la lista de resultados con su estado.
 
 import { useState, type ReactNode } from "react";
-import { Aviso, EnlaceBoton, Boton, ErrorDeAccion } from "../../ui/basicos.tsx";
+import { Aviso, EnlaceBoton, Boton, ErrorDeAccion, Vacio } from "../../ui/basicos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
+import type { NombreDeIcono } from "../../navegacion.ts";
 import { useAccion } from "../../ui/hooks.ts";
+
+/**
+ * Una acción que se repite en cada tarjeta o fila (editar, desactivar, dar de baja): solo ícono, 44 × 44, con el MISMO nombre accesible que tenía el botón de texto.
+ * `nombre` es el `aria-label` (y el texto de ayuda al pasar el ratón); `peligro` lo pinta con el color de lo destructivo, sin dejar de llevar su ícono.
+ */
+export function BotonDeIcono({ icono, nombre, onClick, peligro = false, disabled = false, ...resto }: { icono: NombreDeIcono; nombre: string; onClick: () => void; peligro?: boolean; disabled?: boolean; "data-prueba"?: string }) {
+  return (
+    <button type="button" className={`boton boton-icono${peligro ? " boton-icono-peligro" : ""}`} aria-label={nombre} title={nombre} disabled={disabled} onClick={onClick} {...resto}>
+      <Icono nombre={icono} />
+    </button>
+  );
+}
+
+/** El estado vacío de una lista que ocupa la página (no está dentro de un panel): el recuadro lleva fondo blanco y borde punteado para distinguirse del fondo de la página. */
+export function VacioDeLista({ titulo, icono, children }: { titulo: string; icono?: NombreDeIcono; children?: ReactNode }) {
+  return (
+    <div className="vacio-catalogo">
+      <Vacio titulo={titulo} {...(icono ? { icono } : {})}>
+        {children}
+      </Vacio>
+    </div>
+  );
+}
+
+/** Las acciones de una tarjeta de catálogo, siempre en este orden: editar, activar o desactivar (si aplica) y dar de baja. */
+export function AccionesDeTarjeta({ alEditar, alDesactivar, activo, ocupado = false, alDarDeBaja }: { alEditar: () => void; alDesactivar?: () => void; activo?: boolean; ocupado?: boolean; alDarDeBaja: () => void }) {
+  return (
+    <div className="item-catalogo-acciones">
+      <BotonDeIcono icono="lapiz" nombre="Editar" onClick={alEditar} />
+      {alDesactivar ? <BotonDeIcono icono={activo ? "pausa" : "reanudar"} nombre={activo ? "Desactivar" : "Activar"} onClick={alDesactivar} disabled={ocupado} /> : null}
+      <BotonDeIcono icono="papelera" nombre="Dar de baja" onClick={alDarDeBaja} peligro />
+    </div>
+  );
+}
 
 export function Regreso() {
   return (
-    <EnlaceBoton to="/admin" variante="fantasma">
-      ← Administración
+    <EnlaceBoton to="/admin" variante="secundario">
+      <Icono nombre="atras" tamano={18} />
+      Administración
     </EnlaceBoton>
   );
 }

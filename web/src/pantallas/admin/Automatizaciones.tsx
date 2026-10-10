@@ -12,7 +12,8 @@ import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { DIAS, enteroDe, horarioDeEnvio } from "./ayudas.ts";
-import { Regreso, useEdicion } from "./comunes.tsx";
+import { BotonDeIcono, Regreso, useEdicion } from "./comunes.tsx";
+import { TEXTO_DE_APROBACION, TONO_DE_APROBACION } from "./piezas.tsx";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { EVENTOS, NOMBRE_DE_MODULO, textoDeDesfase, tituloDeEvento } from "./mensajeria.ts";
 
@@ -149,29 +150,27 @@ export default function Automatizaciones() {
       <ErrorDeAccion error={alternar.error} />
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay automatizaciones">Las da de alta el seed del cliente.</Vacio> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay automatizaciones">Las da de alta el seed del cliente.</Vacio></div> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-automatizaciones">
         {(lista.datos?.datos ?? []).map((a) => (
-          <li key={a.id} className="tarjeta pila" data-prueba={`automatizacion-${a.id}`}>
-            <div className="fila fila-entre">
-              <strong>{a.nombre}</strong>
-              <span className="fila">
-                {EVENTOS[a.evento_disparador] && !moduloEncendido(EVENTOS[a.evento_disparador]!.modulo) ? <Insignia tono="alerta">En pausa: {NOMBRE_DE_MODULO[EVENTOS[a.evento_disparador]!.modulo]} está apagado</Insignia> : null}
-                <Insignia tono={a.activo ? "exito" : "neutro"}>{a.activo ? "Encendida" : "Apagada"}</Insignia>
-              </span>
+          <li key={a.id} className="item-admin" data-prueba={`automatizacion-${a.id}`}>
+            <div className="item-admin-principal">
+              <strong className="item-admin-nombre">{a.nombre}</strong>
+              <p className="item-admin-meta">
+                {tituloDeEvento(a.evento_disparador)} · {textoDeDesfase(a.offset_minutos)} · {cantidad(a.max_intentos, "intento", "intentos")} · de {horaDeMinutos(a.hora_inicio_min)} a {horaDeMinutos(a.hora_fin_min)}
+                {a.vertical ? ` · ${a.vertical}` : ""}
+                {a.sucursal ? ` · ${a.sucursal}` : ""}
+              </p>
             </div>
-            <p className="muted">
-              {tituloDeEvento(a.evento_disparador)} · {textoDeDesfase(a.offset_minutos)} · {cantidad(a.max_intentos, "intento", "intentos")} · de {horaDeMinutos(a.hora_inicio_min)} a {horaDeMinutos(a.hora_fin_min)}
-              {a.vertical ? ` · ${a.vertical}` : ""}
-              {a.sucursal ? ` · ${a.sucursal}` : ""}
-            </p>
-            <p className="muted">
-              Plantilla: {a.plantilla ? `${a.plantilla.codigo} (${a.plantilla.clase_mensaje === "servicio" ? "servicio" : "marketing"}, ${a.plantilla.estado_aprobacion})` : "ninguna"}
-              {a.plantilla && a.plantilla.estado_aprobacion !== "aprobada" ? " · ¡todavía no se puede mandar!" : ""}
-            </p>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(a)}>Ajustar</Boton>
-              <Boton
+            <div className="item-admin-etiquetas">
+              {EVENTOS[a.evento_disparador] && !moduloEncendido(EVENTOS[a.evento_disparador]!.modulo) ? <Insignia tono="alerta">En pausa: {NOMBRE_DE_MODULO[EVENTOS[a.evento_disparador]!.modulo]} está apagado</Insignia> : null}
+              <Insignia tono={a.activo ? "exito" : "neutro"}>{a.activo ? "Encendida" : "Apagada"}</Insignia>
+            </div>
+            <div className="item-admin-acciones">
+              <BotonDeIcono icono="admin" nombre="Ajustar" onClick={() => edicion.editar(a)} />
+              <BotonDeIcono
+                icono="encender"
+                nombre={a.activo ? "Apagar" : "Encender"}
                 disabled={alternar.ocupado}
                 onClick={() =>
                   void alternar.ejecutar(async () => {
@@ -180,9 +179,13 @@ export default function Automatizaciones() {
                     avisar(a.activo ? `«${a.nombre}» quedó apagada: ya no se programan envíos nuevos (lo ya programado sigue su curso).` : `«${a.nombre}» quedó encendida: desde ahora se programan sus envíos.`);
                   })
                 }
-              >
-                {a.activo ? "Apagar" : "Encender"}
-              </Boton>
+              />
+            </div>
+            <div className="item-admin-detalle item-admin-plantilla">
+              <span className="item-admin-meta">Plantilla: {a.plantilla ? a.plantilla.codigo : "ninguna"}</span>
+              {a.plantilla ? <Insignia>{a.plantilla.clase_mensaje === "servicio" ? "Servicio" : "Marketing"}</Insignia> : null}
+              {a.plantilla ? <Insignia tono={TONO_DE_APROBACION[a.plantilla.estado_aprobacion] ?? "neutro"}>{TEXTO_DE_APROBACION[a.plantilla.estado_aprobacion] ?? a.plantilla.estado_aprobacion}</Insignia> : null}
+              {a.plantilla && a.plantilla.estado_aprobacion !== "aprobada" ? <Insignia tono="alerta">¡todavía no se puede mandar!</Insignia> : null}
             </div>
           </li>
         ))}

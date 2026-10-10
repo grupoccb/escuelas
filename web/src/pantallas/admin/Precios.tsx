@@ -52,7 +52,7 @@ function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAd
       <CampoTexto etiqueta="Rige desde" type="date" requerido value={desde} onChange={(e) => setDesde(e.target.value)} error={err("vigencia_desde")} />
       <ErrorDeAccion error={guardar.error} enCampos={["costo_inscripcion", "costo_mensualidad", "vigencia_desde"]} />
       <div className="formulario-acciones">
-        <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
+        <Boton type="submit" variante="primario" grande cargando={guardar.ocupado}>
           Guardar la nueva vigencia
         </Boton>
         <Boton onClick={alCerrar}>Cancelar</Boton>
@@ -71,17 +71,34 @@ export default function Precios() {
   const programa = programas.datos?.datos.find((p) => p.id === programaId);
   const historial = [...(precios.datos?.datos ?? [])].sort((a, b) => (a.vigencia_desde < b.vigencia_desde ? 1 : -1));
   const hoy = hoyLocal();
+  const estaVigente = (p: PrecioAdmin): boolean => p.vigencia_desde <= hoy && (p.vigencia_hasta === null || p.vigencia_hasta >= hoy);
+  const vigente = historial.find(estaVigente);
   return (
     <Pagina titulo="Precios" subtitulo="Inscripción y mensualidad por programa, con vigencia." acciones={<Regreso />}>
-      <CampoSelect etiqueta="Programa" value={programaId} vacio="Elige un programa" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => setProgramaId(e.target.value)} />
+      <div className="filtros-catalogo">
+        <CampoSelect etiqueta="Programa" value={programaId} vacio="Elige un programa" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => setProgramaId(e.target.value)} />
+      </div>
       {programas.error ? <ErrorDeCarga error={programas.error} alReintentar={programas.recargar} /> : null}
       {programa ? (
-        <Tarjeta titulo={`Historial de ${programa.nombre}`} acciones={<Boton variante="primario" onClick={() => setAbierto(true)}>Nueva vigencia</Boton>}>
+        <Tarjeta className="tarjeta-precios" titulo={`Historial de ${programa.nombre}`} acciones={<Boton variante="primario" onClick={() => setAbierto(true)}>Nueva vigencia</Boton>}>
           {precios.error ? <ErrorDeCarga error={precios.error} alReintentar={precios.recargar} /> : null}
           {precios.cargando && !precios.datos ? <Cargando /> : null}
-          {precios.datos && historial.length === 0 ? <Vacio titulo="Este programa todavía no tiene precio">Sin precio no aparece en el cotizador ni se puede inscribir a nadie.</Vacio> : null}
+          {precios.datos && historial.length === 0 ? <Vacio titulo="Este programa todavía no tiene precio">Sin precio no aparece en el cotizador ni se puede inscribir a nadie. Captura el primero con «Nueva vigencia».</Vacio> : null}
+          {vigente ? (
+            <div className="indicadores" data-prueba="precio-vigente">
+              <div className="indicador indicador-principal">
+                <div>Mensualidad vigente</div>
+                <div className="indicador-valor">{formatear(vigente.costo_mensualidad)}</div>
+                <div className="indicador-nota">Rige desde {formatearFecha(vigente.vigencia_desde)}</div>
+              </div>
+              <div className="indicador">
+                <div>Inscripción vigente</div>
+                <div className="indicador-valor">{formatear(vigente.costo_inscripcion)}</div>
+              </div>
+            </div>
+          ) : null}
           {historial.length > 0 ? (
-            <div className="tabla-scroll">
+            <div className="tabla-scroll tabla-apilada">
               <table className="tabla" data-prueba="historial-de-precios">
                 <thead>
                   <tr>
@@ -94,12 +111,12 @@ export default function Precios() {
                 </thead>
                 <tbody>
                   {historial.map((p) => (
-                    <tr key={p.id}>
-                      <td>{formatearFecha(p.vigencia_desde)}</td>
-                      <td>{p.vigencia_hasta ? formatearFecha(p.vigencia_hasta) : "Abierta"}</td>
-                      <td className="derecha numero">{formatear(p.costo_inscripcion)}</td>
-                      <td className="derecha numero">{formatear(p.costo_mensualidad)}</td>
-                      <td>{p.vigencia_desde <= hoy && (p.vigencia_hasta === null || p.vigencia_hasta >= hoy) ? <Insignia tono="exito">Vigente</Insignia> : p.vigencia_desde > hoy ? <Insignia tono="info">Futura</Insignia> : <Insignia>Pasada</Insignia>}</td>
+                    <tr key={p.id} className={estaVigente(p) ? "fila-vigente" : undefined}>
+                      <td data-etiqueta="Desde">{formatearFecha(p.vigencia_desde)}</td>
+                      <td data-etiqueta="Hasta">{p.vigencia_hasta ? formatearFecha(p.vigencia_hasta) : "Abierta"}</td>
+                      <td className="derecha numero" data-etiqueta="Inscripción">{formatear(p.costo_inscripcion)}</td>
+                      <td className="derecha numero" data-etiqueta="Mensualidad">{formatear(p.costo_mensualidad)}</td>
+                      <td data-etiqueta="Estado">{estaVigente(p) ? <Insignia tono="exito">Vigente</Insignia> : p.vigencia_desde > hoy ? <Insignia tono="info">Futura</Insignia> : <Insignia>Pasada</Insignia>}</td>
                     </tr>
                   ))}
                 </tbody>

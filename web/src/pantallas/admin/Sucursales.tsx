@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
 import { nombreDeZona, opcionesDeZona } from "./zonas.ts";
 import type { SucursalAdmin, Vertical } from "./tipos.ts";
 
@@ -59,10 +59,11 @@ function Ofrece({ sucursal, verticales, alCambiar }: { sucursal: SucursalAdmin; 
   const { avisar } = useAvisos();
   const mapa = new Map(sucursal.verticales.map((v) => [v.vertical_id, v]));
   return (
-    <div className="pila" data-prueba={`ofrece-${sucursal.id}`}>
-      <strong>Disciplinas que se imparten aquí</strong>
+    <div className="pila bloque-casillas" data-prueba={`ofrece-${sucursal.id}`}>
+      <strong className="etiqueta-panel">Disciplinas que se imparten aquí</strong>
       <ErrorDeAccion error={accion.error} />
       {verticales.length === 0 ? <p className="muted">Primero da de alta una disciplina.</p> : null}
+      <div className="casillas-rejilla">
       {verticales.map((v) => {
         const fila = mapa.get(v.id);
         return (
@@ -83,6 +84,7 @@ function Ofrece({ sucursal, verticales, alCambiar }: { sucursal: SucursalAdmin; 
           />
         );
       })}
+      </div>
     </div>
   );
 }
@@ -98,24 +100,22 @@ export default function Sucursales() {
     <Pagina titulo="Sucursales" subtitulo="Dónde se imparte, en qué zona horaria y qué disciplinas." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva sucursal</Boton></>}>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay sucursales" /> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay sucursales">Da de alta la primera con «Nueva sucursal».</VacioDeLista> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-sucursales">
         {(lista.datos?.datos ?? []).map((s) => (
-          <li key={s.id} className="tarjeta pila" data-prueba={`sucursal-${s.id}`}>
-            <div className="fila fila-entre">
-              <strong>{s.nombre}</strong>
-              <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activa" : "Inactiva"}</Insignia>
+          <li key={s.id} className="item-catalogo" data-prueba={`sucursal-${s.id}`}>
+            <div className="item-catalogo-cabeza">
+              <div className="item-catalogo-titulo">
+                <strong className="nombre-tarjeta">{s.nombre}</strong>
+                <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activa" : "Inactiva"}</Insignia>
+              </div>
+              <AccionesDeTarjeta alEditar={() => edicion.editar(s)} alDarDeBaja={() => setBaja(s)} />
             </div>
-            <p className="muted">
-              {s.direccion ?? "Sin dirección"} · {nombreDeZona(s.zona_horaria)}
+            <p className="meta-linea">
+              <span>{s.direccion ?? "Sin dirección"}</span>
+              <span>{nombreDeZona(s.zona_horaria)}</span>
             </p>
             <Ofrece sucursal={s} verticales={verticales.datos?.datos ?? []} alCambiar={lista.recargar} />
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(s)}>Editar</Boton>
-              <Boton variante="peligro" onClick={() => setBaja(s)}>
-                Dar de baja
-              </Boton>
-            </div>
           </li>
         ))}
       </ul>

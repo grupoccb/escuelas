@@ -9,7 +9,7 @@ import { CampoCasilla, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import { NOMBRE_DE_MODULO } from "./mensajeria.ts";
 
 interface Motivo {
@@ -67,7 +67,7 @@ function Lista({ ruta, titulo, ayuda, modulo, claveDePrueba }: { ruta: string; t
   const [quitando, setQuitando] = useState<Motivo | null>(null);
   const { moduloEncendido } = useSesion();
   return (
-    <Tarjeta titulo={titulo} acciones={<Boton onClick={edicion.nuevo}>Agregar un motivo</Boton>}>
+    <Tarjeta titulo={titulo} acciones={<Boton variante="sutil" onClick={edicion.nuevo}>Agregar un motivo</Boton>}>
       <div className="pila" data-prueba={claveDePrueba}>
         <p className="muted">{ayuda}</p>
         {!moduloEncendido(modulo) ? <Aviso tono="alerta">El módulo «{NOMBRE_DE_MODULO[modulo]}» está apagado. Puedes dejar la lista lista, pero no se usa hasta que lo enciendas.</Aviso> : null}
@@ -76,16 +76,16 @@ function Lista({ ruta, titulo, ayuda, modulo, claveDePrueba }: { ruta: string; t
         {carga.datos && carga.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay motivos">Agrega el primero con «Agregar un motivo».</Vacio> : null}
         <ul className="lista-tarjetas">
           {(carga.datos?.datos ?? []).map((m) => (
-            <li key={m.id} className="tarjeta pila" data-prueba={`motivo-${m.id}`}>
-              <div className="fila fila-entre">
-                <strong>{m.nombre}</strong>
+            <li key={m.id} className="item-admin" data-prueba={`motivo-${m.id}`}>
+              <div className="item-admin-principal">
+                <strong className="item-admin-nombre">{m.nombre}</strong>
+              </div>
+              <div className="item-admin-etiquetas">
                 <Insignia tono={m.activo ? "exito" : "neutro"}>{m.activo ? "Se ofrece" : "Apagado"}</Insignia>
               </div>
-              <div className="fila">
-                <Boton onClick={() => edicion.editar(m)}>Cambiar</Boton>
-                <Boton variante="peligro" onClick={() => setQuitando(m)}>
-                  Quitar
-                </Boton>
+              <div className="item-admin-acciones">
+                <BotonDeIcono icono="lapiz" nombre="Cambiar" onClick={() => edicion.editar(m)} />
+                <BotonDeIcono icono="papelera" nombre="Quitar" peligro onClick={() => setQuitando(m)} />
               </div>
             </li>
           ))}

@@ -4,11 +4,11 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoArea } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { Regreso, useEdicion } from "./comunes.tsx";
+import { BotonDeIcono, Regreso, useEdicion } from "./comunes.tsx";
 import { NOMBRE_DE_MODULO } from "./mensajeria.ts";
 import { revisarHuecos, vistaPrevia, type HuecoDeTexto } from "./textos.ts";
 
@@ -76,10 +76,10 @@ function Formulario({ t, maximo, alGuardar, alCerrar }: { t: TextoDelBot; maximo
         {t.huecos.length === 0 ? <p className="muted">Este mensaje no lleva huecos: escríbelo completo.</p> : null}
         <ul className="lista-simple">
           {t.huecos.map((h) => (
-            <li key={h.nombre}>
-              <Boton onClick={() => { setTexto((x) => `${x}{${h.nombre}}`); setLocal(undefined); guardar.limpiar(); }} aria-label={`Agregar {${h.nombre}}`}>
+            <li key={h.nombre} className="hueco-fila">
+              <Boton variante="sutil" onClick={() => { setTexto((x) => `${x}{${h.nombre}}`); setLocal(undefined); guardar.limpiar(); }} aria-label={`Agregar {${h.nombre}}`}>
                 {`{${h.nombre}}`}
-              </Boton>{" "}
+              </Boton>
               <span className="muted">
                 {h.descripcion}
                 {t.obligatorios.includes(h.nombre) ? " (obligatorio)" : ""}
@@ -90,14 +90,14 @@ function Formulario({ t, maximo, alGuardar, alCerrar }: { t: TextoDelBot; maximo
       </div>
       <div className="pila">
         <strong>Así se vería</strong>
-        <p className="vista-previa" data-prueba="vista-previa" style={{ whiteSpace: "pre-wrap" }}>
+        <p className="vista-previa texto-conservado" data-prueba="vista-previa">
           {vistaPrevia(texto)}
         </p>
       </div>
       {/* El motivo del rechazo ya sale debajo del campo: no se repite en una caja aparte. */}
       {servidor ? null : <ErrorDeAccion error={guardar.error} />}
       <ErrorDeAccion error={volver.error} />
-      <div className="formulario-acciones">
+      <div className="formulario-acciones formulario-acciones-tres">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
         </Boton>
@@ -132,29 +132,33 @@ export default function TextosDelAsistente() {
       <Aviso>El asistente hace las mismas preguntas en el mismo orden; aquí solo cambias cómo las dice. Los huecos como {"{nombre}"} los llena el sistema. Un cambio vale desde el siguiente mensaje que llegue.</Aviso>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
+      {carga.datos && carga.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay textos del asistente">Recarga la pantalla; si sigue vacía, avisa a soporte.</Vacio></div> : null}
       {carga.datos
         ? SECCIONES.map((s) => {
             const items = carga.datos!.datos.filter((d) => d.modulo === s.modulo);
             if (items.length === 0) return null;
             const apagado = !moduloEncendido(s.modulo);
             return (
-              <Tarjeta key={s.modulo} titulo={s.titulo}>
+              <section key={s.modulo} className="seccion-admin">
+                <h2>{s.titulo}</h2>
                 {apagado ? <Aviso tono="alerta">El módulo «{NOMBRE_DE_MODULO[s.modulo]}» está apagado. Puedes dejar estos textos listos, pero el asistente no los dice hasta que lo enciendas.</Aviso> : null}
                 <ul className="lista-tarjetas" data-prueba={`textos-${s.modulo}`}>
                   {items.map((t) => (
-                    <li key={t.clave} className="tarjeta pila" data-prueba={`texto-${t.clave}`}>
-                      <div className="fila fila-entre">
-                        <span className="muted">{t.cuando}</span>
+                    <li key={t.clave} className="item-admin" data-prueba={`texto-${t.clave}`}>
+                      <div className="item-admin-principal">
+                        <span className="item-admin-meta">{t.cuando}</span>
+                        <p className="texto-conservado texto-del-asistente">{t.texto}</p>
+                      </div>
+                      <div className="item-admin-etiquetas">
                         <Insignia tono={t.personalizado ? "exito" : "neutro"}>{t.personalizado ? "Personalizado" : "De siempre"}</Insignia>
                       </div>
-                      <p style={{ whiteSpace: "pre-wrap" }}>{t.texto}</p>
-                      <div>
-                        <Boton onClick={() => edicion.editar(t)}>Cambiar</Boton>
+                      <div className="item-admin-acciones">
+                        <BotonDeIcono icono="lapiz" nombre="Cambiar" onClick={() => edicion.editar(t)} />
                       </div>
                     </li>
                   ))}
                 </ul>
-              </Tarjeta>
+              </section>
             );
           })
         : null}

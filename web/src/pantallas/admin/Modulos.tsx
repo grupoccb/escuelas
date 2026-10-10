@@ -8,10 +8,11 @@ import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Aviso, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
-import { CampoCasilla } from "../../ui/campos.tsx";
+import { Aviso, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { ConfirmarAccion, Regreso } from "./comunes.tsx";
+import { Interruptor } from "./piezas.tsx";
 import { explicarCambioDeModulo, queCambia, type ModuloDeLista } from "./modulos.ts";
 
 interface Lista {
@@ -47,32 +48,38 @@ export default function Modulos() {
             {modulos.map((m) => {
               const bloqueo = explicarCambioDeModulo(m, modulos);
               return (
-                <li key={m.id} data-prueba={`modulo-${m.id}`}>
-                  <Tarjeta
-                    titulo={m.nombre}
-                    acciones={<Insignia tono={m.encendido ? "exito" : "neutro"}>{m.encendido ? "Encendido" : "Apagado"}</Insignia>}
-                  >
-                    <div className="pila">
-                      <p className="muted">{m.incluye}</p>
-                      {m.obligatorio ? null : (
-                        <p data-prueba={`efecto-${m.id}`}>
-                          <strong>{m.encendido ? "Si lo apagas:" : "Si lo enciendes:"}</strong> {queCambia(m.id, !m.encendido)}
-                        </p>
-                      )}
-                      <CampoCasilla
-                        etiqueta={m.obligatorio ? "Siempre encendido" : "Encendido"}
-                        checked={m.encendido}
-                        disabled={m.obligatorio || bloqueo !== null || cambio.ocupado}
-                        onChange={(e) => {
-                          // Apagar toca lo que ven otras personas: se confirma. Encender no quita nada: va directo.
-                          if (m.encendido) setPorApagar(m);
-                          else void cambio.ejecutar(() => cambiar(m, e.target.checked));
-                        }}
-                        data-prueba={`interruptor-${m.id}`}
-                        ayuda={bloqueo}
-                      />
-                    </div>
-                  </Tarjeta>
+                <li key={m.id} className="item-admin item-modulo" data-prueba={`modulo-${m.id}`}>
+                  <div className="item-admin-principal">
+                    <h2 className="item-admin-nombre">{m.nombre}</h2>
+                    <p className="item-admin-meta">{m.incluye}</p>
+                    {m.obligatorio ? null : (
+                      <p className="modulo-efecto" data-prueba={`efecto-${m.id}`}>
+                        <strong>{m.encendido ? "Si lo apagas:" : "Si lo enciendes:"}</strong> {queCambia(m.id, !m.encendido)}
+                      </p>
+                    )}
+                    {bloqueo ? (
+                      <p className="campo-ayuda modulo-bloqueo" id={`bloqueo-${m.id}`}>
+                        <Icono nombre="info" tamano={16} />
+                        <span>{bloqueo}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="item-admin-etiquetas">
+                    <Insignia tono={m.encendido ? "exito" : "neutro"}>{m.obligatorio ? "Siempre encendido" : m.encendido ? "Encendido" : "Apagado"}</Insignia>
+                    <Interruptor
+                      checked={m.encendido}
+                      disabled={m.obligatorio || bloqueo !== null || cambio.ocupado}
+                      onChange={(e) => {
+                        // Apagar toca lo que ven otras personas: se confirma. Encender no quita nada: va directo.
+                        if (m.encendido) setPorApagar(m);
+                        else void cambio.ejecutar(() => cambiar(m, e.target.checked));
+                      }}
+                      data-prueba={`interruptor-${m.id}`}
+                      aria-describedby={bloqueo ? `bloqueo-${m.id}` : undefined}
+                    >
+                      {m.obligatorio ? "Siempre encendido" : "Encendido"}
+                    </Interruptor>
+                  </div>
                 </li>
               );
             })}

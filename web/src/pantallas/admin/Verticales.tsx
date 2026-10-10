@@ -4,18 +4,21 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { colorDe } from "./ayudas.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { Icono } from "../../ui/Icono.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
 import type { Vertical } from "./tipos.ts";
 
 function Muestra({ color }: { color: string | null }) {
+  // Sin color de marca no se dibuja nada: un círculo vacío se lee como un control sin marcar.
+  if (color === null) return null;
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
-      <circle cx="9" cy="9" r="8" fill={color ?? "none"} stroke="currentColor" strokeWidth="1" />
+    <svg className="muestra-color" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+      <circle cx="11" cy="11" r="10" fill={color} stroke="currentColor" strokeWidth="1" />
     </svg>
   );
 }
@@ -113,46 +116,45 @@ export default function Verticales() {
     <Pagina titulo="Disciplinas" subtitulo="Lo que imparte la escuela. Cada una se da de alta aquí, sin tocar código." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva disciplina</Boton></>}>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay disciplinas">Da de alta la primera.</Vacio> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay disciplinas">Da de alta la primera con «Nueva disciplina».</VacioDeLista> : null}
       <ErrorDeAccion error={cambiarActivo.error} />
       <ul className="lista-tarjetas" data-prueba="lista-de-verticales">
         {(lista.datos?.datos ?? []).map((v) => (
-          <li key={v.id} className="tarjeta pila" data-prueba={`vertical-${v.slug}`}>
-            <div className="fila fila-entre">
-              <strong>
-                <Muestra color={v.color_marca} /> {v.nombre}
-              </strong>
-              <span className="fila">
-                <Insignia tono={v.activo ? "exito" : "neutro"}>{v.activo ? "Activa" : "Inactiva"}</Insignia>
-                {v.cotizador_whatsapp_activo ? <Insignia tono="info">Cotiza por WhatsApp</Insignia> : null}
-              </span>
-            </div>
-            <p className="muted">
-              Página para recibir familias:{" "}
-              <a href={`/l/${v.slug}`} target="_blank" rel="noopener noreferrer">
-                abrir
-              </a>
-              {v.usa_progresion ? ` · Avance: ${v.etiqueta_progresion ?? "—"}` : " · Sin progresión"}
-              {v.etiqueta_evento ? ` · Evento: ${v.etiqueta_evento}` : ""}
-            </p>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(v)}>Editar</Boton>
-              <Boton
-                disabled={cambiarActivo.ocupado}
-                onClick={() =>
+          <li key={v.id} className="item-catalogo" data-prueba={`vertical-${v.slug}`}>
+            <div className="item-catalogo-cabeza">
+              <div className="item-catalogo-titulo">
+                <Muestra color={v.color_marca} />
+                <strong className="nombre-tarjeta">{v.nombre}</strong>
+              </div>
+              <AccionesDeTarjeta
+                alEditar={() => edicion.editar(v)}
+                activo={v.activo}
+                ocupado={cambiarActivo.ocupado}
+                alDesactivar={() =>
                   void cambiarActivo.ejecutar(async () => {
                     await api.patch(`/api/verticales/${v.id}`, { activo: !v.activo });
                     lista.recargar();
                     avisar(v.activo ? `${v.nombre} quedó desactivada: deja de recibir captación nueva, y lo ya registrado se conserva.` : `${v.nombre} quedó activa otra vez.`);
                   })
                 }
-              >
-                {v.activo ? "Desactivar" : "Activar"}
-              </Boton>
-              <Boton variante="peligro" onClick={() => setBaja(v)}>
-                Dar de baja
-              </Boton>
+                alDarDeBaja={() => setBaja(v)}
+              />
             </div>
+            <div className="item-catalogo-etiquetas">
+              <Insignia tono={v.activo ? "exito" : "neutro"}>{v.activo ? "Activa" : "Inactiva"}</Insignia>
+              {v.cotizador_whatsapp_activo ? <Insignia tono="info">Cotiza por WhatsApp</Insignia> : null}
+            </div>
+            <p className="meta-linea">
+              <span>
+                Página para recibir familias:{" "}
+                <a className="enlace-con-icono" href={`/l/${v.slug}`} target="_blank" rel="noopener noreferrer">
+                  abrir
+                  <Icono nombre="enlace_externo" tamano={14} />
+                </a>
+              </span>
+              <span>{v.usa_progresion ? `Avance: ${v.etiqueta_progresion ?? "—"}` : "Sin progresión"}</span>
+              {v.etiqueta_evento ? <span>{`Evento: ${v.etiqueta_evento}`}</span> : null}
+            </p>
           </li>
         ))}
       </ul>

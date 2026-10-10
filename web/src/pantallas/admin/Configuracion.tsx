@@ -6,6 +6,7 @@ import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { horaDeMinutos } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
@@ -76,7 +77,7 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
 
   return (
     <form
-      className="pila"
+      className="pila config-formulario"
       data-prueba="formulario-configuracion"
       noValidate
       onSubmit={(ev) => {
@@ -105,43 +106,48 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
         });
       }}
     >
-      <Tarjeta titulo="Quién cierra la inscripción">
-        <CampoSelect
-          etiqueta="Modo de cierre"
-          ayuda="Con «el maestro, en sitio», a cada maestro le aparece «Inscribir a mi alumno» en su pantalla «Hoy» cuando el alumno ya tiene su registro completo y la familia aceptó el reglamento. Con «el asesor», el maestro solo avisa que la familia quedó lista."
-          value={modo}
-          opciones={[
-            { valor: "asesor_whatsapp", texto: "El asesor, por WhatsApp (el maestro marca «listo para cerrar»)" },
-            { valor: "maestro_en_sitio", texto: "El maestro, en sitio, al terminar la clase muestra" },
-          ]}
-          onChange={(e) => setModo(e.target.value)}
-        />
-      </Tarjeta>
-      <Tarjeta titulo="Sucursal sin el programa buscado">
-        <CampoSelect
-          etiqueta="Qué hace el bot"
-          ayuda="Cuando la sucursal que eligió la familia no tiene programa para la edad. Con «ofrecer la otra sucursal», el asistente le propone la que sí lo tiene; con «avisar al asesor», pasa la conversación de inmediato."
-          value={politica}
-          opciones={[
-            { valor: "ofrecer_otra", texto: "Ofrecer la otra sucursal que sí lo tiene" },
-            { valor: "avisar_asesor", texto: "Avisar al asesor directamente" },
-          ]}
-          onChange={(e) => setPolitica(e.target.value)}
-        />
-      </Tarjeta>
+      <div className="config-pares">
+        <Tarjeta titulo="Quién cierra la inscripción">
+          <CampoSelect
+            etiqueta="Modo de cierre"
+            ayuda="Con «el maestro, en sitio», a cada maestro le aparece «Inscribir a mi alumno» en su pantalla «Hoy» cuando el alumno ya tiene su registro completo y la familia aceptó el reglamento. Con «el asesor», el maestro solo avisa que la familia quedó lista."
+            value={modo}
+            opciones={[
+              { valor: "asesor_whatsapp", texto: "El asesor, por WhatsApp (el maestro marca «listo para cerrar»)" },
+              { valor: "maestro_en_sitio", texto: "El maestro, en sitio, al terminar la clase muestra" },
+            ]}
+            onChange={(e) => setModo(e.target.value)}
+          />
+        </Tarjeta>
+        <Tarjeta titulo="Sucursal sin el programa buscado">
+          <CampoSelect
+            etiqueta="Qué hace el bot"
+            ayuda="Cuando la sucursal que eligió la familia no tiene programa para la edad. Con «ofrecer la otra sucursal», el asistente le propone la que sí lo tiene; con «avisar al asesor», pasa la conversación de inmediato."
+            value={politica}
+            opciones={[
+              { valor: "ofrecer_otra", texto: "Ofrecer la otra sucursal que sí lo tiene" },
+              { valor: "avisar_asesor", texto: "Avisar al asesor directamente" },
+            ]}
+            onChange={(e) => setPolitica(e.target.value)}
+          />
+        </Tarjeta>
+      </div>
       {grupos.map((g) => (
         <Tarjeta key={g.titulo} titulo={g.titulo}>
-          <div className="pila">
-            {g.titulo === "Horario de los mensajes automáticos" ? (
-              <Aviso>Puedes dejar el horario más corto, pero nunca más largo: los mensajes que inicia el sistema (recordatorios, reenganche, avisos de pago) jamás salen antes de las 09:00 ni después de las 20:00, hora de cada sucursal. Responder a quien acaba de escribir no tiene horario. La zona horaria se ajusta en cada sucursal.</Aviso>
-            ) : null}
-            {g.claves.map(campo)}
-          </div>
+          {g.titulo === "Horario de los mensajes automáticos" ? (
+            <Aviso>Puedes dejar el horario más corto, pero nunca más largo: los mensajes que inicia el sistema (recordatorios, reenganche, avisos de pago) jamás salen antes de las 09:00 ni después de las 20:00, hora de cada sucursal. Responder a quien acaba de escribir no tiene horario. La zona horaria se ajusta en cada sucursal.</Aviso>
+          ) : null}
+          <div className="config-campos">{g.claves.map(campo)}</div>
         </Tarjeta>
       ))}
       <ErrorDeAccion error={guardar.error} />
-      {guardado ? <Aviso tono="exito">Configuración guardada.</Aviso> : null}
-      <div>
+      <div className="barra-guardado">
+        {guardado ? (
+          <p className="barra-guardado-estado barra-guardado-estado-ok" role="status">
+            <Icono nombre="exito" tamano={18} />
+            Configuración guardada.
+          </p>
+        ) : null}
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar la configuración
         </Boton>

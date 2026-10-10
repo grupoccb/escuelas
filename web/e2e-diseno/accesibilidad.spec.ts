@@ -14,6 +14,8 @@ import { RAIZ } from "../e2e/mundo.ts";
 import type { Escena, Vista } from "./escenas.ts";
 
 const FILTRO = process.env["DISENO_FILTRO"] ?? "";
+/** `DISENO_FILTRO` admite varios prefijos de id separados por coma; vacío = todas. */
+const coincide = (id: string): boolean => FILTRO === "" || FILTRO.split(",").some((p) => id.startsWith(p.trim()));
 const SALIDA = resolve(RAIZ, ".tmp/diseno-a11y.jsonl");
 mkdirSync(resolve(RAIZ, ".tmp"), { recursive: true });
 writeFileSync(SALIDA, "");
@@ -28,8 +30,7 @@ const VISTAS: Vista[] = ["escritorio", "celular"];
 // Escenas cuyo único propósito es mostrar algo roto a propósito (sin red, sin JavaScript): no se les pide pasar axe, pero sí el desborde.
 const SOLO_DESBORDE = new Set<string>(["acceso-marco-con-teclado"]); // simula el teclado achicando `visualViewport`: axe se queda esperando
 
-test.describe.configure({ mode: "serial" });
-for (const e of escenas.filter((x) => x.id.includes(FILTRO))) {
+for (const e of escenas.filter((x) => coincide(x.id))) {
   for (const vista of VISTAS.filter((v) => (e.vistas ?? VISTAS).includes(v))) {
     test(`a11y ${e.id} · ${vista}`, async ({ browser, baseURL }) => {
       const { page, cerrar } = await contextoNuevo(browser, baseURL ?? mundo.base, vista, e.rol === "anonimo" ? null : e.rol);

@@ -7,12 +7,12 @@ import { coincide } from "../../lib/texto.ts";
 import { useYo } from "../../sesion/SesionContext.tsx";
 import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
-import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
+import { CampoBusqueda, CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import { AYUDA_DE_ROL, problemaDeContrasenaNueva, ROLES, ROLES_CON_SUCURSALES } from "./mensajeria.ts";
 import type { SucursalAdmin } from "./tipos.ts";
 
@@ -197,39 +197,42 @@ export default function Usuarios() {
   const visibles = (lista.datos?.datos ?? []).filter((u) => coincide(`${u.nombre} ${u.correo} ${rolDe(u)}`, busqueda));
   return (
     <Pagina titulo="Usuarios y roles" subtitulo="Quién entra a la aplicación y qué puede hacer." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo usuario</Boton></>}>
-      <CampoTexto etiqueta="Buscar por nombre o correo" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} ayuda="También sirve escribir el rol: asesor, maestro, recepción." />
+      <div className="busqueda-admin">
+        <CampoBusqueda etiqueta="Buscar por nombre o correo" placeholder="Buscar por nombre o correo" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+        <p className="campo-ayuda">También sirve escribir el rol: asesor, maestro, recepción.</p>
+      </div>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay usuarios" /> : null}
-      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <Vacio titulo={`Nadie coincide con «${busqueda.trim()}»`}>Prueba con otra palabra, o borra lo escrito.</Vacio> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay usuarios">Agrega el primero con «Nuevo usuario».</Vacio></div> : null}
+      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <div className="vacio-admin"><Vacio titulo={`Nadie coincide con «${busqueda.trim()}»`}>Prueba con otra palabra, o borra lo escrito.</Vacio></div> : null}
       <ErrorDeAccion error={activar.error} />
       <ul className="lista-tarjetas" data-prueba="lista-de-usuarios">
         {visibles.map((u) => (
-          <li key={u.id} className="tarjeta pila" data-prueba={`usuario-${u.correo}`}>
-            <div className="fila fila-entre">
-              <strong>
+          <li key={u.id} className="item-admin" data-prueba={`usuario-${u.correo}`}>
+            <div className="item-admin-principal">
+              <strong className="item-admin-nombre">
                 {u.nombre} {u.id === yo.usuario.id ? <span className="muted">(tú)</span> : null}
               </strong>
-              <span className="fila">
-                <Insignia tono="info">{rolDe(u)}</Insignia>
-                <Insignia tono={u.activo ? "exito" : "neutro"}>{u.activo ? "Activo" : "Inactivo"}</Insignia>
-                {u.chatwoot_agent_id ? <Insignia>Agente de Chatwoot n.º {u.chatwoot_agent_id}</Insignia> : null}
-              </span>
+              <p className="item-admin-meta">
+                {u.correo}
+                {u.sucursales.length > 0 ? ` · ${u.sucursales.map(nombreS).join(", ")}` : ""}
+              </p>
             </div>
-            <p className="muted">
-              {u.correo}
-              {u.sucursales.length > 0 ? ` · ${u.sucursales.map(nombreS).join(", ")}` : ""}
-            </p>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(u)}>Editar</Boton>
-              {u.id !== yo.usuario.id ? <Boton onClick={() => setRestablecer(u)}>Restablecer contraseña</Boton> : null}
-              {u.rol === "asesor" ? <Boton onClick={() => setChatwoot(u)}>Agente de Chatwoot</Boton> : null}
+            <div className="item-admin-etiquetas">
+              <Insignia>{rolDe(u)}</Insignia>
+              <Insignia tono={u.activo ? "exito" : "neutro"}>{u.activo ? "Activo" : "Inactivo"}</Insignia>
+              {u.chatwoot_agent_id ? <Insignia>Agente de Chatwoot n.º {u.chatwoot_agent_id}</Insignia> : null}
+            </div>
+            <div className="item-admin-acciones">
+              <BotonDeIcono icono="lapiz" nombre="Editar" onClick={() => edicion.editar(u)} />
+              {u.id !== yo.usuario.id ? <BotonDeIcono icono="llave" nombre="Restablecer contraseña" onClick={() => setRestablecer(u)} /> : null}
+              {u.rol === "asesor" ? <BotonDeIcono icono="chatwoot" nombre="Agente de Chatwoot" onClick={() => setChatwoot(u)} /> : null}
               {u.id === yo.usuario.id ? null : u.activo ? (
-                <Boton variante="peligro" onClick={() => setDesactivar(u)}>
-                  Desactivar
-                </Boton>
+                <BotonDeIcono icono="bloquear" nombre="Desactivar" peligro onClick={() => setDesactivar(u)} />
               ) : (
-                <Boton
+                <BotonDeIcono
+                  icono="reactivar"
+                  nombre="Activar"
                   disabled={activar.ocupado}
                   onClick={() =>
                     void activar.ejecutar(async () => {
@@ -238,9 +241,7 @@ export default function Usuarios() {
                       avisar(`${u.nombre} volvió a estar activo: ya puede entrar con su contraseña.`);
                     })
                   }
-                >
-                  Activar
-                </Boton>
+                />
               )}
             </div>
           </li>

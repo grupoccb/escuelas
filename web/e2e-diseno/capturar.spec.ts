@@ -11,6 +11,8 @@ import type { Escena, Vista } from "./escenas.ts";
 
 const FASE = process.env["DISENO_FASE"] ?? "despues";
 const FILTRO = process.env["DISENO_FILTRO"] ?? "";
+/** `DISENO_FILTRO` admite varios prefijos de id separados por coma; vacío = todas. */
+const coincide = (id: string): boolean => FILTRO === "" || FILTRO.split(",").some((p) => id.startsWith(p.trim()));
 const CARPETA = resolve(RAIZ, "docs/diseno/capturas", FASE);
 const ARCHIVO_CLASES = resolve(RAIZ, "docs/diseno/clases-observadas.json");
 const ALTO_MAXIMO = 4000;
@@ -34,8 +36,7 @@ function recordarClases(clases: string[]): void {
 
 const VISTAS: Vista[] = ["escritorio", "celular"];
 
-test.describe.configure({ mode: "serial" });
-for (const e of escenas.filter((x) => x.id.includes(FILTRO))) {
+for (const e of escenas.filter((x) => coincide(x.id))) {
   for (const vista of VISTAS.filter((v) => (e.vistas ?? VISTAS).includes(v))) {
     test(`${e.id} · ${vista}`, async ({ browser, baseURL }) => {
       const { page, cerrar } = await contextoNuevo(browser, baseURL ?? mundo.base, vista, e.rol === "anonimo" ? null : e.rol);

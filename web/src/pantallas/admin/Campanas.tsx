@@ -8,8 +8,9 @@ import { useAvisos } from "../../ui/avisos.tsx";
 import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { CampanaAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 /** Dónde se anuncia (los valores son los del servidor; el texto es el de la escuela). */
@@ -143,25 +144,26 @@ export default function Campanas() {
     >
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay campañas">Da de alta la primera con «Nueva campaña»: un anuncio, un volante o el letrero de una sucursal.</Vacio> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay campañas">Da de alta la primera con «Nueva campaña»: un anuncio, un volante o el letrero de una sucursal.</Vacio></div> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-campanas">
         {(lista.datos?.datos ?? []).map((c) => (
-          <li key={c.id} className="tarjeta pila" data-prueba={`campana-${c.id}`}>
-            <div className="fila fila-entre">
-              <strong>{c.nombre}</strong>
+          <li key={c.id} className="item-admin" data-prueba={`campana-${c.id}`}>
+            <div className="item-admin-principal">
+              <strong className="item-admin-nombre">{c.nombre}</strong>
+              <p className="item-admin-meta">
+                {nombreDeOrigen(c.origen)} · {nombreV(c.vertical_id)} · {nombreS(c.sucursal_id)}
+              </p>
+            </div>
+            <div className="item-admin-etiquetas">
               <Insignia tono={c.activo ? "exito" : "neutro"}>{c.activo ? "Activa" : "Inactiva"}</Insignia>
             </div>
-            <p className="muted">
-              {nombreDeOrigen(c.origen)} · {nombreV(c.vertical_id)} · {nombreS(c.sucursal_id)}
-            </p>
-            <div className="fila">
-              <Boton variante="primario" onClick={() => setConQr(c)}>
+            <div className="item-admin-acciones">
+              <Boton variante="sutil" onClick={() => setConQr(c)}>
+                <Icono nombre="qr" tamano={18} />
                 Código QR
               </Boton>
-              <Boton onClick={() => edicion.editar(c)}>Editar</Boton>
-              <Boton variante="peligro" onClick={() => setBaja(c)}>
-                Dar de baja
-              </Boton>
+              <BotonDeIcono icono="lapiz" nombre="Editar" onClick={() => edicion.editar(c)} />
+              <BotonDeIcono icono="papelera" nombre="Dar de baja" peligro onClick={() => setBaja(c)} />
             </div>
           </li>
         ))}

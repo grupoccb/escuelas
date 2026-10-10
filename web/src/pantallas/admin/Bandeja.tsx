@@ -11,7 +11,7 @@ import { CampoCasilla } from "../../ui/campos.tsx";
 import { useAvisos } from "../../ui/avisos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
-import { Regreso } from "./comunes.tsx";
+import { BotonDeIcono, Regreso } from "./comunes.tsx";
 import { CAUSAS, ORIGENES } from "./mensajeria.ts";
 
 interface EventoInesperado {
@@ -53,13 +53,15 @@ export default function Bandeja() {
         {tareas.datos && tareas.datos.datos.length === 0 ? <Vacio titulo="No hay tareas sin lead pendientes" /> : null}
         <ul className="lista-tarjetas" data-prueba="tareas-sin-lead">
           {(tareas.datos?.datos ?? []).map((t) => (
-            <li key={t.id} className="pila" data-prueba={`tarea-${t.id}`}>
-              <strong>{tipoDeTarea(t.tipo).titulo}</strong>
-              <span>{t.descripcion}</span>
-              <span className="muted">{formatearInstante(t.creado_en)}</span>
-              <div className="fila">
-                <Boton variante="primario" disabled={resolver.ocupado} onClick={() => marcar(t.id, "hecha")}>Marcar hecha</Boton>
-                <Boton disabled={resolver.ocupado} onClick={() => marcar(t.id, "descartada")}>Descartar</Boton>
+            <li key={t.id} className="item-admin" data-prueba={`tarea-${t.id}`}>
+              <div className="item-admin-principal">
+                <strong className="item-admin-nombre">{tipoDeTarea(t.tipo).titulo}</strong>
+                <span>{t.descripcion}</span>
+                <span className="item-admin-meta">{formatearInstante(t.creado_en)}</span>
+              </div>
+              <div className="item-admin-acciones">
+                <Boton variante="sutil" disabled={resolver.ocupado} onClick={() => marcar(t.id, "hecha")}>Marcar hecha</Boton>
+                <BotonDeIcono icono="cerrar" nombre="Descartar" disabled={resolver.ocupado} onClick={() => marcar(t.id, "descartada")} />
               </div>
             </li>
           ))}
@@ -75,26 +77,26 @@ export default function Bandeja() {
         {eventos.datos && eventos.datos.datos.length === 0 ? <Vacio titulo="No hay eventos inesperados" /> : null}
         <ul className="lista-tarjetas" data-prueba="eventos-inesperados">
           {(eventos.datos?.datos ?? []).map((ev) => (
-            <li key={ev.id} className="pila" data-prueba={`evento-${ev.id}`}>
-              <div className="fila fila-entre">
-                <strong>{ORIGENES[ev.origen] ?? ev.origen}</strong>
-                <span className="fila">
-                  {ev.intentos > 1 ? <Insignia>{ev.intentos} veces</Insignia> : null}
-                  {ev.tarea ? <Insignia tono={ev.tarea.estado === "pendiente" ? "alerta" : "exito"}>{ev.tarea.estado === "pendiente" ? "Tarea pendiente" : "Atendido"}</Insignia> : <Insignia>Sin tarea</Insignia>}
-                </span>
+            <li key={ev.id} className="item-admin" data-prueba={`evento-${ev.id}`}>
+              <div className="item-admin-principal">
+                <strong className="item-admin-nombre">{ORIGENES[ev.origen] ?? ev.origen}</strong>
+                <span>{CAUSAS[ev.causa] ?? ev.causa}</span>
+                <span className="item-admin-meta">{formatearInstante(ev.creado_en)}</span>
               </div>
-              <span>{CAUSAS[ev.causa] ?? ev.causa}</span>
-              <span className="muted">{formatearInstante(ev.creado_en)}</span>
-              <details>
-                <summary>Detalle para soporte</summary>
-                <p className="muted">{ev.detalle}</p>
-              </details>
+              <div className="item-admin-etiquetas">
+                {ev.intentos > 1 ? <Insignia>{ev.intentos} veces</Insignia> : null}
+                {ev.tarea ? <Insignia tono={ev.tarea.estado === "pendiente" ? "alerta" : "exito"}>{ev.tarea.estado === "pendiente" ? "Tarea pendiente" : "Atendido"}</Insignia> : <Insignia>Sin tarea</Insignia>}
+              </div>
               {ev.tarea_id && ev.tarea?.estado === "pendiente" ? (
-                <div className="fila">
-                  <Boton variante="primario" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "hecha")}>Marcar atendido</Boton>
-                  <Boton disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "descartada")}>Descartar</Boton>
+                <div className="item-admin-acciones">
+                  <Boton variante="sutil" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "hecha")}>Marcar atendido</Boton>
+                  <BotonDeIcono icono="cerrar" nombre="Descartar" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "descartada")} />
                 </div>
               ) : null}
+              <details className="item-admin-detalle detalle-soporte">
+                <summary>Detalle para soporte</summary>
+                <p className="vista-previa">{ev.detalle}</p>
+              </details>
             </li>
           ))}
         </ul>

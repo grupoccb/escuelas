@@ -5,13 +5,14 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { coincide } from "../../lib/texto.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { DIAS, enteroDe, filaDeHorario, horariosParaApi, resumenDeHorarios, type FilaDeHorario } from "./ayudas.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { Icono } from "../../ui/Icono.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
 import type { GrupoAdmin, InstructorAdmin, ProgramaAdmin, SalonAdmin } from "./tipos.ts";
 
 function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerrar }: { grupo: GrupoAdmin | null; programas: ProgramaAdmin[]; instructores: InstructorAdmin[]; salones: SalonAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
@@ -66,21 +67,20 @@ function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerr
       <CampoCasilla etiqueta="Permite lista de espera cuando se llena" checked={espera} onChange={(e) => setEspera(e.target.checked)} />
       <CampoSelect etiqueta="Salón" value={salonId} vacio="Sin salón asignado" opciones={delaSucursal.map((s) => ({ valor: s.id, texto: s.nombre }))} onChange={(e) => setSalonId(e.target.value)} error={err("salon_id")} ayuda="Solo los salones de la sucursal del programa." />
       <CampoSelect etiqueta="Instructor" value={instructorId} vacio="Sin instructor asignado" opciones={quienes.map((i) => ({ valor: i.id, texto: i.nombre }))} onChange={(e) => setInstructorId(e.target.value)} error={err("instructor_id")} />
-      <fieldset className="pila sin-borde">
-        <legend>
-          <strong>Horarios</strong>
-        </legend>
+      <fieldset className="formulario-seccion">
+        <legend>Horarios</legend>
         {filas.length === 0 ? <p className="muted">Sin horarios: el grupo no aparecerá en el cotizador.</p> : null}
         {filas.map((f, i) => (
-          <div key={i} className="pila" data-prueba={`horario-${i}`}>
-            <div className="rejilla rejilla-3">
+          <div key={i} className="horario-fila" data-prueba={`horario-${i}`}>
+            <div className={`horario-campos${err(`horarios[${i}]`) ? " horario-con-error" : ""}`}>
               <CampoSelect etiqueta={`Día ${i + 1}`} value={f.dia} vacio="Elige" opciones={DIAS.map((d, n) => ({ valor: String(n), texto: d }))} onChange={(e) => cambiarFila(i, { dia: e.target.value })} />
               <CampoTexto etiqueta="De" type="time" value={f.inicio} onChange={(e) => cambiarFila(i, { inicio: e.target.value })} />
               <CampoTexto etiqueta="A" type="time" value={f.fin} onChange={(e) => cambiarFila(i, { fin: e.target.value })} />
             </div>
             {err(`horarios[${i}]`) ? <p className="campo-error">{err(`horarios[${i}]`)}</p> : null}
             <div>
-              <Boton variante="fantasma" onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}>
+              <Boton variante="peligro" onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}>
+                <Icono nombre="papelera" tamano={18} />
                 Quitar este horario
               </Boton>
             </div>
@@ -119,36 +119,35 @@ export default function Grupos() {
   const visibles = (lista.datos?.datos ?? []).filter((g) => coincide(`${g.nombre} ${g.programa.nombre} ${g.salon?.nombre ?? ""} ${nombreInstructor(g.instructor_id)}`, busqueda));
   return (
     <Pagina titulo="Grupos y horarios" subtitulo="Cupo, salón, instructor y los días de clase." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo grupo</Boton></>}>
-      <div className="rejilla rejilla-2">
+      <div className="rejilla rejilla-2 rejilla-arriba">
         <CampoSelect etiqueta="Programa" value={programaId} vacio="Todos" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => { setPagina(1); setProgramaId(e.target.value); }} />
         <CampoTexto etiqueta="Buscar un grupo" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} ayuda="Por nombre, programa, salón o instructor." />
       </div>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay grupos con ese filtro">Prueba con otro programa, o da de alta el primero con «Nuevo grupo».</Vacio> : null}
-      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <Vacio titulo={`Ningún grupo coincide con «${busqueda.trim()}»`}>Prueba con otra palabra, o borra lo escrito.</Vacio> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay grupos con ese filtro">Prueba con otro programa, o da de alta el primero con «Nuevo grupo».</VacioDeLista> : null}
+      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <VacioDeLista titulo={`Ningún grupo coincide con «${busqueda.trim()}»`} icono="buscar">Prueba con otra palabra, o borra lo escrito.</VacioDeLista> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-grupos">
         {visibles.map((g) => (
-          <li key={g.id} className="tarjeta pila" data-prueba={`grupo-${g.id}`}>
-            <div className="fila fila-entre">
-              <strong>
-                {g.nombre} <span className="muted">· {g.programa.nombre}</span>
-              </strong>
-              <span className="fila">
+          <li key={g.id} className="item-catalogo" data-prueba={`grupo-${g.id}`}>
+            <div className="item-catalogo-cabeza">
+              <div className="item-catalogo-titulo">
+                <strong className="nombre-tarjeta">{g.nombre}</strong>
                 <Insignia tono={g.activo ? "exito" : "neutro"}>{g.activo ? "Activo" : "Inactivo"}</Insignia>
                 {g.permite_lista_espera ? <Insignia tono="info">Lista de espera</Insignia> : null}
-              </span>
+                <span className="item-catalogo-contexto">{g.programa.nombre}</span>
+              </div>
+              <AccionesDeTarjeta alEditar={() => edicion.editar(g)} alDarDeBaja={() => setBaja(g)} />
             </div>
-            <p className="muted">
-              Cupo {g.cupo_maximo} · {g.salon?.nombre ?? "Sin salón"} · {nombreInstructor(g.instructor_id)}
+            <p className="item-catalogo-destacado">
+              <Icono nombre="hoy" tamano={18} />
+              <span>{resumenDeHorarios(g.horarios)}</span>
             </p>
-            <p>{resumenDeHorarios(g.horarios)}</p>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(g)}>Editar</Boton>
-              <Boton variante="peligro" onClick={() => setBaja(g)}>
-                Dar de baja
-              </Boton>
-            </div>
+            <p className="meta-linea">
+              <span className="meta-destacada">Cupo {g.cupo_maximo}</span>
+              <span>{g.salon?.nombre ?? "Sin salón"}</span>
+              <span>{nombreInstructor(g.instructor_id)}</span>
+            </p>
           </li>
         ))}
       </ul>

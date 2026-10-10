@@ -8,7 +8,7 @@ import { CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import { esDeCierre, esPropia, moverEtapa, type EtapaDeLista } from "./etapas.ts";
 
 function Formulario({ etapa, alGuardar, alCerrar }: { etapa: EtapaDeLista | null; alGuardar: () => void; alCerrar: () => void }) {
@@ -76,7 +76,7 @@ export default function EtapasDelEmbudo() {
       <ErrorDeAccion error={mover.error} />
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
-      {carga.datos && lista.length === 0 ? <Vacio titulo="Todavía no hay etapas">Las crea la plantilla de la escuela.</Vacio> : null}
+      {carga.datos && lista.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay etapas">Las crea la plantilla de la escuela.</Vacio></div> : null}
       <ol className="lista-tarjetas" data-prueba="lista-de-etapas">
         {lista.map((e, i) => {
           const subir = moverEtapa(lista, i, -1);
@@ -89,26 +89,22 @@ export default function EtapasDelEmbudo() {
             });
           };
           return (
-            <li key={e.id} className="tarjeta pila" data-prueba={`etapa-${e.id}`}>
-              <div className="fila fila-entre">
-                <strong>
+            <li key={e.id} className="item-admin" data-prueba={`etapa-${e.id}`}>
+              <div className="item-admin-principal">
+                <strong className="item-admin-nombre">
                   {i + 1}. {e.nombre}
                 </strong>
-                <span className="fila">
-                  {e.tipo_sistema !== null || esDeCierre(e) ? <Insignia>Del sistema</Insignia> : <Insignia tono="exito">Tuya</Insignia>}
-                  {esDeCierre(e) ? <Insignia tono="info">Cierre</Insignia> : null}
-                </span>
+                <p className="item-admin-meta">{esDeCierre(e) ? "No avisa por días sin movimiento." : e.dias_alerta_sin_movimiento === null ? "No avisa por días sin movimiento." : `Avisa a los ${e.dias_alerta_sin_movimiento} días sin movimiento.`}</p>
               </div>
-              <p className="muted">{esDeCierre(e) ? "No avisa por días sin movimiento." : e.dias_alerta_sin_movimiento === null ? "No avisa por días sin movimiento." : `Avisa a los ${e.dias_alerta_sin_movimiento} días sin movimiento.`}</p>
-              <div className="fila">
-                <Boton onClick={() => edicion.editar(e)}>Cambiar</Boton>
-                <Boton disabled={!subir || mover.ocupado} onClick={() => ir(subir)} aria-label={`Subir ${e.nombre}`}>
-                  Subir
-                </Boton>
-                <Boton disabled={!bajar || mover.ocupado} onClick={() => ir(bajar)} aria-label={`Bajar ${e.nombre}`}>
-                  Bajar
-                </Boton>
-                {esPropia(e) ? <Boton variante="peligro" onClick={() => setQuitando(e)}>Quitar</Boton> : null}
+              <div className="item-admin-etiquetas">
+                {e.tipo_sistema !== null || esDeCierre(e) ? <Insignia>Del sistema</Insignia> : <Insignia tono="exito">Tuya</Insignia>}
+                {esDeCierre(e) ? <Insignia tono="info">Cierre</Insignia> : null}
+              </div>
+              <div className="item-admin-acciones">
+                <BotonDeIcono icono="lapiz" nombre="Cambiar" onClick={() => edicion.editar(e)} />
+                <BotonDeIcono icono="flecha_arriba" nombre={`Subir ${e.nombre}`} disabled={!subir || mover.ocupado} onClick={() => ir(subir)} />
+                <BotonDeIcono icono="flecha_abajo" nombre={`Bajar ${e.nombre}`} disabled={!bajar || mover.ocupado} onClick={() => ir(bajar)} />
+                {esPropia(e) ? <BotonDeIcono icono="papelera" nombre="Quitar" peligro onClick={() => setQuitando(e)} /> : null}
               </div>
             </li>
           );

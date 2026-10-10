@@ -11,7 +11,8 @@ import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { TEXTO_DE_APROBACION, TONO_DE_APROBACION } from "./piezas.tsx";
 import type { Vertical } from "./tipos.ts";
 
 interface PlantillaAdmin {
@@ -55,7 +56,6 @@ const ESTADOS = [
   { valor: "pausada", texto: "Pausada" },
   { valor: "deshabilitada", texto: "Deshabilitada" },
 ];
-const TONO_ESTADO: Record<string, "exito" | "alerta" | "peligro" | "neutro"> = { aprobada: "exito", pendiente: "alerta", rechazada: "peligro", pausada: "alerta", deshabilitada: "neutro" };
 /** El tipo de contenido ante el proveedor, en palabras (los valores son los de Twilio y no cambian). */
 const TIPOS = [
   { valor: "text", texto: "Solo texto" },
@@ -128,6 +128,7 @@ function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla:
         ]}
         alCambiar={setClase}
         error={err("clase_mensaje")}
+        segmentado
       />
       <Aviso>
         <strong>Servicio</strong>: un aviso sobre algo que la familia ya acordó (recordatorio de clase, de pago, bienvenida); sale aunque una persona esté atendiendo la conversación. <strong>Marketing</strong>: promociones y
@@ -144,14 +145,10 @@ function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla:
           <strong>Variables</strong>
         </legend>
         {variables.map((v, i) => (
-          <div key={i} className="rejilla rejilla-2">
+          <div key={i} className="variable-fila">
             <CampoTexto etiqueta={`Posición ${i + 1}`} inputMode="numeric" value={v.pos} onChange={(e) => setVariables((vs) => vs.map((x, j) => (j === i ? { ...x, pos: e.target.value } : x)))} />
             <CampoTexto etiqueta={`Nombre ${i + 1}`} value={v.nombre} onChange={(e) => setVariables((vs) => vs.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)))} />
-            <div>
-              <Boton variante="fantasma" onClick={() => setVariables((vs) => vs.filter((_, j) => j !== i))}>
-                Quitar
-              </Boton>
-            </div>
+            <BotonDeIcono icono="papelera" nombre="Quitar" onClick={() => setVariables((vs) => vs.filter((_, j) => j !== i))} />
           </div>
         ))}
         {err("variables") ? <p className="campo-error">{err("variables")}</p> : null}
@@ -184,31 +181,33 @@ export default function Plantillas() {
   const nombreV = (id: string | null) => (id ? (verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—") : "Todas las disciplinas");
   return (
     <Pagina titulo="Plantillas de mensaje" subtitulo="Los mensajes aprobados que el sistema puede mandar fuera de la ventana de 24 horas." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva plantilla</Boton></>}>
-      <CampoSelect etiqueta="Clase" value={clase} vacio="Todas" opciones={[{ valor: "servicio", texto: "Servicio" }, { valor: "marketing", texto: "Marketing" }]} onChange={(e) => { setPagina(1); setClase(e.target.value); }} />
+      <div className="filtros">
+        <CampoSelect etiqueta="Clase" value={clase} vacio="Todas" opciones={[{ valor: "servicio", texto: "Servicio" }, { valor: "marketing", texto: "Marketing" }]} onChange={(e) => { setPagina(1); setClase(e.target.value); }} />
+      </div>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay plantillas con ese filtro" /> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="No hay plantillas con ese filtro">{clase ? "Quita el filtro «Clase» para ver todas, o da de alta una con «Nueva plantilla»." : "Da de alta la primera con «Nueva plantilla»."}</Vacio></div> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-plantillas">
         {(lista.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="tarjeta pila" data-prueba={`plantilla-${p.codigo}`}>
-            <div className="fila fila-entre">
-              <strong>
+          <li key={p.id} className="item-admin" data-prueba={`plantilla-${p.codigo}`}>
+            <div className="item-admin-principal">
+              <strong className="item-admin-nombre">
                 {p.codigo} <span className="muted">· {nombreDeIdioma(p.idioma)}</span>
               </strong>
-              <span className="fila">
-                <Insignia tono={p.clase_mensaje === "servicio" ? "info" : "alerta"}>{p.clase_mensaje === "servicio" ? "Servicio" : "Marketing"}</Insignia>
-                <Insignia tono={TONO_ESTADO[p.estado_aprobacion] ?? "neutro"}>{ESTADOS.find((e) => e.valor === p.estado_aprobacion)?.texto ?? p.estado_aprobacion}</Insignia>
-                {!p.activo ? <Insignia>Inactiva</Insignia> : null}
-              </span>
+              <p className="item-admin-meta">
+                {nombreV(p.vertical_id)} · categoría {nombreDeCategoria(p.categoria)} · {p.automatizaciones === 0 ? "sin automatizaciones" : cantidad(p.automatizaciones, "automatización", "automatizaciones")}
+              </p>
             </div>
-            <p className="muted">
-              {nombreV(p.vertical_id)} · categoría {nombreDeCategoria(p.categoria)} · {p.automatizaciones === 0 ? "sin automatizaciones" : cantidad(p.automatizaciones, "automatización", "automatizaciones")}
-            </p>
-            <p className="muted">Variables: {p.variables.length === 0 ? "ninguna" : p.variables.map((v) => `${v.pos}=${v.nombre}`).join(", ")}</p>
-            <div className="fila">
-              <Boton onClick={() => edicion.editar(p)}>Editar</Boton>
-              <Boton variante="peligro" onClick={() => setBaja(p)}>Dar de baja</Boton>
+            <div className="item-admin-etiquetas">
+              <Insignia tono={p.clase_mensaje === "servicio" ? "info" : "neutro"}>{p.clase_mensaje === "servicio" ? "Servicio" : "Marketing"}</Insignia>
+              <Insignia tono={TONO_DE_APROBACION[p.estado_aprobacion] ?? "neutro"}>{TEXTO_DE_APROBACION[p.estado_aprobacion] ?? p.estado_aprobacion}</Insignia>
+              {!p.activo ? <Insignia>Inactiva</Insignia> : null}
             </div>
+            <div className="item-admin-acciones">
+              <BotonDeIcono icono="lapiz" nombre="Editar" onClick={() => edicion.editar(p)} />
+              <BotonDeIcono icono="papelera" nombre="Dar de baja" peligro onClick={() => setBaja(p)} />
+            </div>
+            <p className="item-admin-detalle item-admin-meta">Variables: {p.variables.length === 0 ? "ninguna" : p.variables.map((v) => `${v.pos}=${v.nombre}`).join(", ")}</p>
           </li>
         ))}
       </ul>
