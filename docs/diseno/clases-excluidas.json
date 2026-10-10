@@ -1,0 +1,4 @@
+{
+  "ficha-familia-sin-saldo": "La ficha de familia sin la cuenta aparece solo con un rol que lea familias pero no el estado de cuenta; ninguno de los cuatro roles es así hoy (administrador, asesor y recepción tienen los dos permisos). La regla existe para cuando se agregue uno.",
+  "resultado-promociones": "Las etiquetas de promoción de la pantalla de éxito de la conversión necesitan una inscripción con promoción aplicada; el mundo de pruebas no tiene promociones activas. Las mismas etiquetas (.insignia-exito) se ven en conv-epsilon-precio-con-promocion."
+}

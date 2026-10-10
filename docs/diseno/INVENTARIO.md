@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1016**.
+Filas: **1017**.
 
 ## Acceso y cuenta (47)
 
@@ -130,123 +130,123 @@ Filas: **1016**.
 | `adminc-grupos-nuevo-vacio` | administrador | flotante | Diálogo «Nuevo grupo» vacío (sin horarios: «el grupo no aparecerá en el cotizador») | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-grupos-nuevo-con-horarios` | administrador | flotante | Diálogo «Nuevo grupo» con programa, salón, instructor y dos horarios agregados | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-grupos-nuevo-validacion` | administrador | flotante | Diálogo «Nuevo grupo» con errores de validación (elige el programa, nombre, cupo y un horario sin día) | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
-| `adminc-grupos-nuevo-validacion-horario` | administrador | flotante | Diálogo «Nuevo grupo» con el error del horario sin día, visto en la parte de los horarios | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-nuevo-error-servidor` | administrador | flotante | Diálogo «Nuevo grupo» con el choque de salón o de instructor que detecta el servidor (qué se pisa con qué), junto a los botones | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-nuevo-sin-conexion` | administrador | flotante | Diálogo «Nuevo grupo» sin conexión | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-editar` | administrador | flotante | Diálogo «Editar grupo» con los datos de un grupo (programa fijo, salón, instructor y horarios) | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja el grupo» | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja el grupo» con el error del servidor dentro («tiene alumnos inscritos») | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-con-datos` | administrador | pantalla | Instructores y salones, con datos | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-muchos` | administrador | estado | Instructores y salones, con muchos datos | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-vacio` | administrador | estado | Instructores y salones, lista vacía | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-cargando` | administrador | estado | Instructores y salones, cargando | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-error` | administrador | estado | Instructores y salones, con error de carga (500) y «Reintentar» | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-nuevo-vacio` | administrador | flotante | Diálogo «Nuevo instructor» vacío | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-nuevo-validacion` | administrador | flotante | Diálogo «Nuevo instructor» enviado vacío («Escribe el nombre») | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-nuevo-error-servidor` | administrador | flotante | Diálogo «Nuevo instructor» con el error del servidor en un campo (correo mal escrito) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-nuevo-sin-conexion` | administrador | flotante | Diálogo «Nuevo instructor» sin conexión | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-editar` | administrador | flotante | Diálogo «Editar instructor» con los datos de un instructor (su usuario y sus sucursales) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja al instructor» | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja al instructor» con el error del servidor dentro («todavía imparte grupos») | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-nuevo-vacio` | administrador | flotante | Diálogo «Nuevo salón» vacío | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-nuevo-validacion` | administrador | flotante | Diálogo «Nuevo salón» con errores de validación (sin sucursal, sin nombre, capacidad con letras) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-nuevo-error-servidor` | administrador | flotante | Diálogo «Nuevo salón» con el error del servidor en el campo («Ya hay un salón con ese nombre en la sucursal») | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-nuevo-sin-conexion` | administrador | flotante | Diálogo «Nuevo salón» sin conexión | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-editar` | administrador | flotante | Diálogo «Editar salón» con los datos de un salón (sin selector de sucursal) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja el salón» | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja el salón» con el error del servidor dentro («algún grupo lo usa») | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-sin-programa` | administrador | pantalla | Precios sin programa elegido (solo el selector «Elige un programa») | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-con-datos` | administrador | estado | Precios de un programa: historial con un precio vigente y el botón «Nueva vigencia» | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-historial-completo` | administrador | estado | Historial de precios con una vigencia pasada, una vigente y una futura (insignias «Pasada», «Vigente» y «Futura»; «Abierta» y fechas de cierre) | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-muchos` | administrador | estado | Precios con muchos datos (historial largo) | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-programa-sin-precio` | administrador | estado | Precios de un programa sin ningún precio («Este programa todavía no tiene precio») | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-cargando-programas` | administrador | estado | Precios mientras cargan los programas | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-cargando-historial` | administrador | estado | Precios con un programa elegido mientras carga su historial | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-error-programas` | administrador | estado | Precios con error al cargar los programas (500) y «Reintentar» | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-error-historial` | administrador | estado | Precios con error al cargar el historial de un programa (500) y «Reintentar» | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-nueva-vigencia-vacio` | administrador | flotante | Diálogo «Nueva vigencia de precio» vacío (la fecha de hoy ya puesta) | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-nueva-vigencia-validacion` | administrador | flotante | Diálogo «Nueva vigencia de precio» con errores de validación (importes inválidos y fecha vacía) | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-nueva-vigencia-error-servidor` | administrador | flotante | Diálogo «Nueva vigencia de precio» con el error del servidor (la fecha no puede ser anterior a la vigencia actual) | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-nueva-vigencia-sin-conexion` | administrador | flotante | Diálogo «Nueva vigencia de precio» sin conexión | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-con-datos` | administrador | pantalla | Promociones, con datos | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-muchos` | administrador | estado | Promociones, con muchos datos | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-vacio` | administrador | estado | Promociones, lista vacía | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-cargando` | administrador | estado | Promociones, cargando | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-error` | administrador | estado | Promociones, con error de carga (500) y «Reintentar» | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-paginado` | administrador | estado | Promociones con paginador («Página 1 de 3 · 60 en total») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-vacio` | administrador | flotante | Diálogo «Nueva promoción» vacío (arriba del formulario) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-alcance-y-beneficios` | administrador | flotante | Diálogo «Nueva promoción» visto abajo: «Dónde vale» (disciplinas, sucursales, programas), «Beneficios» y los botones | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-validacion` | administrador | flotante | Diálogo «Nueva promoción» enviado vacío (nombre, código, fecha de inicio; arriba del formulario) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-validacion-beneficios` | administrador | flotante | Diálogo «Nueva promoción» enviado vacío, visto abajo («Agrega al menos un beneficio») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-validacion-fechas-y-cupo` | administrador | flotante | Diálogo «Nueva promoción» con código inválido, fecha final antes del inicio, cupo y prioridad fuera de rango | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-condicion-hermanos` | administrador | flotante | Diálogo «Nueva promoción» con la condición «hermanos inscritos» (aparece «Hermanos inscritos mínimos») y su error («2 a 20») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-condicion-pago-anticipado` | administrador | flotante | Diálogo «Nueva promoción» con la condición «pago anticipado» (aparece «Meses pagados por adelantado») y su error («1 a 24») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-beneficio-validacion` | administrador | flotante | Captura de un beneficio sin valor («Agregar este beneficio» con el porcentaje vacío: error en el campo) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-beneficio-tipos` | administrador | flotante | Captura de un beneficio de producto gratis (cambian los campos: descripción con su ayuda «Qué producto se entrega») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-con-beneficios-listos` | administrador | flotante | Diálogo «Nueva promoción» con dos beneficios ya agregados a la lista (cada uno con «Quitar») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-error-servidor` | administrador | flotante | Diálogo «Nueva promoción» con el error del servidor en el campo («Ya existe una promoción con ese código») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-nueva-sin-conexion` | administrador | flotante | Diálogo «Nueva promoción» sin conexión | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-editar` | administrador | flotante | Diálogo «Editar promoción» con los datos de una promoción (cupo usado, dónde vale y sus beneficios con «Quitar»; botón «Cerrar») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-editar-beneficios` | administrador | flotante | Diálogo «Editar promoción» visto abajo: sus beneficios ya guardados, con «Quitar», y la captura de un beneficio nuevo | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-editar-quitar-error-servidor` | administrador | flotante | Diálogo «Editar promoción» con el error al quitar un beneficio (el servidor lo rechaza) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja la promoción» | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja la promoción» con el error del servidor dentro («tiene beneficios por entregar») | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-con-datos` | administrador | pantalla | Cargar catálogo al abrir: paso 1 con «Descargar todas las plantillas», paso 2 sin archivos («Todavía no elegiste archivos») y «Revisar» deshabilitado | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-plantillas-una-por-una` | administrador | estado | Cargar catálogo con «Descargar una por una» abierto (la lista de plantillas con su descripción) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-muchos` | administrador | estado | Cargar catálogo con muchos datos (la lista de plantillas repetida, abierta) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-vacio` | administrador | estado | Cargar catálogo con la lista de plantillas vacía | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-cargando` | administrador | estado | Cargar catálogo mientras cargan las plantillas | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-error` | administrador | estado | Cargar catálogo con error al cargar las plantillas (500) y «Reintentar» | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-archivos-elegidos` | administrador | estado | Cargar catálogo con los ocho archivos CSV elegidos (nombre y tamaño de cada uno, «Quitar», «Revisar» habilitado) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-archivo-de-excel` | administrador | estado | Cargar catálogo con un archivo de Excel (.xlsx) elegido: el aviso de que se leen CSV y cómo guardarlo; «Revisar» deshabilitado | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-demasiados-archivos` | administrador | estado | Cargar catálogo con 13 archivos elegidos (el aviso «se aceptan hasta 12»; «Revisar» deshabilitado) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-archivo-pesado` | administrador | estado | Cargar catálogo con un archivo de más de 5 MB (el aviso «pesan demasiado»; el tamaño en MB) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-revisando` | administrador | estado | Cargar catálogo con el botón «Revisar» ocupado (esperando al servidor) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-errores-por-fila` | administrador | estado | Cargar catálogo: resultado de la revisión con cinco errores, por archivo, fila y columna («No se guardó nada»; sin botón «Aplicar») | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-errores-archivo-desconocido` | administrador | estado | Cargar catálogo: errores de un archivo que no es plantilla («no se parece a ninguna») y de otro al que le falta una columna | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-errores-muchos` | administrador | estado | Cargar catálogo: resultado con muchos errores y «… y 40 más. Corrige estas primero.» | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-revision-limpia` | administrador | estado | Cargar catálogo: revisión limpia («Todo está en orden»), la frase, la tabla de resumen y el botón «Aplicar» (nada se guardó) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-revision-detalle-y-avisos` | administrador | estado | Cargar catálogo: revisión limpia con «Ver cada cambio» y «Para tomar en cuenta» abiertos (instructor sin teléfono) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-revision-con-omitidos` | administrador | estado | Cargar catálogo: revisión limpia con muchos cambios («Ver cada cambio» abierto, «… y 120 más.») | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-sin-cambios` | administrador | estado | Cargar catálogo: «Sin cambios» (todo lo subido ya está en el sistema; sin botón «Aplicar») | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-revisar-error-servidor` | administrador | estado | Cargar catálogo con error del servidor al revisar (500) debajo del botón «Revisar» | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-revisar-sin-conexion` | administrador | estado | Cargar catálogo sin conexión al revisar («No hay conexión con el servidor…») | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-confirmar` | administrador | flotante | Diálogo «¿Cargar estos cambios?» (la frase de lo que se crea, la nota de precios e inscripciones; «Sí, aplicar» no peligroso y «Cancelar») | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-confirmar-error-servidor` | administrador | flotante | Diálogo «¿Cargar estos cambios?» con el error del servidor dentro (no se cargó nada) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-confirmar-sin-conexion` | administrador | flotante | Diálogo «¿Cargar estos cambios?» sin conexión | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-variedad` | administrador | estado | Disciplinas variadas: completa (con color, avance, evento y «Cotiza por WhatsApp»), inactiva (botón «Activar») y con avance sin cotizador | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-editar-completa` | administrador | flotante | Diálogo «Editar disciplina» con todos los campos llenos (progresión, avance, evento, color, logotipo, cotizador y clase muestra marcados) | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-sucursales-variedad` | administrador | estado | Sucursales variadas: con dirección y disciplina, inactiva sin disciplinas, y con una zona horaria que no está en la lista («Otra zona horaria») | `/admin/sucursales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-sucursales-editar-otra-zona` | administrador | flotante | Diálogo «Editar sucursal» con una zona horaria que no está en la lista (se agrega como «Otra zona horaria (…)» para no perderla) | `/admin/sucursales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-programas-variedad` | administrador | estado | Programas variados: con fecha de corte, «Alternativa» (traslape) e inactivo | `/admin/programas` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-programas-editar-completo` | administrador | flotante | Diálogo «Editar programa» con fecha de corte, nivel, descripción y traslape marcados, visto abajo | `/admin/programas` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-variedad` | administrador | estado | Grupos variados: completo (salón, instructor, lista de espera, dos horarios), inactivo y sin horario ni salón | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-editar-completo` | administrador | flotante | Diálogo «Editar grupo» con salón, instructor, lista de espera y dos horarios (cada uno con «Quitar este horario»), visto abajo | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-con-salones` | administrador | estado | Instructores y salones con salones (uno activo con capacidad y otro inactivo sin capacidad registrada) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-variedad` | administrador | estado | Promociones variadas: activas, con prioridad, acumulable, cupo usado, vigencia con y sin fin y varios beneficios | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-editar-completa` | administrador | flotante | Diálogo «Editar promoción» con condición de hermanos, cupo usado, fecha de fin y prioridad (arriba del formulario) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-editar-completa-alcance` | administrador | flotante | Diálogo «Editar promoción» visto abajo: «Dónde vale» con disciplina, sucursal y programa marcados, y dos beneficios con «Quitar» | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-nueva-validacion-abajo` | administrador | flotante | Diálogo «Nueva disciplina» con errores de validación, visto abajo (color mal escrito y clase muestra sin cotizador) | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-aviso-guardada` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «La disciplina … se guardó.» (guardando sin cambios; la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-aviso-desactivada` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «… quedó desactivada: deja de recibir captación nueva…» (la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-aviso-activada` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «… quedó activa otra vez.» (una disciplina inactiva con el botón «Activar»; la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-verticales-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «La disciplina … se dio de baja.» (la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-sucursales-aviso-guardada` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «La sucursal … se guardó.» (la escritura se simula) | `/admin/sucursales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-sucursales-aviso-ofrece` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «… ahora imparte / ya no imparte …» al marcar una disciplina (la escritura se simula) | `/admin/sucursales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-sucursales-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «La sucursal … se dio de baja.» (la escritura se simula) | `/admin/sucursales` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-programas-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Programas: «El programa … se guardó.» (la escritura se simula) | `/admin/programas` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-programas-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Programas: «El programa … se dio de baja.» (la escritura se simula) | `/admin/programas` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Grupos y horarios: «El grupo … se guardó.» (la escritura se simula) | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-grupos-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Grupos y horarios: «El grupo … se dio de baja.» (la escritura se simula) | `/admin/grupos` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «… se guardó como instructor.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-instructores-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «… se dio de baja como instructor.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «El salón … se guardó.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-salones-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «El salón … se dio de baja.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-precios-aviso-nueva-vigencia` | administrador | flotante | Aviso «ya quedó» sobre Precios: «El nuevo precio de … rige desde hoy: inscripción … y mensualidad … Lo ya inscrito conserva el precio…» (la escritura se simula) | `/admin/precios` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «La promoción … se guardó.» (la escritura se simula) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-aviso-beneficio` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «Beneficio agregado. Se guarda con la promoción.» (al agregar un beneficio a una promoción nueva) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-promociones-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «La promoción … se dio de baja.» (la escritura se simula) | `/admin/promociones` | ✔ · ✔ | ✘ · ✘ |
-| `adminc-catalogo-aplicado` | administrador | estado | Cargar catálogo ya aplicado: «Listo: el catálogo se cargó» con su frase en pasado y el resumen (la aplicación se simula; la base no cambia) | `/admin/catalogo` | ✔ · ✔ | ✘ · ✘ |
+| `adminc-grupos-nuevo-validacion-horario` | administrador | flotante | Diálogo «Nuevo grupo» con el error del horario sin día, visto en la parte de los horarios | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-nuevo-error-servidor` | administrador | flotante | Diálogo «Nuevo grupo» con el choque de salón o de instructor que detecta el servidor (qué se pisa con qué), junto a los botones | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-nuevo-sin-conexion` | administrador | flotante | Diálogo «Nuevo grupo» sin conexión | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-editar` | administrador | flotante | Diálogo «Editar grupo» con los datos de un grupo (programa fijo, salón, instructor y horarios) | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja el grupo» | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja el grupo» con el error del servidor dentro («tiene alumnos inscritos») | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-con-datos` | administrador | pantalla | Instructores y salones, con datos | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-muchos` | administrador | estado | Instructores y salones, con muchos datos | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-vacio` | administrador | estado | Instructores y salones, lista vacía | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-cargando` | administrador | estado | Instructores y salones, cargando | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-error` | administrador | estado | Instructores y salones, con error de carga (500) y «Reintentar» | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-nuevo-vacio` | administrador | flotante | Diálogo «Nuevo instructor» vacío | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-nuevo-validacion` | administrador | flotante | Diálogo «Nuevo instructor» enviado vacío («Escribe el nombre») | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-nuevo-error-servidor` | administrador | flotante | Diálogo «Nuevo instructor» con el error del servidor en un campo (correo mal escrito) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-nuevo-sin-conexion` | administrador | flotante | Diálogo «Nuevo instructor» sin conexión | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-editar` | administrador | flotante | Diálogo «Editar instructor» con los datos de un instructor (su usuario y sus sucursales) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja al instructor» | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja al instructor» con el error del servidor dentro («todavía imparte grupos») | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-nuevo-vacio` | administrador | flotante | Diálogo «Nuevo salón» vacío | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-nuevo-validacion` | administrador | flotante | Diálogo «Nuevo salón» con errores de validación (sin sucursal, sin nombre, capacidad con letras) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-nuevo-error-servidor` | administrador | flotante | Diálogo «Nuevo salón» con el error del servidor en el campo («Ya hay un salón con ese nombre en la sucursal») | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-nuevo-sin-conexion` | administrador | flotante | Diálogo «Nuevo salón» sin conexión | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-editar` | administrador | flotante | Diálogo «Editar salón» con los datos de un salón (sin selector de sucursal) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja el salón» | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja el salón» con el error del servidor dentro («algún grupo lo usa») | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-sin-programa` | administrador | pantalla | Precios sin programa elegido (solo el selector «Elige un programa») | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-con-datos` | administrador | estado | Precios de un programa: historial con un precio vigente y el botón «Nueva vigencia» | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-historial-completo` | administrador | estado | Historial de precios con una vigencia pasada, una vigente y una futura (insignias «Pasada», «Vigente» y «Futura»; «Abierta» y fechas de cierre) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-muchos` | administrador | estado | Precios con muchos datos (historial largo) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-programa-sin-precio` | administrador | estado | Precios de un programa sin ningún precio («Este programa todavía no tiene precio») | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-cargando-programas` | administrador | estado | Precios mientras cargan los programas | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-cargando-historial` | administrador | estado | Precios con un programa elegido mientras carga su historial | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-error-programas` | administrador | estado | Precios con error al cargar los programas (500) y «Reintentar» | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-error-historial` | administrador | estado | Precios con error al cargar el historial de un programa (500) y «Reintentar» | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-nueva-vigencia-vacio` | administrador | flotante | Diálogo «Nueva vigencia de precio» vacío (la fecha de hoy ya puesta) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-nueva-vigencia-validacion` | administrador | flotante | Diálogo «Nueva vigencia de precio» con errores de validación (importes inválidos y fecha vacía) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-nueva-vigencia-error-servidor` | administrador | flotante | Diálogo «Nueva vigencia de precio» con el error del servidor (la fecha no puede ser anterior a la vigencia actual) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-nueva-vigencia-sin-conexion` | administrador | flotante | Diálogo «Nueva vigencia de precio» sin conexión | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-con-datos` | administrador | pantalla | Promociones, con datos | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-muchos` | administrador | estado | Promociones, con muchos datos | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-vacio` | administrador | estado | Promociones, lista vacía | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-cargando` | administrador | estado | Promociones, cargando | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-error` | administrador | estado | Promociones, con error de carga (500) y «Reintentar» | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-paginado` | administrador | estado | Promociones con paginador («Página 1 de 3 · 60 en total») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-vacio` | administrador | flotante | Diálogo «Nueva promoción» vacío (arriba del formulario) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-alcance-y-beneficios` | administrador | flotante | Diálogo «Nueva promoción» visto abajo: «Dónde vale» (disciplinas, sucursales, programas), «Beneficios» y los botones | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-validacion` | administrador | flotante | Diálogo «Nueva promoción» enviado vacío (nombre, código, fecha de inicio; arriba del formulario) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-validacion-beneficios` | administrador | flotante | Diálogo «Nueva promoción» enviado vacío, visto abajo («Agrega al menos un beneficio») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-validacion-fechas-y-cupo` | administrador | flotante | Diálogo «Nueva promoción» con código inválido, fecha final antes del inicio, cupo y prioridad fuera de rango | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-condicion-hermanos` | administrador | flotante | Diálogo «Nueva promoción» con la condición «hermanos inscritos» (aparece «Hermanos inscritos mínimos») y su error («2 a 20») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-condicion-pago-anticipado` | administrador | flotante | Diálogo «Nueva promoción» con la condición «pago anticipado» (aparece «Meses pagados por adelantado») y su error («1 a 24») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-beneficio-validacion` | administrador | flotante | Captura de un beneficio sin valor («Agregar este beneficio» con el porcentaje vacío: error en el campo) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-beneficio-tipos` | administrador | flotante | Captura de un beneficio de producto gratis (cambian los campos: descripción con su ayuda «Qué producto se entrega») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-con-beneficios-listos` | administrador | flotante | Diálogo «Nueva promoción» con dos beneficios ya agregados a la lista (cada uno con «Quitar») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-error-servidor` | administrador | flotante | Diálogo «Nueva promoción» con el error del servidor en el campo («Ya existe una promoción con ese código») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-nueva-sin-conexion` | administrador | flotante | Diálogo «Nueva promoción» sin conexión | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-editar` | administrador | flotante | Diálogo «Editar promoción» con los datos de una promoción (cupo usado, dónde vale y sus beneficios con «Quitar»; botón «Cerrar») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-editar-beneficios` | administrador | flotante | Diálogo «Editar promoción» visto abajo: sus beneficios ya guardados, con «Quitar», y la captura de un beneficio nuevo | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-editar-quitar-error-servidor` | administrador | flotante | Diálogo «Editar promoción» con el error al quitar un beneficio (el servidor lo rechaza) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-baja-confirmar` | administrador | flotante | Confirmación «Dar de baja la promoción» | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-baja-error-servidor` | administrador | flotante | Confirmación «Dar de baja la promoción» con el error del servidor dentro («tiene beneficios por entregar») | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-con-datos` | administrador | pantalla | Cargar catálogo al abrir: paso 1 con «Descargar todas las plantillas», paso 2 sin archivos («Todavía no elegiste archivos») y «Revisar» deshabilitado | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-plantillas-una-por-una` | administrador | estado | Cargar catálogo con «Descargar una por una» abierto (la lista de plantillas con su descripción) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-muchos` | administrador | estado | Cargar catálogo con muchos datos (la lista de plantillas repetida, abierta) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-vacio` | administrador | estado | Cargar catálogo con la lista de plantillas vacía | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-cargando` | administrador | estado | Cargar catálogo mientras cargan las plantillas | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-error` | administrador | estado | Cargar catálogo con error al cargar las plantillas (500) y «Reintentar» | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-archivos-elegidos` | administrador | estado | Cargar catálogo con los ocho archivos CSV elegidos (nombre y tamaño de cada uno, «Quitar», «Revisar» habilitado) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-archivo-de-excel` | administrador | estado | Cargar catálogo con un archivo de Excel (.xlsx) elegido: el aviso de que se leen CSV y cómo guardarlo; «Revisar» deshabilitado | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-demasiados-archivos` | administrador | estado | Cargar catálogo con 13 archivos elegidos (el aviso «se aceptan hasta 12»; «Revisar» deshabilitado) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-archivo-pesado` | administrador | estado | Cargar catálogo con un archivo de más de 5 MB (el aviso «pesan demasiado»; el tamaño en MB) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-revisando` | administrador | estado | Cargar catálogo con el botón «Revisar» ocupado (esperando al servidor) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-errores-por-fila` | administrador | estado | Cargar catálogo: resultado de la revisión con cinco errores, por archivo, fila y columna («No se guardó nada»; sin botón «Aplicar») | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-errores-archivo-desconocido` | administrador | estado | Cargar catálogo: errores de un archivo que no es plantilla («no se parece a ninguna») y de otro al que le falta una columna | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-errores-muchos` | administrador | estado | Cargar catálogo: resultado con muchos errores y «… y 40 más. Corrige estas primero.» | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-revision-limpia` | administrador | estado | Cargar catálogo: revisión limpia («Todo está en orden»), la frase, la tabla de resumen y el botón «Aplicar» (nada se guardó) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-revision-detalle-y-avisos` | administrador | estado | Cargar catálogo: revisión limpia con «Ver cada cambio» y «Para tomar en cuenta» abiertos (instructor sin teléfono) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-revision-con-omitidos` | administrador | estado | Cargar catálogo: revisión limpia con muchos cambios («Ver cada cambio» abierto, «… y 120 más.») | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-sin-cambios` | administrador | estado | Cargar catálogo: «Sin cambios» (todo lo subido ya está en el sistema; sin botón «Aplicar») | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-revisar-error-servidor` | administrador | estado | Cargar catálogo con error del servidor al revisar (500) debajo del botón «Revisar» | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-revisar-sin-conexion` | administrador | estado | Cargar catálogo sin conexión al revisar («No hay conexión con el servidor…») | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-confirmar` | administrador | flotante | Diálogo «¿Cargar estos cambios?» (la frase de lo que se crea, la nota de precios e inscripciones; «Sí, aplicar» no peligroso y «Cancelar») | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-confirmar-error-servidor` | administrador | flotante | Diálogo «¿Cargar estos cambios?» con el error del servidor dentro (no se cargó nada) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-confirmar-sin-conexion` | administrador | flotante | Diálogo «¿Cargar estos cambios?» sin conexión | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-variedad` | administrador | estado | Disciplinas variadas: completa (con color, avance, evento y «Cotiza por WhatsApp»), inactiva (botón «Activar») y con avance sin cotizador | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-editar-completa` | administrador | flotante | Diálogo «Editar disciplina» con todos los campos llenos (progresión, avance, evento, color, logotipo, cotizador y clase muestra marcados) | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-sucursales-variedad` | administrador | estado | Sucursales variadas: con dirección y disciplina, inactiva sin disciplinas, y con una zona horaria que no está en la lista («Otra zona horaria») | `/admin/sucursales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-sucursales-editar-otra-zona` | administrador | flotante | Diálogo «Editar sucursal» con una zona horaria que no está en la lista (se agrega como «Otra zona horaria (…)» para no perderla) | `/admin/sucursales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-programas-variedad` | administrador | estado | Programas variados: con fecha de corte, «Alternativa» (traslape) e inactivo | `/admin/programas` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-programas-editar-completo` | administrador | flotante | Diálogo «Editar programa» con fecha de corte, nivel, descripción y traslape marcados, visto abajo | `/admin/programas` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-variedad` | administrador | estado | Grupos variados: completo (salón, instructor, lista de espera, dos horarios), inactivo y sin horario ni salón | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-editar-completo` | administrador | flotante | Diálogo «Editar grupo» con salón, instructor, lista de espera y dos horarios (cada uno con «Quitar este horario»), visto abajo | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-con-salones` | administrador | estado | Instructores y salones con salones (uno activo con capacidad y otro inactivo sin capacidad registrada) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-variedad` | administrador | estado | Promociones variadas: activas, con prioridad, acumulable, cupo usado, vigencia con y sin fin y varios beneficios | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-editar-completa` | administrador | flotante | Diálogo «Editar promoción» con condición de hermanos, cupo usado, fecha de fin y prioridad (arriba del formulario) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-editar-completa-alcance` | administrador | flotante | Diálogo «Editar promoción» visto abajo: «Dónde vale» con disciplina, sucursal y programa marcados, y dos beneficios con «Quitar» | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-nueva-validacion-abajo` | administrador | flotante | Diálogo «Nueva disciplina» con errores de validación, visto abajo (color mal escrito y clase muestra sin cotizador) | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-aviso-guardada` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «La disciplina … se guardó.» (guardando sin cambios; la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-aviso-desactivada` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «… quedó desactivada: deja de recibir captación nueva…» (la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-aviso-activada` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «… quedó activa otra vez.» (una disciplina inactiva con el botón «Activar»; la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-verticales-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Disciplinas: «La disciplina … se dio de baja.» (la escritura se simula) | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-sucursales-aviso-guardada` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «La sucursal … se guardó.» (la escritura se simula) | `/admin/sucursales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-sucursales-aviso-ofrece` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «… ahora imparte / ya no imparte …» al marcar una disciplina (la escritura se simula) | `/admin/sucursales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-sucursales-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «La sucursal … se dio de baja.» (la escritura se simula) | `/admin/sucursales` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-programas-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Programas: «El programa … se guardó.» (la escritura se simula) | `/admin/programas` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-programas-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Programas: «El programa … se dio de baja.» (la escritura se simula) | `/admin/programas` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Grupos y horarios: «El grupo … se guardó.» (la escritura se simula) | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-grupos-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Grupos y horarios: «El grupo … se dio de baja.» (la escritura se simula) | `/admin/grupos` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «… se guardó como instructor.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-instructores-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «… se dio de baja como instructor.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-aviso-guardado` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «El salón … se guardó.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-salones-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Instructores y salones: «El salón … se dio de baja.» (la escritura se simula) | `/admin/instructores` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-aviso-nueva-vigencia` | administrador | flotante | Aviso «ya quedó» sobre Precios: «El nuevo precio de … rige desde hoy: inscripción … y mensualidad … Lo ya inscrito conserva el precio…» (la escritura se simula) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «La promoción … se guardó.» (la escritura se simula) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-aviso-beneficio` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «Beneficio agregado. Se guarda con la promoción.» (al agregar un beneficio a una promoción nueva) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-promociones-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «La promoción … se dio de baja.» (la escritura se simula) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-aplicado` | administrador | estado | Cargar catálogo ya aplicado: «Listo: el catálogo se cargó» con su frase en pasado y el resumen (la aplicación se simula; la base no cambia) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
 
 ## Administración: sistema y mensajería (180)
 
@@ -395,43 +395,43 @@ Filas: **1016**.
 | `admins-automatizaciones-vacio` | administrador | estado | Automatizaciones vacía | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
 | `admins-automatizaciones-cargando` | administrador | estado | Automatizaciones cargando | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
 | `admins-automatizaciones-error` | administrador | estado | Automatizaciones con error de carga (500, «Reintentar») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
-| `admins-automatizaciones-en-pausa` | administrador | estado | Automatizaciones con los módulos de clase muestra y finanzas apagados (insignia «En pausa: … está apagado») | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-variadas` | administrador | estado | Automatizaciones apagadas, sin plantilla y con plantilla sin aprobar («¡todavía no se puede mandar!»), de vertical y sucursal | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-alternar-error-servidor` | administrador | estado | Automatizaciones: error del servidor al pulsar «Apagar» (el mensaje queda sobre la lista) | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-alternar-sin-conexion` | administrador | estado | Automatizaciones: sin conexión al pulsar «Apagar» («No hay conexión con el servidor…») | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-ajustar-recordatorio` | administrador | flotante | Diálogo «Ajustar la automatización» de un aviso ANTES de la clase (desfase negativo) | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-ajustar-pago-atrasado` | administrador | flotante | Diálogo «Ajustar la automatización» de un aviso DESPUÉS del vencimiento (con «Máximo de días de atraso») | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-ajustar-validacion` | administrador | flotante | Diálogo «Ajustar la automatización» con errores (desfase con el signo contrario, intentos fuera de rango, horario fuera de 09:00–20:00 y ningún día) | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-ajustar-validacion-atraso` | administrador | flotante | Diálogo «Ajustar la automatización» con el máximo de días de atraso fuera de rango | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-ajustar-error-servidor` | administrador | flotante | Diálogo «Ajustar la automatización» con el error del servidor (plantilla que no sirve) | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-con-datos` | administrador | pantalla | Bandeja del administrador con un evento inesperado pendiente y una tarea sin lead | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-muchos` | administrador | estado | Bandeja del administrador con muchos datos (la lista repetida doce veces) | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-vacio` | administrador | estado | Bandeja del administrador vacía | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-cargando` | administrador | estado | Bandeja del administrador cargando | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-error` | administrador | estado | Bandeja del administrador con error de carga (500, «Reintentar») | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-eventos-variados` | administrador | estado | Bandeja del administrador con eventos de todo tipo (uno atendido, uno sin tarea, uno repetido 7 veces) y el filtro «Solo los que tienen una tarea pendiente» apagado | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-detalle-abierto` | administrador | estado | Bandeja del administrador con el «Detalle para soporte» del evento desplegado | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-solo-eventos-vacio` | administrador | estado | Bandeja del administrador sin eventos pero con tareas sin lead (cada lista vacía por separado) | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-error-solo-tareas` | administrador | estado | Bandeja del administrador con error de carga solo en las tareas sin lead (los eventos sí cargan) | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-resolver-error-servidor` | administrador | estado | Bandeja del administrador: error del servidor al pulsar «Descartar» en una tarea (el mensaje queda arriba) | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-resolver-sin-conexion` | administrador | estado | Bandeja del administrador: sin conexión al pulsar «Marcar hecha» («No hay conexión con el servidor…») | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-modulos-aviso-encendido` | administrador | flotante | Aviso «ya quedó» al encender un módulo («Tableros quedó encendido. …»; el cambio se simula) | `/admin/modulos` | ✔ · ✔ | ✘ · ✘ |
-| `admins-modulos-aviso-apagado` | administrador | flotante | Aviso «ya quedó» al apagar un módulo, después de confirmar («Tableros quedó apagado. …»; el cambio se simula) | `/admin/modulos` | ✔ · ✔ | ✘ · ✘ |
-| `admins-usuarios-aviso-creado` | administrador | flotante | Aviso «ya quedó» al crear un usuario («Se creó el usuario …»; el alta se simula) | `/admin/usuarios` | ✔ · ✔ | ✘ · ✘ |
-| `admins-usuarios-aviso-contrasena` | administrador | flotante | Aviso «ya quedó» al restablecer la contraseña de otra persona (el cambio se simula) | `/admin/usuarios` | ✔ · ✔ | ✘ · ✘ |
-| `admins-usuarios-aviso-desactivado` | administrador | flotante | Aviso «ya quedó» al desactivar a una persona, después de confirmar (el cambio se simula) | `/admin/usuarios` | ✔ · ✔ | ✘ · ✘ |
-| `admins-usuarios-aviso-activado` | administrador | flotante | Aviso «ya quedó» al activar de nuevo a una persona («volvió a estar activo…»; el cambio se simula) | `/admin/usuarios` | ✔ · ✔ | ✘ · ✘ |
-| `admins-canales-aviso-canal-guardado` | administrador | flotante | Aviso «ya quedó» al guardar un canal («El canal … se guardó.»; el cambio se simula) | `/admin/canales` | ✔ · ✔ | ✘ · ✘ |
-| `admins-canales-aviso-bandeja-quitada` | administrador | flotante | Aviso «ya quedó» al quitar la bandeja de un canal, después de confirmar (el cambio se simula) | `/admin/canales` | ✔ · ✔ | ✘ · ✘ |
-| `admins-campanas-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar una campaña («Ya puedes bajar su código QR.»; el cambio se simula) | `/admin/campanas` | ✔ · ✔ | ✘ · ✘ |
-| `admins-plantillas-aviso-guardada-sin-aprobar` | administrador | flotante | Aviso «ya quedó» al guardar una plantilla sin aprobar («Mientras no esté aprobada, el sistema no la manda.»; el cambio se simula) | `/admin/plantillas` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-aviso-apagada` | administrador | flotante | Aviso «ya quedó» al apagar una automatización (el cambio se simula) | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-aviso-encendida` | administrador | flotante | Aviso «ya quedó» al encender una automatización apagada (el cambio se simula) | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-aviso-hecha` | administrador | flotante | Aviso «ya quedó» al marcar atendido un evento de la bandeja («Listo: quedó atendido…»; el cambio se simula) | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-bandeja-aviso-descartada` | administrador | flotante | Aviso «ya quedó» al descartar una tarea sin lead («Se descartó: ya no aparece…»; el cambio se simula) | `/admin/bandeja` | ✔ · ✔ | ✘ · ✘ |
-| `admins-usuarios-aviso-guardado` | administrador | flotante | Aviso «ya quedó» al guardar los cambios de un usuario sin cambiar nada («Los cambios de … se guardaron.») | `/admin/usuarios` | ✔ · ✔ | ✘ · ✘ |
-| `admins-automatizaciones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar el ajuste de una automatización sin cambiar nada («quedó guardada. Vale para los avisos que se programen…») | `/admin/automatizaciones` | ✔ · ✔ | ✘ · ✘ |
-| `admins-configuracion-guardada` | administrador | formulario | Configuración después de guardar sin cambiar nada: el aviso «Configuración guardada.» sobre el botón | `/admin/configuracion` | ✔ · ✔ | ✘ · ✘ |
+| `admins-automatizaciones-en-pausa` | administrador | estado | Automatizaciones con los módulos de clase muestra y finanzas apagados (insignia «En pausa: … está apagado») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-variadas` | administrador | estado | Automatizaciones apagadas, sin plantilla y con plantilla sin aprobar («¡todavía no se puede mandar!»), de vertical y sucursal | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-alternar-error-servidor` | administrador | estado | Automatizaciones: error del servidor al pulsar «Apagar» (el mensaje queda sobre la lista) | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-alternar-sin-conexion` | administrador | estado | Automatizaciones: sin conexión al pulsar «Apagar» («No hay conexión con el servidor…») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-ajustar-recordatorio` | administrador | flotante | Diálogo «Ajustar la automatización» de un aviso ANTES de la clase (desfase negativo) | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-ajustar-pago-atrasado` | administrador | flotante | Diálogo «Ajustar la automatización» de un aviso DESPUÉS del vencimiento (con «Máximo de días de atraso») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-ajustar-validacion` | administrador | flotante | Diálogo «Ajustar la automatización» con errores (desfase con el signo contrario, intentos fuera de rango, horario fuera de 09:00–20:00 y ningún día) | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-ajustar-validacion-atraso` | administrador | flotante | Diálogo «Ajustar la automatización» con el máximo de días de atraso fuera de rango | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-ajustar-error-servidor` | administrador | flotante | Diálogo «Ajustar la automatización» con el error del servidor (plantilla que no sirve) | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-con-datos` | administrador | pantalla | Bandeja del administrador con un evento inesperado pendiente y una tarea sin lead | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-muchos` | administrador | estado | Bandeja del administrador con muchos datos (la lista repetida doce veces) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-vacio` | administrador | estado | Bandeja del administrador vacía | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-cargando` | administrador | estado | Bandeja del administrador cargando | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-error` | administrador | estado | Bandeja del administrador con error de carga (500, «Reintentar») | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-eventos-variados` | administrador | estado | Bandeja del administrador con eventos de todo tipo (uno atendido, uno sin tarea, uno repetido 7 veces) y el filtro «Solo los que tienen una tarea pendiente» apagado | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-detalle-abierto` | administrador | estado | Bandeja del administrador con el «Detalle para soporte» del evento desplegado | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-solo-eventos-vacio` | administrador | estado | Bandeja del administrador sin eventos pero con tareas sin lead (cada lista vacía por separado) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-error-solo-tareas` | administrador | estado | Bandeja del administrador con error de carga solo en las tareas sin lead (los eventos sí cargan) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-resolver-error-servidor` | administrador | estado | Bandeja del administrador: error del servidor al pulsar «Descartar» en una tarea (el mensaje queda arriba) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-resolver-sin-conexion` | administrador | estado | Bandeja del administrador: sin conexión al pulsar «Marcar hecha» («No hay conexión con el servidor…») | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-modulos-aviso-encendido` | administrador | flotante | Aviso «ya quedó» al encender un módulo («Tableros quedó encendido. …»; el cambio se simula) | `/admin/modulos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-modulos-aviso-apagado` | administrador | flotante | Aviso «ya quedó» al apagar un módulo, después de confirmar («Tableros quedó apagado. …»; el cambio se simula) | `/admin/modulos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-usuarios-aviso-creado` | administrador | flotante | Aviso «ya quedó» al crear un usuario («Se creó el usuario …»; el alta se simula) | `/admin/usuarios` | ✔ · ✔ | ✔ · ✔ |
+| `admins-usuarios-aviso-contrasena` | administrador | flotante | Aviso «ya quedó» al restablecer la contraseña de otra persona (el cambio se simula) | `/admin/usuarios` | ✔ · ✔ | ✔ · ✔ |
+| `admins-usuarios-aviso-desactivado` | administrador | flotante | Aviso «ya quedó» al desactivar a una persona, después de confirmar (el cambio se simula) | `/admin/usuarios` | ✔ · ✔ | ✔ · ✔ |
+| `admins-usuarios-aviso-activado` | administrador | flotante | Aviso «ya quedó» al activar de nuevo a una persona («volvió a estar activo…»; el cambio se simula) | `/admin/usuarios` | ✔ · ✔ | ✔ · ✔ |
+| `admins-canales-aviso-canal-guardado` | administrador | flotante | Aviso «ya quedó» al guardar un canal («El canal … se guardó.»; el cambio se simula) | `/admin/canales` | ✔ · ✔ | ✔ · ✔ |
+| `admins-canales-aviso-bandeja-quitada` | administrador | flotante | Aviso «ya quedó» al quitar la bandeja de un canal, después de confirmar (el cambio se simula) | `/admin/canales` | ✔ · ✔ | ✔ · ✔ |
+| `admins-campanas-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar una campaña («Ya puedes bajar su código QR.»; el cambio se simula) | `/admin/campanas` | ✔ · ✔ | ✔ · ✔ |
+| `admins-plantillas-aviso-guardada-sin-aprobar` | administrador | flotante | Aviso «ya quedó» al guardar una plantilla sin aprobar («Mientras no esté aprobada, el sistema no la manda.»; el cambio se simula) | `/admin/plantillas` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-aviso-apagada` | administrador | flotante | Aviso «ya quedó» al apagar una automatización (el cambio se simula) | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-aviso-encendida` | administrador | flotante | Aviso «ya quedó» al encender una automatización apagada (el cambio se simula) | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-aviso-hecha` | administrador | flotante | Aviso «ya quedó» al marcar atendido un evento de la bandeja («Listo: quedó atendido…»; el cambio se simula) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-bandeja-aviso-descartada` | administrador | flotante | Aviso «ya quedó» al descartar una tarea sin lead («Se descartó: ya no aparece…»; el cambio se simula) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
+| `admins-usuarios-aviso-guardado` | administrador | flotante | Aviso «ya quedó» al guardar los cambios de un usuario sin cambiar nada («Los cambios de … se guardaron.») | `/admin/usuarios` | ✔ · ✔ | ✔ · ✔ |
+| `admins-automatizaciones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar el ajuste de una automatización sin cambiar nada («quedó guardada. Vale para los avisos que se programen…») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
+| `admins-configuracion-guardada` | administrador | formulario | Configuración después de guardar sin cambiar nada: el aviso «Configuración guardada.» sobre el botón | `/admin/configuracion` | ✔ · ✔ | ✔ · ✔ |
 
 ## Asesor (133)
 
@@ -653,154 +653,154 @@ Filas: **1016**.
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
-| `familia-alumnos-lista` | recepcion | pantalla | Alumnos: buscador y lista con datos (recepción, asesor y administrador) | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-buscar-nombre` | recepcion | estado | Alumnos: búsqueda por nombre con resultados («Hija») | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-buscar-telefono` | recepcion | estado | Alumnos: búsqueda por el teléfono de un adulto de la familia | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-sin-resultados` | recepcion | estado | Alumnos: búsqueda sin resultados («No hay alumnos que coincidan») | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-filtro-congelados` | recepcion | estado | Alumnos: filtrada por estatus «Congelados» | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-filtro-bajas` | recepcion | estado | Alumnos: filtrada por estatus «Bajas» | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-vacio` | recepcion | estado | Alumnos: lista vacía («No hay alumnos que coincidan») | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-muchos` | recepcion | estado | Alumnos: lista con muchos datos (veinte tarjetas) | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-paginacion` | recepcion | estado | Alumnos: paginador «Página 2 de 4» (tras pulsar «Siguiente») | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-busqueda-incompleta` | recepcion | estado | Alumnos: aviso «Hay más resultados de los que se pudieron revisar» (búsqueda por nombre incompleta) | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-cargando` | recepcion | estado | Alumnos: cargando | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-error` | recepcion | estado | Alumnos: error de carga con «Reintentar» | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-sin-conexion` | recepcion | estado | Alumnos: al buscar sin conexión («No hay conexión con el servidor») | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-trayectoria-recepcion` | recepcion | pantalla | Expediente, «Trayectoria», con datos y las acciones sobre la inscripción (recepción) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-trayectoria-asesor` | asesor | pantalla | Expediente, «Trayectoria», con datos (asesor) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-trayectoria-administrador` | administrador | pantalla | Expediente, «Trayectoria», con datos y el botón «Salud» (administrador) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-economico` | recepcion | pantalla | Expediente, «Económico»: mensualidad, cuenta (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-operativo` | recepcion | pantalla | Expediente, «Operativo»: asistencia, eventos, productos (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-comercial` | recepcion | pantalla | Expediente, «Comercial»: cómo llegó, hermanos (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-trayectoria-completa` | recepcion | estado | Expediente, «Trayectoria» con todo: inscripción activa, congelada y en baja, cambios de grupo, avance y próximo evento | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-economico-completo` | recepcion | estado | Expediente, «Económico» con promoción aplicada y beneficios pendientes | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-economico-sin-cuenta` | recepcion | estado | Expediente, «Económico» con «El estado de cuenta todavía no está disponible» | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-operativo-completo` | recepcion | estado | Expediente, «Operativo» con faltas en el umbral, eventos con resultado y productos comprados | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-operativo-sin-datos` | recepcion | estado | Expediente, «Operativo» sin asistencia, sin eventos y con «No disponible todavía» | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-comercial-completo` | recepcion | estado | Expediente, «Comercial» con campaña, hermanos inscritos y bajas | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-inscripcion-congelada` | recepcion | estado | Expediente con la inscripción congelada (la acción pasa a «Reactivar») | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-inscripcion-baja` | recepcion | estado | Expediente con la inscripción en baja (sin acciones) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-trayectoria-vacio` | recepcion | estado | Expediente, «Trayectoria» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-trayectoria-muchos` | recepcion | estado | Expediente, «Trayectoria» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-economico-vacio` | recepcion | estado | Expediente, «Económico» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-economico-muchos` | recepcion | estado | Expediente, «Económico» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-operativo-vacio` | recepcion | estado | Expediente, «Operativo» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-operativo-muchos` | recepcion | estado | Expediente, «Operativo» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-comercial-vacio` | recepcion | estado | Expediente, «Comercial» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-comercial-muchos` | recepcion | estado | Expediente, «Comercial» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-cargando` | recepcion | estado | Expediente: cargando | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-error` | recepcion | estado | Expediente: error de carga con «Reintentar» | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-no-encontrado` | recepcion | estado | Expediente de un alumno que no existe (404) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-vacio` | recepcion | flotante | Cuadro «Cambiar de grupo» vacío (elegir el grupo nuevo; «Confirmar el cambio» apagado) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-elegido` | recepcion | flotante | Cuadro «Cambiar de grupo» con el grupo de un solo lugar elegido («· 1 lugar») | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-grupo-lleno` | recepcion | flotante | Cuadro «Cambiar de grupo» con el grupo de un solo lugar ya lleno («· lleno», no se puede elegir) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-sin-grupos` | recepcion | flotante | Cuadro «Cambiar de grupo» sin otro grupo activo del programa | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-cargando` | recepcion | flotante | Cuadro «Cambiar de grupo» cargando los grupos y sus lugares | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-error-carga` | recepcion | flotante | Cuadro «Cambiar de grupo» con error al cargar los lugares de cada grupo («Reintentar») | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-error-servidor` | recepcion | flotante | Cuadro «Cambiar de grupo» con el rechazo del servidor (el último lugar se ocupó mientras se miraba) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-sin-conexion` | recepcion | flotante | Cuadro «Cambiar de grupo» sin conexión al confirmar | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-congelar` | recepcion | flotante | Cuadro «Congelar la inscripción»: la confirmación | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-congelar-error-servidor` | recepcion | flotante | Cuadro «Congelar la inscripción» con el rechazo del servidor | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-reactivar` | recepcion | flotante | Cuadro «Reactivar la inscripción»: la confirmación | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-reactivar-error-servidor` | recepcion | flotante | Cuadro «Reactivar la inscripción» con el rechazo del servidor (el grupo se llenó mientras estaba congelada) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-vacio` | recepcion | flotante | Cuadro «Dar de baja» vacío (motivo obligatorio; «Dar de baja» apagado) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-con-motivo` | recepcion | flotante | Cuadro «Dar de baja» con un motivo elegido («Dar de baja» habilitado) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-sin-motivos` | recepcion | flotante | Cuadro «Dar de baja» sin motivos en el catálogo (lista de motivos vacía) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-cargando` | recepcion | flotante | Cuadro «Dar de baja» cargando los motivos | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-error-carga` | recepcion | flotante | Cuadro «Dar de baja» con error al cargar los motivos («Reintentar») | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-error-servidor` | recepcion | flotante | Cuadro «Dar de baja» con el rechazo del servidor («La inscripción ya está dada de baja») | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-sin-conexion` | recepcion | flotante | Cuadro «Dar de baja» sin conexión al confirmar | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-motivo` | administrador | pantalla | Salud del alumno: se pide el motivo de la consulta (administrador; el maestro la ve igual) | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-motivo-escrito` | administrador | estado | Salud del alumno con el motivo escrito («Ver datos de salud» habilitado) | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-ficha` | administrador | estado | Salud del alumno: la ficha vista, con la cuenta atrás «Se ocultan en … s» | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-sin-ficha` | administrador | estado | Salud del alumno: «Todavía no hay ficha de salud» (todo «Sin registrar») | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-ficha-parcial` | administrador | estado | Salud del alumno: ficha con contacto de emergencia, atención de urgencia no autorizada y campos sin registrar | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-error-servidor` | administrador | estado | Salud del alumno: la consulta falla (error del servidor bajo el campo del motivo) | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-cargando` | administrador | estado | Salud del alumno: cargando | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-salud-error` | administrador | estado | Salud del alumno: error al cargar al alumno con «Reintentar» | `/alumnos/:id/salud` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista` | recepcion | pantalla | Familias: buscador y lista con datos (recepción, asesor y administrador) | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-buscar-telefono` | recepcion | estado | Familias: búsqueda por teléfono en cualquier formato, con resultado | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-buscar-nombre` | recepcion | estado | Familias: búsqueda por nombre, con resultado | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-sin-resultados` | recepcion | estado | Familias: búsqueda sin resultados («No encontré a esa familia») | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-vacio` | recepcion | estado | Familias: lista vacía («No encontré a esa familia») | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-muchos` | recepcion | estado | Familias: lista con muchos datos (veinte tarjetas) | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-paginacion` | recepcion | estado | Familias: paginador «Página 2 de 3» (tras pulsar «Siguiente») | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-busqueda-incompleta` | recepcion | estado | Familias: aviso «Hay más resultados de los que se pudieron revisar» | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-cargando` | recepcion | estado | Familias: cargando | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-error` | recepcion | estado | Familias: error de carga con «Reintentar» | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-familias-lista-sin-conexion` | recepcion | estado | Familias: al buscar sin conexión («No hay conexión con el servidor») | `/familias` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo` | asesor | pantalla | Familias con un solo hijo (venta cruzada): con datos (asesor, recepción y administrador) | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo-muchos` | asesor | estado | Familias con un solo hijo: muchos datos | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo-paginacion` | asesor | estado | Familias con un solo hijo: paginador «Página 2 de 3» (tras pulsar «Siguiente») | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo-vacio` | asesor | estado | Familias con un solo hijo: lista vacía | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo-cargando` | asesor | estado | Familias con un solo hijo: cargando | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo-error` | asesor | estado | Familias con un solo hijo: error de carga con «Reintentar» | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-un-solo-hijo-otra-sucursal` | asesor | estado | Familias con un solo hijo: disciplinas disponibles, en otra sucursal y sin disciplinas por probar | `/familias/un-solo-hijo` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-recepcion` | recepcion | pantalla | Ficha de la familia: adulto, saldo, hijos, «Estado de cuenta» y «Registrar pago» (recepción y administrador) | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-asesor` | asesor | pantalla | Ficha de la familia (asesor: ve el saldo pero no puede registrar un pago) | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-hijos-variados` | recepcion | estado | Ficha de la familia con tres hijos (activo, congelado y baja), sin correo y con dirección | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-sin-hijos` | recepcion | estado | Ficha de la familia sin hijos («Esta familia todavía no tiene alumnos») | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-muchos` | recepcion | estado | Ficha de la familia con muchos hijos | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-saldo-cargando` | recepcion | estado | Ficha de la familia con el saldo cargando | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-saldo-error` | recepcion | estado | Ficha de la familia con error al cargar el saldo («Reintentar» dentro de la tarjeta) | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-cargando` | recepcion | estado | Ficha de la familia: cargando | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-error` | recepcion | estado | Ficha de la familia: error de carga con «Reintentar» | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-no-encontrada` | recepcion | estado | Ficha de una familia que no existe (404) | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-congelar-hecho` | recepcion | estado | Expediente tras congelar de verdad la inscripción (escritorio: hijo mayor; celular: hijo menor): «Congelada» y la acción «Reactivar» | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-reactivar-real` | recepcion | flotante | Cuadro «Reactivar la inscripción» sobre una inscripción congelada de verdad (el hijo de la vista) | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-reactivar-hecho` | recepcion | estado | Expediente tras reactivar de verdad la inscripción: vuelve a «Activa» | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-cambiar-hecho` | recepcion | estado | Expediente tras cambiar de verdad de grupo (al grupo con lugares de sobra): el grupo nuevo y «Cambios de grupo» | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-acciones-baja-hecho` | recepcion | estado | Expediente tras dar de baja de verdad la inscripción: «Baja», sin acciones y el alumno en baja | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-expediente-comercial-con-baja` | recepcion | estado | Expediente, «Comercial», con la tarjeta «Bajas» y el motivo de la baja que se acaba de dar | `/alumnos/:id` | ✔ · ✔ | ✘ · ✘ |
-| `familia-ficha-hijos-en-baja` | recepcion | estado | Ficha de la familia con los dos hijos ya en baja (tras las bajas de arriba) | `/familias/:tutorId` | ✔ · ✔ | ✘ · ✘ |
-| `familia-alumnos-lista-bajas-reales` | recepcion | estado | Alumnos filtrada por «Bajas», con los dos hijos que se dieron de baja | `/alumnos` | ✔ · ✔ | ✘ · ✘ |
+| `familia-alumnos-lista` | recepcion | pantalla | Alumnos: buscador y lista con datos (recepción, asesor y administrador) | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-buscar-nombre` | recepcion | estado | Alumnos: búsqueda por nombre con resultados («Hija») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-buscar-telefono` | recepcion | estado | Alumnos: búsqueda por el teléfono de un adulto de la familia | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-sin-resultados` | recepcion | estado | Alumnos: búsqueda sin resultados («No hay alumnos que coincidan») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-filtro-congelados` | recepcion | estado | Alumnos: filtrada por estatus «Congelados» | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-filtro-bajas` | recepcion | estado | Alumnos: filtrada por estatus «Bajas» | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-vacio` | recepcion | estado | Alumnos: lista vacía («No hay alumnos que coincidan») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-muchos` | recepcion | estado | Alumnos: lista con muchos datos (veinte tarjetas) | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-paginacion` | recepcion | estado | Alumnos: paginador «Página 2 de 4» (tras pulsar «Siguiente») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-busqueda-incompleta` | recepcion | estado | Alumnos: aviso «Hay más resultados de los que se pudieron revisar» (búsqueda por nombre incompleta) | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-cargando` | recepcion | estado | Alumnos: cargando | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-error` | recepcion | estado | Alumnos: error de carga con «Reintentar» | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-sin-conexion` | recepcion | estado | Alumnos: al buscar sin conexión («No hay conexión con el servidor») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-recepcion` | recepcion | pantalla | Expediente, «Trayectoria», con datos y las acciones sobre la inscripción (recepción) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-asesor` | asesor | pantalla | Expediente, «Trayectoria», con datos (asesor) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-administrador` | administrador | pantalla | Expediente, «Trayectoria», con datos y el botón «Salud» (administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-economico` | recepcion | pantalla | Expediente, «Económico»: mensualidad, cuenta (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-operativo` | recepcion | pantalla | Expediente, «Operativo»: asistencia, eventos, productos (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-comercial` | recepcion | pantalla | Expediente, «Comercial»: cómo llegó, hermanos (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-completa` | recepcion | estado | Expediente, «Trayectoria» con todo: inscripción activa, congelada y en baja, cambios de grupo, avance y próximo evento | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-economico-completo` | recepcion | estado | Expediente, «Económico» con promoción aplicada y beneficios pendientes | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-economico-sin-cuenta` | recepcion | estado | Expediente, «Económico» con «El estado de cuenta todavía no está disponible» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-operativo-completo` | recepcion | estado | Expediente, «Operativo» con faltas en el umbral, eventos con resultado y productos comprados | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-operativo-sin-datos` | recepcion | estado | Expediente, «Operativo» sin asistencia, sin eventos y con «No disponible todavía» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-comercial-completo` | recepcion | estado | Expediente, «Comercial» con campaña, hermanos inscritos y bajas | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-inscripcion-congelada` | recepcion | estado | Expediente con la inscripción congelada (la acción pasa a «Reactivar») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-inscripcion-baja` | recepcion | estado | Expediente con la inscripción en baja (sin acciones) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-vacio` | recepcion | estado | Expediente, «Trayectoria» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-muchos` | recepcion | estado | Expediente, «Trayectoria» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-economico-vacio` | recepcion | estado | Expediente, «Económico» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-economico-muchos` | recepcion | estado | Expediente, «Económico» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-operativo-vacio` | recepcion | estado | Expediente, «Operativo» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-operativo-muchos` | recepcion | estado | Expediente, «Operativo» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-comercial-vacio` | recepcion | estado | Expediente, «Comercial» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-comercial-muchos` | recepcion | estado | Expediente, «Comercial» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-cargando` | recepcion | estado | Expediente: cargando | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-error` | recepcion | estado | Expediente: error de carga con «Reintentar» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-no-encontrado` | recepcion | estado | Expediente de un alumno que no existe (404) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-vacio` | recepcion | flotante | Cuadro «Cambiar de grupo» vacío (elegir el grupo nuevo; «Confirmar el cambio» apagado) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-elegido` | recepcion | flotante | Cuadro «Cambiar de grupo» con el grupo de un solo lugar elegido («· 1 lugar») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-grupo-lleno` | recepcion | flotante | Cuadro «Cambiar de grupo» con el grupo de un solo lugar ya lleno («· lleno», no se puede elegir) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-sin-grupos` | recepcion | flotante | Cuadro «Cambiar de grupo» sin otro grupo activo del programa | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-cargando` | recepcion | flotante | Cuadro «Cambiar de grupo» cargando los grupos y sus lugares | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-error-carga` | recepcion | flotante | Cuadro «Cambiar de grupo» con error al cargar los lugares de cada grupo («Reintentar») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-error-servidor` | recepcion | flotante | Cuadro «Cambiar de grupo» con el rechazo del servidor (el último lugar se ocupó mientras se miraba) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-sin-conexion` | recepcion | flotante | Cuadro «Cambiar de grupo» sin conexión al confirmar | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-congelar` | recepcion | flotante | Cuadro «Congelar la inscripción»: la confirmación | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-congelar-error-servidor` | recepcion | flotante | Cuadro «Congelar la inscripción» con el rechazo del servidor | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-reactivar` | recepcion | flotante | Cuadro «Reactivar la inscripción»: la confirmación | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-reactivar-error-servidor` | recepcion | flotante | Cuadro «Reactivar la inscripción» con el rechazo del servidor (el grupo se llenó mientras estaba congelada) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-vacio` | recepcion | flotante | Cuadro «Dar de baja» vacío (motivo obligatorio; «Dar de baja» apagado) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-con-motivo` | recepcion | flotante | Cuadro «Dar de baja» con un motivo elegido («Dar de baja» habilitado) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-sin-motivos` | recepcion | flotante | Cuadro «Dar de baja» sin motivos en el catálogo (lista de motivos vacía) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-cargando` | recepcion | flotante | Cuadro «Dar de baja» cargando los motivos | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-error-carga` | recepcion | flotante | Cuadro «Dar de baja» con error al cargar los motivos («Reintentar») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-error-servidor` | recepcion | flotante | Cuadro «Dar de baja» con el rechazo del servidor («La inscripción ya está dada de baja») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-sin-conexion` | recepcion | flotante | Cuadro «Dar de baja» sin conexión al confirmar | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-motivo` | administrador | pantalla | Salud del alumno: se pide el motivo de la consulta (administrador; el maestro la ve igual) | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-motivo-escrito` | administrador | estado | Salud del alumno con el motivo escrito («Ver datos de salud» habilitado) | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-ficha` | administrador | estado | Salud del alumno: la ficha vista, con la cuenta atrás «Se ocultan en … s» | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-sin-ficha` | administrador | estado | Salud del alumno: «Todavía no hay ficha de salud» (todo «Sin registrar») | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-ficha-parcial` | administrador | estado | Salud del alumno: ficha con contacto de emergencia, atención de urgencia no autorizada y campos sin registrar | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-error-servidor` | administrador | estado | Salud del alumno: la consulta falla (error del servidor bajo el campo del motivo) | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-cargando` | administrador | estado | Salud del alumno: cargando | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-salud-error` | administrador | estado | Salud del alumno: error al cargar al alumno con «Reintentar» | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista` | recepcion | pantalla | Familias: buscador y lista con datos (recepción, asesor y administrador) | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-buscar-telefono` | recepcion | estado | Familias: búsqueda por teléfono en cualquier formato, con resultado | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-buscar-nombre` | recepcion | estado | Familias: búsqueda por nombre, con resultado | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-sin-resultados` | recepcion | estado | Familias: búsqueda sin resultados («No encontré a esa familia») | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-vacio` | recepcion | estado | Familias: lista vacía («No encontré a esa familia») | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-muchos` | recepcion | estado | Familias: lista con muchos datos (veinte tarjetas) | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-paginacion` | recepcion | estado | Familias: paginador «Página 2 de 3» (tras pulsar «Siguiente») | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-busqueda-incompleta` | recepcion | estado | Familias: aviso «Hay más resultados de los que se pudieron revisar» | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-cargando` | recepcion | estado | Familias: cargando | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-error` | recepcion | estado | Familias: error de carga con «Reintentar» | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-sin-conexion` | recepcion | estado | Familias: al buscar sin conexión («No hay conexión con el servidor») | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo` | asesor | pantalla | Familias con un solo hijo (venta cruzada): con datos (asesor, recepción y administrador) | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo-muchos` | asesor | estado | Familias con un solo hijo: muchos datos | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo-paginacion` | asesor | estado | Familias con un solo hijo: paginador «Página 2 de 3» (tras pulsar «Siguiente») | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo-vacio` | asesor | estado | Familias con un solo hijo: lista vacía | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo-cargando` | asesor | estado | Familias con un solo hijo: cargando | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo-error` | asesor | estado | Familias con un solo hijo: error de carga con «Reintentar» | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-un-solo-hijo-otra-sucursal` | asesor | estado | Familias con un solo hijo: disciplinas disponibles, en otra sucursal y sin disciplinas por probar | `/familias/un-solo-hijo` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-recepcion` | recepcion | pantalla | Ficha de la familia: adulto, saldo, hijos, «Estado de cuenta» y «Registrar pago» (recepción y administrador) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-asesor` | asesor | pantalla | Ficha de la familia (asesor: ve el saldo pero no puede registrar un pago) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-hijos-variados` | recepcion | estado | Ficha de la familia con tres hijos (activo, congelado y baja), sin correo y con dirección | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-sin-hijos` | recepcion | estado | Ficha de la familia sin hijos («Esta familia todavía no tiene alumnos») | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-muchos` | recepcion | estado | Ficha de la familia con muchos hijos | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-saldo-cargando` | recepcion | estado | Ficha de la familia con el saldo cargando | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-saldo-error` | recepcion | estado | Ficha de la familia con error al cargar el saldo («Reintentar» dentro de la tarjeta) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-cargando` | recepcion | estado | Ficha de la familia: cargando | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-error` | recepcion | estado | Ficha de la familia: error de carga con «Reintentar» | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-no-encontrada` | recepcion | estado | Ficha de una familia que no existe (404) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-congelar-hecho` | recepcion | estado | Expediente tras congelar de verdad la inscripción (escritorio: hijo mayor; celular: hijo menor): «Congelada» y la acción «Reactivar» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-reactivar-real` | recepcion | flotante | Cuadro «Reactivar la inscripción» sobre una inscripción congelada de verdad (el hijo de la vista) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-reactivar-hecho` | recepcion | estado | Expediente tras reactivar de verdad la inscripción: vuelve a «Activa» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-cambiar-hecho` | recepcion | estado | Expediente tras cambiar de verdad de grupo (al grupo con lugares de sobra): el grupo nuevo y «Cambios de grupo» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-acciones-baja-hecho` | recepcion | estado | Expediente tras dar de baja de verdad la inscripción: «Baja», sin acciones y el alumno en baja | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-comercial-con-baja` | recepcion | estado | Expediente, «Comercial», con la tarjeta «Bajas» y el motivo de la baja que se acaba de dar | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-ficha-hijos-en-baja` | recepcion | estado | Ficha de la familia con los dos hijos ya en baja (tras las bajas de arriba) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-bajas-reales` | recepcion | estado | Alumnos filtrada por «Bajas», con los dos hijos que se dieron de baja | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 
 ## Fuera de React (42)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
-| `fuera-landing-vacio` | anonimo | fuera-de-react | Landing pública `/l/<vertical>`: formulario vacío (con dos sucursales: aparece el selector «¿En qué sucursal…?») | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-oscuro` | anonimo | fuera-de-react | Landing pública con el celular o la compu en modo oscuro (`prefers-color-scheme: dark`) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-anuncio` | anonimo | fuera-de-react | Landing que llega desde un anuncio (`?c=` código, `utm_*` y `s=` sucursal sugerida): la sucursal ya viene elegida; el código y los utm viajan ocultos | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-anuncio-sucursal-invalida` | anonimo | fuera-de-react | Landing con una `s=` que no es de la vertical y un `c=` con basura: se ignoran en silencio y el selector queda en «Elige una sucursal» | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-una-sucursal` | anonimo | fuera-de-react | Landing de una vertical con UNA sola sucursal (SIMULADO: el mundo tiene dos; se quita el selector de la respuesta real, como lo arma el servidor: la sucursal viaja oculta) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-marca` | anonimo | fuera-de-react | Landing con el logo y el color de marca de la vertical (SIMULADO: color #7b2d8b y un logo propio; el botón y la línea de la cabecera toman el color, el texto del botón se elige por contraste) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-marca-clara` | anonimo | fuera-de-react | Landing con un color de marca CLARO (SIMULADO: #f2c230): el texto del botón se vuelve casi negro por contraste | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-llena` | anonimo | fuera-de-react | Landing con el formulario completo y válido, listo para enviar (el aviso aceptado; no se envía) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-aviso-desplegado` | anonimo | fuera-de-react | Landing con el aviso de privacidad desplegado (el `<details>` abierto con su texto, con scroll si es largo) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-foco-visible` | anonimo | fuera-de-react | Landing con el foco del teclado en el primer campo (anillo de foco de 3 px con el color de marca) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-errores-vacio` | anonimo | fuera-de-react | Landing enviada vacía: resumen «Revisa estos datos» con un enlace por campo y el mensaje bajo cada campo (nombre, edad, sucursal, teléfono, aviso) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-errores-telefono` | anonimo | fuera-de-react | Landing con teléfono malo: solo ese campo con error; el resto de lo escrito se conserva | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-errores-edad` | anonimo | fuera-de-react | Landing con la edad fuera de rango (150): error «de 1 a 99» solo en la edad | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-errores-sin-aviso` | anonimo | fuera-de-react | Landing sin aceptar el aviso de privacidad: error «Para continuar necesitamos que aceptes…» bajo la casilla | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-errores-nombre-con-direccion` | anonimo | fuera-de-react | Landing con un nombre que lleva una dirección web (rechazado): error del nombre y del nombre de contacto con símbolos raros | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-errores-oscuro` | anonimo | fuera-de-react | Landing con errores de validación en modo oscuro (el rojo de error cambia a un rosa claro) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-general-aviso-cambio` | anonimo | fuera-de-react | Landing con error GENERAL sin errores por campo: «El aviso de privacidad cambió…» (el aviso vigente cambió mientras se llenaba el formulario) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-general-inesperado` | anonimo | fuera-de-react | Landing con el error general de un dato inesperado (422): «No pudimos registrar tu solicitud. Escríbenos por WhatsApp…» (SIMULADO con el mismo HTML del servidor) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-enviando` | anonimo | fuera-de-react | Landing con el botón en «Enviando…» y deshabilitado (el servidor tarda en responder; se cancela la navegación del formulario para dejarlo en ese estado, no se envía nada) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-gracias` | anonimo | fuera-de-react | Página de gracias de la landing (cuando la vertical no tiene número de WhatsApp: «¡Gracias! Recibimos tus datos…»; SIMULADA con `paginaDeGracias`, porque el mundo siempre tiene número y el envío bueno termina en un 303 a wa.me) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-no-existe` | anonimo | fuera-de-react | Landing: «Página no encontrada» (404) para una vertical que no existe, sin aviso vigente o ambigua (la misma página para las tres, sin revelar cuál) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-enlace-malo` | anonimo | fuera-de-react | Landing: «Página no encontrada» con un enlace mal escrito (mayúsculas y símbolos: no pasa el filtro del identificador) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-oscuro` | anonimo | fuera-de-react | Landing: página de error en modo oscuro | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-origen` | anonimo | fuera-de-react | Landing: «No se pudo enviar» (403) cuando el envío no viene de la propia página (se reenvía la petición real con `Sec-Fetch-Site: cross-site`) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-demasiadas-solicitudes` | anonimo | fuera-de-react | Landing: «Demasiadas solicitudes» (429, límite por IP; SIMULADA con `paginaDeError`, para no agotar el límite del servidor de pruebas) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-landing-error-no-disponible` | anonimo | fuera-de-react | Landing: «No disponible por ahora» (503, falla transitoria de la base; SIMULADA con `paginaDeError`) | `/l/:vertical` | ✔ · ✔ | ✘ · ✘ |
-| `fuera-favicon` | anonimo | fuera-de-react | Ícono de la pestaña `/favicon.svg` abierto en su propia página (el SVG ampliado a la ventana; en la pestaña real se ve a 16 px; `web/index.html` lo declara con `<link rel=icon>`) |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-pestana-ventana-chica` | anonimo | fuera-de-react | Ícono de la pestaña a tamaño real: el favicon a 16, 32 y 64 px sobre blanco y sobre oscuro, junto al título «Iniciar sesión · Gestión» (el título lo pone `useTitulo` con `document.title = «<pantalla> · Gestión»`; la pestaña del navegador no se captura) |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-sin-javascript` | anonimo | fuera-de-react | Aviso `<noscript>` de `index.html`: «Esta aplicación necesita JavaScript.» sin hoja de estilos (SIMULADO: el navegador de pruebas tiene JS; se muestra el contenido de `<noscript>` y se impide cargar el script) |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-servidor-404-asset` | anonimo | fuera-de-react | Un archivo de `/assets/` que no existe (404): el navegador muestra una página en blanco (el servidor responde sin cuerpo, nunca el HTML de la aplicación) |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-servidor-404-extension` | anonimo | fuera-de-react | Una dirección con extensión y sin archivo (`/no-existe.js`, 404): la página de error de Express «Cannot GET /no-existe.js» en texto sin estilo |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-servidor-404-prefijo-landing` | anonimo | fuera-de-react | `/l` sin identificador (404 del servidor, no la aplicación): «Cannot GET /l» de Express |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-servidor-404-webhook-get` | anonimo | fuera-de-react | Un GET a un webhook que solo acepta POST (`/webhooks/chatwoot`, 404): «Cannot GET /webhooks/chatwoot» de Express |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-api-404-json` | anonimo | fuera-de-react | Cualquier `/api/...` abierta a mano en el navegador SIN sesión (aquí `/api/no-existe`): el JSON de «no autenticado» (401) como texto plano; la API pide sesión antes de decir si la ruta existe |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-api-404-json-mayusculas` | anonimo | fuera-de-react | `/API/...` en mayúsculas (404 JSON «Ruta no encontrada», no la aplicación): el navegador muestra el JSON como texto |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-salud` | anonimo | fuera-de-react | `/salud` (liveness): el navegador muestra el JSON `{"ok":true}` como texto |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-salud-lista` | anonimo | fuera-de-react | `/salud/lista` (readiness): el JSON con las comprobaciones (base, migraciones, barrido) como texto |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-metricas` | anonimo | fuera-de-react | `/metricas` sin token configurado (404 sin cuerpo) o sin el token (401): el navegador muestra una página en blanco |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-api-404-json-con-sesion` | administrador | fuera-de-react | `/api/...` que no existe, CON sesión de administrador: el JSON 404 «Ruta no encontrada» como texto plano |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-qr-svg` | administrador | fuera-de-react | QR de una campaña servido como imagen SVG (`/api/campanas/:id/qr?formato=svg`): lo que el navegador muestra al abrir la descarga (negro sobre blanco con zona de silencio) |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-qr-png` | administrador | fuera-de-react | QR de una campaña servido como imagen PNG (`formato=png&escala=8`): lo que el navegador muestra |  | ✔ · ✔ | ✘ · ✘ |
-| `fuera-qr-url-json` | administrador | fuera-de-react | Datos del QR de una campaña (`formato=url`): el JSON con la dirección de la landing, el código y el código formateado, como texto |  | ✔ · ✔ | ✘ · ✘ |
+| `fuera-landing-vacio` | anonimo | fuera-de-react | Landing pública `/l/<vertical>`: formulario vacío (con dos sucursales: aparece el selector «¿En qué sucursal…?») | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-oscuro` | anonimo | fuera-de-react | Landing pública con el celular o la compu en modo oscuro (`prefers-color-scheme: dark`) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-anuncio` | anonimo | fuera-de-react | Landing que llega desde un anuncio (`?c=` código, `utm_*` y `s=` sucursal sugerida): la sucursal ya viene elegida; el código y los utm viajan ocultos | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-anuncio-sucursal-invalida` | anonimo | fuera-de-react | Landing con una `s=` que no es de la vertical y un `c=` con basura: se ignoran en silencio y el selector queda en «Elige una sucursal» | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-una-sucursal` | anonimo | fuera-de-react | Landing de una vertical con UNA sola sucursal (SIMULADO: el mundo tiene dos; se quita el selector de la respuesta real, como lo arma el servidor: la sucursal viaja oculta) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-marca` | anonimo | fuera-de-react | Landing con el logo y el color de marca de la vertical (SIMULADO: color #7b2d8b y un logo propio; el botón y la línea de la cabecera toman el color, el texto del botón se elige por contraste) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-marca-clara` | anonimo | fuera-de-react | Landing con un color de marca CLARO (SIMULADO: #f2c230): el texto del botón se vuelve casi negro por contraste | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-llena` | anonimo | fuera-de-react | Landing con el formulario completo y válido, listo para enviar (el aviso aceptado; no se envía) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-aviso-desplegado` | anonimo | fuera-de-react | Landing con el aviso de privacidad desplegado (el `<details>` abierto con su texto, con scroll si es largo) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-foco-visible` | anonimo | fuera-de-react | Landing con el foco del teclado en el primer campo (anillo de foco de 3 px con el color de marca) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-errores-vacio` | anonimo | fuera-de-react | Landing enviada vacía: resumen «Revisa estos datos» con un enlace por campo y el mensaje bajo cada campo (nombre, edad, sucursal, teléfono, aviso) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-errores-telefono` | anonimo | fuera-de-react | Landing con teléfono malo: solo ese campo con error; el resto de lo escrito se conserva | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-errores-edad` | anonimo | fuera-de-react | Landing con la edad fuera de rango (150): error «de 1 a 99» solo en la edad | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-errores-sin-aviso` | anonimo | fuera-de-react | Landing sin aceptar el aviso de privacidad: error «Para continuar necesitamos que aceptes…» bajo la casilla | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-errores-nombre-con-direccion` | anonimo | fuera-de-react | Landing con un nombre que lleva una dirección web (rechazado): error del nombre y del nombre de contacto con símbolos raros | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-errores-oscuro` | anonimo | fuera-de-react | Landing con errores de validación en modo oscuro (el rojo de error cambia a un rosa claro) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-general-aviso-cambio` | anonimo | fuera-de-react | Landing con error GENERAL sin errores por campo: «El aviso de privacidad cambió…» (el aviso vigente cambió mientras se llenaba el formulario) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-general-inesperado` | anonimo | fuera-de-react | Landing con el error general de un dato inesperado (422): «No pudimos registrar tu solicitud. Escríbenos por WhatsApp…» (SIMULADO con el mismo HTML del servidor) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-enviando` | anonimo | fuera-de-react | Landing con el botón en «Enviando…» y deshabilitado (el servidor tarda en responder; se cancela la navegación del formulario para dejarlo en ese estado, no se envía nada) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-gracias` | anonimo | fuera-de-react | Página de gracias de la landing (cuando la vertical no tiene número de WhatsApp: «¡Gracias! Recibimos tus datos…»; SIMULADA con `paginaDeGracias`, porque el mundo siempre tiene número y el envío bueno termina en un 303 a wa.me) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-no-existe` | anonimo | fuera-de-react | Landing: «Página no encontrada» (404) para una vertical que no existe, sin aviso vigente o ambigua (la misma página para las tres, sin revelar cuál) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-enlace-malo` | anonimo | fuera-de-react | Landing: «Página no encontrada» con un enlace mal escrito (mayúsculas y símbolos: no pasa el filtro del identificador) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-oscuro` | anonimo | fuera-de-react | Landing: página de error en modo oscuro | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-origen` | anonimo | fuera-de-react | Landing: «No se pudo enviar» (403) cuando el envío no viene de la propia página (se reenvía la petición real con `Sec-Fetch-Site: cross-site`) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-demasiadas-solicitudes` | anonimo | fuera-de-react | Landing: «Demasiadas solicitudes» (429, límite por IP; SIMULADA con `paginaDeError`, para no agotar el límite del servidor de pruebas) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-error-no-disponible` | anonimo | fuera-de-react | Landing: «No disponible por ahora» (503, falla transitoria de la base; SIMULADA con `paginaDeError`) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-favicon` | anonimo | fuera-de-react | Ícono de la pestaña `/favicon.svg` abierto en su propia página (el SVG ampliado a la ventana; en la pestaña real se ve a 16 px; `web/index.html` lo declara con `<link rel=icon>`) |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-pestana-ventana-chica` | anonimo | fuera-de-react | Ícono de la pestaña a tamaño real: el favicon a 16, 32 y 64 px sobre blanco y sobre oscuro, junto al título «Iniciar sesión · Gestión» (el título lo pone `useTitulo` con `document.title = «<pantalla> · Gestión»`; la pestaña del navegador no se captura) |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-sin-javascript` | anonimo | fuera-de-react | Aviso `<noscript>` de `index.html`: «Esta aplicación necesita JavaScript.» sin hoja de estilos (SIMULADO: el navegador de pruebas tiene JS; se muestra el contenido de `<noscript>` y se impide cargar el script) |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-servidor-404-asset` | anonimo | fuera-de-react | Un archivo de `/assets/` que no existe (404): el navegador muestra una página en blanco (el servidor responde sin cuerpo, nunca el HTML de la aplicación) |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-servidor-404-extension` | anonimo | fuera-de-react | Una dirección con extensión y sin archivo (`/no-existe.js`, 404): la página de error de Express «Cannot GET /no-existe.js» en texto sin estilo |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-servidor-404-prefijo-landing` | anonimo | fuera-de-react | `/l` sin identificador (404 del servidor, no la aplicación): «Cannot GET /l» de Express |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-servidor-404-webhook-get` | anonimo | fuera-de-react | Un GET a un webhook que solo acepta POST (`/webhooks/chatwoot`, 404): «Cannot GET /webhooks/chatwoot» de Express |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-api-404-json` | anonimo | fuera-de-react | Cualquier `/api/...` abierta a mano en el navegador SIN sesión (aquí `/api/no-existe`): el JSON de «no autenticado» (401) como texto plano; la API pide sesión antes de decir si la ruta existe |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-api-404-json-mayusculas` | anonimo | fuera-de-react | `/API/...` en mayúsculas (404 JSON «Ruta no encontrada», no la aplicación): el navegador muestra el JSON como texto |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-salud` | anonimo | fuera-de-react | `/salud` (liveness): el navegador muestra el JSON `{"ok":true}` como texto |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-salud-lista` | anonimo | fuera-de-react | `/salud/lista` (readiness): el JSON con las comprobaciones (base, migraciones, barrido) como texto |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-metricas` | anonimo | fuera-de-react | `/metricas` sin token configurado (404 sin cuerpo) o sin el token (401): el navegador muestra una página en blanco |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-api-404-json-con-sesion` | administrador | fuera-de-react | `/api/...` que no existe, CON sesión de administrador: el JSON 404 «Ruta no encontrada» como texto plano |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-qr-svg` | administrador | fuera-de-react | QR de una campaña servido como imagen SVG (`/api/campanas/:id/qr?formato=svg`): lo que el navegador muestra al abrir la descarga (negro sobre blanco con zona de silencio) |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-qr-png` | administrador | fuera-de-react | QR de una campaña servido como imagen PNG (`formato=png&escala=8`): lo que el navegador muestra |  | ✔ · ✔ | ✔ · ✔ |
+| `fuera-qr-url-json` | administrador | fuera-de-react | Datos del QR de una campaña (`formato=url`): el JSON con la dirección de la landing, el código y el código formateado, como texto |  | ✔ · ✔ | ✔ · ✔ |
 
 ## Maestro (110)
 
@@ -917,7 +917,7 @@ Filas: **1016**.
 | `maestro-salud-cargando` | maestro | estado | Salud del alumno, cargando | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-salud-error-carga` | maestro | estado | Salud del alumno, con error de carga del alumno | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
 
-## Recepción (97)
+## Recepción (98)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -945,12 +945,13 @@ Filas: **1016**.
 | `recep-pagos-monto-decimales` | recepcion | formulario | Formulario de pago: monto con tres decimales, error de validación |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-monto-parcial` | recepcion | formulario | Formulario de pago: monto de $300 que se abona al cargo vencido, con la insignia «Pago parcial» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-monto-varios-cargos` | recepcion | formulario | Formulario de pago: monto de $1,000 repartido entre varios cargos, listo para registrar |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-pagos-monto-todo-el-saldo` | recepcion | formulario | Formulario de pago: el monto cubre TODO el saldo de la familia; el reparto muestra «Saldo después del pago» en cero |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-monto-mayor-al-saldo` | recepcion | formulario | Formulario de pago: monto mayor a lo que la familia adeuda, aviso «El pago pasa de lo que la familia adeuda» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-propuesta-cargando` | recepcion | estado | Formulario de pago mientras calcula el reparto: «Calculando el reparto…» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-propuesta-error` | recepcion | estado | Formulario de pago: error al calcular el reparto |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-fecha-futura` | recepcion | formulario | Formulario de pago: fecha de mañana, error «La fecha del pago no puede ser de mañana en adelante» |  | ✔ · ✔ | ✔ · ✔ |
-| `recep-pagos-metodo-tarjeta` | recepcion | formulario | Formulario de pago con método «Tarjeta» y folio de referencia |  | ✔ · ✔ | ✘ · ✘ |
-| `recep-pagos-metodo-transferencia` | recepcion | formulario | Formulario de pago con método «Transferencia», referencia y fecha de un día anterior |  | ✔ · ✔ | ✘ · ✘ |
+| `recep-pagos-metodo-tarjeta` | recepcion | formulario | Formulario de pago con método «Tarjeta» y folio de referencia |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-pagos-metodo-transferencia` | recepcion | formulario | Formulario de pago con método «Transferencia», referencia y fecha de un día anterior |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-reparto-a-mano` | recepcion | paso | Reparto a mano: parte de la propuesta del servidor, con la suma que cuadra |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-reparto-a-mano-faltan` | recepcion | formulario | Reparto a mano que no cuadra: faltan centavos, «Registrar pago» apagado |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-reparto-a-mano-errores` | recepcion | formulario | Reparto a mano con errores por cargo: «Pasa del saldo de este cargo» y un importe con letras |  | ✔ · ✔ | ✔ · ✔ |
@@ -1014,10 +1015,10 @@ Filas: **1016**.
 | `recep-pagos-recibo-impresion` | recepcion | impresion | Recibo del pago en la vista de impresión («Imprimir recibo») |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-ya-estaba-registrado` | recepcion | estado | Aviso «Este pago ya estaba registrado: no se duplicó» (reintento con la misma clave tras un corte de red) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-cancelado` | recepcion | estado | Pagos recientes con un pago cancelado (queda con su motivo, sin borrarse) y el formulario de nuevo a la vista |  | ✔ · ✔ | ✔ · ✔ |
-| `recep-cuenta-familia-tras-varios-pagos` | recepcion | estado | Estado de cuenta de la familia después de varios pagos, uno de ellos cancelado | `/cuenta/:tutorId` | ✔ · ✔ | ✘ · ✘ |
+| `recep-cuenta-familia-tras-varios-pagos` | recepcion | estado | Estado de cuenta de la familia después de varios pagos, uno de ellos cancelado | `/cuenta/:tutorId` | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-venta-registrada` | recepcion | paso | Venta registrada: aviso con el detalle y el botón «Cobrar ahora»; existencia y ventas recientes al día |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-venta-anulada` | recepcion | estado | Ventas recientes con una venta anulada (insignia «Anulada») y la pieza de vuelta en la existencia |  | ✔ · ✔ | ✔ · ✔ |
-| `recep-corte-con-cobros-y-cancelados` | recepcion | pantalla | Cierre del día con los cobros de recepción y de administración y un pago cobrado y cancelado hoy | `/corte` | ✔ · ✔ | ✘ · ✘ |
+| `recep-corte-con-cobros-y-cancelados` | recepcion | pantalla | Cierre del día con los cobros de recepción y de administración y un pago cobrado y cancelado hoy | `/corte` | ✔ · ✔ | ✔ · ✔ |
 
 ## Tableros (48)
 
