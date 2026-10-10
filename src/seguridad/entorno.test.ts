@@ -68,3 +68,18 @@ test("ENTORNO_DEMO=si deja arrancar la demo local (que corre con NODE_ENV=produc
   assert.equal(esEntornoDeDemo({ ENTORNO_DEMO: "SI" }), true);
   for (const v of ["", "no", "true", "1", "sí "]) assert.ok(impedimentosParaArrancar({ ...demo, ENTORNO_DEMO: v }).length > 0, `«${v}» no es la marca`);
 });
+
+test("V9: el ensayo local (ENSAYO_LOCAL=si, sin el bloqueo de Twilio) impide arrancar en una instalación real", () => {
+  const conEnsayo = { ...buena(), ENSAYO_LOCAL: "si" };
+  assert.ok(codigos(conEnsayo).includes("ensayo_en_produccion"));
+  assert.ok(impedimentosParaArrancar(conEnsayo).some((h) => h.codigo === "ensayo_en_produccion"));
+  const conPrefijo = { ...buena(), ENSAYO_TWILIO_BLOQUEO_PREFIJO: "apagado-" };
+  assert.ok(impedimentosParaArrancar(conPrefijo).some((h) => h.codigo === "ensayo_sin_bloqueo_en_produccion"));
+  // «SI» o con espacios también cuenta; «no» no.
+  assert.ok(codigos({ ...buena(), ENSAYO_LOCAL: " SI " }).includes("ensayo_en_produccion"));
+  assert.ok(!codigos({ ...buena(), ENSAYO_LOCAL: "no" }).includes("ensayo_en_produccion"));
+});
+
+test("V9: la demo local declarada (ENTORNO_DEMO=si) sí puede ensayar: es la máquina de quien prueba", () => {
+  assert.deepEqual(impedimentosParaArrancar({ ...buena(), ENSAYO_LOCAL: "si", ENTORNO_DEMO: "si" }), []);
+});

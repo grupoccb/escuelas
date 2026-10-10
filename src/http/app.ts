@@ -24,6 +24,8 @@ import {
   interpretarDesasignacion,
   interpretarEventoChatwoot,
   interpretarTomaDeConversacion,
+  explicarRechazoDeTwilio,
+  traeFirmaDeTwilio,
   urlPublicaDe,
   verificarWebhookChatwoot,
   verificarWebhookTwilio,
@@ -252,21 +254,55 @@ export function crearApp(deps: AppDeps): Express {
   // el cuerpo sin modificar. Rechazos: 403 sin firma válida, 5xx si el reenvío falla (Twilio
   // reintenta). Nunca se devuelve nada interno.
   const TWIML_VACIO = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response/>";
+  /**
+   * Valida la firma de una petición de Twilio contra la URL PÚBLICA configurada (nunca contra el host que llega: detrás de un túnel el host y el esquema que ve
+   * el servidor no son los que Twilio firmó). Si no cuadra, deja en el log POR QUÉ, en español y sin secretos (ensayo con WhatsApp real: la causa casi siempre
+   * es una URL distinta a la configurada en la consola de Twilio). El esquema y el host que ve el servidor solo se creen si se configuró `TRUST_PROXY`.
+   */
+  const verificarTwilio = (req: Request, cuerpo: Buffer, ruta: string, nombreLimite: string, origen: "twilio_entrante" | "twilio_estado") => {
+    const t = deps.twilio;
+    const verificado = verificarWebhookTwilio(req, cuerpo, t?.authToken, t?.publicBaseUrl ? urlPublicaDe(t.publicBaseUrl, req.originalUrl) : null);
+    if (t && verificado) return { t, verificado, fallos: null };
+    const fallos = registrarFirmaInvalida(limitador, limites, nombreLimite, req);
+    contarWebhook(origen, fallos.permitido ? "rechazado" : "limitado");
+    const explicacion = explicarRechazoDeTwilio(t?.publicBaseUrl, Boolean(t?.authToken), {
+      protocolo: req.protocol,
+      host: req.host,
+      rutaConQuery: req.originalUrl,
+      confiaEnProxy: Boolean(req.app.get("trust proxy")),
+      traeFirma: traeFirmaDeTwilio(req),
+    });
+    log.warn("webhook_twilio_rechazado", { ruta, url_esperada: explicacion.urlEsperada, url_vista: explicacion.urlVista, pistas: explicacion.pistas });
+    return { t: null, verificado: null, fallos };
+  };
+
+  // Prueba del ensayo: valida la firma como cualquier webhook de Twilio y contesta 200 sin tocar nada (ni la base, ni Chatwoot). Sirve a `npm run ensayo:diagnostico`
+  // para comprobar, a través del túnel, que la URL pública y el token cuadran antes de mandar un WhatsApp.
+  app.post("/webhooks/twilio/diagnostico", express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), (req, res) => {
+    const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const r = verificarTwilio(req, cuerpo, "/webhooks/twilio/diagnostico", "twilio", "twilio_estado");
+    if (!r.t) {
+      if (r.fallos && !r.fallos.permitido) rechazar429(res, r.fallos.reintentarEnSegundos);
+      else res.status(403).end();
+      return;
+    }
+    res.status(200).json({ ok: true });
+  });
+
+  // `/twilio/delivery_status` es la ruta donde Chatwoot manda a Twilio que avise los estados de lo que envía (su `status_callback` sale de su FRONTEND_URL, EA-02).
+  // En el ensayo esa URL es la del túnel y cae aquí: el mismo borde que `/webhooks/twilio/estados` (firma, MessageSid+estado únicos, reenvío a Chatwoot).
   for (const [ruta, tipo] of [
     ["/webhooks/twilio/entrantes", "entrante"],
     ["/webhooks/twilio/estados", "estado"],
+    ["/twilio/delivery_status", "estado"],
   ] as const) {
     const nombreLimite = `twilio${tipo === "entrante" ? "" : "-estados"}`;
     const origen = tipo === "entrante" ? ("twilio_entrante" as const) : ("twilio_estado" as const);
     app.post(ruta, express.raw({ type: () => true, limit: LIMITE_CUERPO_TWILIO }), async (req, res) => {
       const cuerpo = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-      const t = deps.twilio;
-      const verificado = verificarWebhookTwilio(req, cuerpo, t?.authToken, t?.publicBaseUrl ? urlPublicaDe(t.publicBaseUrl, req.originalUrl) : null);
+      const { t, verificado, fallos } = verificarTwilio(req, cuerpo, ruta, nombreLimite, origen);
       if (!t || !verificado) {
-        const fallos = registrarFirmaInvalida(limitador, limites, nombreLimite, req);
-        contarWebhook(origen, fallos.permitido ? "rechazado" : "limitado");
-        log.warn("webhook_twilio_rechazado", { ruta });
-        if (!fallos.permitido) rechazar429(res, fallos.reintentarEnSegundos);
+        if (fallos && !fallos.permitido) rechazar429(res, fallos.reintentarEnSegundos);
         else res.status(403).end();
         return;
       }

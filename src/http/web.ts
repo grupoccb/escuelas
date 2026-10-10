@@ -1,6 +1,6 @@
 // Interfaz web (J1): sirve el build estático de Vite (`web/dist`) en `/` con fallback de SPA.
 //
-// - Nunca toma lo que es del backend: `/api`, `/webhooks`, `/l` (landing) y `/salud` pasan de largo (`next("router")`).
+// - Nunca toma lo que es del backend: `/api`, `/webhooks`, `/twilio` (estados de entrega, V9), `/l` (landing) y `/salud` pasan de largo (`next("router")`).
 // - `/assets/*` son archivos con huella en el nombre: caché larga e inmutable. Un asset que no existe es 404, nunca el HTML.
 // - Cualquier otra ruta sin extensión (`/hoy`, `/leads/123`) devuelve `index.html` y la resuelve el enrutador del navegador; con extensión (`/x.js`) y sin archivo, 404.
 // - `index.html` va sin caché y con su propia CSP: solo scripts y estilos propios (sin inline), conexiones al propio origen y nada incrustable.
@@ -25,7 +25,7 @@ export const CSP_WEB = [
 ].join("; ");
 
 /** Rutas del backend que la interfaz nunca debe tapar. */
-const PREFIJOS_DEL_BACKEND = ["/api", "/webhooks", "/l", "/salud", "/metricas"];
+const PREFIJOS_DEL_BACKEND = ["/api", "/webhooks", "/twilio", "/l", "/salud", "/metricas"];
 
 /** El enrutador de la interfaz, o `null` si el directorio no tiene un build (`index.html`): entonces el backend sigue sin interfaz. */
 export function rutasDeWeb(directorio: string): Router | null {

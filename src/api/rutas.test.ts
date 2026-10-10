@@ -247,7 +247,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
 
 /** Lo que no cuelga de /api: tiene su propia autenticación (firma o secreto) o es público a propósito, y no usa sesión. */
 // /l/:vertical es la landing pública (E1): sin sesión a propósito; su protección (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
-const FUERA_DE_API = ["GET /salud", "GET /salud/lista", "GET /metricas", "POST /webhooks/chatwoot", "POST /webhooks/twilio/entrantes", "POST /webhooks/twilio/estados", "GET /l/:vertical", "POST /l/:vertical"];
+const FUERA_DE_API = ["GET /salud", "GET /salud/lista", "GET /metricas", "POST /webhooks/chatwoot", "POST /webhooks/twilio/entrantes", "POST /webhooks/twilio/estados", "POST /webhooks/twilio/diagnostico", "POST /twilio/delivery_status", "GET /l/:vertical", "POST /l/:vertical"];
 
 /** Los problemas entre las rutas reales y la tabla acordada. Vacío = todo en orden. */
 export function comparar(reales: RutaReal[], acordado: Record<string, Esperado>): string[] {

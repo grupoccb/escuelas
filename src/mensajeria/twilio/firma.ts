@@ -99,3 +99,58 @@ export function verificarWebhookTwilio(
   if (idempotencia) cabeceras["i-twilio-idempotency-token"] = idempotencia;
   return { params, cabeceras };
 }
+
+/** ¿La petición trae la firma de Twilio? (Para explicar un rechazo; la firma misma nunca se lee ni se guarda aquí.) */
+export const traeFirmaDeTwilio = (peticion: PeticionConEncabezados): boolean => Boolean(peticion.get("x-twilio-signature"));
+
+/** Lo que se sabe de cómo llegó una petición rechazada (para explicar el rechazo en el log, sin datos de contacto ni secretos). */
+export interface VistaDePeticionTwilio {
+  /** Esquema con el que Express vio la petición: solo es `https` detrás de un túnel si se confía en el proxy (`TRUST_PROXY`). */
+  protocolo: string;
+  /** Host con el que la vio (el túnel puede reescribirlo a `localhost`). */
+  host: string;
+  rutaConQuery: string;
+  confiaEnProxy: boolean;
+  traeFirma: boolean;
+}
+
+export interface ExplicacionDeRechazo {
+  /** La URL contra la que se calculó la firma esperada (null si no hay URL pública configurada). */
+  urlEsperada: string | null;
+  /** Cómo llegó la petición, tal cual la vio el servidor. */
+  urlVista: string;
+  pistas: string[];
+}
+
+const ES_LOCAL = /^(?:localhost|127\.\d+\.\d+\.\d+|\[?::1\]?|0\.0\.0\.0|host\.docker\.internal)$/i;
+
+/**
+ * Por qué se rechazó un webhook de Twilio, en español y para quien está haciendo el ensayo. SOLO lee configuración pública (URL, si hay token, si hay firma):
+ * nunca el token, la firma ni el cuerpo. La causa más común con Twilio real es que la URL configurada en la consola no sea EXACTAMENTE la que el
+ * backend usa para firmar (esquema, host del túnel, ruta, barra final, query).
+ */
+export function explicarRechazoDeTwilio(urlBase: string | null | undefined, hayToken: boolean, vista: VistaDePeticionTwilio): ExplicacionDeRechazo {
+  const urlEsperada = urlBase ? urlPublicaDe(urlBase, vista.rutaConQuery) : null;
+  const urlVista = `${vista.protocolo}://${vista.host}${vista.rutaConQuery}`;
+  const pistas: string[] = [];
+  if (!hayToken) pistas.push("TWILIO_AUTH_TOKEN no está configurado en el backend: sin él se rechaza todo.");
+  if (!urlBase) pistas.push("PUBLIC_BASE_URL (la URL pública, la del túnel) no está configurada en el backend: sin ella se rechaza todo.");
+  if (!vista.traeFirma) {
+    pistas.push("La petición no trae X-Twilio-Signature: no viene de Twilio, o algo en el camino la quitó.");
+  } else if (urlEsperada) {
+    pistas.push(`La firma no coincide: revisa que la URL configurada en Twilio sea exactamente ${urlEsperada}`);
+    let host = "";
+    try {
+      const u = new URL(urlEsperada);
+      host = u.hostname;
+      if (u.protocol !== "https:") pistas.push("La URL pública no es https: Twilio firma con la URL que tiene configurada y WhatsApp exige https.");
+    } catch {
+      pistas.push("La URL pública configurada no es una URL válida.");
+    }
+    if (host && ES_LOCAL.test(host)) pistas.push("La URL pública apunta a esta máquina (localhost): Twilio firma con la URL del túnel, no con la local. Pon ORIGEN_PUBLICO con la URL del túnel y vuelve a correr `npm run ensayo:preparar`.");
+    if (vista.protocolo !== "https" && !vista.confiaEnProxy) pistas.push("La petición llegó por http: es normal detrás de un túnel (él termina el https). La firma se calcula con la URL pública configurada, no con la que ve el servidor.");
+    if (vista.confiaEnProxy && vista.protocolo === "http") pistas.push("Se confía en el proxy pero no avisó https (X-Forwarded-Proto): revisa la configuración del túnel.");
+    pistas.push("También revisa que el token sea el de la misma cuenta que el SID y que la URL no cambió desde que se configuró (cada vez que el túnel se reinicia trae otra).");
+  }
+  return { urlEsperada, urlVista, pistas };
+}

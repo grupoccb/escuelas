@@ -17,7 +17,7 @@ import { log } from "./lib/log.ts";
 import { estadoDelBarrido } from "./observabilidad/proceso.ts";
 import { crearRecolector } from "./observabilidad/recolector.ts";
 import { leerMigracionesEsperadas } from "./observabilidad/salud.ts";
-import { esEntornoDeDemo, esEntornoLocal, impedimentosParaArrancar, revisarEntorno } from "./seguridad/entorno.ts";
+import { esEnsayoLocal, esEntornoDeDemo, esEntornoLocal, impedimentosParaArrancar, revisarEntorno } from "./seguridad/entorno.ts";
 import { cifradorDesdeEntorno } from "./sensibles/index.ts";
 import { crearManejadorDeInesperados } from "./webhooks/inesperado.ts";
 import { AtribucionDesdeChatwoot, EstadosEntregaChatwoot, bordeTwilioDesdeEntorno, directorioAgentesDesdeEntorno, mensajeriaDesdeEntorno, registrarEstadoEntrega, sondaChatwootDesdeEntorno } from "./mensajeria/index.ts";
@@ -31,6 +31,7 @@ if (impedimentos.length > 0) {
   process.exit(1);
 }
 if (process.env["NODE_ENV"] === "production" && esEntornoDeDemo(process.env)) log.warn("entorno_demo", { aviso: "ENTORNO_DEMO=si: este backend usa valores de demostración públicos. NO es un despliegue real." });
+if (esEnsayoLocal(process.env)) log.warn("entorno_ensayo", { aviso: "ENSAYO_LOCAL=si: ensayo con WhatsApp real en la máquina local. Solo para eso; nunca en un despliegue real.", url_publica: process.env["PUBLIC_BASE_URL"] ?? null });
 for (const h of revisarEntorno().filter((x) => !x.grave)) log.warn("entorno_aviso", { codigo: h.codigo, mensaje: h.mensaje });
 
 const prisma = crearPrisma();

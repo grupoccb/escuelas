@@ -13,7 +13,7 @@ import { log } from "../../lib/log.ts";
 import { crearBordeTwilio, type BordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso, ReenviadorTwilioHttp, type ReenviadorTwilio } from "./reenviador.ts";
 
-export { calcularFirmaTwilio, verificarFirmaTwilio, verificarWebhookTwilio, urlPublicaDe, parsearFormulario, variantesDeUrl, type ParametrosTwilio } from "./firma.ts";
+export { calcularFirmaTwilio, explicarRechazoDeTwilio, traeFirmaDeTwilio, verificarFirmaTwilio, verificarWebhookTwilio, urlPublicaDe, parsearFormulario, variantesDeUrl, type ExplicacionDeRechazo, type ParametrosTwilio, type VistaDePeticionTwilio } from "./firma.ts";
 export {
   crearBordeTwilio,
   normalizarFromEnCuerpo,

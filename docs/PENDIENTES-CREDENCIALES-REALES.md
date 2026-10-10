@@ -2,6 +2,20 @@
 
 Todo el sistema se probó con servicios simulados (transporte falso, Chatwoot local con Twilio apuntado a loopback, Terraform sin desplegar). Esta es la lista de lo que **no se puede comprobar sin credenciales o sin el mundo real**, en el orden en que conviene hacerlo. Cada punto dice qué es, quién lo hace, y cómo se sabe que quedó bien. Las decisiones de producto abiertas y los `[SUPUESTO]` del catálogo están aparte, en `docs/SUPUESTOS-Y-DECISIONES.md`.
 
+## 0. Lo que cubre el ensayo con el sandbox de WhatsApp (V9)
+
+`docs/ENSAYO-WHATSAPP-REAL.md` deja a Eduardo comprobar, en su Mac y con su celular, una parte de la sección 2 y de la 3 **sin AWS, sin dominio y sin número verificado**. Qué quedó cubierto por el ensayo y qué no:
+
+| Punto | Con el ensayo | Sigue pendiente |
+|---|---|---|
+| 2.4 Webhooks y firma | Un mensaje real aparece en Chatwoot y el bot contesta; una firma falsa o calculada con otra URL da 403 y el log dice por qué. Se prueba la firma contra la URL del túnel. | Con el dominio definitivo (`https://app.<dominio>`) y el número verificado. |
+| 2.6 Estados de entrega de la vía A (EA-02) | **Resuelto en el código:** el `status_callback` de Chatwoot (su `FRONTEND_URL` + `/twilio/delivery_status`) cae en el borde del backend, que valida la firma, deduplica y reenvía. Es la opción (b) de EA-02. En el ensayo se comprueba `enviado → entregado → leído` y un `fallido` real. | En AWS: apuntar el `FRONTEND_URL` de Chatwoot a una dirección que pase por el backend (o publicar `/twilio/delivery_status` del backend en el balanceador). |
+| 2.7 Envío desde Chatwoot con Twilio real | Un mensaje libre del asesor llega al celular y queda con el `MessageSid` real. | **Plantillas** (Content Templates), formato de `template_params` y fuera de la ventana de 24 h. |
+| 3.1 Bandeja de WhatsApp por Twilio en Chatwoot | Se crea y se conecta al Agent Bot con `npm run ensayo:preparar` (sin asignación automática, EA-22, en esa bandeja). | La bandeja de producción y su verificación al arrancar (EA-22). |
+| 4.1 `+521` / `+52` | Con **un** celular, las dos formas dan un solo lead (`npm run ensayo:entrante`). | Telcel, AT&T y Movistar por separado. |
+| 2.1, 2.2, 2.3, 2.5, 2.8 | — | Todo: WABA verificada, números definitivos, plantillas aprobadas, el sandbox **no** trae los `Referral*` de un anuncio Click-to-WhatsApp. |
+| Sección 1 y 3.2 a 3.5, 4.2 a 4.10 | — | Todo. |
+
 ## 1. Cuentas y dominio (antes de todo)
 
 | # | Qué | Quién | Listo cuando |

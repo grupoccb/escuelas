@@ -12,6 +12,8 @@ export interface Bandeja {
   name: string;
   channel_type: string;
   inbox_identifier?: string;
+  /** Solo en las bandejas de Twilio. */
+  phone_number?: string | null;
 }
 
 export interface MensajePublico {
@@ -64,6 +66,23 @@ export class ClienteChatwoot {
   /** Apaga la asignación automática de una bandeja que ya existe (ver crearBandejaApi). */
   async sinAsignacionAutomatica(cuenta: number, bandeja: number): Promise<void> {
     await this.admin("PATCH", `/api/v1/accounts/${cuenta}/inboxes/${bandeja}`, { enable_auto_assignment: false });
+  }
+
+  /**
+   * Bandeja de WhatsApp por Twilio (ensayo, V9). Chatwoot valida las credenciales contra Twilio al crearla (`messages.list`) y por eso su contenedor tiene
+   * que alcanzar la API de Twilio (docker-compose.yml, `ENSAYO_TWILIO_BLOQUEO_PREFIJO`). Si el número ya está en otra bandeja, Chatwoot responde 422.
+   */
+  async crearBandejaTwilio(cuenta: number, datos: { nombre: string; sid: string; token: string; numero: string }): Promise<Bandeja> {
+    await this.admin("POST", `/api/v1/accounts/${cuenta}/channels/twilio_channel`, {
+      twilio_channel: { name: datos.nombre, account_sid: datos.sid, auth_token: datos.token, phone_number: datos.numero, medium: "whatsapp" },
+    });
+    const creada = (await this.bandejas(cuenta)).find((b) => b.channel_type === "Channel::TwilioSms" && b.name === datos.nombre);
+    if (!creada) throw new Error("Chatwoot aceptó crear la bandeja de Twilio pero no aparece en la lista");
+    return creada;
+  }
+
+  async actualizarCredencialesTwilio(cuenta: number, bandeja: number, datos: { sid: string; token: string }): Promise<void> {
+    await this.admin("PATCH", `/api/v1/accounts/${cuenta}/inboxes/${bandeja}`, { channel: { account_sid: datos.sid, auth_token: datos.token } });
   }
 
   async asignarBot(cuenta: number, bandeja: number, bot: number): Promise<void> {

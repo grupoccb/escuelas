@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const leer = (ruta: string): string => readFileSync(new URL(`../../${ruta}`, import.meta.url), "utf8");
 const dockerfile = leer("Dockerfile");
@@ -45,4 +45,32 @@ test("docker-compose: el backend y demo-preparar usan el objetivo «demo», se d
   assert.ok(puertos.length >= 3, `puertos: ${puertos.join(", ")}`);
   for (const p of puertos) assert.ok(p.startsWith("127.0.0.1:"), `el puerto ${p} se publica a toda la red`);
   assert.match(c, /TRUST_PROXY: "false"/);
+});
+
+// V9: el ensayo con WhatsApp real relaja UNA cosa del compose (el bloqueo de los dominios de Twilio, por variable) y agrega UN servicio con perfil. Esto lo vigila.
+test("V9 docker-compose: el ensayo es un perfil, no cambia la demo por omisión y su puerta pública solo deja pasar a Twilio", () => {
+  const c = leer("docker-compose.yml");
+  // El servicio del ensayo solo existe con su perfil y se publica en el loopback.
+  const borde = c.slice(c.indexOf("  ensayo-borde:"), c.indexOf("  chatwoot-postgres:"));
+  assert.match(borde, /profiles: \["ensayo"\]/);
+  assert.match(borde, /"127\.0\.0\.1:3100:3100"/);
+  assert.match(borde, /scripts\/ensayo-borde\.ts/);
+  // Por omisión (sin .env): el bloqueo de Twilio sigue, y Chatwoot y el backend conservan sus direcciones de siempre.
+  for (const dominio of ["api", "messaging", "content", "media"]) {
+    assert.ok(c.includes(`"\${ENSAYO_TWILIO_BLOQUEO_PREFIJO:-}${dominio}.twilio.com:127.0.0.1"`), `el bloqueo de ${dominio}.twilio.com se apaga solo con ENSAYO_TWILIO_BLOQUEO_PREFIJO`);
+  }
+  assert.match(c, /FRONTEND_URL: \$\{ORIGEN_PUBLICO:-http:\/\/localhost:3001\}/);
+  assert.match(c, /ORIGEN_PUBLICO: \$\{ORIGEN_PUBLICO:-http:\/\/localhost:3000\}/);
+  assert.match(c, /PUBLIC_BASE_URL: \$\{ORIGEN_PUBLICO:-\}/);
+  assert.match(c, /TWILIO_AUTH_TOKEN: \$\{TWILIO_AUTH_TOKEN:-\}/);
+  // Nada del ensayo viene fijo en el archivo (ni un token, ni la marca).
+  assert.ok(!/ENSAYO_LOCAL: (?:si|"si")/.test(c));
+  assert.ok(!/TWILIO_AUTH_TOKEN: [^$\s]/.test(c));
+});
+
+test("V9: ningún archivo de infraestructura de AWS lleva variables del ensayo (el ensayo es solo local)", () => {
+  const dir = new URL("../../infra/", import.meta.url);
+  const archivos = readdirSync(dir).filter((f) => /\.(?:tf|tfvars|example|hcl)$/.test(f));
+  assert.ok(archivos.length > 5);
+  for (const f of archivos) assert.ok(!/ENSAYO_|ensayo-borde/.test(readFileSync(new URL(f, dir), "utf8")), `${f} menciona el ensayo`);
 });

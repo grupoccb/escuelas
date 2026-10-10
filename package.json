@@ -41,7 +41,10 @@
     "catalogo:plantillas": "node scripts/catalogo-plantillas.ts",
     "catalogo:importar": "node --env-file-if-exists=.env scripts/catalogo-importar.ts",
     "guias:capturas": "GUIAS_ESCRIBIR=1 node scripts/test-navegador.ts -- e2e/v8-guias.spec.ts e2e/v8-impresion-guias.spec.ts",
-    "guias:validar": "node --test scripts/guias-validar.test.ts"
+    "guias:validar": "node --test scripts/guias-validar.test.ts",
+    "ensayo:preparar": "node --env-file=config/demo-local.env --env-file-if-exists=.env scripts/ensayo-preparar.ts",
+    "ensayo:entrante": "node --env-file=config/demo-local.env --env-file-if-exists=.env scripts/ensayo-entrante.ts",
+    "ensayo:diagnostico": "node --env-file=config/demo-local.env --env-file-if-exists=.env scripts/ensayo-diagnostico.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {

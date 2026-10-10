@@ -118,6 +118,10 @@ La familia que escribe trae a un niño; muchas traen a dos o más. Cuando el ase
 | `deuda_vencida` | Una familia lleva más de 15 días de atraso | Llámale; ofrece regularizar; se resuelve sola al saldarse |
 | `cobranza_sin_canal` | No hay conversación de WhatsApp para mandar el recordatorio de pago | Cobra por llamada o por otro medio |
 
+## Ensayo con WhatsApp real (V9)
+
+Para probar la demo con un celular de verdad, sin AWS: `docs/ENSAYO-WHATSAPP-REAL.md` (pasos, comprobaciones, qué hacer si algo falla y cómo regresar al modo simulado). Comandos: `npm run ensayo:preparar` (crea la bandeja de Twilio en Chatwoot y apunta el canal; `--simulado` ensaya en seco, `--revertir` regresa), `npm run ensayo:diagnostico` (✔/✘ en 10 segundos) y `npm run ensayo:entrante` (un entrante firmado, para `+521`/`+52`). Compose: `docker compose --profile ensayo up -d --wait` agrega `ensayo-borde` (puerto 3100, la única puerta que se expone al túnel); lo único que se relaja es el bloqueo de los dominios de Twilio del Chatwoot local, por la variable `ENSAYO_TWILIO_BLOQUEO_PREFIJO` de `.env`. Cómo se firma contra la URL pública: `docs/DECISION-ATRIBUCION.md` (A7) y el log `webhook_twilio_rechazado`, que dice en español qué URL esperaba.
+
 ## Variables de producción
 
 El backend **se niega a arrancar** en producción si falta o es débil algo de esto (`src/seguridad/entorno.ts`; mensaje `entorno_inseguro` con el código de cada problema). En AWS las pone `infra/ecs.tf`; para otro despliegue:
@@ -134,7 +138,7 @@ El backend **se niega a arrancar** en producción si falta o es débil algo de e
 | `METRICAS_TOKEN` | Para leer `/metricas` (sin él, la ruta no existe) |
 | `LIMITE_*` | Límites por IP (valores por omisión sensatos; `docs/API.md`) |
 
-NO existen en producción: `ENTORNO_DEMO`, `config/demo-local.env` ni ningún valor que contenga «demo-local». Los usuarios de la demo (`admin@demo.test`… con la contraseña pública `Demo-local-2026!`) solo se crean con el seed de la demo: **nunca corras `prisma/seed/demo.sql` en la base de una escuela real** (usa `prisma/seed/plantilla-organizacion.sql`; `docs/ALTA-DE-CLIENTE.md`).
+NO existen en producción: `ENSAYO_LOCAL` y `ENSAYO_TWILIO_BLOQUEO_PREFIJO` (V9: son solo del ensayo con WhatsApp real en la Mac de Eduardo, `docs/ENSAYO-WHATSAPP-REAL.md`; el backend se niega a arrancar con ellas), `ENTORNO_DEMO`, `config/demo-local.env` ni ningún valor que contenga «demo-local». Los usuarios de la demo (`admin@demo.test`… con la contraseña pública `Demo-local-2026!`) solo se crean con el seed de la demo: **nunca corras `prisma/seed/demo.sql` en la base de una escuela real** (usa `prisma/seed/plantilla-organizacion.sql`; `docs/ALTA-DE-CLIENTE.md`).
 
 ## Rutina
 

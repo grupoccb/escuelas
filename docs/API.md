@@ -607,6 +607,9 @@ lanzar al barrido (una restricción de la base), queda `abandonado` con constanc
 
 **No cubierto** (documentado): un cuerpo mayor al límite de la ruta responde 413 antes de leerse (no se sabe de qué organización es); y el límite de peticiones (429) sigue siendo del proveedor.
 
+
+**Rutas de Twilio adicionales (V9, ensayo con WhatsApp real).** `POST /twilio/delivery_status` hace lo mismo que `POST /webhooks/twilio/estados` (firma contra `PUBLIC_BASE_URL` + la ruta, deduplicación por `MessageSid` + estado, reenvío a Chatwoot): es la dirección que Chatwoot pone como `status_callback` de lo que manda cuando su `FRONTEND_URL` es la dirección pública. `POST /webhooks/twilio/diagnostico` solo valida la firma y contesta `{"ok":true}` (403 si no cuadra), sin tocar base ni Chatwoot. Un rechazo deja en el log `webhook_twilio_rechazado` con `url_esperada`, `url_vista` y `pistas` (en español, sin token, firma ni cuerpo).
+
 ## Asistencia: pase de lista (G1)
 
 Código: `src/asistencia/` (`pase.ts` las reglas y el guardado, `alcance.ts`), `src/api/rutas/asistencia.ts`. Tabla `asistencia` (migración `20261019000000_asistencia`): `inscripcion_id`, `grupo_id` (el grupo en que

@@ -32,6 +32,14 @@ export function esEntornoLocal(env: NodeJS.ProcessEnv): boolean {
   return env["NODE_ENV"] !== "production" || esEntornoDeDemo(env);
 }
 
+/**
+ * V9: `ENSAYO_LOCAL=si` marca el ensayo con WhatsApp real en la máquina de Eduardo (docs/ENSAYO-WHATSAPP-REAL.md): Chatwoot sin el bloqueo de los dominios de
+ * Twilio y con una URL pública (el túnel) para que Twilio lo alcance. SOLO es para ese ensayo local; una instalación real no puede traerlo.
+ */
+export function esEnsayoLocal(env: NodeJS.ProcessEnv): boolean {
+  return (env["ENSAYO_LOCAL"] ?? "").trim().toLowerCase() === "si";
+}
+
 export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDeEntorno[] {
   if (env["NODE_ENV"] !== "production") return [];
   const hallazgos: HallazgoDeEntorno[] = [];
@@ -47,6 +55,10 @@ export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDe
     .map(([k]) => k)
     .sort();
   if (conMarcaDeDemo.length > 0) grave("valores_de_demo", `Variables con valores de demostración: ${conMarcaDeDemo.join(", ")}. Son públicas (están en el repositorio).`);
+
+  // V9: el ensayo local no existe en un despliegue real. (En la demo local, que declara ENTORNO_DEMO=si, sí puede estar: es la máquina de quien ensaya.)
+  if (esEnsayoLocal(env)) grave("ensayo_en_produccion", "ENSAYO_LOCAL=si es solo para el ensayo con WhatsApp real en la máquina de Eduardo (docs/ENSAYO-WHATSAPP-REAL.md): relaja el bloqueo de Twilio y usa un túnel público. Quítalo.");
+  if (env["ENSAYO_TWILIO_BLOQUEO_PREFIJO"]) grave("ensayo_sin_bloqueo_en_produccion", "ENSAYO_TWILIO_BLOQUEO_PREFIJO solo existe para el ensayo local. Quítalo.");
 
   const bd = env["DATABASE_URL"];
   if (bd) {

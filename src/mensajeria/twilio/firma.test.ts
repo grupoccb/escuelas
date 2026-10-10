@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { calcularFirmaTwilio, parsearFormulario, urlPublicaDe, variantesDeUrl, verificarFirmaTwilio, verificarWebhookTwilio } from "./firma.ts";
+import { calcularFirmaTwilio, explicarRechazoDeTwilio, parsearFormulario, urlPublicaDe, variantesDeUrl, verificarFirmaTwilio, verificarWebhookTwilio } from "./firma.ts";
 
 // Implementación independiente y mínima del algoritmo documentado, para no probar el código con él mismo.
 function firmaIndependiente(token: string, url: string, params: Record<string, string>): string {
@@ -97,4 +97,22 @@ test("verificarWebhookTwilio: devuelve parámetros y cabeceras a reenviar, o nul
   assert.equal(verificarWebhookTwilio(peticion({ "x-twilio-signature": firma }), cuerpo, "", URL_ENTRANTES), null);
   assert.equal(verificarWebhookTwilio(peticion({ "x-twilio-signature": firma }), cuerpo, TOKEN, null), null, "sin URL pública configurada");
   assert.equal(verificarWebhookTwilio(peticion({ "x-twilio-signature": firma }), Buffer.from("Body=otro"), TOKEN, URL_ENTRANTES), null, "cuerpo alterado");
+});
+
+test("explicarRechazoDeTwilio: dice a qué URL exacta debe apuntar Twilio y no menciona ni la firma ni el token", () => {
+  const e = explicarRechazoDeTwilio("https://t.example.test/", true, { protocolo: "http", host: "localhost:3100", rutaConQuery: "/webhooks/twilio/entrantes", confiaEnProxy: false, traeFirma: true });
+  assert.equal(e.urlEsperada, "https://t.example.test/webhooks/twilio/entrantes");
+  assert.equal(e.urlVista, "http://localhost:3100/webhooks/twilio/entrantes");
+  assert.ok(e.pistas[0]!.startsWith("La firma no coincide: revisa que la URL configurada en Twilio sea exactamente https://t.example.test/webhooks/twilio/entrantes"));
+  assert.ok(e.pistas.some((p) => p.includes("llegó por http")));
+});
+
+test("explicarRechazoDeTwilio: sin firma, sin token o sin URL pública, o con URL local o http", () => {
+  const vista = { protocolo: "https", host: "t.example.test", rutaConQuery: "/x", confiaEnProxy: true, traeFirma: false };
+  assert.ok(explicarRechazoDeTwilio("https://t.example.test", true, vista).pistas.some((p) => p.includes("no trae X-Twilio-Signature")));
+  assert.ok(explicarRechazoDeTwilio("https://t.example.test", false, vista).pistas.some((p) => p.includes("TWILIO_AUTH_TOKEN no está configurado")));
+  assert.ok(explicarRechazoDeTwilio(null, true, vista).pistas.some((p) => p.includes("PUBLIC_BASE_URL")));
+  const local = explicarRechazoDeTwilio("http://localhost:3000", true, { ...vista, traeFirma: true });
+  assert.ok(local.pistas.some((p) => p.includes("apunta a esta máquina")));
+  assert.ok(local.pistas.some((p) => p.includes("no es https")));
 });

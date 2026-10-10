@@ -31,6 +31,8 @@ export { ventanaServicioDesde, ventanaGratisDesde } from "./reglas.ts";
 export {
   bordeTwilioDesdeEntorno,
   crearBordeTwilio,
+  explicarRechazoDeTwilio,
+  traeFirmaDeTwilio,
   normalizarFromEnCuerpo,
   ReenviadorTwilioFalso,
   ReenviadorTwilioHttp,
@@ -39,6 +41,7 @@ export {
   type AlertasBorde,
   type BordeTwilio,
   type EntradaBorde,
+  type ExplicacionDeRechazo,
   type ResumenReenvio,
   type ReenviadorTwilio,
   type ResultadoBorde,

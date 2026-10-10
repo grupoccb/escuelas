@@ -27,6 +27,8 @@ export const PATRONES_DE_LLAVES: { re: RegExp; que: string }[] = [
   { re: /\b[sr]k_live_[A-Za-z0-9]{16,}\b/, que: "llave de Stripe en vivo" },
   { re: /\beyJ[A-Za-z0-9_-]{15,}\.eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{10,}\b/, que: "JWT" },
   { re: /\baws_secret_access_key\s*[=:]\s*\S{20,}/i, que: "llave secreta de AWS" },
+  // V9: el auth token de Twilio (32 hexadecimales) asignado a su variable. Solo vive en `.env`; ni en un documento ni en un test.
+  { re: /\bTWILIO_AUTH_TOKEN\b["']?\s*[:=]\s*["']?[0-9a-fA-F]{32}\b/, que: "auth token de Twilio" },
 ];
 
 /** Asignaciones de secretos con un valor que parece aleatorio (24+ caracteres sin espacios). Solo en archivos de configuración. */
@@ -73,8 +75,20 @@ function archivosVersionados(raiz: string): string[] {
   return salida;
 }
 
+/** V9: los secretos del ensayo viven en `.env`; si `.gitignore` deja de ignorarlo, un `git add .` los subiría. */
+function gitignoreSinEnv(raiz: string): boolean {
+  let texto: string;
+  try {
+    texto = readFileSync(join(raiz, ".gitignore"), "utf8");
+  } catch {
+    return false; // sin .gitignore (un directorio que no es el repositorio): no hay nada que comprobar
+  }
+  return !texto.split("\n").some((l) => /^\/?\.env\s*$/.test(l));
+}
+
 export function revisarSecretos(raiz: string = RAIZ_REPO): HallazgoDeSecreto[] {
   const hallazgos: HallazgoDeSecreto[] = [];
+  if (gitignoreSinEnv(raiz)) hallazgos.push({ archivo: ".gitignore", linea: 0, que: "no ignora «.env», donde viven los secretos (ensayo con WhatsApp real)" });
   for (const archivo of archivosVersionados(raiz)) {
     if (EXTENSIONES_BINARIAS.test(archivo) || archivo === "package-lock.json" || archivo === "web/package-lock.json" || archivo === "infra/.terraform.lock.hcl") continue;
     const nombre = archivo.split("/").pop()!;

@@ -25,6 +25,7 @@ test("detecta llaves de proveedores aunque estén en un test o en un documento",
     ["const k = 'AKI" + "AABCDEFGHIJKLMNOP'", "llave de acceso de AWS"],
     [`sid = AC${"0123456789abcdef".repeat(2)}`, "SID de cuenta de Twilio"],
     [`SK${"0123456789abcdef".repeat(2)}`, "API key de Twilio"],
+    [`TWILIO_AUTH_TOKEN=${"0123456789abcdef".repeat(2)}`, "auth token de Twilio"],
     ["gh" + "p_" + "A".repeat(36), "token de GitHub"],
     ["xo" + "xb-1234567890-abcdefghij", "token de Slack"],
     ["sk_" + "live_" + "a1B2c3D4e5F6g7H8i9", "llave de Stripe en vivo"],
@@ -52,4 +53,12 @@ test("las referencias (variables, Secrets Manager, generadores) y los comentario
     ".env.example": `# TWILIO_AUTH_TOKEN=${aleatorio}\nDATABASE_URL=postgresql://u:p@localhost/db\n`,
   });
   assert.deepEqual(revisarSecretos(dir), []);
+});
+
+test("V9: el .gitignore tiene que ignorar «.env» (ahí viven los secretos del ensayo); un token de Twilio con otra forma o en un comentario de ejemplo sin valor no es hallazgo", () => {
+  assert.deepEqual(revisarSecretos(repo({ ".gitignore": "node_modules/\n.env\n.env.*\n" })), []);
+  const h = revisarSecretos(repo({ ".gitignore": "node_modules/\n.env.*\n" }));
+  assert.ok(h.some((x) => x.archivo === ".gitignore" && /no ignora/.test(x.que)));
+  // La guía del ensayo puede mostrar la variable sin valor o con uno de ejemplo que no es un token.
+  assert.deepEqual(revisarSecretos(repo({ "docs/guia.md": "TWILIO_AUTH_TOKEN=tu_token_aqui\nTWILIO_AUTH_TOKEN=\n" })), []);
 });

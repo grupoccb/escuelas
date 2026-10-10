@@ -16,7 +16,9 @@ x-chatwoot-env: &chatwoot-env
   INSTALLATION_ENV: docker
   RAILS_LOG_TO_STDOUT: "true"
   SECRET_KEY_BASE: solo-desarrollo-local-cambiar-en-produccion-0123456789abcdef
-  FRONTEND_URL: http://localhost:3001
+  # Ensayo con WhatsApp real (V9): Chatwoot pone este FRONTEND_URL en el `status_callback` de cada mensaje que manda por Twilio, así que en el ensayo tiene
+  # que ser la URL pública del túnel (ORIGEN_PUBLICO de .env). Sin esa variable, es el de siempre.
+  FRONTEND_URL: ${ORIGEN_PUBLICO:-http://localhost:3001}
   ENABLE_ACCOUNT_SIGNUP: "false"
   POSTGRES_HOST: chatwoot-postgres
   POSTGRES_USERNAME: chatwoot
@@ -28,12 +30,17 @@ x-chatwoot-env: &chatwoot-env
 
 # Guarda local: el Chatwoot de desarrollo nunca debe poder alcanzar Twilio real, ni siquiera con
 # credenciales falsas (PLAN-NOCHE: nada contra Twilio real). Los dominios resuelven a loopback.
+#
+# ENSAYO CON WHATSAPP REAL (V9, docs/ENSAYO-WHATSAPP-REAL.md). SOLO para el ensayo en la máquina de Eduardo, nunca en un despliegue real: con
+# `ENSAYO_TWILIO_BLOQUEO_PREFIJO=apagado-` en .env, el bloqueo se pone sobre «apagado-api.twilio.com» (un nombre que nadie usa) y Chatwoot ve el
+# verdadero. Es lo único que se relaja aquí: los cuatro dominios de Twilio dejan de apuntar a loopback. Sin la variable (lo normal) no cambia nada.
+# El backend se niega a arrancar en un despliegue real si trae esa variable (src/seguridad/entorno.ts).
 x-sin-twilio: &sin-twilio
   extra_hosts:
-    - "api.twilio.com:127.0.0.1"
-    - "messaging.twilio.com:127.0.0.1"
-    - "content.twilio.com:127.0.0.1"
-    - "media.twilio.com:127.0.0.1"
+    - "${ENSAYO_TWILIO_BLOQUEO_PREFIJO:-}api.twilio.com:127.0.0.1"
+    - "${ENSAYO_TWILIO_BLOQUEO_PREFIJO:-}messaging.twilio.com:127.0.0.1"
+    - "${ENSAYO_TWILIO_BLOQUEO_PREFIJO:-}content.twilio.com:127.0.0.1"
+    - "${ENSAYO_TWILIO_BLOQUEO_PREFIJO:-}media.twilio.com:127.0.0.1"
     - "host.docker.internal:host-gateway"
 
 x-backend: &backend
@@ -75,7 +82,12 @@ services:
       ENTORNO_DEMO: "si"
       # K4: /metricas (formato Prometheus) con un token de demostración: curl -H "Authorization: Bearer $METRICAS_TOKEN" http://localhost:3000/metricas
       METRICAS_TOKEN: demo-local-metricas-token-0001-solo-demo
-      ORIGEN_PUBLICO: http://localhost:3000
+      # Ensayo con WhatsApp real (V9): ORIGEN_PUBLICO de .env es la URL https del túnel; entonces es también la URL con la que Twilio firma sus llamadas
+      # (PUBLIC_BASE_URL) y el borde de Twilio se enciende con TWILIO_AUTH_TOKEN. Sin ellas (lo normal) todo queda apagado y la demo no cambia.
+      ORIGEN_PUBLICO: ${ORIGEN_PUBLICO:-http://localhost:3000}
+      PUBLIC_BASE_URL: ${ORIGEN_PUBLICO:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      ENSAYO_LOCAL: ${ENSAYO_LOCAL:-}
       # Interfaz web (J3): la ficha del lead arma el enlace a su conversación con esta URL pública de Chatwoot (la que abre el navegador).
       CHATWOOT_URL_PUBLICA: http://localhost:3001
       # IP real de los clientes (EB-04). En la demo el puerto 3000 se publica directamente (no hay balanceador):
@@ -99,6 +111,31 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/salud || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ENSAYO (V9): perfil `ensayo`. La ÚNICA puerta pública del ensayo. El túnel apunta aquí (127.0.0.1:3100), no al backend: deja pasar solo los POST de
+  # Twilio (/webhooks/twilio/entrantes, /estados, /diagnostico y /twilio/delivery_status) y el GET /salud; todo lo demás (la interfaz, /api con las contraseñas
+  # públicas de la demo, /metricas, Chatwoot) da 404. Sin el perfil no existe.
+  #   docker compose --profile ensayo up -d --wait
+  ensayo-borde:
+    profiles: ["ensayo"]
+    build:
+      context: .
+      target: demo
+    image: inscripciones-backend:local
+    command: ["node", "scripts/ensayo-borde.ts"]
+    environment:
+      PORT: "3100"
+      DESTINO: http://backend:3000
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/salud || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
