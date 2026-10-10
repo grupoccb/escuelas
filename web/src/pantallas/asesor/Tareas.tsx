@@ -27,9 +27,17 @@ export function TarjetaDeTarea({ tarea, alCambiar, conEnlaceAlLead = true }: { t
         <strong>{tipo.titulo}</strong>
         <Insignia tono={tarea.estado === "pendiente" ? "alerta" : tarea.estado === "hecha" ? "exito" : "neutro"}>{tarea.estado === "pendiente" ? "Pendiente" : tarea.estado === "hecha" ? "Hecha" : "Descartada"}</Insignia>
       </div>
+      {/* V7: de qué familia es. Sin esto, una lista de tareas no dice a quién hay que llamar. */}
+      {conEnlaceAlLead && tarea.lead ? (
+        <p data-prueba="familia-de-la-tarea">
+          <strong>{tarea.lead.nombre_contacto ?? "Sin nombre"}</strong>
+          {tarea.lead.telefono ? <span className="muted"> · {tarea.lead.telefono}</span> : null}
+        </p>
+      ) : null}
       {tipo.ayuda ? <p className="muted">{tipo.ayuda}</p> : null}
       <p>{tarea.descripcion}</p>
-      {tarea.codigo_error !== null ? <p className="muted">Código de error: {tarea.codigo_error}</p> : null}
+      {/* El código de error ya viene dicho en el texto de la tarea cuando nace de un mensaje no entregado: no se repite. */}
+      {tarea.codigo_error !== null && !tarea.descripcion.includes(String(tarea.codigo_error)) ? <p className="muted">Código que reportó WhatsApp: {tarea.codigo_error}</p> : null}
       <p className="muted">
         Creada: {formatearInstante(tarea.creado_en)}
         {tarea.vence_en ? ` · Vence: ${formatearInstante(tarea.vence_en)}` : ""}
@@ -38,7 +46,7 @@ export function TarjetaDeTarea({ tarea, alCambiar, conEnlaceAlLead = true }: { t
       <div className="fila">
         {conEnlaceAlLead && tarea.lead_id ? (
           <Link className="boton" to={`/leads/${tarea.lead_id}`}>
-            Abrir el lead
+            Abrir la ficha
           </Link>
         ) : null}
         {tarea.estado === "pendiente" && puede("tareas:resolver") ? (

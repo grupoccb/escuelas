@@ -35,7 +35,7 @@ const REGLAS: readonly (readonly [Modulo, readonly string[]])[] = [
   [
     "captacion",
     [
-      "/api/sesion", "/api/yo", "/api/yo/*", "/api/modulos", "/api/configuracion", "/api/textos-bot", "/api/textos-bot/*", "/api/registro-cambios", "/api/salud-accesos", "/api/eventos-inesperados",
+      "/api/sesion", "/api/yo", "/api/yo/*", "/api/modulos", "/api/administracion/*", "/api/configuracion", "/api/textos-bot", "/api/textos-bot/*", "/api/registro-cambios", "/api/salud-accesos", "/api/eventos-inesperados",
       "/api/usuarios", "/api/usuarios/*",
       "/api/grupos", "/api/grupos/:id",
       "/api/verticales", "/api/verticales/*", "/api/sucursales", "/api/sucursales/*", "/api/programas", "/api/programas/*", "/api/salones", "/api/salones/*",

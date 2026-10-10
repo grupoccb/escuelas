@@ -3,16 +3,18 @@
 
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { coincide } from "../../lib/texto.ts";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { DIAS, enteroDe, filaDeHorario, horariosParaApi, resumenDeHorarios, type FilaDeHorario } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { GrupoAdmin, InstructorAdmin, ProgramaAdmin, SalonAdmin } from "./tipos.ts";
 
-function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerrar }: { grupo: GrupoAdmin | null; programas: ProgramaAdmin[]; instructores: InstructorAdmin[]; salones: SalonAdmin[]; alGuardar: () => void; alCerrar: () => void }) {
+function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerrar }: { grupo: GrupoAdmin | null; programas: ProgramaAdmin[]; instructores: InstructorAdmin[]; salones: SalonAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [programaId, setProgramaId] = useState(grupo?.programa.id ?? "");
   const [nombre, setNombre] = useState(grupo?.nombre ?? "");
   const [cupo, setCupo] = useState(grupo ? String(grupo.cupo_maximo) : "");
@@ -23,7 +25,8 @@ function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerr
   const [activo, setActivo] = useState(grupo?.activo ?? true);
   const [local, setLocal] = useState<Record<string, string>>({});
   const guardar = useAccion();
-  const servidor = guardar.error?.porCampo() ?? {};
+  // Un choque de salón o de instructor trae el detalle de qué se pisa con qué: sale COMPLETO en el aviso del guardado (junto a los botones), no repetido junto a cada campo.
+  const { salon_id: _salon, instructor_id: _instructor, ...servidor } = guardar.error?.porCampo() ?? {};
   const err = (k: string) => local[k] ?? servidor[k];
   const programa = programas.find((p) => p.id === programaId);
   const delaSucursal = salones.filter((s) => programa && s.sucursal_id === programa.sucursal_id && s.activo);
@@ -33,6 +36,7 @@ function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerr
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -48,7 +52,7 @@ function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerr
         void guardar.ejecutar(async () => {
           if (grupo) await api.patch(`/api/grupos/${grupo.id}`, comun);
           else await api.post("/api/grupos", { programa_id: programaId, ...comun });
-          alGuardar();
+          alGuardar(comun.nombre);
         });
       }}
     >
@@ -87,7 +91,7 @@ function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerr
         </div>
       </fieldset>
       <CampoCasilla etiqueta="Activo" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["programa_id", "nombre", "cupo_maximo", "horarios"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -100,23 +104,31 @@ function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerr
 
 export default function Grupos() {
   useTitulo("Grupos y horarios");
+  const { avisar } = useAvisos();
   const [programaId, setProgramaId] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
   const programas = useCarga((senal) => api.get<Pag<ProgramaAdmin>>("/api/programas", { limite: 100 }, senal), []);
   const instructores = useCarga((senal) => api.get<Pag<InstructorAdmin>>("/api/instructores", { limite: 100 }, senal), []);
   const salones = useCarga((senal) => api.get<Pag<SalonAdmin>>("/api/salones", { limite: 100 }, senal), []);
-  const lista = useCarga((senal) => api.get<Pag<GrupoAdmin>>("/api/grupos", { ...(programaId ? { programa_id: programaId } : {}), limite: 25, pagina }, senal), [programaId, pagina]);
+  const lista = useCarga((senal) => api.get<Pag<GrupoAdmin>>("/api/grupos", { ...(programaId ? { programa_id: programaId } : {}), limite: 100, pagina }, senal), [programaId, pagina]);
   const edicion = useEdicion<GrupoAdmin>();
   const [baja, setBaja] = useState<GrupoAdmin | null>(null);
   const nombreInstructor = (id: string | null) => instructores.datos?.datos.find((i) => i.id === id)?.nombre ?? "Sin instructor";
+  // V7: con muchos grupos hay que poder encontrar uno escribiendo su nombre, el del programa, el salón o el instructor (sin acentos ni mayúsculas).
+  const visibles = (lista.datos?.datos ?? []).filter((g) => coincide(`${g.nombre} ${g.programa.nombre} ${g.salon?.nombre ?? ""} ${nombreInstructor(g.instructor_id)}`, busqueda));
   return (
     <Pagina titulo="Grupos y horarios" subtitulo="Cupo, salón, instructor y los días de clase." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo grupo</Boton></>}>
-      <CampoSelect etiqueta="Programa" value={programaId} vacio="Todos" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => { setPagina(1); setProgramaId(e.target.value); }} />
+      <div className="rejilla rejilla-2">
+        <CampoSelect etiqueta="Programa" value={programaId} vacio="Todos" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => { setPagina(1); setProgramaId(e.target.value); }} />
+        <CampoTexto etiqueta="Buscar un grupo" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} ayuda="Por nombre, programa, salón o instructor." />
+      </div>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay grupos con ese filtro" /> : null}
+      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay grupos con ese filtro">Prueba con otro programa, o da de alta el primero con «Nuevo grupo».</Vacio> : null}
+      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <Vacio titulo={`Ningún grupo coincide con «${busqueda.trim()}»`}>Prueba con otra palabra, o borra lo escrito.</Vacio> : null}
       <ul className="lista-tarjetas" data-prueba="lista-de-grupos">
-        {(lista.datos?.datos ?? []).map((g) => (
+        {visibles.map((g) => (
           <li key={g.id} className="tarjeta pila" data-prueba={`grupo-${g.id}`}>
             <div className="fila fila-entre">
               <strong>
@@ -148,18 +160,17 @@ export default function Grupos() {
             programas={programas.datos?.datos ?? []}
             instructores={instructores.datos?.datos ?? []}
             salones={salones.datos?.datos ?? []}
-            alGuardar={() => {
+            alGuardar={(nombre) => {
               edicion.cerrar();
               lista.recargar();
+              avisar(`El grupo «${nombre}» se guardó.`);
             }}
             alCerrar={edicion.cerrar}
           />
         ) : null}
       </Dialogo>
-      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja el grupo" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/grupos/${baja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">
-          Baja de <strong>{baja?.nombre}</strong>. Si tiene alumnos inscritos, pásalos antes a otro grupo.
-        </Aviso>
+      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja el grupo" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/grupos/${baja!.id}`); lista.recargar(); avisar(`El grupo «${baja!.nombre}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="grupo" genero="m" nombre={baja?.nombre} consecuencia="Si tiene alumnos inscritos, el sistema no lo dejará: pásalos antes a otro grupo." />
       </ConfirmarAccion>
     </Pagina>
   );

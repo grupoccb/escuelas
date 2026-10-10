@@ -157,5 +157,7 @@ export const franjaTexto = (f: Franja): string => `${NOMBRES_DE_DIA[f.dia] ?? f.
 /** Un renglón para el detalle de un 409: qué se pisa con qué. */
 export function describirChoque(c: Choque): string {
   const recurso = c.tipo === "salon" ? "El salón" : "El instructor";
-  return `${recurso} ya está ocupado por el grupo «${c.otroGrupoNombre}» el ${franjaTexto(c.otraFranja)} (se traslapa con ${horaTexto(c.franja.inicioMin)}–${horaTexto(c.franja.finMin)})`;
+  // V7: dice qué se pisa con qué y qué hacer (antes: «(se traslapa con 16:00–17:00)», repetido y sin salida).
+  const salida = c.tipo === "salon" ? "elige otro salón" : "elige otro instructor";
+  return `${recurso} ya está ocupado por el grupo «${c.otroGrupoNombre}» el ${franjaTexto(c.otraFranja)}, y este grupo tendría clase de ${horaTexto(c.franja.inicioMin)} a ${horaTexto(c.franja.finMin)} ese mismo día. Cambia el horario o ${salida}.`;
 }

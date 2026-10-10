@@ -23,7 +23,7 @@ test("con todo encendido la barra muestra todas las secciones del usuario; sin p
 const DESAPARECE: [ModuloId, string[]][] = [
   ["clase_muestra", ["hoy"]],
   ["operacion", ["pase"]],
-  ["finanzas", ["pagos", "cuenta", "uniformes", "ventas"]],
+  ["finanzas", ["pagos", "cuenta", "uniformes", "ventas", "corte"]],
   ["tableros", ["tableros"]],
   ["inscripcion", ["alumnos", "familias"]],
   ["cotizador", []],

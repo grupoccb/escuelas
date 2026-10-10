@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { aBase64, erroresPorArchivo, frase, problemaConLosArchivos, tamanoTexto, type ProblemaDeCarga } from "./catalogo.ts";
+import { aBase64, erroresPorArchivo, esDeExcel, frase, problemaConLosArchivos, tamanoTexto, type ProblemaDeCarga } from "./catalogo.ts";
 
 const p = (archivo: string, fila: number): ProblemaDeCarga => ({ archivo, fila, columna: "X", mensaje: "m", texto: `Fila ${fila}` });
 
@@ -35,4 +35,13 @@ test("tamaños legibles", () => {
   assert.equal(tamanoTexto(200), "200 bytes");
   assert.equal(tamanoTexto(2048), "2.0 KB");
   assert.equal(tamanoTexto(3_145_728), "3.0 MB");
+});
+
+test("un archivo de Excel se detecta antes de subirlo y se dice cómo guardarlo como CSV", () => {
+  for (const n of ["sucursales.xlsx", "Salones.XLS", "grupos.ods", "x.xlsm"]) assert.equal(esDeExcel(n), true, n);
+  for (const n of ["sucursales.csv", "salones.txt", "xlsx.csv"]) assert.equal(esDeExcel(n), false, n);
+  const dicho = problemaConLosArchivos([{ nombre: "precios.csv", tamano: 10 }, { nombre: "sucursales.xlsx", tamano: 10 }])!;
+  assert.match(dicho, /«sucursales\.xlsx»/);
+  assert.match(dicho, /CSV UTF-8/);
+  assert.equal(problemaConLosArchivos([{ nombre: "precios.csv", tamano: 10 }]), null);
 });

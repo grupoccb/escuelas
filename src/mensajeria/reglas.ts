@@ -261,6 +261,16 @@ export function instanteLocal(anio: number, mes: number, dia: number, minutos: n
   return new Date(resultado);
 }
 
+/**
+ * Los instantes que acotan un día de calendario (`AAAA-MM-DD`) en una zona: `desde` es su primer instante (inclusive) y `hasta` el primero del día siguiente (exclusivo). Un día de
+ * cambio de horario dura 23 o 25 horas y sale bien. Lo usa el corte de caja (V7): «hoy» es el día de la sucursal, no el del servidor.
+ */
+export function limitesDelDia(fecha: string, zona: string): { desde: Date; hasta: Date } {
+  const [a, m, d] = fecha.split("-").map((x) => Number.parseInt(x, 10)) as [number, number, number];
+  const siguiente = new Date(Date.UTC(a, m - 1, d + 1));
+  return { desde: instanteLocal(a, m, d, 0, zona), hasta: instanteLocal(siguiente.getUTCFullYear(), siguiente.getUTCMonth() + 1, siguiente.getUTCDate(), 0, zona) };
+}
+
 /** true si es hora de envío en esa zona: dentro de [inicio, fin) y en un día permitido. */
 export function dentroDeHorario(instante: Date, zona: string, ventana: VentanaHoraria = HORARIO_DE_ENVIO): boolean {
   const p = partesLocales(instante, zona);

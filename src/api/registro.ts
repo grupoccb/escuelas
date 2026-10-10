@@ -38,7 +38,7 @@ export const CAMPOS_AUDITABLES = {
   // teléfonos ni salud. `secciones` dice QUÉ partes del registro se tocaron (alumno, tutores, salud, antecedentes, observacion).
   // D6: el documento (sin su texto, que es público y vive en su tabla inmutable) y la aceptación (sin el nombre de quien aceptó: está en `aceptacion_legal`).
   // D7: el cambio de etapa del lead (el historial completo vive en `lead_etapa_historial`) y el catálogo de motivos de pérdida.
-  lead: ["etapa_id", "motivo_perdida_id", "recuperaciones", "tutor_id"],
+  lead: ["etapa_id", "motivo_perdida_id", "recuperaciones", "tutor_id", "sucursal_interes_id"],
   motivo_perdida: ["codigo", "nombre", "orden", "activo"],
   // E2: campañas y sus códigos de rastreo.
   campana: ["nombre", "origen", "vertical_id", "sucursal_id", "anuncio_id", "activo"],

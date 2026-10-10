@@ -32,23 +32,33 @@ function Cuenta({ tutorId }: { tutorId: string }) {
           {tutor.datos.nombre} {tutor.datos.apellidos ?? ""} · {tutor.datos.telefono}
         </p>
       ) : null}
+      {/* V7: para dársela a la familia en papel (o guardarla en PDF) y para Excel. Mandarla por WhatsApp no: todo mensaje saliente pasa por el proveedor de mensajería y sus reglas. */}
+      <div className="fila no-imprimir">
+        <Boton onClick={() => window.print()} data-prueba="imprimir-cuenta">
+          Imprimir estado de cuenta
+        </Boton>
+        <a className="boton" href={`/api/exportaciones/estado-cuenta?tutor_id=${tutorId}`} download data-prueba="descargar-cuenta">
+          Descargar (CSV para Excel)
+        </a>
+      </div>
       <Tarjeta titulo="Resumen">
         <dl className="datos" data-prueba="resumen-de-cuenta">
           <dt>Total cargado</dt>
           <dd>{formatear(e.resumen.total_cargado)}</dd>
           <dt>Total pagado</dt>
           <dd>{formatear(e.resumen.total_pagado)}</dd>
-          <dt>Saldo</dt>
+          <dt>Saldo (lo que debe)</dt>
           <dd data-prueba="saldo">
             <strong>{formatear(e.resumen.saldo)}</strong>
           </dd>
-          <dt>Vencido</dt>
+          <dt>De eso, vencido</dt>
           <dd data-prueba="vencido">
             <strong>{formatear(e.resumen.vencido)}</strong>
           </dd>
         </dl>
       </Tarjeta>
       <Tarjeta titulo="Antigüedad de lo vencido">
+        <p className="muted">Cuántos días llevan vencidos los cargos que se deben: a más días, más urgente.</p>
         <dl className="datos" data-prueba="antiguedad">
           {TRAMOS.map((t) => (
             <Fragment key={t.clave}>
@@ -117,7 +127,7 @@ export default function EstadoDeCuenta() {
   const { tutorId } = useParams();
   const navegar = useNavigate();
   return (
-    <Marco titulo="Estado de cuenta" acciones={tutorId ? <Boton onClick={() => navegar("/cuenta")}>Buscar otra familia</Boton> : undefined}>
+    <Marco titulo="Estado de cuenta" acciones={tutorId ? <Boton className="no-imprimir" onClick={() => navegar("/cuenta")}>Buscar otra familia</Boton> : undefined}>
       {tutorId ? <Cuenta key={tutorId} tutorId={tutorId} /> : <BuscadorDeFamilia alElegir={(t) => navegar(`/cuenta/${t.id}`)} />}
     </Marco>
   );

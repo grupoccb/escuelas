@@ -15,6 +15,9 @@ import { NOMBRE_DE_MODULO } from "./mensajeria.ts";
 import type { Configuracion as Datos, LimiteDeAjuste } from "./tipos.ts";
 
 const UNIDAD: Record<LimiteDeAjuste["unidad"], string> = { dias: "días", horas: "horas", minutos: "minutos", mensajes: "mensajes", faltas: "faltas", intentos: "intentos", porcentaje: "%", hora_del_dia: "" };
+const UNIDAD_EN_SINGULAR: Partial<Record<LimiteDeAjuste["unidad"], string>> = { dias: "día", horas: "hora", minutos: "minuto", mensajes: "mensaje", faltas: "falta", intentos: "intento" };
+/** La unidad que acompaña a una cantidad concreta: «1 mensaje», «7 días» (V7: antes decía «1 mensajes»). */
+const unidadDe = (u: LimiteDeAjuste["unidad"], n: number): string => (n === 1 ? (UNIDAD_EN_SINGULAR[u] ?? UNIDAD[u]) : UNIDAD[u]);
 
 type Clave = Exclude<keyof Datos, "limites" | "sucursal_sin_programa" | "modo_cierre">;
 
@@ -56,7 +59,7 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
         ayuda={
           <>
             {l.ayuda} {horaDelDia ? `(de ${horaDeMinutos(l.min)} a ${horaDeMinutos(l.max)})` : `(de ${l.min} a ${l.max}${UNIDAD[l.unidad] ? ` ${UNIDAD[l.unidad]}` : ""})`} De siempre: {verValor(l, l.por_omision)}
-            {horaDelDia ? "" : UNIDAD[l.unidad] ? ` ${UNIDAD[l.unidad]}` : ""}.
+            {horaDelDia ? "" : UNIDAD[l.unidad] ? ` ${unidadDe(l.unidad, l.por_omision)}` : ""}.
             <br />
             <strong>Qué pasa si lo cambias:</strong> {l.efecto}
             {apagado ? (

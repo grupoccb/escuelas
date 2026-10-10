@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { LeadDetalle, ProgramaCotizado } from "../../api/tipos.ts";
 import { formatear } from "../../lib/dinero.ts";
+import { textoDeLugares } from "../../lib/etiquetas.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { aEntero } from "../../lib/numeros.ts";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Tarjeta, Vacio } from "../../ui/basicos.tsx";
@@ -61,7 +62,7 @@ function TarjetaDeCotizacion({ c, prospectos }: { c: Cotizacion; prospectos: Lea
         <ul>
           {p.grupos.map((g) => (
             <li key={g.grupo_id}>
-              {g.horario_texto} ({g.nombre}) · {g.oferta === "lugar" ? `${g.lugares_disponibles} lugares` : "lista de espera"}
+              {g.horario_texto} ({g.nombre}) · {g.oferta === "lugar" ? textoDeLugares(g.lugares_disponibles) : "lista de espera"}
               {c.grupo_elegido_id === g.grupo_id ? <strong> · la familia lo eligió</strong> : null}
             </li>
           ))}
@@ -96,7 +97,7 @@ function CotizarAMano({ lead, alCotizar, prospectoInicial }: { lead: LeadDetalle
   const nHermanos = textoHermanos.trim() === "" ? 0 : aEntero(textoHermanos);
   const nMeses = meses.trim() === "" ? 0 : aEntero(meses);
 
-  if (sucursalId === null) return <Aviso tono="alerta">Este lead todavía no eligió sucursal: sin ella no se puede cotizar. Pídele que la elija.</Aviso>;
+  if (sucursalId === null) return <Aviso tono="alerta">Este lead todavía no tiene sucursal: sin ella no se puede cotizar. Elígela arriba, en «Sucursal».</Aviso>;
   if (conEdad.length === 0) return <Aviso>No hay niños con edad por cotizar (los ya inscritos no se cotizan).</Aviso>;
   return (
     <form

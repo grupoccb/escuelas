@@ -27,6 +27,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion, type DetalleDeError } from "../errores.ts";
+import { cantidad, segun } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, entero, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -278,7 +279,7 @@ export function rutasDeGrupos(_deps: DepsApi): Router {
       const antes = await tx.grupo.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const vigentes = await tx.inscripcion.count({ where: { grupo_id: id, estatus: { in: ["activa", "congelada"] } } });
-      if (vigentes > 0) throw conflicto(`El grupo tiene ${vigentes} inscripción(es) vigente(s): pásalas a otro grupo antes de darlo de baja`);
+      if (vigentes > 0) throw conflicto(`El grupo tiene ${cantidad(vigentes, "inscripción vigente", "inscripciones vigentes")}: ${segun(vigentes, "pásala", "pásalas")} a otro grupo antes de darlo de baja`);
       const ahora = ctx.ahora();
       await tx.grupo_horario.updateMany({ where: { grupo_id: id }, data: { eliminado_en: ahora } });
       await tx.grupo.update({ where: { id }, data: { eliminado_en: ahora } });

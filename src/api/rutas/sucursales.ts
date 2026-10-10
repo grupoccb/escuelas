@@ -22,6 +22,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
+import { cantidad, segun } from "../../lib/cantidad.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
@@ -194,7 +195,7 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
       const previa = await tx.sucursal_vertical.findFirst({ where: { sucursal_id: id, vertical_id }, select: { id: true, activo: true } });
       if (!previa) throw noEncontrado();
       const programas = await tx.programa.count({ where: { sucursal_id: id, vertical_id } });
-      if (programas > 0) throw conflicto(`Hay ${programas} programa(s) de esa vertical en la sucursal: desactívalos o dalos de baja antes`);
+      if (programas > 0) throw conflicto(`Hay ${cantidad(programas, "programa", "programas")} de esa disciplina en la sucursal: ${segun(programas, "desactívalo o dalo", "desactívalos o dalos")} de baja antes`);
       await tx.sucursal_vertical.update({ where: { id: previa.id }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "sucursal_vertical", entidadId: previa.id, accion: "eliminar", antes: { sucursal_id: id, vertical_id, activo: previa.activo } });
     });

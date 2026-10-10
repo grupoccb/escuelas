@@ -60,13 +60,34 @@ export function formatear(texto: string | null | undefined, vacio = "—"): stri
 
 /**
  * Lo que alguien teclea («$1,234.5», «1 234», «300») → importe del servidor («1234.50»), o `null` si no es un importe válido
- * (letras, más de dos decimales, negativo, vacío). Acepta «,» como separador de miles, no como decimal.
+ * (letras, más de dos decimales, negativo, vacío). La «,» solo vale como separador de MILES (grupos de tres: «1,234.50»): «100,50» NO es cien pesos con cincuenta (en
+ * otros países la coma es el decimal) ni «12,34,5» es doce mil: un importe dudoso se rechaza en lugar de adivinarlo.
  */
 export function normalizarCaptura(entrada: string): string | null {
-  const limpio = entrada.replace(/[\s$]/g, "").replace(/,/g, "");
-  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(limpio) && !/^\.\d{1,2}$/.test(limpio)) return null;
-  const [entero = "0", dec = ""] = limpio.split(".");
+  const limpio = entrada.replace(/[\s$]/g, "");
+  const sinComas = limpio.replace(/,/g, "");
+  // Las comas, si las hay, van en grupos de tres desde la derecha de la parte entera.
+  if (limpio.includes(",") && !/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(limpio)) return null;
+  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(sinComas) && !/^\.\d{1,2}$/.test(sinComas)) return null;
+  const [entero = "0", dec = ""] = sinComas.split(".");
   return `${entero === "" ? "0" : entero}.${dec.padEnd(2, "0")}`;
+}
+
+export type ProblemaDeImporte = "negativo" | "letras" | "decimales" | "comas" | "enorme" | "cero";
+
+/**
+ * ¿Qué tiene de malo lo que se tecleó como importe? `null` si está vacío o es un importe válido mayor que cero. Sirve para decirle a la persona QUÉ hacer, no solo que algo está mal.
+ */
+export function problemaDeImporte(entrada: string): ProblemaDeImporte | null {
+  if (entrada.trim() === "") return null;
+  const ok = normalizarCaptura(entrada);
+  if (ok !== null) return aCentavos(ok) === 0n ? "cero" : null;
+  const t = entrada.replace(/[\s$]/g, "");
+  if (t.includes("-")) return "negativo";
+  if (/[^\d.,]/.test(t)) return "letras";
+  if (/\..*[.,]|\.\d{3,}/.test(t) || (t.match(/\./g) ?? []).length > 1) return "decimales";
+  if (t.includes(",") && !/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(t) && t.replace(/,/g, "").replace(/\..*$/, "").length <= 10) return "comas";
+  return t.replace(/[.,]/g, "").length > 12 || t.replace(/,/g, "").replace(/\..*$/, "").length > 10 ? "enorme" : "letras";
 }
 
 /** Un precio por una cantidad entera de piezas (exacto): «350.00» × 3 → «1050.00». */

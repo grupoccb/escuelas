@@ -3,7 +3,7 @@
 //   - no se muestran los valores ya guardados: hay que pedirlos («Ver lo registrado», con un motivo; cada lectura queda registrada) y se pueden ocultar;
 //   - al guardar se mandan SOLO los campos que se tocaron, y al terminar se borran de la pantalla.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/cliente.ts";
 import type { Registro } from "../pantallas/maestro/tipos.ts";
 import { Aviso, Boton, ErrorDeAccion, Insignia } from "../ui/basicos.tsx";
@@ -115,6 +115,21 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
     setVisto(false);
   };
 
+  // V7 (celular): lo que se pidió ver («Ver lo registrado») deja la pantalla en cuanto la aplicación pasa a segundo plano (se bloquea el teléfono, se cambia de aplicación): al volver no
+  // hay datos de salud a la vista de quien lo tome. Lo que se está escribiendo y no se ha guardado no se toca.
+  useEffect(() => {
+    if (!visto) return;
+    const alOcultarse = () => {
+      if (document.visibilityState === "hidden") {
+        setValores(VACIOS);
+        setTocados(new Set());
+        setVisto(false);
+      }
+    };
+    document.addEventListener("visibilitychange", alOcultarse);
+    return () => document.removeEventListener("visibilitychange", alOcultarse);
+  }, [visto]);
+
   const serv = guardar.error?.porCampo() ?? {};
   const error = (k: string, ...serverKeys: string[]): string | undefined => errorLocal[k] ?? serverKeys.map((s) => serv[s]).find(Boolean);
 
@@ -148,9 +163,9 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
         </div>
       ) : null}
       <fieldset className="pila sin-borde" disabled={bloqueado}>
-        <CampoArea etiqueta="Alergias" value={valores.alergias} onChange={(e) => poner("alergias", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("alergias", "salud.alergias")} />
-        <CampoArea etiqueta="Condiciones médicas" value={valores.condiciones_medicas} onChange={(e) => poner("condiciones_medicas", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("condiciones_medicas", "salud.condiciones_medicas")} />
-        <CampoArea etiqueta="Medicamentos" value={valores.medicamentos} onChange={(e) => poner("medicamentos", e.target.value)} ayuda="Si no toma, escribe «Ninguno»." error={error("medicamentos", "salud.medicamentos")} />
+        <CampoArea etiqueta="Alergias" autoComplete="off" autoCorrect="off" value={valores.alergias} onChange={(e) => poner("alergias", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("alergias", "salud.alergias")} />
+        <CampoArea etiqueta="Condiciones médicas" autoComplete="off" autoCorrect="off" value={valores.condiciones_medicas} onChange={(e) => poner("condiciones_medicas", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("condiciones_medicas", "salud.condiciones_medicas")} />
+        <CampoArea etiqueta="Medicamentos" autoComplete="off" autoCorrect="off" value={valores.medicamentos} onChange={(e) => poner("medicamentos", e.target.value)} ayuda="Si no toma, escribe «Ninguno»." error={error("medicamentos", "salud.medicamentos")} />
         <h3>Contacto de emergencia</h3>
         <CampoTexto etiqueta="Nombre del contacto" autoComplete="off" value={valores.contacto_nombre} onChange={(e) => poner("contacto_nombre", e.target.value)} error={error("contacto_nombre", "salud.contacto_emergencia", "salud.contacto_emergencia.nombre", "tutores")} />
         <CampoTexto etiqueta="Teléfono del contacto" type="tel" inputMode="tel" autoComplete="off" value={valores.contacto_telefono} onChange={(e) => poner("contacto_telefono", e.target.value)} error={error("contacto_telefono", "salud.contacto_emergencia.telefono")} />

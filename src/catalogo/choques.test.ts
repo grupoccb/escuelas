@@ -63,5 +63,5 @@ test("redacción para personas: día, horas y el otro grupo", () => {
   assert.equal(horaTexto(1020), "17:00");
   assert.equal(franjaTexto({ dia: 6, inicioMin: 600, finMin: 690 }), "sábado de 10:00 a 11:30");
   const [c] = choquesDe(g("m", "s1", null, [2, 1020, 1080]), [g("z", "s1", null, [2, 990, 1050])]);
-  assert.equal(describirChoque(c!), "El salón ya está ocupado por el grupo «Grupo z» el martes de 16:30 a 17:30 (se traslapa con 17:00–18:00)");
+  assert.equal(describirChoque(c!), "El salón ya está ocupado por el grupo «Grupo z» el martes de 16:30 a 17:30, y este grupo tendría clase de 17:00 a 18:00 ese mismo día. Cambia el horario o elige otro salón.");
 });

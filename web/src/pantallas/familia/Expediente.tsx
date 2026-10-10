@@ -84,7 +84,8 @@ function PanelTrayectoria({ t, puedeEscribir, alCambiar }: { t: Trayectoria; pue
               <li key={p.vertical.id} className="pila">
                 <strong>{p.vertical.etiqueta_evento ?? "Evento"}</strong>
                 <span>{p.evento ? `${p.evento.nombre} · ${formatearFecha(p.evento.fecha)}` : "Sin evento próximo"}</span>
-                <span className="muted">{textoDeElegibilidad(p.elegibilidad)}</span>
+                {/* Sin evento próximo y sin clases requeridas no hay nada que decir: «Le faltan 0 clases (0 de 0)» confundía (V7). */}
+                {p.evento || p.elegibilidad.clases_requeridas > 0 ? <span className="muted">{textoDeElegibilidad(p.elegibilidad)}</span> : null}
               </li>
             ))}
           </ul>

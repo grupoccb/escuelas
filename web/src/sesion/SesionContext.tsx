@@ -4,6 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { alExpirarLaSesion, api, pedir } from "../api/cliente.ts";
 import type { ModuloId, Yo } from "../api/tipos.ts";
+import { olvidarBorradores } from "../lib/borradores.ts";
 import { tiene } from "../lib/permisos.ts";
 
 export type EstadoDeSesion = { fase: "cargando" } | { fase: "anonima"; motivo: "nueva" | "expirada" | "salio" } | { fase: "activa"; yo: Yo };
@@ -81,6 +82,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
       // Cerrar sesión nunca debe quedarse colgado: si no hubo red, igual se sale de la pantalla (la cookie vence sola).
     }
     setSucursalElegida(null);
+    olvidarBorradores();
     setEstado({ fase: "anonima", motivo: "salio" });
   }, []);
 

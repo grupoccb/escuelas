@@ -59,7 +59,7 @@ export type PlanDeAlta =
  */
 export function planDeAlta(existentes: readonly VigenciaDePrecio[], desde: FechaISO): PlanDeAlta {
   const posterior = existentes.filter((v) => v.desde >= desde).sort((a, b) => (a.desde < b.desde ? -1 : 1))[0];
-  if (posterior) return { ok: false, motivo: `Ya hay un precio con vigencia desde ${posterior.desde}: el nuevo debe empezar después`, conflictoConId: posterior.id };
+  if (posterior) return { ok: false, motivo: `Ya hay un precio que rige desde el ${posterior.desde.slice(8, 10)}/${posterior.desde.slice(5, 7)}/${posterior.desde.slice(0, 4)}. Elige una fecha posterior para el precio nuevo.`, conflictoConId: posterior.id };
   const anterior = existentes.filter((v) => v.desde < desde).sort((a, b) => (a.desde < b.desde ? 1 : -1))[0];
   if (anterior && (anterior.hasta === null || anterior.hasta >= desde)) return { ok: true, cerrar: { id: anterior.id, hasta: sumarDias(desde, -1) } };
   return { ok: true, cerrar: null };

@@ -92,6 +92,8 @@ export interface Tarea {
   descripcion: string;
   codigo_error: number | null;
   lead_id: string | null;
+  /** V7: de qué familia es (nombre y teléfono de contacto del lead). */
+  lead?: { nombre_contacto: string | null; telefono: string | null } | null;
   conversacion_id: string | null;
   inscripcion_id: string | null;
   cargo_id: string | null;

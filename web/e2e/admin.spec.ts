@@ -84,13 +84,13 @@ test.describe("administrador", () => {
     await page.getByRole("button", { name: "Nueva sucursal" }).click();
     await dialogo(page).getByLabel("Nombre de la sucursal").fill("Sede Pantalla");
     await dialogo(page).getByLabel("Dirección").fill("Calle de prueba 123");
-    await dialogo(page).getByLabel(/Zona horaria/).fill("Hora del centro");
-    await dialogo(page).getByRole("button", { name: "Guardar" }).click();
-    await expect(dialogo(page)).toContainText("No es una zona horaria conocida");
-    await dialogo(page).getByLabel(/Zona horaria/).fill("America/Merida");
+    // V7: la zona horaria se ELIGE de una lista en palabras (ya no se escribe su nombre técnico, así que no hay forma de escribir una que no existe; el servidor lo sigue validando).
+    await dialogo(page).getByLabel(/Zona horaria/).selectOption({ label: "Hora del centro de México (Mérida)" });
     await dialogo(page).getByRole("button", { name: "Guardar" }).click();
     const tarjeta = page.locator('[data-prueba^="sucursal-"]', { hasText: "Sede Pantalla" });
-    await expect(tarjeta).toContainText("America/Merida");
+    await expect(tarjeta).toContainText("Hora del centro de México (Mérida)");
+    const guardada = (await json<{ datos: { nombre: string; zona_horaria: string }[] }>(admin, "/api/sucursales")).datos.find((x) => x.nombre === "Sede Pantalla");
+    expect(guardada?.zona_horaria).toBe("America/Merida");
     await tarjeta.getByLabel("Disciplina Pantalla Editada").click();
     await expect(tarjeta.getByLabel("Disciplina Pantalla Editada")).toBeChecked();
     const s = await json<{ datos: { nombre: string; verticales: { nombre: string; activo: boolean }[] }[] }>(admin, "/api/sucursales");
@@ -115,7 +115,7 @@ test.describe("administrador", () => {
     await expect(page.locator('[data-prueba^="programa-"]', { hasText: "Pequeños Pantalla" })).toContainText("5 a 9 años");
     await nuevo("Se pisa Pantalla", "9", "12");
     await expect(dialogo(page).getByRole("alert")).toContainText("Las edades se traslapan con: Pequeños Pantalla");
-    await expect(dialogo(page).getByRole("alert")).toContainText("permite traslape");
+    await expect(dialogo(page).getByRole("alert")).toContainText(/permite traslape/i);
     await capturar(page, "63-programa-traslape", "celular");
     await dialogo(page).getByRole("button", { name: "Cancelar" }).click();
     await nuevo("Mayores Pantalla", "10", "14");

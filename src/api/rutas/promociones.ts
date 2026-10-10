@@ -27,6 +27,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion, type DetalleDeError } from "../errores.ts";
+import { cantidad, segun } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, enumerado, entero, fechaISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid, type Esquema } from "../validar.ts";
@@ -404,7 +405,7 @@ export function rutasDePromociones(_deps: DepsApi): Router {
       const antes = await tx.promocion.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const pendientes = await tx.promocion_aplicacion.count({ where: { promocion_id: id, estatus: "pendiente" } });
-      if (pendientes > 0) throw conflicto(`La promoción tiene ${pendientes} beneficio(s) por entregar: entrégalos antes de darla de baja`);
+      if (pendientes > 0) throw conflicto(`La promoción tiene ${cantidad(pendientes, "beneficio por entregar", "beneficios por entregar")}: ${segun(pendientes, "entrégalo", "entrégalos")} antes de darla de baja`);
       const ahora = ctx.ahora();
       await tx.promocion_vertical.updateMany({ where: { promocion_id: id }, data: { eliminado_en: ahora } });
       await tx.promocion_sucursal.updateMany({ where: { promocion_id: id }, data: { eliminado_en: ahora } });
@@ -467,7 +468,7 @@ export function rutasDePromociones(_deps: DepsApi): Router {
       const antes = await tx.promocion_beneficio.findFirst({ where: { id: beneficioId, promocion_id: id }, select: { id: true, tipo: true, modo: true, valor: true, producto_id: true, descripcion: true, momento_disparo: true } });
       if (!antes) throw noEncontrado();
       const pendientes = await tx.promocion_aplicacion.count({ where: { beneficio_id: beneficioId, estatus: "pendiente" } });
-      if (pendientes > 0) throw conflicto(`El beneficio tiene ${pendientes} entrega(s) pendiente(s)`);
+      if (pendientes > 0) throw conflicto(`El beneficio tiene ${cantidad(pendientes, "entrega pendiente", "entregas pendientes")}`);
       await tx.promocion_beneficio.update({ where: { id: beneficioId }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "promocion_beneficio", entidadId: beneficioId, accion: "eliminar", antes: instantaneaBeneficio(id, antes) });
     });

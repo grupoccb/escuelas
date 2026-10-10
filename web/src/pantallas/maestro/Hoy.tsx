@@ -10,6 +10,7 @@ import { diaEnZona, formatearFechaLarga, hoyLocal, sumarDias } from "../../lib/f
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { useAccion, useAhora, useCarga, useTitulo } from "../../ui/hooks.ts";
+import { BotonesDeAsistencia, type Marca } from "./BotonesDeAsistencia.tsx";
 import { CierreEnSitio } from "../conversion/CierreEnSitio.tsx";
 
 interface AvisoMaestro {
@@ -71,11 +72,14 @@ function TarjetaDeClase({ clase, alCambiar }: { clase: ClaseMuestra; alCambiar: 
   const ahora = useAhora();
   const empezo = new Date(clase.fecha_hora).getTime() <= ahora;
 
-  const marcar = (valor: "asistio" | "no_asistio") =>
+  const [marcando, setMarcando] = useState<Marca>("asistio");
+  const marcar = (valor: Marca) => {
+    setMarcando(valor);
     void accion.ejecutar(async () => {
       await api.patch(`/api/clases-muestra/${clase.id}/asistencia`, { estatus: valor });
       alCambiar();
     });
+  };
 
   return (
     <li className="tarjeta" data-prueba={`clase-${clase.id}`}>
@@ -104,15 +108,7 @@ function TarjetaDeClase({ clase, alCambiar }: { clase: ClaseMuestra; alCambiar: 
           </Link>
         ) : null}
         {puede("clases_muestra:asistencia") && (clase.estatus === "agendada" || clase.estatus === "asistio" || clase.estatus === "no_asistio") ? (
-          <div className="fila">
-            <Boton disabled={!empezo || clase.estatus === "asistio"} cargando={accion.ocupado} onClick={() => marcar("asistio")}>
-              Asistió
-            </Boton>
-            <Boton disabled={!empezo || clase.estatus === "no_asistio"} cargando={accion.ocupado} onClick={() => marcar("no_asistio")}>
-              No asistió
-            </Boton>
-            {!empezo ? <span className="muted">La asistencia se marca desde la hora de la clase.</span> : null}
-          </div>
+          <BotonesDeAsistencia estatus={clase.estatus} empezo={empezo} procesando={accion.ocupado ? marcando : null} alMarcar={marcar} />
         ) : null}
         {clase.estatus === "asistio" && puede("clases_muestra:listo_para_cerrar") && moduloEncendido("inscripcion") ? (
           <div className="pila">

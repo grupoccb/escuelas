@@ -22,6 +22,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
+import { cantidad, segun } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, entero, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -136,7 +137,7 @@ export function rutasDeSalones(_deps: DepsApi): Router {
       const antes = await tx.salon.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const grupos = await tx.grupo.count({ where: { salon_id: id } });
-      if (grupos > 0) throw conflicto(`El salón lo usan ${grupos} grupo(s): cámbiales el salón antes de darlo de baja`);
+      if (grupos > 0) throw conflicto(`El salón ${segun(grupos, "lo usa", "lo usan")} ${cantidad(grupos, "grupo", "grupos")}: ${segun(grupos, "cámbiale", "cámbiales")} el salón antes de darlo de baja`);
       await tx.salon.update({ where: { id }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "salon", entidadId: id, accion: "eliminar", antes: instantanea(antes) });
     });

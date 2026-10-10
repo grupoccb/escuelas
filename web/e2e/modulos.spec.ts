@@ -210,6 +210,9 @@ test.describe("administración: los interruptores", () => {
       await expect(nav.getByRole("link", { name: "Tableros", exact: true })).toBeVisible();
       // La casilla es "controlada": cambia cuando el servidor contesta, así que se hace clic y se espera el resultado.
       await page.getByTestId("interruptor-tableros").click();
+      // V7: apagar toca lo que ven otras personas, así que pide confirmación (y la casilla sigue encendida hasta confirmar).
+      await expect(page.getByTestId("modulo-tableros")).toContainText("Encendido");
+      await page.getByRole("dialog").getByRole("button", { name: "Apagar Tableros" }).click();
       await expect(page.getByTestId("modulo-tableros")).toContainText("Apagado");
       await expect(nav.getByRole("link", { name: "Tableros", exact: true })).toHaveCount(0);
       expect((await admin.get("/api/reportes/ejecutivo")).status()).toBe(404);

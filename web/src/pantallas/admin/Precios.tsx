@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatear, normalizarCaptura } from "../../lib/dinero.ts";
 import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
+import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
@@ -12,7 +13,7 @@ import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Regreso } from "./comunes.tsx";
 import type { PrecioAdmin, ProgramaAdmin } from "./tipos.ts";
 
-function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAdmin; alGuardar: () => void; alCerrar: () => void }) {
+function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAdmin; alGuardar: (v: { desde: string; inscripcion: string; mensualidad: string }) => void; alCerrar: () => void }) {
   const [inscripcion, setInscripcion] = useState("");
   const [mensualidad, setMensualidad] = useState("");
   const [desde, setDesde] = useState(hoyLocal());
@@ -23,6 +24,7 @@ function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAd
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -35,18 +37,20 @@ function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAd
         if (Object.keys(e).length > 0 || i === null || m === null) return;
         void guardar.ejecutar(async () => {
           await api.post("/api/precios", { programa_id: programa.id, costo_inscripcion: i, costo_mensualidad: m, vigencia_desde: desde });
-          alGuardar();
+          alGuardar({ desde, inscripcion: i, mensualidad: m });
         });
       }}
     >
       <p>
         Programa: <strong>{programa.nombre}</strong>
       </p>
-      <Aviso>La vigencia anterior se cierra el día previo. Las familias ya inscritas conservan el precio con el que se inscribieron.</Aviso>
+      <Aviso>
+        La vigencia anterior se cierra el día previo. Las familias ya inscritas conservan el precio con el que se inscribieron. Un precio guardado no se edita (así lo ya cobrado nunca cambia): si te equivocas, captura otro con una fecha posterior.
+      </Aviso>
       <CampoTexto etiqueta="Inscripción (MXN)" requerido inputMode="decimal" value={inscripcion} onChange={(e) => setInscripcion(e.target.value)} error={err("costo_inscripcion")} />
       <CampoTexto etiqueta="Mensualidad (MXN)" requerido inputMode="decimal" value={mensualidad} onChange={(e) => setMensualidad(e.target.value)} error={err("costo_mensualidad")} />
       <CampoTexto etiqueta="Rige desde" type="date" requerido value={desde} onChange={(e) => setDesde(e.target.value)} error={err("vigencia_desde")} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["costo_inscripcion", "costo_mensualidad", "vigencia_desde"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar la nueva vigencia
@@ -59,6 +63,7 @@ function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAd
 
 export default function Precios() {
   useTitulo("Precios");
+  const { avisar } = useAvisos();
   const programas = useCarga((senal) => api.get<Pag<ProgramaAdmin>>("/api/programas", { limite: 100 }, senal), []);
   const [programaId, setProgramaId] = useState("");
   const precios = useCarga((senal) => api.get<Pag<PrecioAdmin>>("/api/precios", { programa_id: programaId, limite: 100 }, senal), [programaId], programaId !== "");
@@ -104,7 +109,16 @@ export default function Precios() {
         </Tarjeta>
       ) : null}
       <Dialogo abierto={abierto} titulo="Nueva vigencia de precio" alCerrar={() => setAbierto(false)}>
-        {abierto && programa ? <NuevaVigencia programa={programa} alGuardar={() => { setAbierto(false); precios.recargar(); }} alCerrar={() => setAbierto(false)} /> : null}
+        {abierto && programa ? <NuevaVigencia
+            programa={programa}
+            alGuardar={(v) => {
+              setAbierto(false);
+              precios.recargar();
+              // V7: dice desde cuándo rige y qué pasa con lo ya inscrito (antes el diálogo se cerraba sin una palabra).
+              avisar(`El nuevo precio de «${programa.nombre}» rige ${v.desde <= hoy ? "desde hoy" : `desde el ${formatearFecha(v.desde)}`}: inscripción ${formatear(v.inscripcion)} y mensualidad ${formatear(v.mensualidad)}. Lo ya inscrito conserva el precio con el que se inscribió.`);
+            }}
+            alCerrar={() => setAbierto(false)}
+          /> : null}
       </Dialogo>
     </Pagina>
   );

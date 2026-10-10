@@ -331,7 +331,7 @@ export function PasoReglamento({ c }: { c: ContextoDePasos }) {
   );
 }
 
-export function PasoConfirmar({ c, quedan, alIrAlPaso, children }: { c: ContextoDePasos; quedan: readonly Falta[]; alIrAlPaso: (campo: string) => void; children: ReactNode }) {
+export function PasoConfirmar({ c, quedan, alIrAlPaso, nombreDeFalta, children }: { c: ContextoDePasos; quedan: readonly Falta[]; alIrAlPaso: (campo: string) => void; nombreDeFalta?: ((prospectoId: string) => string | null) | undefined; children: ReactNode }) {
   return (
     <div className="pila">
       {quedan.length > 0 ? (
@@ -339,13 +339,18 @@ export function PasoConfirmar({ c, quedan, alIrAlPaso, children }: { c: Contexto
           <ul data-prueba="lo-que-falta">
             {quedan.map((f) => (
               <li key={f.campo}>
-                {etiquetaDeFalta(f.campo)}{" "}
+                {etiquetaDeFalta(f.campo, nombreDeFalta)}{" "}
                 <Boton variante="fantasma" onClick={() => alIrAlPaso(f.campo)}>
                   Ir a este paso
                 </Boton>
               </li>
             ))}
           </ul>
+        </Aviso>
+      ) : c.pendientes.some((id) => c.previsiones[id]?.reglamentoPendiente === true) ? (
+        // V7: antes decía «Todo listo para inscribir» y el servidor lo rechazaba al confirmar por el reglamento. Se avisa aquí; el botón sigue activo porque el servidor es quien manda.
+        <Aviso tono="info" titulo="Todavía falta el reglamento">
+          La familia no ha aceptado el reglamento de {c.pendientes.filter((id) => c.previsiones[id]?.reglamentoPendiente === true).map((id) => nombreDeProspecto(c, id)).join(" ni de ")}: sin eso el sistema no inscribe. Se registra en el paso «Reglamento e imagen».
         </Aviso>
       ) : (
         <Aviso tono="exito">Todo listo para inscribir.</Aviso>

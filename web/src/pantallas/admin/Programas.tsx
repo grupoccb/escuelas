@@ -3,16 +3,18 @@
 
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { formatearFecha } from "../../lib/fechas.ts";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoArea, CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { ProgramaAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
-function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: { programa: ProgramaAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; alGuardar: () => void; alCerrar: () => void }) {
+function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: { programa: ProgramaAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [verticalId, setVerticalId] = useState(programa?.vertical_id ?? "");
   const [sucursalId, setSucursalId] = useState(programa?.sucursal_id ?? "");
   const [nombre, setNombre] = useState(programa?.nombre ?? "");
@@ -32,6 +34,7 @@ function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: {
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -50,7 +53,7 @@ function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: {
         void guardar.ejecutar(async () => {
           if (programa) await api.patch(`/api/programas/${programa.id}`, comun);
           else await api.post("/api/programas", { vertical_id: verticalId, sucursal_id: sucursalId, ...comun });
-          alGuardar();
+          alGuardar(comun.nombre);
         });
       }}
     >
@@ -72,7 +75,7 @@ function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: {
       <CampoArea etiqueta="Descripción para el público (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
       <CampoCasilla etiqueta="Permite traslape de edad (es una alternativa a otro programa)" checked={traslape} onChange={(e) => setTraslape(e.target.checked)} ayuda="Dos programas de la misma disciplina y sucursal pueden aceptar la misma edad solo si AMBOS lo permiten; el bot le pregunta a la familia cuál prefiere." />
       <CampoCasilla etiqueta="Activo" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["vertical_id", "sucursal_id", "nombre", "edad_min", "edad_max", "fecha_corte_edad"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -91,6 +94,7 @@ export default function Programas() {
   const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
   const sucursales = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
   const lista = useCarga((senal) => api.get<Pag<ProgramaAdmin>>("/api/programas", { ...(verticalId ? { vertical_id: verticalId } : {}), ...(sucursalId ? { sucursal_id: sucursalId } : {}), limite: 25, pagina }, senal), [verticalId, sucursalId, pagina]);
+  const { avisar } = useAvisos();
   const edicion = useEdicion<ProgramaAdmin>();
   const [baja, setBaja] = useState<ProgramaAdmin | null>(null);
   const nombreV = (id: string) => verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—";
@@ -115,7 +119,7 @@ export default function Programas() {
               </span>
             </div>
             <p className="muted">
-              {nombreV(p.vertical_id)} · {nombreS(p.sucursal_id)} · {p.edad_min} a {p.edad_max} años{p.fecha_corte_edad ? ` · edad al ${p.fecha_corte_edad}` : ""}
+              {nombreV(p.vertical_id)} · {nombreS(p.sucursal_id)} · {p.edad_min} a {p.edad_max} años{p.fecha_corte_edad ? ` · la edad se mide al ${formatearFecha(p.fecha_corte_edad)}` : ""}
             </p>
             <div className="fila">
               <Boton onClick={() => edicion.editar(p)}>Editar</Boton>
@@ -133,18 +137,17 @@ export default function Programas() {
             programa={edicion.actual === "nuevo" ? null : edicion.actual}
             verticales={verticales.datos?.datos ?? []}
             sucursales={sucursales.datos?.datos ?? []}
-            alGuardar={() => {
+            alGuardar={(nombre) => {
               edicion.cerrar();
               lista.recargar();
+              avisar(`El programa «${nombre}» se guardó.`);
             }}
             alCerrar={edicion.cerrar}
           />
         ) : null}
       </Dialogo>
-      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja el programa" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/programas/${baja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">
-          Solo se puede dar de baja un programa sin grupos ni inscripciones; si los tiene, desactívalo. Baja de <strong>{baja?.nombre}</strong>.
-        </Aviso>
+      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja el programa" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/programas/${baja!.id}`); lista.recargar(); avisar(`El programa «${baja!.nombre}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="programa" genero="m" nombre={baja?.nombre} consecuencia="Solo se puede si no tiene grupos ni inscripciones: si los tiene, el sistema no lo dejará." />
       </ConfirmarAccion>
     </Pagina>
   );

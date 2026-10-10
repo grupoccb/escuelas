@@ -27,6 +27,8 @@ const SELECCION = {
   descripcion: true,
   codigo_error: true,
   lead_id: true,
+  // V7: de qué familia es la tarea (nombre y teléfono de contacto del lead): sin esto, una lista de tareas no dice a quién hay que llamar.
+  lead: { select: { nombre_contacto: true, telefono: true } },
   conversacion_id: true,
   inscripcion_id: true,
   cargo_id: true,

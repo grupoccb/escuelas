@@ -23,6 +23,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
+import { cantidad, segun } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, correo, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -218,7 +219,7 @@ export function rutasDeInstructores(_deps: DepsApi): Router {
       const antes = await tx.instructor.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const grupos = await tx.grupo.count({ where: { instructor_id: id } });
-      if (grupos > 0) throw conflicto(`El instructor tiene ${grupos} grupo(s): cámbiales el instructor antes de darlo de baja`);
+      if (grupos > 0) throw conflicto(`El instructor tiene ${cantidad(grupos, "grupo", "grupos")}: ${segun(grupos, "cámbiale", "cámbiales")} el instructor antes de darlo de baja`);
       const ahora = ctx.ahora();
       await tx.instructor_sucursal.updateMany({ where: { instructor_id: id }, data: { eliminado_en: ahora } });
       await tx.instructor.update({ where: { id }, data: { eliminado_en: ahora } });

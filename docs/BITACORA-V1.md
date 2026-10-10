@@ -11,7 +11,7 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 | V4 | HECHO | ver `git log` (`V4:`) | Cierre con el maestro en sitio probado en navegador (EK-15 resuelto): confirmación con el grupo, grupo lleno con siguiente paso, 9 pruebas en Chromium (celular y escritorio) |
 | V5 | HECHO (parcial: niveles, eventos, productos, documentos legales y campañas quedan por API, sin pantalla) | ver `git log` (`V5:`) | Configuración sin SQL: inventario completo (`docs/CONFIGURACION-INVENTARIO.md`); horario de envío de la escuela, tiempos y umbrales del asistente, 31 textos del asistente, etapas del embudo, motivos de pérdida y de baja y tope de atraso de las automatizaciones pasan a Administración |
 | V6 | HECHO (parcial: sin «fecha de inicio» de grupo, «ciudad» ni «teléfono» de sucursal ni «duración de clase», que el modelo no tiene) | ver `git log` (`V6:`) | Carga del catálogo desde Excel: 8 plantillas CSV, importador con simulación por fila y columna, aplicar todo o nada e idempotente, comando, pantalla «Cargar catálogo» y `docs/QUE-PEDIRLE-A-LA-ESCUELA.md` |
-| V7 | PENDIENTE | | Recorrido por rol |
+| V7 | HECHO | ver `git log` (`V7:`) | Recorrido por rol en navegador real (asesor, maestro, recepción, administrador): 92 fricciones anotadas, 73 corregidas, 19 documentadas o para Eduardo; capturas de antes y después en `docs/capturas/v1/v7-*/` |
 | V8 | PENDIENTE | | Guías de una página por rol |
 | V9 | PENDIENTE | | Ensayo con WhatsApp real, preparado |
 | V10 | PENDIENTE | | Hallazgos abiertos |
@@ -235,3 +235,319 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 - El selector de archivos del navegador muestra «Choose Files» según el idioma del navegador de cada persona; no se personalizó.
 - `src/finanzas/pagos.itest.ts` («pago PARCIAL…») falló una vez en la primera corrida completa de `test:int` por el orden de dos cargos con la misma fecha (empate por identificador); pasa sola y en la segunda corrida. Es de antes de V6 (lo anoto para V10).
 - Mandarle a la escuela `docs/QUE-PEDIRLE-A-LA-ESCUELA.md` junto con `docs/plantillas-catalogo/` (o el zip) cuando quieras arrancar con datos reales.
+
+## V7. Recorrido por rol
+
+**Cómo se hizo.** Un subagente nuevo por rol, en secuencia, cada uno en navegador real con base y puerto propios. Sus cuatro commits locales se consolidaron en uno solo (`V7:`) antes de subir, para respetar «un commit por bloque». Cada rol dejó su guion, su spec de regresión en `web/e2e/v7-*.spec.ts` y sus capturas de antes y después.
+
+| Rol | Fricciones | Corregidas | Pasos máximos por tarea diaria |
+|---|---|---|---|
+| Asesor (escritorio) | 21 (4 altas) | 15 | ≤ 3, salvo perder un lead (4) e inscribir hermanos (7, una vez por familia) |
+| Maestro (390 px) | 18 (3 altas) | 13 | ≤ 3, salvo el pase con falta (4) |
+| Recepción | 21 (8 altas) | 18 | ≤ 3 |
+| Administrador | 32 (7 altas) | 27 | ≤ 3 |
+
+**Verificación de la rama consolidada** (corrida por la coordinación, logs completos sin filtrar)
+- `npm run validar` → exit 0 (846 tests de backend + 95 de la interfaz, 0 fallas).
+- `npm run test:int` → exit 0 en la segunda corrida (`ℹ tests 1322 / ℹ pass 1322 / ℹ fail 0`). **La primera corrida falló una prueba:** `src/finanzas/pagos.itest.ts` «pago PARCIAL…» (el segundo pago repartió `mens1` antes que `insc2`). No se reproduce aislada (12 corridas limpias) ni en la segunda corrida completa; ya había fallado una vez en V6. Es una intermitencia anterior a V7 que **queda asignada a V10 con prioridad** (hipótesis: el orden `fecha_vencimiento, creado_en, id` de los cargos abiertos depende de fechas relativas a «hoy» y de la zona horaria — la falla ocurrió con el reloj UTC ya en el día siguiente al local).
+- `npm run test:navegador` → exit 0 (`226 passed (6.7m)`).
+
+**Para Eduardo (resumen de los cuatro roles; el detalle está en cada subsección)**
+- Con solo captación nadie puede llegar a «Inscrito» (se llega inscribiendo): marcarlo a mano o encender inscripción desde el primer día.
+- Recepción: mandar el estado de cuenta por WhatsApp, pantalla de inventario/productos, corte de caja formal con conteo, y si recepción conserva `leads:leer`.
+- Administrador: recuperar bajas y corregir un precio mal capturado; si el administrador debe aterrizar en Administración mientras falten pasos; si puede liberar un bloqueo de acceso.
+- Maestro: el pase de lista en 3 toques exige que sea su inicio; no hay cola automática de guardado sin señal.
+- Se cerró una fuga: recepción podía leer la nota privada del asesor.
+
+### V7 — asesor
+
+Alba, asesora de la sucursal Norte, en escritorio (1366×768), como alguien que nunca vio el sistema. Guion en `docs/capturas/v1/v7-asesor/ARGUMENTO.md`; recorrido como prueba de regresión en `web/e2e/v7-asesor.spec.ts` (14 pruebas); capturas `antes-NN-…` (37) y `despues-NN-…` (39) en `docs/capturas/v1/v7-asesor/`.
+
+**Cómo se hizo.** El spec levanta el servidor real con su mundo sembrado (base `v7_asesor_inscripciones_navegador_pruebas`, puerto 4371, sin credenciales ni salida del origen). Lo que «llega» durante el día entra por los caminos reales: el bot (`procesarEntrante` con transporte falso, como un contacto de Chatwoot: tres preguntas y pase al asesor), la landing pública y las tareas con el texto exacto que escribe el sistema. Para que varios recorridos corran a la vez, `scripts/navegador/servidor.ts`, `scripts/test-navegador.ts`, `web/e2e/mundo.ts`, `web/e2e/preparar.ts` y `web/playwright.config.ts` aceptan `DIR_NAVEGADOR` (estado y mundo) y `WEB_DIST` (la interfaz compilada); sin ellas todo queda como antes.
+
+**Pasos por tarea diaria** (clic o elección; escribir en un campo no cuenta; meta ≤ 3):
+
+| Tarea | Pasos | |
+|---|---|---|
+| Lead del bot: embudo → ficha → abrir Chatwoot | 3 | cumple |
+| Lead de la landing: embudo → ficha | 2 | cumple |
+| Segundo hijo | 2 | cumple |
+| Cotizar a un niño | 2 | cumple |
+| Agendar clase muestra | 3 | cumple |
+| Seguimiento: mover de etapa con nota | 3 | cumple |
+| Reprogramar clase / cancelar clase | 3 / 2 | cumple |
+| Cerrar una tarea | 2 (1 con la lista abierta) | cumple |
+| Perder un lead (abrir, etapa, motivo, mover) | 4 | **no cumple, no se puede quitar**: etapa y motivo son dos decisiones que el servidor exige |
+| Recuperar un lead (abrir, etapa, mover; la nota se escribe) | 3 | cumple |
+| Estancados | 1 | cumple |
+| Descargar la lista (CSV) | 2 | cumple (antes: imposible desde la pantalla) |
+| Poner sucursal a un lead sin ella | 2 | cumple (antes: imposible) |
+| Convertir e inscribir a dos hermanos | 7 clics | **no cumple, es de una vez por familia**: familia, alumnos, grupo, precio, reglamento, confirmar |
+
+**Fricciones**
+
+| Id | Dónde | Qué pasaba | Sev. | Qué se hizo |
+|---|---|---|---|---|
+| V7-ASESOR-01 | Tareas | Una tarea no decía de qué familia era: solo tipo, texto del sistema y «Abrir el lead». Con varias pendientes había que abrir cada ficha para saber a quién llamar. | alta | **Corregido.** `GET /api/tareas` trae `lead {nombre_contacto, telefono}`; cada tarjeta lo muestra. Prueba: `v7-asesor.itest.ts` y spec (tests 8). |
+| V7-ASESOR-02 | Tareas | Texto repetido («WhatsApp reportó que un mensaje no llegó. Revisa el código de error» + «código de error 63016» + una línea «Código de error: 63016»); «Abrir el lead». | media | **Corregido.** El código solo se repite si el texto no lo trae; «Abrir la ficha». |
+| V7-ASESOR-03 | Ficha de un lead sin sucursal | «Sin elegir» y, al cotizar, «Pídele que la elija»: la asesora no tenía cómo ponerla (no existía ninguna ruta ni control). Callejón sin salida. | alta | **Corregido.** `PATCH /api/leads/:id {sucursal_interes_id}` (solo se pone, no se cambia; alcance, disciplina, atómico, registro de cambios) y, en la ficha, un botón por sucursal de la asesora con aviso «Falta la sucursal». Pruebas: 4 itests + spec (13). |
+| V7-ASESOR-04 | Convertir e inscribir, paso «Alumnos» | Al teclear la fecha de nacimiento se recalculaba la oferta y TODO el formulario se reemplazaba por «Juntando lo que ya se capturó…»: el campo perdía el foco a mitad de la fecha y las teclas siguientes se perdían (con la API lenta, el año no se podía escribir). | alta | **Corregido.** Mientras llega la oferta nueva se sigue mostrando la anterior. Spec (10): teclea la fecha tecla por tecla, el foco se queda y «Juntando…» nunca aparece. Antes: `document.activeElement = BODY`. |
+| V7-ASESOR-05 | Convertir e inscribir | Con dos niños, «Para seguir falta: Apellidos del alumno, Fecha de nacimiento del alumno, Apellidos del alumno, Fecha…» (idénticas). | media | **Corregido.** «Apellidos de Sofía, … de Mateo»; también en la lista de la confirmación y del rechazo. Prueba unitaria + spec. |
+| V7-ASESOR-06 | Cotizaciones | «1 lugares». | baja | **Corregido** (singular). |
+| V7-ASESOR-07 | Embudo | No había cómo sacar la lista de leads (`reporte:leads` es un comando y la exportación solo estaba por API). | media | **Corregido.** Botón «Descargar lista (CSV para Excel)» (respeta la sucursal elegida y el alcance; el servidor ya lo hacía). Spec: BOM, encabezados, sin leads de otra sucursal, sin identificadores. |
+| V7-ASESOR-08 | Agendar clase muestra | Las sesiones eran cinco «botones» angostos de seis líneas apretados en una fila. | media | **Corregido.** Rejilla de dos columnas de una o dos líneas; el spec mide ancho ≥ 170 px y alto ≤ 80 px. |
+| V7-ASESOR-09 | Mover de etapa, escuela con solo captación | «Etapa F (se llega inscribiendo)» sin que la inscripción exista: promete un camino que no hay. | media | **Corregido el texto** («todavía no está activada la inscripción»). La decisión de fondo está en «Para Eduardo». |
+| V7-ASESOR-10 | Seguimiento | No hay forma de anotar algo («le llamé, no contestó») sin cambiar de etapa: la nota solo existe ligada a un cambio de etapa; lo demás es nota privada en Chatwoot. | media | **Documentado, decisión de Eduardo** (haría falta una bitácora de notas del lead). |
+| V7-ASESOR-11 | Ficha, «De dónde llegó» | «utm_source», «utm_medium»…, y la fuente dos veces («Página de captación» y «landing»). Mensaje con el nombre de la variable `CHATWOOT_URL_PUBLICA`. | baja | **Corregido.** «Plataforma / Tipo / Campaña del anuncio»; la fuente cruda ya no se repite; el mensaje de Chatwoot dice qué hacer sin nombres técnicos. |
+| V7-ASESOR-12 | Lead a medias | El bot a medias deja un lead sin sucursal ni edad y NO una tarea (el aviso va a Chatwoot a los 30 min): en la aplicación se veía igual que uno completo. | media | **Corregido en lo que se ve:** etiqueta «Sin sucursal» en el embudo, «falta la edad: anótala en Corregir» en el niño y el aviso de la ficha. No se crea tarea nueva (sería una decisión de producto). |
+| V7-ASESOR-13 | Embudo | «1 lead(s) llevan días sin movimiento». | baja | **Corregido** (concuerda en número). |
+| V7-ASESOR-14 | Convertir e inscribir, confirmar | Decía «Todo listo para inscribir» con el reglamento sin aceptar y el servidor rechazaba al confirmar. | media | **Corregido.** Avisa «Todavía falta el reglamento de Sofía ni de Mateo…» y dónde se registra; el botón sigue activo porque el servidor manda (conversion.spec lo exige). |
+| V7-ASESOR-15 | Agendar clase muestra | Sin grupos para elegir, el selector de Grupo quedaba vacío sin decir nada. | media | **Corregido.** Aviso «No hay grupos activos de la disciplina…». |
+| V7-ASESOR-16 | Convertir e inscribir | 7 clics para dos hermanos. | media | **Documentado** (es de una vez por familia; cada paso pide algo distinto). Alternativa descartada: saltar pasos sin faltantes (cambia el asistente probado en V3/V4). |
+| V7-ASESOR-17 | Perder un lead | 4 pasos. | baja | **Documentado**: etapa y motivo son obligatorios. |
+| V7-ASESOR-18 | Tareas | Tres «Aviso al maestro no enviado» iguales para la misma clase (una por cada agenda/reprogramación) si el maestro no tiene teléfono. | baja | **Documentado** (es del bloque D2; sale a V10). |
+| V7-ASESOR-19 | Ficha | «El resumen del bot» (datos capturados, origen) vive solo en la nota privada de Chatwoot; la ficha muestra los mismos datos pero no lo dice. | baja | **Documentado**; la nota es clara y sin jerga («Datos capturados por el bot: Nombre, Edad, Sucursal…»). |
+| V7-ASESOR-20 | CSV | El teléfono sale como `'+52…` (el apóstrofo protege de fórmulas en Excel). | baja | **Documentado** (decisión de seguridad de I5). |
+| V7-ASESOR-21 | Tableros | Las fechas del filtro salen mm/dd/aaaa según el idioma del navegador de cada persona. | baja | **Documentado**, no depende del sistema. |
+
+**Escuela con solo captación** (V1): la barra tiene Embudo y Tareas; la ficha no muestra cotizar, clase muestra ni inscribir; una URL directa dice «No disponible» con «Ir a mi inicio». Lo que faltaba era el texto del mover de etapa (09). Spec (14).
+
+**Para Eduardo**
+- Con solo captación **nadie puede llegar a «Inscrito»** (se llega inscribiendo, y la inscripción está apagada): el embudo termina en la etapa anterior y los reportes de captación no pueden mostrar una inscripción. Opciones: que el administrador pueda marcarlo a mano, o encender la inscripción desde el primer día. No lo cambié.
+- Notas del lead sin cambiar de etapa (V7-ASESOR-10).
+- Poner sucursal solo se puede una vez (conservador: cambiarla sacaría al lead del embudo de quien lo atiende). Si la escuela necesita corregir una sucursal mal puesta, hoy no hay pantalla ni ruta (ni para el administrador): se haría en SQL. Si se necesita, es un permiso del administrador con su registro de cambios.
+
+**Verificación** (con base y puerto propios: `v7_asesor_inscripciones_navegador_pruebas`, `v7_asesor_pruebas`)
+- `npm run validar` → exit 0 (836 tests de backend + 77 de la interfaz, 0 fallas; la interfaz +2: faltas con nombre y «1 lugar»).
+- `npm run test:int` → exit 0 (`ℹ tests 1310 / ℹ pass 1310 / ℹ fail 0`; antes 1305; 5 nuevos en `src/api/v7-asesor.itest.ts`: poner sucursal con registro de cambios, solo se pone y no se cambia, alcance y reglas —sucursal que no ve, que no da la disciplina, inactiva, de otra organización, lead ajeno, recepción y maestro 403, sin sesión 401—, dos personas a la vez, y las tareas con su familia).
+- `npm run test:navegador` → exit 0 (`170 passed`, 4.1 min; antes 156; las 14 de `web/e2e/v7-asesor.spec.ts`). Se corrió con `DIR_NAVEGADOR=.tmp/v7_asesor WEB_DIST=.tmp/v7_asesor/dist PUERTO=4371` para no pisar a los otros recorridos.
+- Una primera corrida completa falló solo en MI spec (un conteo que dependía del orden de las demás pruebas del mundo compartido); se hizo independiente (un lead estancado propio, dado de baja al terminar) y se repitió completa.
+- `web/e2e/asesor.spec.ts` se actualizó por dos textos que cambiaron («1 lead lleva días sin movimiento», «Abrir la ficha»); ninguna aserción se debilitó.
+
+**Decisiones que tomé**
+- **Poner sucursal solo se puede una vez** (conservador). Alternativa descartada: poder cambiarla; sacaría al lead del embudo de quien lo atiende.
+- **El botón de inscribir sigue activo con el reglamento sin aceptar** (solo se avisa): `conversion.spec.ts` prueba a propósito que el servidor es quien rechaza y dice el paso. Alternativa descartada: bloquear el botón (cambiaría una prueba existente).
+- **El lead a medias no genera tarea nueva**: se marca en el embudo y en la ficha. Alternativa descartada: una tarea «lead a medias» (decisión de producto: duplicaría la nota de Chatwoot).
+- **Variables de entorno de las pruebas en navegador** (`DIR_NAVEGADOR`, `WEB_DIST`): necesarias para correr varios recorridos a la vez; por omisión no cambia nada.
+
+### V7 — maestro
+
+Mario, maestro del Grupo A de la sucursal Norte, en su celular (390×844, con tacto), como alguien que nunca vio el sistema. Guion en `docs/capturas/v1/v7-maestro/ARGUMENTO.md`; recorrido como prueba de regresión en `web/e2e/v7-maestro.spec.ts` (24 pruebas); capturas `antes-NN-…` (35) y `despues-NN-…` (35) en `docs/capturas/v1/v7-maestro/`.
+
+**Cómo se hizo.** El spec levanta el servidor real con su mundo sembrado (base `v7_maestro_inscripciones_navegador_pruebas`, puerto 4373, carpeta `.tmp/v7_maestro`, con `DIR_NAVEGADOR` y `WEB_DIST`; sin credenciales ni salida del origen). Crea sus propios datos (un grupo con horario, la clase muestra de una niña agendada y la de otra que ya asistió con el registro casi completo) para no depender de lo que dejan las demás pruebas del mundo compartido (por ejemplo, `maestro.spec` cierra el registro de «Alumna Uno»). Entrar, vencer la sesión y salir usan un inicio de sesión PROPIO: «Salir» revoca la sesión en el servidor y no debe tirar la que comparten las otras pruebas. Cada medida de lo ilegible o inalcanzable (desborde horizontal, objetivos táctiles < 44 px, letra < 16 px que dispara el zoom del teléfono) corre en las pantallas del maestro (acceso, Hoy, registro con todo abierto, pase, alumnos, expediente, confirmación de inscribir); con `FASE=antes` solo anota lo que encuentra y con `FASE=despues` (lo normal) falla si aparece algo. Sin red se simula con `route.abort("internetdisconnected")`; la red lenta, con una demora de 1.2 s y doble toque.
+
+**Pasos por tarea diaria** (toque o elección; escribir en un campo no cuenta; meta ≤ 3):
+
+| Tarea | Pasos | |
+|---|---|---|
+| Entrar (correo, contraseña, «Entrar») | 1 | cumple |
+| Marcar «Asistió» desde «Hoy» (su inicio) | 1 | cumple |
+| Corregir una marca equivocada | 1 | cumple |
+| Abrir el registro de un niño nuevo | 1 | cumple |
+| Guardar una sección del registro | 1 | cumple |
+| Reglamento e imagen (dos documentos) | 2 | cumple |
+| Marcar el registro como completo | 1 | cumple |
+| «Listo para cerrar» (cierra el asesor) | 1 | cumple |
+| Cierre en sitio, con todo capturado: «Inscribir a mi alumno» + «Sí, inscribir» | 2 | cumple (completar apellido y reglamento antes es captura, no cierre) |
+| Pasar lista: abrir «Pase de lista», «todos presentes», la falta, guardar | **4** (3 si todos vinieron) | **no cumple, no se puede quitar sin cambiar el producto**: cada pieza es una decisión distinta; ver «Para Eduardo» |
+| Corregir una falta equivocada (elegir, guardar) | 2 | cumple |
+| Expediente de un alumno suyo (Alumnos, su nombre) | 2 | cumple |
+| Cerrar sesión | 1 | cumple |
+
+**Fricciones**
+
+| Id | Dónde | Qué pasaba | Sev. | Qué se hizo |
+|---|---|---|---|---|
+| V7-MAESTRO-01 | Registro del alumno | Lo escrito y sin guardar **se perdía** al cambiar de pantalla (la barra de abajo, «← Volver a Hoy» o el atrás del teléfono): al volver, el campo estaba vacío y sin ningún aviso. Con el celular, un maestro cambia de pantalla a media captura todo el tiempo. | alta | **Corregido.** Los borradores viven en la MEMORIA de la página (`web/src/lib/borradores.ts`), por persona y por clase; al volver aparece «Recuperamos lo que habías escrito y todavía no guardaste». Nunca van a `localStorage`/`sessionStorage` (son datos de un menor) y la salud no entra (sigue solo dentro de su formulario). Pruebas: `borradores.test.ts` (2) y spec 6, que además comprueba que los almacenes del navegador no los tienen. |
+| V7-MAESTRO-02 | Sesión vencida | Si la sesión vencía a media captura, la pantalla de acceso decía «para continuar donde estabas», pero al volver a entrar el campo estaba vacío. | alta | **Corregido** con lo mismo (el borrador sobrevive a la pantalla de acceso). Cerrar sesión por decisión propia sí los borra. Spec 22 y 23. |
+| V7-MAESTRO-03 | Pase de lista, sin señal | Al tocar «Guardar pase de lista» sin conexión, el aviso rojo quedaba **debajo de la barra fija de guardar**: el maestro tocaba y no veía nada (la captura `antes-26` lo muestra: solo una rendija roja). El resultado «Pase guardado» tenía el mismo problema. | alta | **Corregido.** El fallo vive dentro de la barra fija: «No hay conexión… No se guardó nada todavía. Tus marcas siguen aquí: cuando haya señal, toca «Guardar pase de lista» otra vez (no se duplica nada)», y tras guardar la barra dice «Pase guardado a las 10:42». Spec 18 mide que el aviso esté dentro de la pantalla y no tapado (`elementFromPoint`), que no se perdió nada y que el reintento guarda UNA vez; con red lenta, doble toque manda un solo envío. |
+| V7-MAESTRO-04 | Pase de lista | Las marcas sin guardar se perdían al cambiar de fecha o de pantalla (la falta de un alumno desaparecía sin aviso). | media | **Corregido** con los borradores (clave grupo + fecha). Spec 17. |
+| V7-MAESTRO-05 | Pase de lista | «3 nuevas, 0 corregidas, 0 sin cambio.» no le dice nada a un maestro; el contador decía «1 cambio(s) sin guardar». | media | **Corregido.** Primero una frase («Quedó guardada la asistencia de 3 alumnos; corregiste 1. Si lo guardas otra vez, no se duplica nada.») y el detalle debajo; singular y plural. Los textos del detalle no cambian (las pruebas existentes los leen). |
+| V7-MAESTRO-06 | «Hoy» y registro | Al marcar «Asistió», ese botón quedaba **gris, igual que uno que no se puede tocar**: no se distinguía «elegido» de «no disponible». Mientras guardaba, los DOS botones decían «Procesando…». | media | **Corregido** (`BotonesDeAsistencia.tsx`, compartido por «Hoy» y el registro): la opción elegida lleva su ✓, color propio, opacidad completa y `aria-pressed`; solo el botón tocado dice «Procesando…». Corregir una marca equivocada sigue siendo un toque. Spec 3. |
+| V7-MAESTRO-07 | Teclado abierto | Con el teclado (unos 430 px de alto) el encabezado, la barra de abajo y la de «Guardar borrador» ocupaban el **45 %** de lo que quedaba; el botón de guardar de la sección podía quedar tapado. | media | **Corregido.** Con un campo de texto en foco la barra de abajo se esconde (`con-teclado` en `<html>`; en iPhone el teclado la cubría igual) y el área de desplazamiento reserva el espacio de las barras fijas (`scroll-padding`). Spec 7: la barra se esconde y el botón de la sección no queda tapado. |
+| V7-MAESTRO-08 | Horizontal (844×390) | Encabezado + barra de abajo + barra de guardar = **49 %** de la pantalla en el pase y el registro. | media | **Corregido.** Con menos de 500 px de alto el encabezado deja de ser fijo y la barra de abajo es una fila de 44 px. Spec 21: lo fijo no pasa de un tercio y no hay desborde. |
+| V7-MAESTRO-09 | Registro, alumnos, «Más» | Objetivos táctiles de menos de 44 px: «← Volver a «Hoy»» (18 de alto), las tres casillas de cada adulto (el renglón entero medía 22), «Leer el texto que se le muestra a la familia» (23) y el nombre de cada alumno en la lista (18). | media | **Corregido** (`enlace-tactil`, el texto de la casilla es todo el renglón, resúmenes de 44 px). El spec lo mide en cada pantalla. |
+| V7-MAESTRO-10 | Alumno que no es suyo | «No se pudo cargar — No se encontró lo que buscas» con un botón «Reintentar» que nunca puede funcionar: callejón sin salida. | media | **Corregido.** «No se encontró lo que buscas. Puede que no sea de tus grupos o de tu sucursal, o que ya no exista.» y en lugar de «Reintentar», «Ir a mi inicio» (vale para toda pantalla que reciba un 404). No se revela nada del alumno ajeno (el spec lo comprueba). |
+| V7-MAESTRO-11 | Salud | Con «Ver lo registrado» abierto, al bloquear el teléfono o cambiar de aplicación los datos seguían a la vista. Los campos de salud dejaban que el teclado aprendiera y autocorrigiera lo escrito. | media | **Corregido.** Al pasar la aplicación a segundo plano los datos leídos se quitan de la pantalla (lo que se está escribiendo no se toca); los campos llevan `autocomplete="off"` y `autocorrect="off"`. Spec 9 (la captura de la salud se toma ya guardada: los campos salen vacíos, y el documento no contiene nada de lo escrito). |
+| V7-MAESTRO-12 | Expediente | «Próximo evento — Evento — Sin evento próximo — Le faltan 0 clases (0 de 0)». | baja | **Corregido** (sin evento y sin clases requeridas no se dice nada). |
+| V7-MAESTRO-13 | Acceso | El correo no pedía «sin mayúscula automática» ni «sin autocorrección». | baja | **Corregido.** Spec 24. |
+| V7-MAESTRO-14 | Pase de lista | 4 toques el día que hay una falta (3 si todos vinieron). | media | **Documentado, decisión de Eduardo** (abajo). |
+| V7-MAESTRO-15 | «Hoy», escuela con cierre en sitio | Junto a «Inscribir a mi alumno» sigue «Listo para cerrar la inscripción»: dos caminos al mismo fin. | baja | **Documentado** (V4 los dejó a propósito: el segundo es el aviso al asesor si algo falla). |
+| V7-MAESTRO-16 | Pase de lista | La fecha se muestra como mm/dd/aaaa o dd/mm/aaaa según el idioma del navegador (10/06/2026 puede ser 6 de octubre). | baja | **Documentado**, no depende del sistema; el subtítulo trae la fecha escrita con letras. |
+| V7-MAESTRO-17 | Acceso | Sin «mostrar contraseña» (en un teléfono se teclea a ciegas). | baja | **Documentado** (decisión de producto). |
+| V7-MAESTRO-18 | Registro | Cada sección tiene su «Guardar esta sección» y además hay «Guardar borrador» fijo: dos botones para casi lo mismo. | baja | **Documentado.** Es lo que pidió J2 (por sección o todo junto); no se tocó. |
+
+**Lo que ya estaba bien** (comprobado en el recorrido): ningún campo con letra de menos de 16 px (el teléfono no hace zoom), sin desborde horizontal en ninguna pantalla en vertical ni de lado, ningún importe ni teléfono de la familia a la vista, el doble toque con red lenta no duplica (un solo envío), guardar el pase dos veces dice «sin cambio», el registro sin red dice «Lo que escribiste sigue aquí» junto al botón y reintenta sin duplicar, y la clase de otro grupo no se abre ni por dirección.
+
+**Para Eduardo**
+- **Pase de lista en 4 toques el día que hay falta** (abrir, «todos presentes», la excepción, guardar). Para dejarlo en 3, el pase tendría que ser lo primero que ve el maestro (su inicio hoy es «Hoy», las clases muestra) o «Hoy» mostrar el pase de su grupo; es una decisión de producto. No lo cambié.
+- **Sin señal no hay cola automática**: lo escrito se conserva en la pantalla y se reintenta a mano (ahora con un mensaje que lo dice). Un guardado en cola que se mande solo al volver la señal pediría un service worker y guardar datos de menores en el teléfono: no lo hice.
+- **Los borradores son de memoria, no de almacenamiento**: si el maestro recarga la página o cierra la pestaña, lo escrito sin guardar se pierde (el aviso del navegador ya pregunta antes). Alternativa descartada: `sessionStorage` (sobreviviría a recargar, pero dejaría nombres, teléfonos y fechas de nacimiento de menores en el navegador; `check:sensibles` y la decisión 12 piden lo contrario).
+- Un teléfono compartido: un borrador solo lo recupera la misma persona que lo escribió (llave por usuario), y cerrar sesión los borra todos.
+
+**Verificación** (con base y puerto propios: `v7_maestro_inscripciones_navegador_pruebas`, `v7_maestro_pruebas`, puerto 4373)
+- `npm run validar` → exit 0 (836 tests de backend + 79 de la interfaz, 0 fallas; la interfaz +2: `borradores.test.ts`).
+- `npm run test:int` → exit 0 (`ℹ tests 1310 / ℹ pass 1310 / ℹ fail 0`; sin cambios en backend).
+- `npm run test:navegador` → `194 passed (4.6m)` (antes 170; las 24 de `web/e2e/v7-maestro.spec.ts`; ninguna aserción de los otros archivos se tocó). Se corrió con `DIR_NAVEGADOR=.tmp/v7_maestro WEB_DIST=.tmp/v7_maestro/dist PUERTO=4373 DATABASE_URL_NAVEGADOR=…/v7_maestro_inscripciones_navegador_pruebas`.
+- Con `FASE=antes` el mismo spec pasó los 24 anotando 25 hallazgos medidos (los de la tabla; varios son el mismo objetivo táctil chico en filas distintas); con `FASE=despues` pasa los 24 sin hallazgos.
+
+**Decisiones que tomé**
+- **Borradores en memoria, por persona** (conservador). Alternativa descartada: almacenamiento del navegador (datos de menores).
+- **El botón «Guardar pase de lista» conserva su nombre tras un fallo** (el aviso dice «toca Guardar pase de lista otra vez»). Alternativa descartada: «Reintentar guardado», como en el registro (cambiaría el nombre con el que las pruebas existentes lo encuentran).
+- **El texto «N nuevas, N corregidas, N sin cambio» se queda como detalle** debajo de la frase clara: las pruebas de J2 lo leen y no se debilitaron.
+- **El 404 no distingue «no existe» de «no es tuyo»** (a propósito, para no revelar qué hay en otros grupos); el mensaje dice las dos posibilidades.
+
+### V7 — recepción
+
+Rita, recepcionista de la sucursal Norte (también cubre la Sur), en la computadora del mostrador (1366×768), con la revisión de tableta (768×1024) y celular (390) de las mismas pantallas, como alguien que nunca vio el sistema. Guion en `docs/capturas/v1/v7-recepcion/ARGUMENTO.md`; recorrido como prueba de regresión en `web/e2e/v7-recepcion.spec.ts` (13 pruebas); capturas `antes-NN-…` (48) y `despues-NN-…` (52) en esa carpeta (se emparejan por nombre; el número se corre uno en dos o tres pantallas porque el «antes» tiene una captura de más y el «después» el cierre del día, que antes no existía).
+
+**Cómo se hizo.** El spec levanta el servidor real con su mundo sembrado (base `v7_recepcion_inscripciones_navegador_pruebas`, puerto 4375, carpeta `.tmp/v7_recepcion`, con `DIR_NAVEGADOR` y `WEB_DIST`; sin credenciales ni salida del origen) y crea sus propios datos para no depender de lo que dejan las demás pruebas: la familia Báez (dos hijos, uno con cargos vencidos hace 40 y 100 días), una que ya pagó todo, una sin cargos, otra con vencidos de cada tramo de antigüedad, cuatro uniformes por entregar (tallas 6, 7, 7 y 14), cinco productos (uno agotado, uno de una sola pieza, uno de $1,234.50) y su promoción «al pagar la primera mensualidad» que se apaga enseguida. Los importes se leen de la API (los precios los cambian otras pruebas del mundo: una primera corrida completa falló en mi propia prueba por suponer $500 y $1,000) y se comparan como TEXTO exacto; la caja del día se recalcula aparte con `BigInt`. Con `FASE=antes` el spec solo anota lo que no se cumple (se corrió con el código de antes de corregir, apartado con `git stash`, para tener las capturas «antes» honestas); con `FASE=despues` (lo normal) falla si algo no se cumple. Cada medida de tableta y celular (desborde horizontal, objetivos táctiles de menos de 44 px, letra de menos de 16 px en el celular) corre sobre cobro, resultados, cuenta, uniformes, ventas y cierre.
+
+**Pasos por tarea diaria** (clic o elección; escribir en un campo no cuenta; meta ≤ 3):
+
+| Tarea | Pasos | |
+|---|---|---|
+| Entrar (correo, contraseña, «Entrar») | 1 | cumple |
+| Buscar a la familia (por niño, mamá o teléfono) y elegirla | 2 | cumple |
+| Pago parcial o completo (escribir el monto y «Registrar pago») | 1 | cumple |
+| Cancelar un pago equivocado (botón y confirmar con motivo) | 2 | cumple |
+| Pago repartido a mano entre dos hijos (método, «Ajustar el reparto», «Registrar pago») | 3 | cumple |
+| Consultar el estado de cuenta (buscar, elegir) | 2 | cumple |
+| Entregar un uniforme (abrir, confirmar) | 2 | cumple |
+| Vender un producto (buscar al alumno, elegir producto, registrar) | 3 | cumple |
+| Cobrar la venta que se acaba de hacer | 1 | cumple (antes: salir, ir a «Registrar pago» y buscar a la familia otra vez) |
+| Ver lo cobrado hoy y cuadrar la caja | 1 | cumple (antes: imposible) |
+
+**Fricciones**
+
+| Id | Dónde | Qué pasaba | Sev. | Qué se hizo |
+|---|---|---|---|---|
+| V7-RECEPCION-01 | Registrar pago, buscar | Por el nombre del NIÑO no encontraba nada (la búsqueda solo miraba a la mamá): quien llega dice «vengo por Valentina». | alta | **Corregido.** `GET /api/tutores?nombre=` busca cada palabra en el nombre de la mamá o de cualquiera de sus hijos. Prueba: `v7-recepcion.itest.ts` (con alcance) y spec 2. |
+| V7-RECEPCION-02 | Buscar familia y alumno (Ventas) | Acentos y mayúsculas: «ANGEL» no encontraba a «Ángel», «lucia baez» a «Lucía Báez Ñúñez», «nunez» a «Núñez» (Postgres compara con acentos; el cliente con alcance no ofrece SQL crudo). | alta | **Corregido** en `/api/tutores` y `/api/alumnos` con `plegar()` (`src/lib/texto.ts`). Pruebas: `texto.test.ts`, itest y spec 2 y 9. |
+| V7-RECEPCION-03 | Buscar por teléfono | Un teléfono con 6 dígitos o menos se buscaba como nombre y decía «No encontré a esa familia»; uno de 7 a 9 salía como «No se pudo cargar — No es un teléfono válido» con «Reintentar» (no se arregla reintentando). | media | **Corregido.** «Ese teléfono no está completo: escribe los 10 dígitos, por ejemplo 55 1234 5678 (con o sin +52)…». Con `+52` y `+521` ya encontraba a la misma familia (invariante 7; spec 2 lo comprueba con ambos, con paréntesis y guion). |
+| V7-RECEPCION-04 | Buscar | Con una sola letra el botón «Buscar» quedaba apagado sin decir por qué. | baja | **Corregido** (la ayuda dice «Escribe al menos dos letras»; y qué se puede escribir). |
+| V7-RECEPCION-05 | Registrar pago | El formulario quedaba DEBAJO de la lista de cargos: con seis cargos, «Monto recibido» empezaba a 626 px y «Registrar pago» a 1107, así que a 768 px de alto había que bajar para cobrar. | media | **Corregido.** En pantalla ancha (≥ 1100 px) lo que debe a la izquierda y el formulario a la derecha, a la vista sin bajar (captura `despues-06`). |
+| V7-RECEPCION-06 | Monto recibido | **La coma se tragaba:** «100,50» se leía como $10,050.00 y «12,34,5» como $12,345.00 (cualquier coma se ignoraba). Quien escribe con coma decimal cobraría 100 veces de más. | alta | **Corregido.** La coma solo vale como separador de MILES en grupos de tres («1,250.50»); lo demás se rechaza. Es el mismo `normalizarCaptura` de las pantallas de precios y beneficios de administración, que también quedan más seguras. Pruebas: `dinero.test.ts`. |
+| V7-RECEPCION-07 | Monto recibido | El cero, las comas mal puestas y los números enormes apagaban el botón sin decir nada; los demás errores decían «Escribe un importe válido» sin decir qué hacer. | media | **Corregido.** Un mensaje por caso que dice qué hacer: negativo, cero («debe ser mayor que cero»), letras, más de dos decimales, comas, demasiado grande; también en cada renglón del reparto a mano. Pruebas: `reparto.test.ts` (3) y spec 5 (ocho importes). |
+| V7-RECEPCION-08 | Cobrar a quien no debe nada | Se ofrecía el formulario y, al teclear un monto, decía «El pago pasa de lo que la familia adeuda… da el cambio»: nunca decía que no hay nada que cobrar ni qué hacer. | media | **Corregido.** En lugar del formulario: «No hay nada que cobrar» (al corriente, o sin cargos todavía), con «Ir a Ventas» y «Ver el estado de cuenta». El servidor sigue rechazando (409) un pago a quien no debe: el spec lo comprueba. |
+| V7-RECEPCION-09 | Pago registrado | No decía la fecha ni cuánto queda debiendo la familia, y no había nada para dárselo a la mamá. | media | **Corregido.** Fecha, «Ahora la familia debe: $X» y «Imprimir recibo» (hoja sin menús ni botones, con la escuela, el día y quién imprimió). |
+| V7-RECEPCION-10 | Estado de cuenta | No se podía imprimir ni bajar; cualquier Ctrl+P sacaba el menú y los botones. | alta | **Corregido.** «Imprimir estado de cuenta» (hoja limpia; también sirve para guardarlo en PDF) y «Descargar (CSV para Excel)» (la exportación que ya existía). Mandarlo por WhatsApp: **decisión de Eduardo** (abajo). |
+| V7-RECEPCION-11 | Estado de cuenta | «Saldo» y «Vencido» no decían qué son; la antigüedad no se explicaba. | baja | **Corregido** («Saldo (lo que debe)», «De eso, vencido», y una línea que explica los tramos). |
+| V7-RECEPCION-12 | Uniformes, dos pantallas | Si otra persona ya había entregado el uniforme, la lista vieja lo seguía mostrando; al confirmar salía «El beneficio ya se entregó» pero el botón seguía activo y la tarjeta seguía en la lista; y con la última pieza de la talla ya entregada decía «No hay piezas con existencia», que no es lo que pasó. | media | **Corregido.** Al abrir se refresca la lista; si ya no está (o el servidor dice que ya se entregó) el diálogo dice «Este uniforme ya se entregó» con el botón apagado, y la tarjeta sale de la lista. El doble clic entrega UNA pieza (spec 8). |
+| V7-RECEPCION-13 | Uniformes sin existencia | «Registra la entrada de inventario…»: no existe pantalla para eso (callejón). | media | **Corregido el texto** («avisa a quien administra el sistema para que dé de alta las piezas»). La pantalla de inventario: **decisión de Eduardo**. |
+| V7-RECEPCION-14 | Ventas | Enter en el buscador de alumno mandaba el formulario de la venta y no pasaba nada; «Registrar venta» apagado sin decir por qué; con todo agotado el selector quedaba vacío sin aviso. | baja | **Corregido** (Enter busca; «Para vender, primero busca al alumno…»; aviso de que no hay producto con existencia). |
+| V7-RECEPCION-15 | Ventas | La venta registrada no tenía camino al cobro: había que ir a «Registrar pago» y buscar a la familia otra vez. | media | **Corregido.** «Cobrar ahora» lleva al cobro con la familia ya elegida. |
+| V7-RECEPCION-16 | Cierre del día | **No existía forma de ver lo cobrado hoy ni de cuadrar la caja.** | alta | **Corregido: pantalla nueva «Cierre del día»** y `GET /api/pagos/corte` (solo lee; ver `docs/API.md`, «Corte de caja»). Prueba: `corte.test.ts` (7), `v7-recepcion.itest.ts` y spec 10. |
+| V7-RECEPCION-17 | Lo que recepción no ve | Recepción (que tiene `leads:leer`) leía por la API `GET /api/leads/:id/historial` la **nota privada del asesor** al mover un lead, y por la dirección `/leads/:id` veía la ficha entera con esa nota y una tarjeta «No se pudo cargar — No tienes permiso» que nunca podía cargar. | alta | **Corregido.** A recepción la `nota` le llega `null` (ve el avance, no la nota) y la ficha del lead pide `leads:escribir` (recepción recibe «Sin acceso»). Pruebas: itest y spec 13. |
+| V7-RECEPCION-18 | Escuela con solo captación | Recepción llegaba a «Más» con una lista de secciones vacía y sin una palabra de por qué. | media | **Corregido.** «Todavía no tienes secciones activas… pídele a la persona que administra el sistema que las active». |
+| V7-RECEPCION-19 | Teléfonos | Se ven como «+525530559109», difíciles de leer o dictar. | baja | **Documentado**, decisión de Eduardo: el formato de un teléfono es de `normalizarTelefono()` (invariante 7); mostrarlo agrupado («55 3055 9109») sería código nuevo que toca el formato. |
+| V7-RECEPCION-20 | Fecha del pago y «Día» | El campo de fecha se muestra como mm/dd/aaaa o dd/mm/aaaa según el idioma del navegador. | baja | **Documentado**, no depende del sistema (igual que en asesor y maestro). El cierre del día trae además la fecha escrita con letras. |
+| V7-RECEPCION-21 | Lista de cargos | Un cargo suelto se ve como «Evento · Examen anterior». | baja | **Documentado** (el concepto «evento» es el del cargo; llamarlo distinto en la lista es una decisión de producto). |
+
+**Lo que ya estaba bien** (comprobado en el recorrido): un doble clic en «Registrar pago», «Marcar como entregado» y «Registrar venta» hace UNA operación (el spec cuenta en la API); el reintento tras un corte de red no duplica; el dinero sale siempre con signo, separador de miles y dos decimales (y se compara como texto con la API); `12.345` y las letras se rechazan en la pantalla y en el servidor; el pago repartido a mano cuadra al centavo; cancelar deja el pago cancelado con su motivo y devuelve el saldo; un pago mayor a lo que se debe se rechaza con lo que hay que hacer; en tableta (768×1024) y en celular (390) cobro, resultados, cuenta, uniformes, ventas y cierre no se desbordan y todos los botones miden 44 px o más (el spec lo mide; con letra de al menos 16 px en el celular); con finanzas apagado la barra de Rita no tiene Registrar pago, Estado de cuenta, Uniformes, Ventas ni Cierre del día, entra al pase de lista, una dirección directa dice «No disponible… pídele a la persona que administra el sistema que la active» con «Ir a mi inicio», y la API responde 404; la salud de un alumno es 403 por la API, sin enlace en pantalla y con la dirección directa en «Sin acceso»; el expediente que ve recepción no lleva nada de salud; al volver a encender los módulos recepción recupera sus pantallas sin reiniciar. `npm run cuadratura` quedó en verde al terminar el recorrido (base propia: 76 cargos, 18 pagos, 10 ventas) y en la demo.
+
+**Para Eduardo**
+- **Corte de caja: lo que sí hace y lo que no.** Solo lee. Cuenta lo REGISTRADO ese día (la hora en que se recibió el dinero, no la «fecha del pago», que puede ser anterior), por quien lo registró y forma de pago; un pago cancelado el mismo día no cuenta; un pago de un día anterior que se cancela hoy es una *devolución* y se resta del neto de hoy. Falta decidir: (a) a qué persona se le atribuye una devolución (hoy es del total del día, no de una caja); (b) si se quiere un cierre formal (guardar el conteo físico, la diferencia y quién cerró; hoy el corte no guarda nada y se puede ver otra vez); (c) el «día» es el de la primera sucursal que ve el usuario (o la que se elige), porque el pago no lleva sucursal.
+- **Mandar el estado de cuenta por WhatsApp** no se hizo: todo mensaje saliente pasa por `MessagingProvider` y sus reglas (plantilla de servicio aprobada, horario, opt-out). Haría falta una plantilla «estado de cuenta» y un botón que la encole; hoy sale en papel o en Excel.
+- **Inventario sin pantalla.** Recepción tiene el permiso `productos:stock` y la API existe, pero no hay pantalla para dar entrada de piezas ni para dar de alta un producto (el texto de Uniformes ya no promete una).
+- **Recepción conserva `leads:leer` por la API** (lead, niños, cotizaciones, historial y la exportación de leads con teléfonos). Solo se ocultó la nota del asesor. Si recepción no necesita ver el embudo, conviene quitarle el permiso; no lo hice porque cambia la matriz de permisos.
+- Teléfonos agrupados al mostrarlos (V7-RECEPCION-19) y el nombre «Evento» de un cargo suelto (V7-RECEPCION-21).
+
+**Verificación** (con base y puerto propios: `v7_recepcion_inscripciones_navegador_pruebas`, `v7_recepcion_pruebas`, puerto 4375)
+- `npm run validar` → exit 0 (845 tests de backend + 84 de la interfaz, 0 fallas; +9 de backend: `corte.test.ts` (7) y `texto.test.ts` (2); +5 de interfaz: `dinero.test.ts` (2) y `reparto.test.ts` (3)).
+- `npm run test:int` → exit 0 (`ℹ tests 1317 / ℹ pass 1317 / ℹ fail 0`; antes 1310; 7 nuevos en `src/api/v7-recepcion.itest.ts`: el corte por usuario y forma de pago al centavo con cancelado del mismo día y devolución de ayer, que solo lee, quién lo ve y alcance (sucursal ajena, otra escuela, maestro 403, sin sesión 401, sucursal que no ve 404), fecha inválida y finanzas apagado, la búsqueda de familias y de alumnos sin acentos ni mayúsculas con alcance, y la nota del asesor y la salud para recepción).
+- `npm run test:navegador` → exit 0 (`207 passed (5.3m)`, antes 194; las 13 de `web/e2e/v7-recepcion.spec.ts`; ninguna aserción de los otros archivos se tocó). Se corrió con `DIR_NAVEGADOR=.tmp/v7_recepcion WEB_DIST=.tmp/v7_recepcion/dist PUERTO=4375 DATABASE_URL_NAVEGADOR=…/v7_recepcion_inscripciones_navegador_pruebas`, con el log completo en un archivo y el `EXIT` real.
+- `npm run cuadratura` → exit 0 en la base del recorrido (`✓ cuadra`, 76 cargos, 18 pagos, 26 aplicaciones, 10 ventas) y en la demo.
+- Con `FASE=antes` y el código sin corregir el spec anotó los hallazgos medidos o comprobados de la tabla (varios son la misma búsqueda o el mismo importe con otro texto) y confirmó la fuga de la nota del asesor; con `FASE=despues` pasa las 13 sin hallazgos. `src/api/rutas.test.ts` ganó la fila de la ruta nueva (`GET /api/pagos/corte`: `pagos:leer`) y `web/src/navegacion.test.ts` la sección «Cierre del día» entre las de finanzas.
+
+**Decisiones que tomé**
+- **La coma solo separa miles** (V7-RECEPCION-06). Alternativa descartada: aceptar la coma como decimal (en otros países lo es): «1,5» sería $1.50 aquí y $15.00 antes; ambas lecturas son plausibles, así que se rechaza y se dice qué escribir.
+- **Búsqueda sin acentos en memoria**, sobre lo que el usuario ya ve (alcance y filtros aplicados) y con tope de 20 000 familias. Alternativas descartadas: la extensión `unaccent` de Postgres (SQL crudo, prohibido por el alcance, y una extensión más en AWS) y una columna normalizada (migración y disparadores para algo que hoy son miles de filas).
+- **El corte cuenta por cuándo se registró el pago, no por su «fecha»** y las devoluciones van al total del día. Alternativa descartada: agrupar por la fecha del pago (un pago de ayer capturado hoy no entraría a la caja de hoy aunque el dinero entró hoy).
+- **La ficha del lead pide `leads:escribir`** (recepción no tiene embudo ni tareas: no hay un camino legítimo a esa pantalla). Alternativa descartada: dejarla abierta a recepción sin la nota (seguiría mostrando datos y tarjetas con «No tienes permiso»).
+- **«No hay nada que cobrar» reemplaza al formulario** (alternativa descartada: dejarlo desactivado: sigue sin decir qué hacer).
+- **Imprimir con el diálogo del navegador** (hoja de estilo de impresión), sin generar PDF propio: cero dependencias nuevas y sirve también para «guardar como PDF».
+- **Variables de entorno de las pruebas** (`DIR_NAVEGADOR`, `WEB_DIST`) y `FOTO_DESDE` (solo del spec) para correr por partes sin pisar capturas; por omisión no cambia nada.
+
+### V7 — administrador
+
+Adela, administradora de la escuela, en la computadora de la oficina (1366×768), con la revisión de tableta (768×1024) y celular (390) de las pantallas más usadas, como alguien que nunca vio el sistema. Guion en `docs/capturas/v1/v7-administrador/ARGUMENTO.md`; recorrido como prueba de regresión en `web/e2e/v7-administrador.spec.ts` (19 pruebas); capturas `antes-PP-…` (64) y `despues-PP-…` (80) en esa carpeta (`PP` es el número de la prueba y se emparejan por prueba y nombre; en el «antes» faltan las de lo que todavía no existía), y `hallazgos-antes.txt` con lo que el recorrido midió en el código sin corregir.
+
+**Cómo se hizo.** El spec levanta el servidor real con su mundo sembrado (base `v7_admin_inscripciones_navegador_pruebas`, puerto 4379, carpeta `.tmp/v7_admin`, con `DIR_NAVEGADOR` y `WEB_DIST`; sin credenciales ni salida del origen) y crea sus propios datos (una disciplina, una sucursal, un programa, grupos, un salón, un instructor, cuatro usuarios, una campaña, una plantilla y dos promociones) que da de baja al terminar; lo que cambia del mundo compartido (módulos, horario de envío, modo de cierre y una automatización) lo deja como estaba. **La escuela vacía** es otra organización creada en la prueba 2 (solo la captación encendida) y dada de baja al terminar. Con `FASE=antes` el spec solo anota lo que no se cumple (se corrió con el código de antes de corregir, apartado con `git stash push -- src web`: 93 hallazgos medidos más las 36 medidas de tableta y celular; dos «textos técnicos» del primer intento eran falsos positivos de la expresión de búsqueda y se corrigieron); con `FASE=despues` (lo normal) falla si algo no se cumple. Un recorrido de lectura revisa las 22 pantallas buscando términos técnicos, inglés, identificadores y plurales a medias; otro mide desborde, objetivos táctiles de menos de 44 px y letra de menos de 16 px en celular.
+
+**Pasos por tarea** (clic o elección; escribir no cuenta; meta ≤ 3 en lo diario):
+
+| Tarea | Antes | Ahora |
+|---|---|---|
+| Llegar a Administración y ver por dónde seguir | 2 (y sin orientación) | 2, con «Para empezar» y buscador |
+| Cambiar un precio (Nueva vigencia, guardar) | 2 | 2, y avisa desde cuándo rige y qué pasa con lo ya inscrito |
+| Apagar un módulo | 1 (sin confirmar ni decir qué se pierde) | 2 (apagar, confirmar leyendo qué cambia) |
+| Restablecer la contraseña de otra persona | 2 (escondido en «Editar») | 2 (botón propio en su tarjeta) |
+| Desactivar a alguien | 3 (Editar, desmarcar, guardar) | 2 (Desactivar, confirmar) |
+| Cambiar la propia contraseña | imposible | 3 (Mi cuenta, abrir, guardar) |
+| Capturar el gasto de una campaña | 4 | 4 (el botón ahora dice qué hace) |
+| Bajar el QR de una campaña | imposible (solo por la API) | 3 |
+| Alta de un grupo con salón, instructor y horario | 3 pasos de botón (y un formulario que no cabe) | 3, con «Guardar» siempre a la vista |
+
+**Fricciones**
+
+| Id | Dónde | Qué pasaba | Sev. | Qué se hizo |
+|---|---|---|---|---|
+| V7-ADMIN-01 | Inicio de Administración | Sin orientación: 20 pantallas en una lista y ninguna pista de por dónde empezar con una escuela vacía. | alta | **Corregido.** «Para empezar»: ocho pasos calculados contra el estado real (`GET /api/administracion/primeros-pasos`; ver `docs/API.md`), el siguiente con «Hacerlo ahora», un detalle de por qué falta (con los nombres de la escuela) y, en el embudo del administrador, un aviso corto que lleva ahí. Pruebas: `primeros-pasos` en `v7-administrador.itest.ts` (5), spec 1, 2 y 3. |
+| V7-ADMIN-02 | Cuenta de cada persona | La API para cambiar la propia contraseña existía pero **ninguna pantalla la usaba** (el texto prometía «Mi sesión»), y en escritorio «Más» ni se alcanzaba: quien recibía su contraseña «en persona» no podía cambiarla nunca. | alta | **Corregido** (todos los roles). «Mi cuenta» en el encabezado y «Cambiar mi contraseña» (actual, nueva, repetida; los errores en palabras). Spec 1 y 11. |
+| V7-ADMIN-03 | Campañas y QR | **No había pantalla** para dar de alta una campaña ni bajar su QR (solo la API), y el tablero de costo decía «Todavía no hay campañas» sin salida. | alta | **Corregido (versión mínima).** Pantalla «Campañas y códigos QR»: alta, edición, baja, vista previa del QR por sucursal, dirección que abre y descarga en imagen o para imprenta; el tablero la nombra. Spec 16. Los códigos de rastreo sueltos siguen por API. |
+| V7-ADMIN-04 | 14 formularios de administración | Al enviar uno vacío salía el aviso del navegador («Please fill out this field» en un Chrome en inglés) y nunca se veían los mensajes propios en español. | alta | **Corregido** (`noValidate` en cada formulario; los mensajes propios ya existían). Specs 4 y 6. |
+| V7-ADMIN-05 | Todo lo que guarda, enciende, apaga o da de baja | El diálogo se cerraba sin una palabra: ¿ya surtió efecto? ¿desde cuándo? | alta | **Corregido.** Un aviso global («ya quedó»: `ui/avisos.tsx`, anunciado a lectores de pantalla) en unas 25 acciones, cada uno con lo que importa (desde cuándo rige un precio, qué cambia al apagar un módulo, «dásela en persona»). |
+| V7-ADMIN-06 | Módulos | Apagar no pedía confirmar ni decía qué pierde cada rol; la dependencia decía «primero apaga: Inscripción» sin decir que a Inscripción le faltaban otras tres. | alta | **Corregido.** Cada módulo dice qué cambia al moverlo, apagar pide confirmar, el mensaje de dependencia es la cadena completa y en orden («Tableros, Finanzas, Operación diaria, Inscripción»). Pruebas: `modulos.test.ts` (3 nuevas), spec 7 (comprueba que recepción pierde y recupera sus permisos y la API de cobros). |
+| V7-ADMIN-07 | «Dar de baja» en 10 pantallas | No decía que desaparece de todas las listas ni que desde aquí no se puede deshacer, ni ofrecía lo reversible (desactivar). | alta | **Corregido** el texto (`AvisoDeBaja`), con lo propio de cada cosa. El botón para recuperar: **decisión de Eduardo** (abajo). Spec 15. |
+| V7-ADMIN-08 | Usuarios | Restablecer la contraseña estaba escondido dentro de «Editar»; desactivar eran tres pasos sin confirmar; reactivar no tenía botón. | media | **Corregido.** Botones «Restablecer contraseña», «Desactivar» (con lo que pasa) y «Activar» en la tarjeta. Spec 10. |
+| V7-ADMIN-09 | Usuarios (editarse a sí mismo) | Escribir una contraseña propia respondía «usa POST /api/yo/contrasena (pide la actual)». | media | **Corregido.** Sin el campo; dice dónde se cambia («Mi cuenta»). |
+| V7-ADMIN-10 | Alta de usuario | Se elegía el rol sin saber qué iba a ver esa persona. | media | **Corregido.** Texto por rol bajo el selector; el spec entra de verdad como asesor, maestro, recepción y administrador y comprueba su barra. |
+| V7-ADMIN-11 | Alta de grupo (choques) | El mismo mensaje salía dos veces, decía «(se traslapa con 16:00–17:00)» sin decir qué hacer y el aviso quedaba debajo de lo que se ve, junto a un «Guardar» al que había que bajar. | media | **Corregido.** El detalle sale una vez, con qué hacer («Cambia el horario o elige otro salón»), los botones del diálogo se quedan a la vista y el error se acerca solo. Se actualizó el texto en `choques.test.ts` y `ocupacion.itest.ts`. |
+| V7-ADMIN-12 | Traslape de edad entre programas | Decía «marca "permite traslape" en AMBOS»; la casilla se llama «Permite traslape de edad». | media | **Corregido** el texto (se ajustó una aserción de `admin.spec.ts` y otra de `administracion.itest.ts` a la mayúscula). |
+| V7-ADMIN-13 | Precios | Una fecha ocupada salía como «2026-10-10», repetida y sin salida; al guardar no avisaba nada; un precio mal capturado no tiene arreglo a la vista. | media | **Corregido** el mensaje («Ya hay un precio que rige desde el 10/10/2026. Elige una fecha posterior»), el aviso y el diálogo (un precio no se edita: se captura otro con fecha posterior). Editarlo: **decisión de Eduardo**. Spec 5. |
+| V7-ADMIN-14 | Sucursales | La zona horaria se escribía («America/Mexico_City»). | media | **Corregido.** Selector en palabras («Hora del centro de México…»); una zona fuera de la lista no se pierde. Se actualizó `admin.spec.ts`. |
+| V7-ADMIN-15 | Costo por campaña | Sin gasto salía «$0.00» sin decir que falta capturarlo; «Gastos» no decía qué hace; quitar un gasto se perdía con un clic. | media | **Corregido** (aviso por campañas sin gasto, «Capturar o ver gastos», confirmación en la misma fila). Se ajustaron `tableros.spec.ts` y `recorridos.spec.ts` (un clic de confirmar). |
+| V7-ADMIN-16 | Bandeja del administrador | La causa salía con jerga («El cuerpo no era un JSON válido») y no decía qué hacer. | media | **Corregido.** Causas en palabras, «Qué hacer», el detalle técnico plegado «para soporte». |
+| V7-ADMIN-17 | Plantillas y automatizaciones | «es_MX», «categoría utility», «text/quick-reply», «automatización(es)», «2 intento(s)». | media | **Corregido** (idioma, categoría y tipo en palabras; plurales). Se ajustó una aserción de `admin-mensajeria.spec.ts`. |
+| V7-ADMIN-18 | Cargar catálogo | Un `.xlsx` decía «no se parece a ninguna plantilla» sin explicar por qué ni qué hacer. | media | **Corregido.** Se detecta al elegirlo y dice cómo guardarlo como CSV UTF-8. Prueba: `catalogo.test.ts`, spec 8. |
+| V7-ADMIN-19 | Pantalla de acceso | Quien olvida su contraseña o fue desactivado no tenía a dónde ir. | media | **Corregido** (una línea: pídele a quien administra el sistema). |
+| V7-ADMIN-20 | Inicio de Administración | Sin buscador; los enlaces medían 18 px de alto (tableta y celular, 36 medidas). | media | **Corregido.** Buscador (por título, descripción y otras palabras: «contraseña», «excel», «qr»); enlaces de 44 px. `areas.test.ts` (3). |
+| V7-ADMIN-21 | Listas de grupos y de usuarios | Largas, sin buscador. | media | **Corregido** (buscador sin acentos ni mayúsculas; se piden hasta 100 por página). |
+| V7-ADMIN-22 | Varias pantallas | «1 mensajes», «1 inscripciones», «grupo(s)» en mensajes del servidor. | baja | **Corregido** (`cantidad()` en el servidor y en la interfaz, con pruebas). |
+| V7-ADMIN-23 | Disciplinas | «Enlace: /l/…» e «Identificador» a la vista. | baja | **Corregido** («Página para recibir familias: abrir»). |
+| V7-ADMIN-24 | Programas | «edad al 2026-09-01». | baja | **Corregido.** |
+| V7-ADMIN-25 | Canales | «variables de entorno», «Calidad: desconocida». | baja | **Corregido** (texto en palabras). |
+| V7-ADMIN-26 | Encabezado | El selector de sucursal se cortaba («Todas mis sucursa»). | baja | **Corregido.** |
+| V7-ADMIN-27 | Tablero ejecutivo | Decía fijo «90 %» y «25 %» aunque se cambian en Configuración. | baja | **Corregido.** |
+| V7-ADMIN-28 | Fechas | Los campos de fecha salen mm/dd/aaaa o dd/mm/aaaa según el idioma del navegador. | baja | **Documentado** (igual que en los otros roles). |
+| V7-ADMIN-29 | Selectores de programas e instructores | Piden hasta 100 elementos. | baja | **Documentado**: sirve para una escuela de tres disciplinas; con más, un buscador. |
+| V7-ADMIN-30 | Bloqueo por contraseñas equivocadas | El administrador no puede liberarlo; se libera solo a los 15 minutos. | baja | **Documentado** en la pantalla de usuarios. Un botón «Liberar»: **decisión de Eduardo**. |
+| V7-ADMIN-31 | Bajas y precios | No hay botón para recuperar una baja ni para corregir un precio. | media | **Decisión de Eduardo** (abajo). |
+| V7-ADMIN-32 | Formularios de los otros roles | Siguen con el aviso nativo del navegador cuando se envían vacíos (ventas, cobro, búsquedas, ficha del niño…). | baja | **Documentado** para V10: ahí el botón ya se apaga o el servidor contesta en español. |
+
+Total: 7 altas, 14 medias y 11 bajas (32); 27 corregidas, 3 documentadas y 2 para Eduardo (V7-ADMIN-30 y 31 además de lo documentado).
+
+**Lo que ya estaba bien** (comprobado en el recorrido): el choque de salón y de instructor y el traslape de edad se detectan y se explican (con el grupo con el que chocan); un grupo con inscritos no se da de baja; el precio nuevo cierra el anterior el día previo y el historial lo muestra («Vigente», «Futura», «Pasada»); apagar un módulo desaparece de la barra y de la API para todos sin reiniciar y encenderlo lo devuelve; recepción pierde y recupera sus permisos; el bloqueo tras 5 intentos funciona y la contraseña buena tampoco entra mientras dura; una contraseña vieja deja de servir al restablecerla; quien está desactivado ya no entra; las acciones se hacen una sola vez con doble clic; ningún rol distinto del administrador ve Administración (pantalla y API); en tableta y celular nada se desborda.
+
+**Para Eduardo**
+- **Recuperar lo dado de baja.** Hoy soporte puede (no se borra nada), pero no hay pantalla. Opción conservadora tomada: el diálogo lo dice y ofrece «desactivar», que sí se deshace. Alternativa: una pantalla «Papelera» por tipo con «Recuperar» (nueva superficie y reglas de qué pasa con lo que dependía de eso).
+- **Corregir un precio mal capturado.** Un precio no se edita (así lo ya cobrado nunca cambia): se captura otro con fecha posterior. Si la escuela se equivoca hoy, el precio malo rige hoy. Opción: permitir editar una vigencia que todavía no tiene inscripciones ni cotizaciones.
+- **Dónde aterriza el administrador.** Sigue entrando al embudo (como antes); en una escuela sin terminar se le muestra un aviso con «Ver los pasos». Alternativa: que entre a Administración mientras falten pasos.
+- **Liberar un bloqueo.** El administrador no puede; se libera solo a los 15 minutos.
+- **La pantalla de campañas es mínima:** no maneja códigos de rastreo sueltos (por API), ni límites de usos, ni fechas de la campaña. El gasto sigue capturándose en Tableros (que necesita el módulo Tableros encendido).
+- **Un asesor ve «Mi cuenta» y puede cambiar su contraseña** (cambio de todos los roles, no solo del administrador).
+
+**Verificación** (base y puerto propios: `v7_admin_inscripciones_navegador_pruebas` y `v7_admin_pruebas`, puerto 4379)
+- `npm run validar` → exit 0 (846 pruebas de backend y 95 de la interfaz, 0 fallas; +1 de backend: `cantidad.test.ts`; +11 de interfaz: módulos (3), zonas (2), áreas (3), texto (1), cantidad (1) y catálogo (1)).
+- `npm run test:int` → exit 0 (`ℹ tests 1322 / ℹ pass 1322 / ℹ fail 0`; antes 1317; 5 nuevas en `src/api/v7-administrador.itest.ts`: los ocho pasos uno por uno contra el estado real —un precio futuro no cuenta, un programa dado de baja no cuenta, un usuario desactivado no cuenta—, el aislamiento entre organizaciones, el permiso y la ruta con módulos apagados). Se ajustaron tres aserciones de textos mejorados (`ocupacion.itest.ts`, `administracion.itest.ts`, `choques.test.ts`).
+- `npm run test:navegador` → exit 0 (`226 passed (6.6m)`, antes 207; las 19 de `web/e2e/v7-administrador.spec.ts`), con el log completo guardado y el `EXIT` real. Se ajustaron 6 aserciones de otros archivos por mejoras de este bloque (`modulos.spec.ts`: confirmar al apagar; `admin.spec.ts`: la zona se elige y el texto del traslape; `admin-mensajeria.spec.ts`: «2 automatizaciones»; `tableros.spec.ts` y `recorridos.spec.ts`: confirmar al quitar un gasto), ninguna se debilitó.
+- `check:generico`, `check:capas`, `check:sensibles`, `check:dinero` y `check:secretos` en verde (dentro de `validar`).
+
+**Decisiones que tomé**
+- **El aviso de «ya quedó» es global** (un solo aviso a la vez, se cierra y se va solo). Alternativa descartada: un mensaje dentro de cada pantalla (se pierde al cerrar el diálogo y obliga a repetir el patrón 15 veces).
+- **Los pasos de «Para empezar» se calculan en el servidor**, no en la interfaz con varias listas: así hay una sola definición, con pruebas, y no depende de límites de página. Alternativa descartada: marcarlos a mano (se desactualizan).
+- **Error junto al campo O en el aviso, no en los dos.** En el choque de salón se dejó en el aviso (con el detalle completo, que una prueba vieja ya pedía); en lo demás, junto al campo.
+- **Apagar pide confirmación; encender no** (no quita nada a nadie).
+- **Zona horaria con selector y lista corta** (México, Colombia, Perú, Chile, Argentina y España). Alternativa descartada: seguir escribiéndola (nadie sabe su nombre técnico).
+- **Variables de las pruebas:** igual que los otros recorridos (`DIR_NAVEGADOR`, `WEB_DIST`).

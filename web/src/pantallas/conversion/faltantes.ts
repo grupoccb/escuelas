@@ -73,10 +73,19 @@ const ETIQUETAS: Record<string, string> = {
   prospecto_id: "Alumno",
 };
 
-export function etiquetaDeFalta(campo: string): string {
+/**
+ * La falta en palabras de una persona. Con varios niños a la vez (`nombreDe` devuelve el nombre de cada uno), la falta dice DE QUIÉN es: «Apellidos de Sofía» y «Apellidos de Mateo»
+ * en vez de dos «Apellidos del alumno» idénticos (V7).
+ */
+export function etiquetaDeFalta(campo: string, nombreDe?: (prospectoId: string) => string | null): string {
   if (campo.startsWith("tutor.")) return ETIQUETAS[campo] ?? campo;
   const m = RUTA_DE_PROSPECTO.exec(campo);
-  if (m) return ETIQUETAS[m[2] ?? ""] ?? ETIQUETAS[(m[2] ?? "").replace(/^alumno\./, "alumno.")] ?? campo;
+  if (m) {
+    const base = ETIQUETAS[m[2] ?? ""] ?? campo;
+    const nombre = nombreDe?.(m[1] ?? "") ?? null;
+    if (!nombre || base === campo) return base;
+    return base.includes("del alumno") ? base.replace("del alumno", `de ${nombre}`) : `${base} (${nombre})`;
+  }
   return campo === "prospectos" ? "Al menos un alumno" : campo;
 }
 

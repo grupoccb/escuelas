@@ -90,12 +90,13 @@ export function CampoCasilla({ etiqueta, ayuda, ...resto }: { etiqueta: ReactNod
 }
 
 /** Tres opciones exclusivas en botones grandes (Sí / No / Sin responder), para el celular. */
-export function GrupoDeOpciones({ etiqueta, valor, opciones, alCambiar, error }: { etiqueta: string; valor: string; opciones: readonly Opcion[]; alCambiar: (v: string) => void; error?: string | undefined }) {
+/** `rejilla`: para listas largas con texto (V7: las sesiones de una clase muestra) las opciones van en columnas parejas en vez de apretarse en una fila. */
+export function GrupoDeOpciones({ etiqueta, valor, opciones, alCambiar, error, rejilla = false }: { etiqueta: string; valor: string; opciones: readonly Opcion[]; alCambiar: (v: string) => void; error?: string | undefined; rejilla?: boolean }) {
   const id = useId();
   return (
     <fieldset className={`grupo-opciones${error ? " campo-con-error" : ""}`} aria-describedby={error ? `${id}-error` : undefined}>
       <legend>{etiqueta}</legend>
-      <div className="grupo-opciones-fila">
+      <div className={rejilla ? "grupo-opciones-fila grupo-opciones-rejilla" : "grupo-opciones-fila"}>
         {opciones.map((o) => (
           <label key={o.valor} className={`opcion${valor === o.valor ? " opcion-activa" : ""}${o.deshabilitada ? " opcion-inactiva" : ""}`}>
             <input type="radio" name={id} value={o.valor} checked={valor === o.valor} disabled={o.deshabilitada} onChange={() => alCambiar(o.valor)} />

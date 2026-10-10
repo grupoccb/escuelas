@@ -5,15 +5,12 @@ import { useState, type FormEvent } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Boton, Cargando, ErrorDeCarga, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeCarga, Vacio } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
 import { useCarga } from "../../ui/hooks.ts";
+import { pareceTelefono, soloTelefono } from "./telefono.ts";
 
-/** ¿Lo escrito es un teléfono? Solo dígitos y signos de teléfono, y al menos siete dígitos. */
-export function pareceTelefono(texto: string): boolean {
-  const t = texto.trim();
-  return /^[\d\s()+\-.]+$/.test(t) && t.replace(/\D/g, "").length >= 7;
-}
+export { pareceTelefono };
 
 export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }) {
   const { sucursalId } = useSesion();
@@ -25,8 +22,14 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
       return api.get<Pagina<Tutor>>("/api/tutores", { ...(pareceTelefono(q) ? { telefono: q.trim() } : { nombre: q.trim() }), ...(sucursalId ? { sucursal_id: sucursalId } : {}), limite: 20 }, senal);
     },
     [busqueda, sucursalId],
-    busqueda !== null,
+    busqueda !== null && !(soloTelefono(busqueda) && !pareceTelefono(busqueda)),
   );
+
+  // Un teléfono incompleto lo rechaza el servidor (400): no es un fallo de carga que se arregle reintentando, es algo que Rita puede corregir al instante.
+  const telefonoIncompleto = busqueda !== null && ((resultados.error?.estado === 400 && pareceTelefono(busqueda)) || (soloTelefono(busqueda) && !pareceTelefono(busqueda)));
+
+  // Con un teléfono incompleto no se muestra lo que dejó la búsqueda anterior.
+  const datos = telefonoIncompleto ? null : resultados.datos;
 
   const buscar = (e: FormEvent) => {
     e.preventDefault();
@@ -36,7 +39,7 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
   return (
     <div className="pila" data-prueba="buscador-de-familia">
       <form className="formulario" onSubmit={buscar} role="search">
-        <CampoTexto etiqueta="Teléfono o nombre de la familia" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} ayuda="El teléfono puede ir con o sin lada y con espacios o guiones." />
+        <CampoTexto etiqueta="Teléfono o nombre de la familia" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} ayuda={escrito.trim().length === 1 ? "Escribe al menos dos letras para buscar." : "Escribe el teléfono (con o sin +52, con espacios o guiones) o el nombre de la mamá o del niño. No importan los acentos ni las mayúsculas."} />
         <div>
           <Boton type="submit" variante="primario" disabled={escrito.trim().length < 2}>
             Buscar
@@ -44,10 +47,16 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
         </div>
       </form>
       {resultados.cargando ? <Cargando texto="Buscando…" /> : null}
-      {resultados.error ? <ErrorDeCarga error={resultados.error} alReintentar={resultados.recargar} /> : null}
-      {busqueda !== null && resultados.datos && resultados.datos.datos.length === 0 ? <Vacio titulo="No encontré a esa familia">Revisa el teléfono o prueba con otro nombre.</Vacio> : null}
+      {telefonoIncompleto ? (
+        <Aviso tono="alerta" titulo="Ese teléfono no está completo">
+          <p>Escribe los 10 dígitos, por ejemplo 55 1234 5678 (con o sin +52). Si no lo sabes de memoria, busca por el nombre de la mamá o del niño.</p>
+        </Aviso>
+      ) : resultados.error ? (
+        <ErrorDeCarga error={resultados.error} alReintentar={resultados.recargar} />
+      ) : null}
+      {busqueda !== null && !telefonoIncompleto && datos && datos.datos.length === 0 ? <Vacio titulo="No encontré a esa familia">Revisa el teléfono o prueba con otro nombre.</Vacio> : null}
       <ul className="lista-tarjetas">
-        {(resultados.datos?.datos ?? []).map((t) => (
+        {(datos?.datos ?? []).map((t) => (
           <li key={t.id} className="tarjeta fila fila-entre" data-prueba={`familia-${t.id}`}>
             <span>
               <strong>

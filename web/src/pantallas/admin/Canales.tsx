@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
+import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { CanalAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
-function FormularioCanal({ canal, verticales, sucursales, alGuardar, alCerrar }: { canal: CanalAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; alGuardar: () => void; alCerrar: () => void }) {
+/** Cómo califica Meta al número (lo dice el proveedor; aquí solo se lee). */
+const CALIDAD: Record<string, string> = { alta: "alta", media: "media", baja: "baja", desconocida: "todavía sin medir" };
+
+function FormularioCanal({ canal, verticales, sucursales, alGuardar, alCerrar }: { canal: CanalAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [nombre, setNombre] = useState(canal?.nombre_publico ?? "");
   const [verticalId, setVerticalId] = useState(canal?.vertical_id ?? "");
   const [sucursalId, setSucursalId] = useState(canal?.sucursal_id ?? "");
@@ -27,6 +31,7 @@ function FormularioCanal({ canal, verticales, sucursales, alGuardar, alCerrar }:
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -38,7 +43,7 @@ function FormularioCanal({ canal, verticales, sucursales, alGuardar, alCerrar }:
         void guardar.ejecutar(async () => {
           if (canal) await api.patch(`/api/canales-whatsapp/${canal.id}`, comun);
           else await api.post("/api/canales-whatsapp", { vertical_id: verticalId, ...comun });
-          alGuardar();
+          alGuardar(comun.nombre_publico);
         });
       }}
     >
@@ -61,7 +66,7 @@ function FormularioCanal({ canal, verticales, sucursales, alGuardar, alCerrar }:
   );
 }
 
-function FormularioBandeja({ canal, alGuardar, alCerrar }: { canal: CanalAdmin; alGuardar: () => void; alCerrar: () => void }) {
+function FormularioBandeja({ canal, alGuardar, alCerrar }: { canal: CanalAdmin; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const b = canal.bandeja;
   const [nombre, setNombre] = useState(b?.nombre ?? "");
   const [cuenta, setCuenta] = useState(b?.chatwoot_account_id ? String(b.chatwoot_account_id) : "");
@@ -73,6 +78,7 @@ function FormularioBandeja({ canal, alGuardar, alCerrar }: { canal: CanalAdmin; 
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -87,7 +93,7 @@ function FormularioBandeja({ canal, alGuardar, alCerrar }: { canal: CanalAdmin; 
         void guardar.ejecutar(async () => {
           if (b) await api.patch(`/api/bandejas-chatwoot/${b.id}`, { nombre: nombre.trim(), chatwoot_account_id: c, chatwoot_inbox_id: i });
           else await api.post("/api/bandejas-chatwoot", { canal_whatsapp_id: canal.id, nombre: nombre.trim(), chatwoot_account_id: c, chatwoot_inbox_id: i });
-          alGuardar();
+          alGuardar(nombre.trim());
         });
       }}
     >
@@ -110,6 +116,7 @@ export default function Canales() {
   const lista = useCarga((senal) => api.get<{ datos: CanalAdmin[] }>("/api/canales-whatsapp", undefined, senal), []);
   const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
   const sucursales = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
+  const { avisar } = useAvisos();
   const edCanal = useEdicion<CanalAdmin>();
   const [conBandeja, setConBandeja] = useState<CanalAdmin | null>(null);
   const [bajaCanal, setBajaCanal] = useState<CanalAdmin | null>(null);
@@ -118,7 +125,7 @@ export default function Canales() {
   const nombreS = (id: string | null) => (id ? (sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—") : "Todas");
   return (
     <Pagina titulo="Canales de WhatsApp" subtitulo="A qué número escribe cada disciplina y en qué bandeja la atiende el asesor." acciones={<><Regreso /><Boton variante="primario" onClick={edCanal.nuevo}>Nuevo canal</Boton></>}>
-      <Aviso>Los tokens de Twilio y de Chatwoot NO se guardan aquí: viven en las variables de entorno del servidor.</Aviso>
+      <Aviso>Las claves de acceso de Twilio y de Chatwoot no se capturan en esta pantalla: las pone quien instala el sistema. Aquí solo dices qué número es de cada disciplina y en qué bandeja lo atiende el asesor.</Aviso>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
       {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay canales" /> : null}
@@ -129,7 +136,7 @@ export default function Canales() {
               <strong>{c.nombre_publico}</strong>
               <span className="fila">
                 <Insignia tono={c.activo ? "exito" : "neutro"}>{c.activo ? "Activo" : "Inactivo"}</Insignia>
-                <Insignia>Calidad: {c.calidad_meta}</Insignia>
+                <Insignia>Calidad del número: {CALIDAD[c.calidad_meta] ?? c.calidad_meta}</Insignia>
               </span>
             </div>
             <p className="muted">
@@ -146,16 +153,16 @@ export default function Canales() {
         ))}
       </ul>
       <Dialogo abierto={edCanal.actual !== null} titulo={edCanal.actual === "nuevo" ? "Nuevo canal" : "Editar canal"} alCerrar={edCanal.cerrar}>
-        {edCanal.actual !== null ? <FormularioCanal canal={edCanal.actual === "nuevo" ? null : edCanal.actual} verticales={verticales.datos?.datos ?? []} sucursales={sucursales.datos?.datos ?? []} alGuardar={() => { edCanal.cerrar(); lista.recargar(); }} alCerrar={edCanal.cerrar} /> : null}
+        {edCanal.actual !== null ? <FormularioCanal canal={edCanal.actual === "nuevo" ? null : edCanal.actual} verticales={verticales.datos?.datos ?? []} sucursales={sucursales.datos?.datos ?? []} alGuardar={(nombre) => { edCanal.cerrar(); lista.recargar(); avisar(`El canal «${nombre}» se guardó.`); }} alCerrar={edCanal.cerrar} /> : null}
       </Dialogo>
       <Dialogo abierto={conBandeja !== null} titulo="Bandeja de Chatwoot" alCerrar={() => setConBandeja(null)}>
-        {conBandeja ? <FormularioBandeja canal={conBandeja} alGuardar={() => { setConBandeja(null); lista.recargar(); }} alCerrar={() => setConBandeja(null)} /> : null}
+        {conBandeja ? <FormularioBandeja canal={conBandeja} alGuardar={(nombre) => { setConBandeja(null); lista.recargar(); avisar(`La bandeja «${nombre}» se guardó.`); }} alCerrar={() => setConBandeja(null)} /> : null}
       </Dialogo>
-      <ConfirmarAccion abierto={bajaCanal !== null} titulo="Dar de baja el canal" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaCanal(null)} alConfirmar={async () => { await api.delete(`/api/canales-whatsapp/${bajaCanal!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">Si tiene bandeja, quítala primero. Baja de <strong>{bajaCanal?.nombre_publico}</strong>.</Aviso>
+      <ConfirmarAccion abierto={bajaCanal !== null} titulo="Dar de baja el canal" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaCanal(null)} alConfirmar={async () => { await api.delete(`/api/canales-whatsapp/${bajaCanal!.id}`); lista.recargar(); avisar(`El canal «${bajaCanal!.nombre_publico}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="canal" genero="m" nombre={bajaCanal?.nombre_publico} consecuencia="Si tiene bandeja, quítala primero. Sin canal, los mensajes de ese número dejan de llegar al sistema." />
       </ConfirmarAccion>
-      <ConfirmarAccion abierto={bajaBandeja !== null} titulo="Quitar la bandeja" textoDeConfirmar="Quitar" alCerrar={() => setBajaBandeja(null)} alConfirmar={async () => { await api.delete(`/api/bandejas-chatwoot/${bajaBandeja!.bandeja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">Si la bandeja ya tiene conversaciones, el sistema no la dejará quitar.</Aviso>
+      <ConfirmarAccion abierto={bajaBandeja !== null} titulo="Quitar la bandeja" textoDeConfirmar="Quitar" alCerrar={() => setBajaBandeja(null)} alConfirmar={async () => { await api.delete(`/api/bandejas-chatwoot/${bajaBandeja!.bandeja!.id}`); lista.recargar(); avisar("La bandeja se quitó del canal."); }}>
+        <Aviso tono="alerta">Sin bandeja, los mensajes de este número ya no llegan a los asesores. Si la bandeja ya tiene conversaciones, el sistema no la dejará quitar.</Aviso>
       </ConfirmarAccion>
     </Pagina>
   );

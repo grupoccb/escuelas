@@ -3,13 +3,15 @@
 
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
+import { cantidad } from "../../lib/cantidad.ts";
+import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoArea, CampoCasilla, CampoSelect, CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { Vertical } from "./tipos.ts";
 
 interface PlantillaAdmin {
@@ -34,6 +36,18 @@ const CATEGORIAS = [
   { valor: "authentication", texto: "Autenticación" },
   { valor: "servicio", texto: "Servicio" },
 ];
+/** El idioma de la plantilla ante el proveedor, dicho en palabras (V7: antes salía «es_MX»). */
+const IDIOMAS = [
+  { valor: "es_MX", texto: "Español (México)" },
+  { valor: "es", texto: "Español" },
+  { valor: "es_ES", texto: "Español (España)" },
+  { valor: "es_AR", texto: "Español (Argentina)" },
+  { valor: "en", texto: "Inglés" },
+];
+const nombreDeIdioma = (valor: string): string => IDIOMAS.find((i) => i.valor === valor)?.texto ?? `Otro idioma (${valor})`;
+const opcionesDeIdioma = (actual: string) => (IDIOMAS.some((i) => i.valor === actual) ? IDIOMAS : [{ valor: actual, texto: nombreDeIdioma(actual) }, ...IDIOMAS]);
+/** La categoría ante Meta en una palabra para la tarjeta. */
+const nombreDeCategoria = (valor: string): string => ({ utility: "utilidad", marketing: "marketing", authentication: "autenticación", servicio: "servicio" })[valor] ?? valor;
 const ESTADOS = [
   { valor: "pendiente", texto: "Pendiente de aprobación" },
   { valor: "aprobada", texto: "Aprobada" },
@@ -42,9 +56,16 @@ const ESTADOS = [
   { valor: "deshabilitada", texto: "Deshabilitada" },
 ];
 const TONO_ESTADO: Record<string, "exito" | "alerta" | "peligro" | "neutro"> = { aprobada: "exito", pendiente: "alerta", rechazada: "peligro", pausada: "alerta", deshabilitada: "neutro" };
-const TIPOS = ["text", "quick-reply", "list-picker", "call-to-action", "media"].map((t) => ({ valor: t, texto: t }));
+/** El tipo de contenido ante el proveedor, en palabras (los valores son los de Twilio y no cambian). */
+const TIPOS = [
+  { valor: "text", texto: "Solo texto" },
+  { valor: "quick-reply", texto: "Con botones de respuesta rápida" },
+  { valor: "list-picker", texto: "Con una lista de opciones" },
+  { valor: "call-to-action", texto: "Con un botón de acción (enlace o llamada)" },
+  { valor: "media", texto: "Con imagen o archivo" },
+];
 
-function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla: PlantillaAdmin | null; verticales: Vertical[]; alGuardar: () => void; alCerrar: () => void }) {
+function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla: PlantillaAdmin | null; verticales: Vertical[]; alGuardar: (hecho: { codigo: string; estado: string }) => void; alCerrar: () => void }) {
   const [codigo, setCodigo] = useState(plantilla?.codigo ?? "");
   const [sid, setSid] = useState(plantilla?.content_sid ?? "");
   const [verticalId, setVerticalId] = useState(plantilla?.vertical_id ?? "");
@@ -64,6 +85,7 @@ function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla:
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -82,7 +104,7 @@ function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla:
         void guardar.ejecutar(async () => {
           if (plantilla) await api.patch(`/api/plantillas/${plantilla.id}`, comun);
           else await api.post("/api/plantillas", { codigo: codigo.trim(), vertical_id: verticalId === "" ? null : verticalId, ...comun });
-          alGuardar();
+          alGuardar({ codigo: plantilla ? plantilla.codigo : codigo.trim(), estado });
         });
       }}
     >
@@ -115,7 +137,7 @@ function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla:
       <CampoSelect etiqueta="Estado de aprobación" value={estado} opciones={ESTADOS} onChange={(e) => setEstado(e.target.value)} ayuda="Solo se envía lo aprobado y activo. Mientras no haya sincronización con el proveedor, se fija a mano." />
       <div className="rejilla rejilla-2">
         <CampoSelect etiqueta="Tipo de contenido" value={tipo} opciones={TIPOS} onChange={(e) => setTipo(e.target.value)} />
-        <CampoTexto etiqueta="Idioma" value={idioma} onChange={(e) => setIdioma(e.target.value)} error={err("idioma")} ayuda="Como es_MX" />
+        <CampoSelect etiqueta="Idioma" value={idioma} opciones={opcionesDeIdioma(idioma)} onChange={(e) => setIdioma(e.target.value)} error={err("idioma")} />
       </div>
       <fieldset className="pila sin-borde">
         <legend>
@@ -139,7 +161,7 @@ function Formulario({ plantilla, verticales, alGuardar, alCerrar }: { plantilla:
       </fieldset>
       <CampoArea etiqueta="Texto de referencia (no se manda)" value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} ayuda="Una copia del texto aprobado, para saber de qué trata. El proveedor manda el aprobado." />
       <CampoCasilla etiqueta="Activa" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["codigo", "vertical_id", "content_sid", "clase_mensaje", "categoria", "idioma", "variables"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -156,6 +178,7 @@ export default function Plantillas() {
   const [pagina, setPagina] = useState(1);
   const lista = useCarga((senal) => api.get<Pag<PlantillaAdmin>>("/api/plantillas", { ...(clase ? { clase_mensaje: clase } : {}), limite: 25, pagina }, senal), [clase, pagina]);
   const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
+  const { avisar } = useAvisos();
   const edicion = useEdicion<PlantillaAdmin>();
   const [baja, setBaja] = useState<PlantillaAdmin | null>(null);
   const nombreV = (id: string | null) => (id ? (verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—") : "Todas las disciplinas");
@@ -170,7 +193,7 @@ export default function Plantillas() {
           <li key={p.id} className="tarjeta pila" data-prueba={`plantilla-${p.codigo}`}>
             <div className="fila fila-entre">
               <strong>
-                {p.codigo} <span className="muted">· {p.idioma}</span>
+                {p.codigo} <span className="muted">· {nombreDeIdioma(p.idioma)}</span>
               </strong>
               <span className="fila">
                 <Insignia tono={p.clase_mensaje === "servicio" ? "info" : "alerta"}>{p.clase_mensaje === "servicio" ? "Servicio" : "Marketing"}</Insignia>
@@ -179,7 +202,7 @@ export default function Plantillas() {
               </span>
             </div>
             <p className="muted">
-              {nombreV(p.vertical_id)} · categoría {p.categoria} · {p.automatizaciones === 0 ? "sin automatizaciones" : `${p.automatizaciones} automatización(es)`}
+              {nombreV(p.vertical_id)} · categoría {nombreDeCategoria(p.categoria)} · {p.automatizaciones === 0 ? "sin automatizaciones" : cantidad(p.automatizaciones, "automatización", "automatizaciones")}
             </p>
             <p className="muted">Variables: {p.variables.length === 0 ? "ninguna" : p.variables.map((v) => `${v.pos}=${v.nombre}`).join(", ")}</p>
             <div className="fila">
@@ -191,10 +214,10 @@ export default function Plantillas() {
       </ul>
       {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nueva plantilla" : "Editar plantilla"} alCerrar={edicion.cerrar}>
-        {edicion.actual !== null ? <Formulario plantilla={edicion.actual === "nuevo" ? null : edicion.actual} verticales={verticales.datos?.datos ?? []} alGuardar={() => { edicion.cerrar(); lista.recargar(); }} alCerrar={edicion.cerrar} /> : null}
+        {edicion.actual !== null ? <Formulario plantilla={edicion.actual === "nuevo" ? null : edicion.actual} verticales={verticales.datos?.datos ?? []} alGuardar={({ codigo, estado }) => { edicion.cerrar(); lista.recargar(); avisar(`La plantilla «${codigo}» se guardó.${estado === "aprobada" ? "" : " Mientras no esté aprobada, el sistema no la manda."}`); }} alCerrar={edicion.cerrar} /> : null}
       </Dialogo>
-      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la plantilla" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/plantillas/${baja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">Si una automatización la usa, el sistema no la dejará dar de baja. Baja de <strong>{baja?.codigo}</strong>.</Aviso>
+      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la plantilla" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/plantillas/${baja!.id}`); lista.recargar(); avisar(`La plantilla «${baja!.codigo}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="plantilla" genero="f" nombre={baja?.codigo} consecuencia="Si una automatización la usa, el sistema no la dejará: cámbiala de plantilla antes." />
       </ConfirmarAccion>
     </Pagina>
   );

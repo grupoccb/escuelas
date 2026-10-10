@@ -77,6 +77,18 @@ test("las etiquetas hablan como una persona", () => {
   assert.equal(etiquetaDeFalta("prospectos"), "Al menos un alumno");
 });
 
+test("V7: con varios niños cada falta dice de quién es; con uno solo, como siempre", () => {
+  const nombre = (id: string): string | null => (id === P ? "Sofía" : null);
+  assert.equal(etiquetaDeFalta(`prospectos.${P}.alumno.apellidos`, nombre), "Apellidos de Sofía");
+  assert.equal(etiquetaDeFalta(`prospectos.${P}.alumno.fecha_nacimiento`, nombre), "Fecha de nacimiento de Sofía");
+  assert.equal(etiquetaDeFalta(`prospectos.${P}.grupo_id`, nombre), "Grupo y horario (Sofía)");
+  assert.equal(etiquetaDeFalta(`prospectos.${P}.reglamento`, nombre), "Reglamento aceptado por la familia (Sofía)");
+  // Un niño del que no se sabe el nombre, o sin la función: la etiqueta de siempre. Lo del adulto no lleva nombre de niño.
+  assert.equal(etiquetaDeFalta("prospectos.otro.alumno.apellidos", nombre), "Apellidos del alumno");
+  assert.equal(etiquetaDeFalta(`prospectos.${P}.alumno.apellidos`), "Apellidos del alumno");
+  assert.equal(etiquetaDeFalta("tutor.parentesco", nombre), "Parentesco del adulto responsable");
+});
+
 test("el cuerpo del POST lleva SOLO lo escrito o elegido: nada de lo ya capturado viaja otra vez", () => {
   const e = entradaVacia();
   e.alumnos[P] = { nombre: "", apellidos: " Mena ", fecha_nacimiento: "" };

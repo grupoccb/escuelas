@@ -1,0 +1,114 @@
+Administración no dice por dónde empezar (no hay lista de primeros pasos)
+Administración tiene 20 pantallas y ningún buscador
+en escritorio no hay forma de llegar a «Mi sesión» (solo existe en la barra del celular)
+una escuela vacía no dice qué hacer primero
+el paso de la disciplina no queda hecho al darla de alta
+el embudo de una escuela vacía no lleva a los primeros pasos
+guardar una disciplina no avisa que ya quedó
+el enlace de la disciplina se muestra como una ruta técnica («/l/…»)
+la zona horaria se pide con un nombre técnico («America/Mexico_City»)
+la sucursal muestra la zona horaria como identificador técnico
+el programa muestra la fecha de corte como «2026-09-01»
+la lista de primeros pasos no refleja que ya hay disciplina, sucursal, programa, precio y grupo
+con el formulario vacío salen avisos del navegador en inglés («Please fill out this field») en vez de los de la pantalla
+el choque aparece dos veces en el mismo diálogo (junto al campo y otra vez abajo)
+el choque dice «(se traslapa con 16:00–17:00)» sin decir qué hacer, y el aviso queda fuera de la vista (hay que bajar)
+guardar el grupo no avisa que ya quedó
+el traslape de edad dice «marca "permite traslape" en AMBOS» (el campo se llama distinto en pantalla) y queda fuera de la vista
+cambiar el precio no avisa desde cuándo rige ni qué pasa con lo ya inscrito
+la fecha ocupada sale como «2026-10-10», repetida, sin decir qué hacer
+el formulario de promoción vacío muestra el aviso en inglés del navegador
+guardar una promoción no avisa que ya quedó
+cada módulo explica qué cambia al apagarlo o encenderlo, para quién
+la dependencia en cadena se explica a medias («primero apaga: Inscripción» sin decir que a Inscripción le falta apagar otras tres)
+apagar un módulo no pide confirmación ni dice qué se pierde
+apagar un módulo no avisa que ya surtió efecto
+encender un módulo no avisa que ya surtió efecto y para quién
+subir un .xlsx dice «no se parece a ninguna plantilla» sin explicar que hay que guardarlo como CSV
+la configuración dice «1 mensajes» (plural a medias)
+al elegir el rol no se dice qué va a ver esa persona
+crear un usuario no avisa que ya quedó ni le recuerda al administrador darle su contraseña
+la lista de usuarios no tiene buscador
+restablecer la contraseña no hay un botón visible en la tarjeta del usuario
+en la lista, quien está desactivado no tiene cómo volver a activarse a la vista
+la pantalla de acceso no dice qué hacer cuando no se puede entrar (usuario desactivado o contraseña olvidada)
+al editarse a sí misma, Adela puede escribir una contraseña y recibe «usa POST /api/yo/contrasena»
+la pantalla de usuarios no dice que un bloqueo por equivocarse se libera solo
+no existe en ninguna pantalla cómo cambiar la propia contraseña
+sin gasto capturado los costos salen como $0.00 sin avisar que falta capturarlo
+el botón «Gastos» no dice qué se hace con él
+dar de baja un gasto capturado no pide confirmación (se pierde con un clic)
+la causa del evento sale con lenguaje técnico («El cuerpo no era un JSON válido»)
+la bandeja no explica qué hacer con un evento ni con una tarea sin lead
+atender un evento no avisa que ya quedó
+la lista de plantillas muestra «es_MX», «categoría utility» y «automatización(es)»
+guardar una plantilla no avisa que ya quedó (y que falta aprobarla para que se pueda mandar)
+la automatización dice «2 intento(s)»
+ajustar una automatización no avisa que ya quedó
+el diálogo de baja no dice que se quita de las listas, que no se puede deshacer desde aquí, ni ofrece desactivar
+dar de baja no avisa que ya quedó
+el mensaje de un grupo con inscritos dice «inscripción(es) vigente(s)»
+no hay pantalla de campañas ni de códigos QR (solo por la API)
+texto técnico a la vista en /admin/sucursales: America/
+texto técnico a la vista en /admin/configuracion: 1 mensajes
+texto técnico a la vista en /admin/plantillas: es_MX, utility, (es)
+texto técnico a la vista en /admin/automatizaciones: intento(s)
+tableta/inicio: objetivo táctil chico: a «Cargar catálogo» 124×18
+tableta/inicio: objetivo táctil chico: a «Disciplinas» 84×18
+tableta/inicio: objetivo táctil chico: a «Sucursales» 86×18
+tableta/inicio: objetivo táctil chico: a «Programas» 85×18
+tableta/inicio: objetivo táctil chico: a «Grupos y horarios» 138×18
+tableta/inicio: objetivo táctil chico: a «Instructores y salones» 172×18
+tableta/inicio: objetivo táctil chico: a «Precios» 58×18
+tableta/inicio: objetivo táctil chico: a «Promociones» 101×18
+tableta/inicio: objetivo táctil chico: a «Canales de WhatsApp» 170×18
+tableta/inicio: objetivo táctil chico: a «Módulos» 66×18
+tableta/inicio: objetivo táctil chico: a «Configuración» 109×18
+tableta/inicio: objetivo táctil chico: a «Textos del asistente» 154×18
+tableta/inicio: objetivo táctil chico: a «Etapas del embudo» 148×18
+tableta/inicio: objetivo táctil chico: a «Motivos de pérdida y de baja» 221×18
+tableta/inicio: objetivo táctil chico: a «Plantillas de mensaje» 163×18
+tableta/inicio: objetivo táctil chico: a «Automatizaciones» 139×18
+tableta/inicio: objetivo táctil chico: a «Usuarios y roles» 124×18
+tableta/inicio: objetivo táctil chico: a «Bandeja del administrador» 203×18
+celular/inicio: objetivo táctil chico: a «Cargar catálogo» 124×18
+celular/inicio: objetivo táctil chico: a «Disciplinas» 84×18
+celular/inicio: objetivo táctil chico: a «Sucursales» 86×18
+celular/inicio: objetivo táctil chico: a «Programas» 85×18
+celular/inicio: objetivo táctil chico: a «Grupos y horarios» 138×18
+celular/inicio: objetivo táctil chico: a «Instructores y salones» 172×18
+celular/inicio: objetivo táctil chico: a «Precios» 58×18
+celular/inicio: objetivo táctil chico: a «Promociones» 101×18
+celular/inicio: objetivo táctil chico: a «Canales de WhatsApp» 170×18
+celular/inicio: objetivo táctil chico: a «Módulos» 66×18
+celular/inicio: objetivo táctil chico: a «Configuración» 109×18
+celular/inicio: objetivo táctil chico: a «Textos del asistente» 154×18
+celular/inicio: objetivo táctil chico: a «Etapas del embudo» 148×18
+celular/inicio: objetivo táctil chico: a «Motivos de pérdida y de baja» 221×18
+celular/inicio: objetivo táctil chico: a «Plantillas de mensaje» 163×18
+celular/inicio: objetivo táctil chico: a «Automatizaciones» 139×18
+celular/inicio: objetivo táctil chico: a «Usuarios y roles» 124×18
+celular/inicio: objetivo táctil chico: a «Bandeja del administrador» 203×18
+
+Pasos por tarea:
+{
+  "1. entrar y llegar a Administración": 2,
+  "2. primer día de una escuela vacía": 0,
+  "3. alta de una disciplina nueva de punta a punta": 2,
+  "4. alta de un grupo": 3,
+  "5. cambiar un precio": 2,
+  "6. crear una promoción": 2,
+  "7. apagar y encender un módulo": 1,
+  "8. llegar a la carga de catálogo": 1,
+  "9. cambiar el horario de los mensajes automáticos": 1,
+  "10. crear un usuario": 2,
+  "10b. restablecer la contraseña de otra persona": 2,
+  "10c. desactivar a alguien": 3,
+  "11. cambiar mi contraseña": 0,
+  "12. ver el costo de una campaña": 4,
+  "13. atender la bandeja": 1,
+  "14. editar una plantilla": 2,
+  "14b. ajustar una automatización": 2,
+  "15. dar de baja un grupo": 2,
+  "16. crear una campaña y bajar su QR": 0
+}

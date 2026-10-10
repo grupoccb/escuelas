@@ -52,8 +52,13 @@ export async function leerArchivo(archivo: File): Promise<ArchivoElegido> {
   return { nombre: archivo.name, tamano: archivo.size, base64: aBase64(new Uint8Array(await archivo.arrayBuffer())) };
 }
 
+/** Los archivos de Excel (o de otra hoja de cálculo) que NO se leen: el sistema lee CSV (V7: antes decía «no se parece a ninguna plantilla» sin explicar por qué). */
+export const esDeExcel = (nombre: string): boolean => /\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(nombre.trim());
+
 /** Por qué no se pueden subir estos archivos, o null si se puede. */
 export function problemaConLosArchivos(archivos: readonly Pick<ArchivoElegido, "nombre" | "tamano">[]): string | null {
+  const excel = archivos.find((a) => esDeExcel(a.nombre));
+  if (excel) return `«${excel.nombre}» está guardado como archivo de Excel, y aquí se leen archivos CSV. Ábrelo en Excel, elige Archivo → Guardar como → «CSV UTF-8 (delimitado por comas)», quita este archivo de la lista y sube el nuevo.`;
   if (archivos.length > MAXIMO_DE_ARCHIVOS) return `Elegiste ${archivos.length} archivos y se aceptan hasta ${MAXIMO_DE_ARCHIVOS}.`;
   const total = archivos.reduce((s, a) => s + a.tamano, 0);
   if (total > MAXIMO_DE_BYTES) return "Los archivos pesan demasiado (más de 5 MB en total). Revisa que sean las plantillas y no otros documentos.";

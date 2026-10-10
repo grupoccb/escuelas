@@ -69,7 +69,7 @@ export default function AlumnosLista() {
         {(lista.datos?.datos ?? []).map((a) => (
           <li key={a.id} className="tarjeta fila fila-entre" data-prueba={`alumno-${a.id}`}>
             <span>
-              <Link to={`/alumnos/${a.id}`}>
+              <Link className="enlace-tactil" to={`/alumnos/${a.id}`}>
                 <strong>{nombreCompleto(a)}</strong>
               </Link>
               <br />

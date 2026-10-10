@@ -178,6 +178,7 @@ export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCo
               <span>
                 <strong>{nombreCompleto(p)}</strong>
                 {p.edad !== null ? ` · ${p.edad} ${p.edad === 1 ? "año" : "años"}` : ""}
+                {p.edad === null && p.fecha_nacimiento === null ? <span className="muted"> · falta la edad{puedeEscribir ? ": anótala en «Corregir»" : ""}</span> : null}
                 {p.fecha_nacimiento ? ` (${formatearFecha(p.fecha_nacimiento)})` : ""}
                 {variasDisciplinas || p.vertical.id !== lead.vertical.id ? ` · ${nombreDeDisciplina(p.vertical.id) ?? p.vertical.nombre}` : ""}
               </span>

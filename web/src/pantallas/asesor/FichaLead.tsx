@@ -8,9 +8,9 @@ import type { Etapa, LeadDetalle, MotivoPerdida, Tarea } from "../../api/tipos.t
 import { urlDeConversacion } from "../../lib/chatwoot.ts";
 import { formatearInstante } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { Icono } from "../../ui/Icono.tsx";
-import { useCarga, useTitulo } from "../../ui/hooks.ts";
+import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { ClasesMuestraDeLead } from "./ClasesMuestraDeLead.tsx";
 import { Cotizaciones } from "./Cotizaciones.tsx";
 import { FUENTES } from "./Embudo.tsx";
@@ -24,7 +24,7 @@ interface Historial {
 }
 
 /** Las claves de la atribución que se pueden mostrar (el resto del referral del proveedor no es para la pantalla). */
-const CLAVES_DE_ATRIBUCION: Record<string, string> = { fuente: "Fuente", utm_source: "utm_source", utm_medium: "utm_medium", utm_campaign: "utm_campaign", utm_content: "utm_content", utm_term: "utm_term", codigo_rastreo: "Código de rastreo" };
+const CLAVES_DE_ATRIBUCION: Record<string, string> = { fuente: "Fuente", utm_source: "Plataforma del anuncio", utm_medium: "Tipo de anuncio", utm_campaign: "Campaña del anuncio", utm_content: "Contenido del anuncio", utm_term: "Palabra clave del anuncio", codigo_rastreo: "Código de rastreo" };
 
 function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
   const { yo } = useSesion();
@@ -32,7 +32,7 @@ function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
   const conversaciones = lead.conversaciones;
   if (conversaciones.length === 0) return <span className="muted">Sin conversación de WhatsApp todavía.</span>;
   const enlaces = conversaciones.map((c) => ({ c, url: urlDeConversacion(base, c.chatwoot) }));
-  if (enlaces.every((e) => e.url === null)) return <Aviso tono="alerta">No se puede armar el enlace a Chatwoot: falta configurar su URL pública (CHATWOOT_URL_PUBLICA).</Aviso>;
+  if (enlaces.every((e) => e.url === null)) return <Aviso tono="alerta">No se puede abrir la conversación: falta la dirección pública de Chatwoot. Pídele a quien administra el sistema que la configure.</Aviso>;
   return (
     <>
       {enlaces.map(({ c, url }) =>
@@ -43,6 +43,38 @@ function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
         ) : null,
       )}
     </>
+  );
+}
+
+/**
+ * V7: un lead sin sucursal (el bot a medias, una landing sin sucursal) no se puede cotizar ni agendar. Aquí se la pone quien lo atiende, con un clic en la sucursal que acordó con la
+ * familia (solo las suyas; el servidor revisa que la sucursal dé la disciplina). Se puede poner, no cambiar: cambiarla sacaría al lead del embudo de quien lo atiende.
+ */
+function ElegirSucursal({ lead, alElegir }: { lead: LeadDetalle; alElegir: () => void }) {
+  const { yo } = useSesion();
+  const accion = useAccion();
+  const opciones = yo?.sucursales ?? [];
+  return (
+    <div className="pila" data-prueba="elegir-sucursal">
+      <span>Sin elegir. ¿Cuál le queda mejor a la familia?</span>
+      <div className="fila">
+        {opciones.map((s) => (
+          <Boton
+            key={s.id}
+            disabled={accion.ocupado}
+            onClick={() =>
+              void accion.ejecutar(async () => {
+                await api.patch(`/api/leads/${lead.id}`, { sucursal_interes_id: s.id });
+                alElegir();
+              })
+            }
+          >
+            {s.nombre}
+          </Boton>
+        ))}
+      </div>
+      <ErrorDeAccion error={accion.error} />
+    </div>
   );
 }
 
@@ -73,7 +105,8 @@ export default function FichaLead() {
   const inscrito = d.etapa.tipo_sistema === "inscrito" || d.etapa.es_ganado;
   // V3: un lead ya inscrito que recibe a otro hijo vuelve a tener a quién inscribir.
   const hayPorInscribir = d.prospectos.some((p) => p.alumno_id === null);
-  const atribucion = Object.entries(d.atribucion ?? {}).filter(([k, v]) => k in CLAVES_DE_ATRIBUCION && typeof v === "string");
+  // «fuente» ya sale arriba con su nombre en español: repetirla con el valor crudo («landing») era ruido (V7).
+  const atribucion = Object.entries(d.atribucion ?? {}).filter(([k, v]) => k !== "fuente" && k in CLAVES_DE_ATRIBUCION && typeof v === "string");
 
   return (
     <Marco
@@ -90,6 +123,11 @@ export default function FichaLead() {
         </>
       }
     >
+      {!d.sucursal && escribir ? (
+        <Aviso tono="alerta" titulo="Falta la sucursal">
+          Sin sucursal no se puede cotizar ni ver los grupos para la clase muestra. Pregúntale a la familia cuál le queda mejor y elígela en «Sucursal».
+        </Aviso>
+      ) : null}
       <Tarjeta titulo="Contacto" acciones={escribir ? <Boton onClick={() => setMoviendo(true)}>Mover de etapa</Boton> : undefined}>
         <dl className="datos">
           <dt>Etapa</dt>
@@ -101,7 +139,7 @@ export default function FichaLead() {
           <dt>Teléfono</dt>
           <dd>{d.telefono ?? "—"}</dd>
           <dt>Sucursal</dt>
-          <dd>{d.sucursal?.nombre ?? "Sin elegir"}</dd>
+          <dd>{d.sucursal ? d.sucursal.nombre : escribir ? <ElegirSucursal lead={d} alElegir={recargar} /> : "Sin elegir"}</dd>
           <dt>Interés</dt>
           <dd>{d.vertical.nombre}</dd>
           <dt>Llegó</dt>

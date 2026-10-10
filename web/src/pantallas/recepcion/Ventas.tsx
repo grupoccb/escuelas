@@ -2,6 +2,7 @@
 // la gana una sola venta: el servidor descuenta la existencia de forma atómica y rechaza la otra con 409; la pantalla lo explica y refresca la existencia.
 
 import { useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api, type Pagina } from "../../api/cliente.ts";
 import { formatear, multiplicar } from "../../lib/dinero.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
@@ -41,6 +42,12 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
   const total = producto && n !== null && n > 0 ? multiplicar(producto.precio, n) : null;
   const excede = producto && n !== null && n > producto.stock;
 
+  const buscarAlumno = () => {
+    if (busqueda.trim().length < 2) return;
+    setConsulta(busqueda.trim());
+    setAlumnoId("");
+  };
+
   const vender = (e: FormEvent) => {
     e.preventDefault();
     if (!alumno || !producto || n === null || n < 1) return;
@@ -62,9 +69,10 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
     <Tarjeta titulo="Nueva venta">
       <form className="formulario" onSubmit={vender}>
         <div className="rejilla rejilla-2">
-          <CampoTexto etiqueta="Buscar al alumno por nombre" autoComplete="off" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+          {/* Enter en este campo BUSCA (antes mandaba el formulario de la venta y no pasaba nada). */}
+          <CampoTexto etiqueta="Buscar al alumno por nombre" autoComplete="off" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarAlumno(); } }} ayuda={busqueda.trim().length === 1 ? "Escribe al menos dos letras." : "No importan los acentos ni las mayúsculas."} />
           <div className="fila">
-            <Boton disabled={busqueda.trim().length < 2} onClick={() => { setConsulta(busqueda.trim()); setAlumnoId(""); }}>
+            <Boton disabled={busqueda.trim().length < 2} onClick={buscarAlumno}>
               Buscar
             </Boton>
           </div>
@@ -73,12 +81,14 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
         {alumnos.error ? <ErrorDeCarga error={alumnos.error} alReintentar={alumnos.recargar} /> : null}
         {alumnos.datos && alumnos.datos.datos.length === 0 ? <Aviso tono="alerta">No encontré a ese alumno.</Aviso> : null}
         {alumnos.datos && alumnos.datos.datos.length > 0 ? <CampoSelect etiqueta="Alumno" value={alumno?.id ?? ""} onChange={(e) => setAlumnoId(e.target.value)} opciones={alumnos.datos.datos.map((a) => ({ valor: a.id, texto: `${a.nombre} ${a.apellidos}` }))} /> : null}
+        {disponibles.length === 0 ? <Aviso tono="alerta">No hay ningún producto con existencia para vender. Revisa la lista de arriba o avisa al administrador.</Aviso> : null}
         <CampoSelect etiqueta="Producto" value={producto?.id ?? ""} onChange={(e) => setProductoId(e.target.value)} opciones={disponibles.map((p) => ({ valor: p.id, texto: `${textoDeProducto(p)} · ${p.stock} en existencia` }))} />
         <CampoTexto etiqueta="Cantidad" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} error={n === null || n < 1 ? "Escribe un número entero de piezas" : excede ? `Solo hay ${producto?.stock} en existencia` : undefined} />
         <p role="status" data-prueba="total-de-la-venta">
           Total: <strong>{formatear(total)}</strong>
         </p>
         <ErrorDeAccion error={accion.error} />
+        {!alumno ? <p className="muted">Para vender, primero busca al alumno por su nombre.</p> : null}
         <Boton type="submit" variante="primario" cargando={accion.ocupado} disabled={!alumno || !producto || n === null || n < 1 || excede === true}>
           Registrar venta
         </Boton>
@@ -108,6 +118,12 @@ export default function Ventas() {
           <p data-prueba="venta-registrada">
             {hecha.cantidad} × {hecha.producto.nombre}
             {hecha.producto.talla ? ` (talla ${hecha.producto.talla})` : ""} para {hecha.alumno.nombre}: <strong>{formatear(hecha.total)}</strong>. El cargo quedó a nombre del responsable de pago.
+          </p>
+          {/* V7: vender y cobrar eran dos pantallas sin camino de una a otra. */}
+          <p>
+            <Link className="boton boton-primario" to={`/pagos?tutor=${hecha.tutor_id}`} data-prueba="cobrar-la-venta">
+              Cobrar ahora
+            </Link>
           </p>
         </Aviso>
       ) : null}

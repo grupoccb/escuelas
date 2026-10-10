@@ -1,15 +1,18 @@
 // Módulos de la escuela (V1): qué partes del sistema tiene encendidas. La captación (el bot de tres preguntas, el pase al asesor, las tareas, el embudo y el reporte de leads) siempre
 // está; los demás se encienden cuando la escuela esté lista. Un módulo apagado desaparece de la barra, sus pantallas dicen «No disponible», el bot no lo ofrece y no manda nada de él.
 // Cambiar un interruptor surte efecto de inmediato (sin reiniciar). No se prende nada que necesite otro módulo apagado ni se apaga uno del que otro depende: se dice qué hacer primero.
+//
+// V7: cada módulo dice qué cambia al moverlo (para quién), apagar pide confirmación y todo cambio avisa que ya surtió efecto.
 
+import { useState } from "react";
 import { api } from "../../api/cliente.ts";
-import type { ModuloId } from "../../api/tipos.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoCasilla } from "../../ui/campos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { Regreso } from "./comunes.tsx";
-import { explicarCambioDeModulo, type ModuloDeLista } from "./modulos.ts";
+import { ConfirmarAccion, Regreso } from "./comunes.tsx";
+import { explicarCambioDeModulo, queCambia, type ModuloDeLista } from "./modulos.ts";
 
 interface Lista {
   modulos: ModuloDeLista[];
@@ -18,16 +21,18 @@ interface Lista {
 export default function Modulos() {
   useTitulo("Módulos");
   const { recargar } = useSesion();
+  const { avisar } = useAvisos();
   const carga = useCarga((senal) => api.get<Lista>("/api/modulos", undefined, senal), []);
   const cambio = useAccion();
+  const [porApagar, setPorApagar] = useState<ModuloDeLista | null>(null);
 
-  const cambiar = (id: ModuloId, encendido: boolean) =>
-    void cambio.ejecutar(async () => {
-      const nueva = await api.put<Lista>("/api/modulos", { [id]: encendido });
-      carga.poner(nueva);
-      // La barra y las pantallas se arman con /api/yo: se vuelve a pedir para que el cambio se vea de inmediato.
-      await recargar();
-    });
+  const cambiar = async (m: ModuloDeLista, encendido: boolean) => {
+    const nueva = await api.put<Lista>("/api/modulos", { [m.id]: encendido });
+    carga.poner(nueva);
+    // La barra y las pantallas se arman con /api/yo: se vuelve a pedir para que el cambio se vea de inmediato.
+    await recargar();
+    avisar(`${m.nombre} quedó ${encendido ? "encendido" : "apagado"}. ${queCambia(m.id, encendido)}`);
+  };
 
   const modulos = carga.datos?.modulos ?? [];
   return (
@@ -49,11 +54,20 @@ export default function Modulos() {
                   >
                     <div className="pila">
                       <p className="muted">{m.incluye}</p>
+                      {m.obligatorio ? null : (
+                        <p data-prueba={`efecto-${m.id}`}>
+                          <strong>{m.encendido ? "Si lo apagas:" : "Si lo enciendes:"}</strong> {queCambia(m.id, !m.encendido)}
+                        </p>
+                      )}
                       <CampoCasilla
                         etiqueta={m.obligatorio ? "Siempre encendido" : "Encendido"}
                         checked={m.encendido}
                         disabled={m.obligatorio || bloqueo !== null || cambio.ocupado}
-                        onChange={(e) => cambiar(m.id, e.target.checked)}
+                        onChange={(e) => {
+                          // Apagar toca lo que ven otras personas: se confirma. Encender no quita nada: va directo.
+                          if (m.encendido) setPorApagar(m);
+                          else void cambio.ejecutar(() => cambiar(m, e.target.checked));
+                        }}
                         data-prueba={`interruptor-${m.id}`}
                         ayuda={bloqueo}
                       />
@@ -65,6 +79,18 @@ export default function Modulos() {
           </ul>
         </>
       ) : null}
+      <ConfirmarAccion
+        abierto={porApagar !== null}
+        titulo={`Apagar ${porApagar?.nombre ?? ""}`}
+        textoDeConfirmar={`Apagar ${porApagar?.nombre ?? ""}`}
+        alCerrar={() => setPorApagar(null)}
+        alConfirmar={async () => {
+          if (porApagar) await cambiar(porApagar, false);
+        }}
+      >
+        <p>{porApagar ? queCambia(porApagar.id, false) : ""}</p>
+        <Aviso>Los datos se quedan guardados: vuelven en cuanto lo enciendas otra vez. Surte efecto enseguida, para todas las personas de la escuela.</Aviso>
+      </ConfirmarAccion>
     </Pagina>
   );
 }

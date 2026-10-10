@@ -65,10 +65,13 @@ export function armarConsulta(consulta: Consulta | undefined): string {
   return t ? `?${t}` : "";
 }
 
+/** Lo que se le dice a una persona cuando algo no existe O no es de su alcance (el servidor no distingue las dos cosas a propósito). */
+export const MENSAJE_NO_ENCONTRADO = "No se encontró lo que buscas. Puede que no sea de tus grupos o de tu sucursal, o que ya no exista.";
+
 const MENSAJES: Record<number, string> = {
   401: "Tu sesión terminó. Inicia sesión de nuevo.",
   403: "No tienes permiso para hacer esto.",
-  404: "No se encontró lo que buscas (o no es de tu alcance).",
+  404: MENSAJE_NO_ENCONTRADO,
   413: "Lo que enviaste es demasiado grande.",
   429: "Demasiados intentos. Espera un momento.",
 };

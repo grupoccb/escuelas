@@ -26,6 +26,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
+import { cantidad } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, entero, fechaISO, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -87,7 +88,7 @@ async function exigirSinTraslape(tx: Consultas, propuesto: { id: string; nombre:
   const choques = traslapesDeEdad(catalogo).filter((t) => t.programaA === propuesto.nombre || t.programaB === propuesto.nombre);
   if (choques.length > 0) {
     const con = choques.map((t) => (t.programaA === propuesto.nombre ? t.programaB : t.programaA));
-    throw conflicto(`Las edades se traslapan con: ${[...new Set(con)].join(", ")}. Si son alternativas (el bot preguntará cuál), marca "permite traslape" en AMBOS; si no, ajusta las edades`, [{ campo: "edad_min", mensaje: "Se traslapa con otro programa de la misma disciplina y sucursal" }]);
+    throw conflicto(`Las edades se traslapan con: ${[...new Set(con)].join(", ")}. Si son alternativas para la misma edad (el asistente le preguntará a la familia cuál prefiere), marca «Permite traslape de edad» en los dos programas; si no, cambia las edades.`, [{ campo: "edad_min", mensaje: "Se traslapa con otro programa de la misma disciplina y sucursal" }]);
   }
 }
 
@@ -180,7 +181,7 @@ export function rutasDeProgramas(_deps: DepsApi): Router {
       if (!antes) throw noEncontrado();
       const grupos = await tx.grupo.count({ where: { programa_id: id } });
       const inscripciones = await tx.inscripcion.count({ where: { programa_id: id } });
-      if (grupos > 0 || inscripciones > 0) throw conflicto(`El programa tiene ${grupos} grupo(s) y ${inscripciones} inscripción(es): desactívalo en lugar de darlo de baja`);
+      if (grupos > 0 || inscripciones > 0) throw conflicto(`El programa tiene ${cantidad(grupos, "grupo", "grupos")} y ${cantidad(inscripciones, "inscripción", "inscripciones")}: desactívalo en lugar de darlo de baja`);
       // K9 (EK-A3): una cotización guardada, una sugerencia del bot y una promoción también apuntan al programa.
       const otros: [string, number][] = [
         ["cotizaciones", await tx.cotizacion.count({ where: { programa_id: id } })],

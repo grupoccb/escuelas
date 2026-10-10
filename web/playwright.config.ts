@@ -8,7 +8,7 @@ const RAIZ = resolve(import.meta.dirname, "..");
 
 export default defineConfig({
   testDir: "./e2e",
-  outputDir: resolve(RAIZ, ".tmp/navegador/resultados"),
+  outputDir: resolve(RAIZ, process.env["DIR_NAVEGADOR"] ?? ".tmp/navegador", "resultados"),
   reporter: [["list"]],
   fullyParallel: false,
   workers: 1,

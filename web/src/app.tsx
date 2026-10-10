@@ -6,6 +6,7 @@ import { Acceso } from "./pantallas/acceso/Acceso.tsx";
 import { NoDisponible, NoEncontrada, SinAcceso } from "./pantallas/acceso/Errores.tsx";
 import { Mas } from "./pantallas/acceso/Mas.tsx";
 import { SesionProvider, useSesion } from "./sesion/SesionContext.tsx";
+import { AvisosProvider } from "./ui/avisos.tsx";
 import { Cargando } from "./ui/basicos.tsx";
 import { Shell } from "./ui/Shell.tsx";
 
@@ -21,6 +22,7 @@ const RegistrarPago = lazy(() => import("./pantallas/recepcion/RegistrarPago.tsx
 const EstadoDeCuenta = lazy(() => import("./pantallas/recepcion/EstadoDeCuenta.tsx"));
 const Uniformes = lazy(() => import("./pantallas/recepcion/Uniformes.tsx"));
 const Ventas = lazy(() => import("./pantallas/recepcion/Ventas.tsx"));
+const CorteDelDia = lazy(() => import("./pantallas/recepcion/CorteDelDia.tsx"));
 const AlumnosLista = lazy(() => import("./pantallas/familia/AlumnosLista.tsx"));
 const Expediente = lazy(() => import("./pantallas/familia/Expediente.tsx"));
 const SaludDelAlumno = lazy(() => import("./pantallas/familia/SaludDelAlumno.tsx"));
@@ -35,6 +37,7 @@ const AdminInstructores = lazy(() => import("./pantallas/admin/InstructoresYSalo
 const AdminPrecios = lazy(() => import("./pantallas/admin/Precios.tsx"));
 const AdminPromociones = lazy(() => import("./pantallas/admin/Promociones.tsx"));
 const AdminCanales = lazy(() => import("./pantallas/admin/Canales.tsx"));
+const AdminCampanas = lazy(() => import("./pantallas/admin/Campanas.tsx"));
 const AdminConfiguracion = lazy(() => import("./pantallas/admin/Configuracion.tsx"));
 const AdminPlantillas = lazy(() => import("./pantallas/admin/Plantillas.tsx"));
 const AdminAutomatizaciones = lazy(() => import("./pantallas/admin/Automatizaciones.tsx"));
@@ -70,13 +73,14 @@ function Rutas() {
         <Route path="/pase" element={<RequierePermiso permiso="asistencia:registrar" modulo="operacion"><PaseDeLista /></RequierePermiso>} />
         <Route path="/embudo" element={<RequierePermiso permiso="leads:escribir" modulo="captacion"><Embudo /></RequierePermiso>} />
         <Route path="/tareas" element={<RequierePermiso permiso="tareas:leer" modulo="captacion"><Tareas /></RequierePermiso>} />
-        <Route path="/leads/:id" element={<RequierePermiso permiso="leads:leer" modulo="captacion"><FichaLead /></RequierePermiso>} />
+        <Route path="/leads/:id" element={<RequierePermiso permiso="leads:escribir" modulo="captacion"><FichaLead /></RequierePermiso>} />
         <Route path="/leads/:id/convertir" element={<RequierePermiso permiso="leads:escribir" modulo="inscripcion"><Conversion /></RequierePermiso>} />
         <Route path="/pagos" element={<RequierePermiso permiso="pagos:registrar" modulo="finanzas"><RegistrarPago /></RequierePermiso>} />
         <Route path="/cuenta" element={<RequierePermiso permiso="estado_cuenta:leer" modulo="finanzas"><EstadoDeCuenta /></RequierePermiso>} />
         <Route path="/cuenta/:tutorId" element={<RequierePermiso permiso="estado_cuenta:leer" modulo="finanzas"><EstadoDeCuenta /></RequierePermiso>} />
         <Route path="/uniformes" element={<RequierePermiso permiso="beneficios:entregar" modulo="finanzas"><Uniformes /></RequierePermiso>} />
         <Route path="/ventas" element={<RequierePermiso permiso="ventas:registrar" modulo="finanzas"><Ventas /></RequierePermiso>} />
+        <Route path="/corte" element={<RequierePermiso permiso="pagos:registrar" modulo="finanzas"><CorteDelDia /></RequierePermiso>} />
         <Route path="/alumnos" element={<RequierePermiso permiso="alumnos:leer" modulo="inscripcion"><AlumnosLista /></RequierePermiso>} />
         <Route path="/alumnos/:id" element={<RequierePermiso permiso="alumnos:leer" modulo="inscripcion"><Expediente /></RequierePermiso>} />
         <Route path="/alumnos/:id/salud" element={<RequierePermiso permiso="salud:leer" modulo="inscripcion"><SaludDelAlumno /></RequierePermiso>} />
@@ -92,6 +96,7 @@ function Rutas() {
         <Route path="/admin/precios" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminPrecios /></RequierePermiso>} />
         <Route path="/admin/promociones" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminPromociones /></RequierePermiso>} />
         <Route path="/admin/canales" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminCanales /></RequierePermiso>} />
+        <Route path="/admin/campanas" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminCampanas /></RequierePermiso>} />
         <Route path="/admin/configuracion" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminConfiguracion /></RequierePermiso>} />
         <Route path="/admin/plantillas" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminPlantillas /></RequierePermiso>} />
         <Route path="/admin/automatizaciones" element={<RequierePermiso permiso="catalogo:escribir" modulo="captacion"><AdminAutomatizaciones /></RequierePermiso>} />
@@ -115,9 +120,11 @@ function Raiz() {
   if (estado.fase === "cargando") return <Cargando texto="Abriendo la aplicación…" />;
   if (estado.fase === "anonima") return <Acceso motivo={estado.motivo} />;
   return (
-    <Shell>
-      <Rutas />
-    </Shell>
+    <AvisosProvider>
+      <Shell>
+        <Rutas />
+      </Shell>
+    </AvisosProvider>
   );
 }
 

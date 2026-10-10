@@ -9,6 +9,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, ErrorDeApi, type Pagina as PaginaDeApi } from "../../api/cliente.ts";
 import type { ClaseMuestra, Grupo } from "../../api/tipos.ts";
 import { ESTATUS_DE_CLASE, ESTATUS_DE_REGISTRO, INTERESES, MOTIVOS_DE_CLASE, SEXOS, TURNOS, etiquetaDeFaltante } from "../../lib/etiquetas.ts";
+import { leerBorrador, ponerBorrador } from "../../lib/borradores.ts";
 import { hoyLocal } from "../../lib/fechas.ts";
 import { etiquetaDeSalud } from "../../salud/etiquetas.ts";
 import { FormularioSalud } from "../../salud/FormularioSalud.tsx";
@@ -18,6 +19,7 @@ import { CampoArea, CampoCasilla, CampoSelect, CampoTexto, GrupoDeOpciones } fro
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useAhora, useCarga, useTitulo, type Accion } from "../../ui/hooks.ts";
 import { Aceptaciones } from "./Aceptaciones.tsx";
+import { BotonesDeAsistencia, type Marca } from "./BotonesDeAsistencia.tsx";
 import {
   alumnoDesde,
   antecedentesDesde,
@@ -102,7 +104,11 @@ function PieDeSeccion({ accion, sucio, guardado, alGuardar, bloqueado }: { accio
 function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: Registro; clase: ClaseMuestra; grupos: Grupo[]; poner: (r: Registro) => void; recargarClase: () => void }) {
   const { puede, yo } = useSesion();
   const hoy = hoyLocal();
-  const [ed, setEd] = useState<Ediciones>({});
+  // V7: lo escrito y sin guardar sobrevive a cambiar de pantalla (barra de abajo, «Volver», atrás) y a una sesión que vence: vive en la memoria de la página, nunca en el navegador.
+  const usuarioId = yo?.usuario.id ?? "";
+  const claveDeBorrador = `registro:${registro.clase_muestra_id}`;
+  const [ed, setEd] = useState<Ediciones>(() => leerBorrador<Ediciones>(usuarioId, claveDeBorrador) ?? {});
+  const [recuperado] = useState(() => Object.keys(ed).length > 0);
   const [guardadoA, setGuardadoA] = useState<Partial<Record<NombreDeSeccion, string>>>({});
   const [erroresDelCliente, setErroresDelCliente] = useState<Partial<Record<NombreDeSeccion, Errores>>>({});
   const [confirmaCierre, setConfirmaCierre] = useState(false);
@@ -128,6 +134,9 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
     observacion: ed.observacion !== undefined && JSON.stringify(ed.observacion) !== JSON.stringify(observacionDesde(registro)),
   };
   const haySinGuardar = Object.values(sucio).some(Boolean);
+  useEffect(() => {
+    ponerBorrador(usuarioId, claveDeBorrador, Object.keys(ed).length > 0 ? ed : undefined);
+  }, [ed, usuarioId, claveDeBorrador]);
 
   // Avisar antes de salir con cambios sin guardar (cerrar la pestaña, recargar).
   useEffect(() => {
@@ -193,11 +202,14 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
   const faltantes = [...new Set(registro.faltantes.map((f) => etiquetaDeFaltante(f, etiquetaDeSalud)))];
   const gruposDeLaVertical = grupos.filter((g) => g.activo && g.programa.vertical_id === grupos.find((x) => x.id === clase.grupo_id)?.programa.vertical_id);
   const puedeSalud = puede("salud:escribir");
-  const marcar = (valor: "asistio" | "no_asistio") =>
+  const [marcando, setMarcando] = useState<Marca>("asistio");
+  const marcar = (valor: Marca) => {
+    setMarcando(valor);
     void asistencia.ejecutar(async () => {
       await api.patch(`/api/clases-muestra/${clase.id}/asistencia`, { estatus: valor });
       recargarClase();
     });
+  };
 
   return (
     <div className="pila">
@@ -215,18 +227,11 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
           {clase.grupo} · {clase.programa} · {clase.sucursal}
         </p>
         {(clase.estatus === "agendada" || clase.estatus === "asistio" || clase.estatus === "no_asistio") && puede("clases_muestra:asistencia") ? (
-          <div className="fila">
-            <Boton disabled={!empezo || clase.estatus === "asistio" || cerrado} cargando={asistencia.ocupado} onClick={() => marcar("asistio")}>
-              Asistió
-            </Boton>
-            <Boton disabled={!empezo || clase.estatus === "no_asistio" || cerrado} cargando={asistencia.ocupado} onClick={() => marcar("no_asistio")}>
-              No asistió
-            </Boton>
-            {!empezo ? <span className="muted">La asistencia se marca desde la hora de la clase.</span> : null}
-          </div>
+          <BotonesDeAsistencia estatus={clase.estatus} empezo={empezo} bloqueado={cerrado} procesando={asistencia.ocupado ? marcando : null} alMarcar={marcar} />
         ) : null}
         <ErrorDeAccion error={asistencia.error} />
         {cerrado ? <Aviso tono="exito">Este registro está cerrado: ya no se edita.</Aviso> : null}
+        {recuperado && haySinGuardar && !cerrado ? <Aviso tono="alerta">Recuperamos lo que habías escrito y todavía no guardaste. Revísalo y toca «Guardar borrador».</Aviso> : null}
         {!cerrado && faltantes.length > 0 ? (
           <Aviso tono="info" titulo="Para completar el registro todavía falta">
             <ul data-prueba="faltantes">
@@ -415,7 +420,7 @@ export default function RegistroClase() {
   const grupos = useCarga((senal) => api.get<PaginaDeApi<Grupo>>("/api/grupos", { limite: 100 }, senal), []);
   const error = registro.error ?? clase.error ?? grupos.error;
   return (
-    <Pagina titulo="Registro del alumno" subtitulo={<Link to="/hoy">← Volver a «Hoy»</Link>}>
+    <Pagina titulo="Registro del alumno" subtitulo={<Link className="enlace-tactil" to="/hoy">← Volver a «Hoy»</Link>}>
       {error ? <ErrorDeCarga error={error} alReintentar={() => { registro.recargar(); clase.recargar(); grupos.recargar(); }} /> : null}
       {!registro.datos || !clase.datos || !grupos.datos ? (
         error ? null : <Cargando />

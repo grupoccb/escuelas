@@ -103,6 +103,8 @@ test.describe("administrador", () => {
     // Dar de baja un gasto: el total y el costo se recalculan.
     await fila.getByRole("button", { name: "Gastos" }).click();
     await page.getByRole("dialog").getByTestId("gastos").getByRole("listitem").filter({ hasText: "Segunda semana" }).getByRole("button", { name: "Dar de baja" }).click();
+    // V7: quitar un gasto se confirma en la misma fila.
+    await page.getByRole("dialog").getByRole("button", { name: "Sí, quitarlo" }).click();
     await expect(page.getByRole("dialog").getByTestId("gasto-total")).toHaveText("$1,000.00");
     await page.getByRole("dialog").getByRole("button", { name: "Cerrar" }).click();
     await expect(fila).toContainText("$250.00");

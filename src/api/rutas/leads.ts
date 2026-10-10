@@ -1,22 +1,26 @@
-// Leads (lectura).
+// Leads (lectura y, desde V7, la sucursal de un lead que todavía no la tiene).
 //
-//   GET /api/leads?etapa_id=&sucursal_id=&telefono=&limite=&pagina=
-//   GET /api/leads/:id
+//   GET   /api/leads?etapa_id=&sucursal_id=&telefono=&limite=&pagina=
+//   GET   /api/leads/:id
+//   PATCH /api/leads/:id {sucursal_interes_id}   (leads:escribir)  V7: le pone sucursal a un lead que no la tiene (el bot a medias, la landing sin sucursal)
 //
 // Alcance por sucursal de interés: administrador todos; asesor y recepción, los de sus sucursales.
 // Un lead que aún no eligió sucursal solo lo ve el administrador. `telefono` pasa por
 // `normalizarTelefono()` (invariante 7): se busca igual que se guarda.
 
 import { Router } from "express";
+import express from "express";
 import { hoyDelLead, presentarNino, SELECCION_DE_NINO, type FilaDeNino } from "../../captacion/prospectos.ts";
 import { normalizarTelefono } from "../../lib/telefono.ts";
 import { leerModulos } from "../../modulos/index.ts";
 import { fuenteDe } from "../../reportes/fuente.ts";
-import { condicionDeLead } from "../alcance.ts";
+import { condicionDeLead, veSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
-import { noEncontrado, validacion } from "../errores.ts";
+import { LIMITE_CUERPO_API } from "../cuerpos.ts";
+import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
+import { registrarCambio } from "../registro.ts";
 import { objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const SELECCION = {
@@ -57,6 +61,7 @@ function presentarLead<T extends FilaLead>({ anuncio_id, ctwa_clid, atribucion, 
 
 const esquemaListado = objeto({ ...esquemaPaginacion, etapa_id: opcional(uuid()), sucursal_id: opcional(uuid()), telefono: opcional(texto({ max: 30 })) });
 const esquemaId = objeto({ id: uuid() });
+const esquemaSucursal = objeto({ sucursal_interes_id: uuid() });
 
 export function rutasDeLeads(_deps: DepsApi): Router {
   const r = Router();
@@ -129,6 +134,33 @@ export function rutasDeLeads(_deps: DepsApi): Router {
       sucursal: sucursal_interes,
       conversaciones: conversaciones.map((c) => ({ id: c.id, estado: c.estado, chatwoot: { cuenta_id: c.bandeja_chatwoot.chatwoot_account_id, bandeja_id: c.bandeja_chatwoot.chatwoot_inbox_id, conversacion_id: c.chatwoot_conversacion_id } })),
     });
+  });
+
+  // V7: un lead sin sucursal (el bot a medias, una landing sin sucursal) se queda sin cotizar ni agendar hasta que alguien se la pone. SOLO se puede poner, no cambiar: cambiarla
+  // sacaría al lead del embudo de quien lo está atendiendo, y eso lo decide la conversación con la familia, no un clic. La sucursal tiene que ser de las que ve quien la pone y tiene que
+  // dar la disciplina del lead. Atómico: dos personas que se la ponen a la vez, una gana y la otra recibe 409 (o 200 si pusieron la misma).
+  r.patch("/leads/:id", requierePermiso("leads:escribir"), express.json({ limit: LIMITE_CUERPO_API }), async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const { sucursal_interes_id: sucursalId } = parsear(esquemaSucursal, req.body);
+    const alcance = await ctx.alcance();
+    const resultado = await ctx.db.$transaction(async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { id, ...(condicionDeLead(alcance) ?? {}) }, select: { id: true, sucursal_interes_id: true, vertical_interes_id: true } });
+      if (!lead) throw noEncontrado();
+      if (lead.sucursal_interes_id === sucursalId) return { cambio: false as const, sucursalId };
+      if (lead.sucursal_interes_id !== null) throw conflicto("Este lead ya tiene sucursal. Para cambiarla, habla con quien administra el sistema.");
+      if (!veSucursal(alcance, sucursalId)) throw noEncontrado();
+      const sucursal = await tx.sucursal.findFirst({ where: { id: sucursalId, activo: true }, select: { id: true } });
+      if (!sucursal) throw validacion([{ campo: "sucursal_interes_id", mensaje: "No es una sucursal activa de la escuela" }]);
+      const ofrece = await tx.sucursal_vertical.findFirst({ where: { sucursal_id: sucursalId, vertical_id: lead.vertical_interes_id, activo: true }, select: { id: true } });
+      if (!ofrece) throw validacion([{ campo: "sucursal_interes_id", mensaje: "Esa sucursal no da la disciplina que busca la familia" }]);
+      const hecho = await tx.lead.updateMany({ where: { id, sucursal_interes_id: null }, data: { sucursal_interes_id: sucursalId } });
+      if (hecho.count !== 1) throw conflicto("Otra persona le acaba de poner sucursal a este lead: vuelve a cargarlo");
+      await registrarCambio(tx, ctx, { entidad: "lead", entidadId: id, accion: "actualizar", antes: { sucursal_interes_id: null }, despues: { sucursal_interes_id: sucursalId } });
+      return { cambio: true as const, sucursalId };
+    });
+    const sucursal = await ctx.db.sucursal.findFirstOrThrow({ where: { id: resultado.sucursalId }, select: { id: true, nombre: true } });
+    res.json({ id, sucursal });
   });
 
   return r;

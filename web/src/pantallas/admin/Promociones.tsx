@@ -4,14 +4,15 @@
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
 import { CONDICIONES, MOMENTOS, OPCIONES_DE_BENEFICIO, textoDeBeneficio, valorDeBeneficio } from "./beneficios.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { BeneficioAdmin, ProgramaAdmin, PromocionAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 interface CuerpoDeBeneficio {
@@ -30,6 +31,7 @@ function CapturaDeBeneficio({ alAgregar }: { alAgregar: (b: CuerpoDeBeneficio) =
   const [momento, setMomento] = useState("inmediato");
   const [error, setError] = useState<string | null>(null);
   const accion = useAccion();
+  const { avisar } = useAvisos();
   const opcion = OPCIONES_DE_BENEFICIO.find((o) => o.clave === clave)!;
   return (
     <div className="pila" data-prueba="captura-de-beneficio">
@@ -49,6 +51,7 @@ function CapturaDeBeneficio({ alAgregar }: { alAgregar: (b: CuerpoDeBeneficio) =
               await alAgregar({ tipo: opcion.tipo, modo: opcion.modo, valor: v.valor, descripcion: descripcion.trim() === "" ? null : descripcion.trim(), momento_disparo: momento });
               setValor("");
               setDescripcion("");
+              avisar("Beneficio agregado. Se guarda con la promoción.");
             });
           }}
         >
@@ -59,7 +62,7 @@ function CapturaDeBeneficio({ alAgregar }: { alAgregar: (b: CuerpoDeBeneficio) =
   );
 }
 
-function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCerrar }: { promo: PromocionAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; programas: ProgramaAdmin[]; alGuardar: () => void; alCerrar: () => void }) {
+function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCerrar }: { promo: PromocionAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; programas: ProgramaAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [nombre, setNombre] = useState(promo?.nombre ?? "");
   const [codigo, setCodigo] = useState(promo?.codigo ?? "");
   const [desde, setDesde] = useState(promo?.vigencia_desde ?? "");
@@ -86,6 +89,7 @@ function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCer
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -122,7 +126,7 @@ function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCer
         void guardar.ejecutar(async () => {
           if (promo) await api.patch(`/api/promociones/${promo.id}`, comun);
           else await api.post("/api/promociones", { ...comun, beneficios: nuevos });
-          alGuardar();
+          alGuardar(comun.nombre);
         });
       }}
     >
@@ -200,7 +204,7 @@ function Formulario({ promo, verticales, sucursales, programas, alGuardar, alCer
         />
       </fieldset>
 
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["nombre", "codigo", "vigencia_desde", "vigencia_hasta", "cupo_maximo", "prioridad", "condicion_valor", "beneficios"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -218,6 +222,7 @@ export default function Promociones() {
   const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
   const sucursales = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
   const programas = useCarga((senal) => api.get<Pag<ProgramaAdmin>>("/api/programas", { limite: 100 }, senal), []);
+  const { avisar } = useAvisos();
   const edicion = useEdicion<PromocionAdmin>();
   const [baja, setBaja] = useState<PromocionAdmin | null>(null);
   return (
@@ -263,13 +268,13 @@ export default function Promociones() {
             verticales={verticales.datos?.datos ?? []}
             sucursales={sucursales.datos?.datos ?? []}
             programas={programas.datos?.datos ?? []}
-            alGuardar={() => { edicion.cerrar(); lista.recargar(); }}
+            alGuardar={(nombre) => { edicion.cerrar(); lista.recargar(); avisar(`La promoción «${nombre}» se guardó.`); }}
             alCerrar={() => { edicion.cerrar(); lista.recargar(); }}
           />
         ) : null}
       </Dialogo>
-      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la promoción" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/promociones/${baja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">Si tiene beneficios por entregar, el sistema no la dejará dar de baja. Baja de <strong>{baja?.nombre}</strong>.</Aviso>
+      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la promoción" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/promociones/${baja!.id}`); lista.recargar(); avisar(`La promoción «${baja!.nombre}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="promoción" genero="f" nombre={baja?.nombre} consecuencia="Si tiene beneficios por entregar, el sistema no la dejará." />
       </ConfirmarAccion>
     </Pagina>
   );

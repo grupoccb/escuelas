@@ -1,9 +1,10 @@
 // Pase de lista por grupo y fecha (maestro, recepción, administrador), pensado para el celular: un alumno por tarjeta con tres botones grandes
 // (Presente · Falta · Justificada), un resumen y UN guardado idempotente (guardar dos veces no duplica nada: el servidor responde «sin cambio»).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Grupo } from "../../api/tipos.ts";
+import { leerBorrador, ponerBorrador } from "../../lib/borradores.ts";
 import { formatearFechaLarga, hoyLocal } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Vacio } from "../../ui/basicos.tsx";
@@ -47,9 +48,17 @@ interface ResultadoDelPase {
 }
 
 function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: string; fecha: string; alCambiar: (p: Pase) => void }) {
-  const [ed, setEd] = useState<Record<string, Estatus>>({});
+  const { yo } = useSesion();
+  const usuarioId = yo?.usuario.id ?? "";
+  const claveDeBorrador = `pase:${grupoId}|${fecha}`;
+  // V7: lo marcado y sin guardar sobrevive a cambiar de grupo, de fecha o de pantalla (vive en la memoria de la página, no en el navegador).
+  const [ed, setEd] = useState<Record<string, Estatus>>(() => leerBorrador<Record<string, Estatus>>(usuarioId, claveDeBorrador) ?? {});
   const [resultado, setResultado] = useState<ResultadoDelPase | null>(null);
+  const [guardadoA, setGuardadoA] = useState<string | null>(null);
   const guardar = useAccion();
+  useEffect(() => {
+    ponerBorrador(usuarioId, claveDeBorrador, Object.keys(ed).length > 0 ? ed : undefined);
+  }, [ed, usuarioId, claveDeBorrador]);
 
   const efectivo = (f: FilaDePase): Estatus | null => ed[f.inscripcion_id] ?? f.estatus;
   const activos = pase.lista.filter((f) => f.activa);
@@ -66,6 +75,7 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
     const r = await guardar.ejecutar(() => api.put<ResultadoDelPase>(`/api/grupos/${grupoId}/pase`, { fecha, asistencias }));
     if (!r) return;
     setResultado(r);
+    setGuardadoA(new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }));
     setEd({});
     alCambiar({ ...pase, lista: r.lista, pase_tomado: true });
   }
@@ -93,11 +103,11 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
           </li>
         ))}
       </ul>
-      <ErrorDeAccion error={guardar.error} />
       {resultado ? (
         <Aviso tono="exito" titulo="Pase guardado">
-          <p data-prueba="resultado-pase">
-            {resultado.creadas} nuevas, {resultado.actualizadas} corregidas, {resultado.sin_cambio} sin cambio.
+          <p>Quedó guardada la asistencia de {resultado.lista.filter((f) => f.activa && f.estatus !== null).length} {resultado.lista.filter((f) => f.activa && f.estatus !== null).length === 1 ? "alumno" : "alumnos"}{resultado.actualizadas > 0 ? `; corregiste ${resultado.actualizadas}` : ""}. Si lo guardas otra vez, no se duplica nada.</p>
+          <p className="muted" data-prueba="resultado-pase">
+            Detalle: {resultado.creadas} nuevas, {resultado.actualizadas} corregidas, {resultado.sin_cambio} sin cambio.
           </p>
           {resultado.alertas
             .filter((a) => a.racha_de_faltas >= a.umbral)
@@ -109,14 +119,23 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
         </Aviso>
       ) : null}
       {!bloqueado ? (
-        <div className="barra-guardado">
-          <span className="muted" role="status">
-            {cambios > 0 ? `${cambios} cambio(s) sin guardar` : "Sin cambios por guardar"}
-            {sinMarcar > 0 ? ` · ${sinMarcar} sin marcar` : ""}
-          </span>
-          <Boton variante="primario" disabled={cambios === 0 && pase.pase_tomado} cargando={guardar.ocupado} onClick={() => void enviar()}>
-            Guardar pase de lista
-          </Boton>
+        <div className="barra-guardado barra-guardado-columna">
+          {/* El aviso de un fallo vive DENTRO de la barra fija: debajo de ella la barra lo tapaba y quien tocaba «Guardar» sin señal no veía nada (V7). */}
+          {guardar.error ? (
+            <div className="pila" data-prueba="error-del-pase">
+              <ErrorDeAccion error={guardar.error} />
+              <p className="muted">{guardar.error.codigo === "sin_red" ? "No se guardó nada todavía. Tus marcas siguen aquí: cuando haya señal, toca «Guardar pase de lista» otra vez (no se duplica nada)." : "Tus marcas siguen aquí: corrige lo que se indica y vuelve a guardar."}</p>
+            </div>
+          ) : null}
+          <div className="barra-guardado-fila">
+            <span className="muted" role="status">
+              {cambios > 0 ? `${cambios} ${cambios === 1 ? "cambio sin guardar" : "cambios sin guardar"}` : guardadoA ? `Pase guardado a las ${guardadoA}` : "Sin cambios por guardar"}
+              {sinMarcar > 0 ? ` · ${sinMarcar} sin marcar` : ""}
+            </span>
+            <Boton variante="primario" disabled={cambios === 0 && pase.pase_tomado} cargando={guardar.ocupado} onClick={() => void enviar()}>
+              Guardar pase de lista
+            </Boton>
+          </div>
         </div>
       ) : null}
     </div>

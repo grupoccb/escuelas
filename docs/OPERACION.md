@@ -44,14 +44,15 @@ Todo lo que la escuela cambia en la operación normal se edita en **Administraci
 | **Motivos de pérdida y de baja** | Las dos listas de motivos: agregar, renombrar, ordenar, apagar (lo ya registrado se conserva) y quitar |
 | **Automatizaciones** | Desfase, intentos, espaciado, horario, días, plantilla y, en el lead frío y el pago atrasado, hasta cuántos días de atraso se persigue |
 
-Lo que no tiene pantalla (niveles de progresión, eventos, productos, documentos legales, campañas, la matriz de transiciones de etapa, el alta de automatizaciones y las variables de entorno) está en **`docs/CONFIGURACION-INVENTARIO.md`**, con su comando o su variable y un ejemplo. Ahí también está lo que **no** se cambia a propósito (ventanas de 24 y 72 h, el piso y techo de 09:00 a 20:00, palabras de baja, etc.) y por qué.
+Las campañas y sus códigos QR tienen pantalla desde V7 (Administración → Campañas y códigos QR). Lo que no tiene pantalla (niveles de progresión, eventos, productos, documentos legales, la matriz de transiciones de etapa, el alta de automatizaciones y las variables de entorno) está en **`docs/CONFIGURACION-INVENTARIO.md`**, con su comando o su variable y un ejemplo. Ahí también está lo que **no** se cambia a propósito (ventanas de 24 y 72 h, el piso y techo de 09:00 a 20:00, palabras de baja, etc.) y por qué.
 
 ## Por rol
 
 ### Recepción (inicio: Registrar pago)
-- **Cobrar** (`Registrar pago`): busca a la familia por nombre o teléfono; escribe el monto; el sistema propone el reparto (el cargo más antiguo primero, entre todos los hijos). Si la familia pide otro reparto, se ajusta a mano y TIENE que sumar exactamente el pago. Un pago de más se rechaza (no hay saldo a favor): se cobra lo adeudado. Cada envío lleva una clave: si la caja se traba y se reenvía, no se cobra dos veces.
+- **Cobrar** (`Registrar pago`): busca a la familia por el teléfono (con o sin +52 o +521), por el nombre de la mamá o por el de un hijo (no importan acentos ni mayúsculas); escribe el monto; el sistema propone el reparto (el cargo más antiguo primero, entre todos los hijos). Si la familia pide otro reparto, se ajusta a mano y TIENE que sumar exactamente el pago. Un pago de más se rechaza (no hay saldo a favor): se cobra lo adeudado. Cada envío lleva una clave: si la caja se traba y se reenvía, no se cobra dos veces.
 - **Corregir un cobro equivocado**: se cancela el pago (queda registrado, no se borra) y se registra el correcto. Un cargo con pagos no se cancela suelto.
-- **Estado de cuenta**: saldo por hijo y total, y cuánto lleva vencido (0–30, 31–60, 60+ días).
+- **Estado de cuenta**: saldo (lo que debe) por hijo y total, y cuánto lleva vencido (1–30, 31–60, 61–90 y más de 90 días). Se imprime (o se guarda en PDF) y se baja a Excel; por WhatsApp no se manda desde aquí.
+- **Cierre del día** (`Cierre del día`): lo cobrado hoy por persona y forma de pago, y lo cancelado. Para cuadrar la caja: contar el efectivo y compararlo con «Efectivo» de tu caja (la tarjeta, con el reporte de la terminal; las transferencias, con el banco). Un pago de un día anterior que se cancela hoy se resta (sale dinero de la caja de hoy). Solo lee.
 - **Uniformes y ventas**: `Uniformes` lista lo que se ganó con una promoción y ya se puede entregar (cuando se pagó la primera mensualidad). Se entrega eligiendo la talla del inventario. `Ventas` vende un producto (nace un cargo a nombre del responsable de pago) o anula una venta sin pagos.
 - **Pase de lista** en mostrador cuando el maestro no lo toma.
 - Ve alumnos y familias de SUS sucursales, nunca datos de salud.

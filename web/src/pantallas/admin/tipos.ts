@@ -159,3 +159,28 @@ export interface Configuracion {
   modo_cierre: "asesor_whatsapp" | "maestro_en_sitio";
   limites: Record<string, LimiteDeAjuste>;
 }
+
+/** `GET /api/administracion/primeros-pasos`: lo que le falta a una escuela nueva para quedar lista (calculado por el servidor contra el estado real). */
+export interface PasoInicial {
+  id: string;
+  titulo: string;
+  hecho: boolean;
+  detalle: string | null;
+  ruta: string;
+}
+export interface PrimerosPasos {
+  pasos: PasoInicial[];
+  hechos: number;
+  total: number;
+  siguiente: string | null;
+}
+
+export interface CampanaAdmin {
+  id: string;
+  nombre: string;
+  origen: string;
+  vertical_id: string | null;
+  sucursal_id: string | null;
+  anuncio_id: string | null;
+  activo: boolean;
+}

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claveNueva, claveParaEnvio, firmaDelPago, validarReparto } from "./reparto.ts";
+import { claveNueva, claveParaEnvio, firmaDelPago, mensajeDeCaptura, validarReparto } from "./reparto.ts";
+import { pareceTelefono, soloTelefono } from "./telefono.ts";
 
 const cargos = [
   { id: "a", saldo: "800.00" },
@@ -44,4 +45,31 @@ test("la misma firma conserva la clave (doble clic o reintento no duplica); otra
   const orden2 = firmaDelPago({ tutor_id: "t", monto: "1.00", metodo: "efectivo", referencia: " ", fecha: "", aplicaciones: [{ cargo_id: "b", monto: "0.50" }, { cargo_id: "a", monto: "0.50" }] });
   assert.equal(orden1, orden2, "el orden del reparto y los espacios no cambian la identidad del pago");
   assert.notEqual(claveNueva(), claveNueva());
+});
+
+test("un importe absurdo dice QUÉ hacer (V7): negativo, cero, letras, decimales de más, comas mal puestas y números enormes; uno bueno no dice nada", () => {
+  assert.equal(mensajeDeCaptura(""), undefined);
+  assert.equal(mensajeDeCaptura("1,250.50"), undefined);
+  assert.match(mensajeDeCaptura("-50") ?? "", /no puede ser negativo/);
+  assert.match(mensajeDeCaptura("0") ?? "", /mayor que cero/);
+  assert.match(mensajeDeCaptura("abc") ?? "", /solo números/);
+  assert.match(mensajeDeCaptura("12.345") ?? "", /dos decimales/);
+  assert.match(mensajeDeCaptura("100,50") ?? "", /punto/);
+  assert.match(mensajeDeCaptura("99999999999") ?? "", /demasiado grande/);
+  // Todos empiezan con la frase que ya conocía la prueba de la pantalla, salvo el cero, que tiene la suya.
+  for (const malo of ["-50", "abc", "12.345", "100,50", "99999999999"]) assert.match(mensajeDeCaptura(malo) ?? "", /^Escribe un importe válido/);
+});
+
+test("en el reparto a mano, el importe malo de un cargo también dice qué hacer", () => {
+  const r = validarReparto("100.00", cargos, { a: "100,50" });
+  assert.match(r.errores["a"] ?? "", /punto/);
+});
+
+test("un teléfono: con 7 o más dígitos se busca como teléfono; con menos, solo dígitos, se dice que está incompleto en lugar de buscarlo como nombre", () => {
+  assert.equal(pareceTelefono("(55) 5501 0101"), true);
+  assert.equal(pareceTelefono("+52 1 55 5501 0101"), true);
+  assert.equal(soloTelefono("553099"), true);
+  assert.equal(pareceTelefono("553099"), false);
+  assert.equal(soloTelefono("Lucía 55"), false);
+  assert.equal(soloTelefono("ANGEL"), false);
 });

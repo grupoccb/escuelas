@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
-import { CampoCasilla, CampoTexto } from "../../ui/campos.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { nombreDeZona, opcionesDeZona } from "./zonas.ts";
 import type { SucursalAdmin, Vertical } from "./tipos.ts";
 
-/** Zonas habituales; el campo admite cualquier nombre IANA (el servidor lo valida). */
-const ZONAS = ["America/Mexico_City", "America/Monterrey", "America/Merida", "America/Cancun", "America/Chihuahua", "America/Mazatlan", "America/Hermosillo", "America/Tijuana", "America/Bogota", "America/Lima", "America/Santiago", "America/Argentina/Buenos_Aires", "Europe/Madrid"];
-
-function Formulario({ sucursal, alGuardar, alCerrar }: { sucursal: SucursalAdmin | null; alGuardar: () => void; alCerrar: () => void }) {
+function Formulario({ sucursal, alGuardar, alCerrar }: { sucursal: SucursalAdmin | null; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [nombre, setNombre] = useState(sucursal?.nombre ?? "");
   const [direccion, setDireccion] = useState(sucursal?.direccion ?? "");
   const [zona, setZona] = useState(sucursal?.zona_horaria ?? "America/Mexico_City");
@@ -24,6 +23,7 @@ function Formulario({ sucursal, alGuardar, alCerrar }: { sucursal: SucursalAdmin
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -35,27 +35,15 @@ function Formulario({ sucursal, alGuardar, alCerrar }: { sucursal: SucursalAdmin
         void guardar.ejecutar(async () => {
           if (sucursal) await api.patch(`/api/sucursales/${sucursal.id}`, cuerpo);
           else await api.post("/api/sucursales", cuerpo);
-          alGuardar();
+          alGuardar(cuerpo.nombre);
         });
       }}
     >
       <CampoTexto etiqueta="Nombre de la sucursal" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
       <CampoTexto etiqueta="Dirección" value={direccion} onChange={(e) => setDireccion(e.target.value)} error={err("direccion")} />
-      <div className="campo">
-        <label htmlFor="zona-horaria">
-          Zona horaria<span className="requerido" aria-hidden="true"> *</span>
-        </label>
-        <input id="zona-horaria" list="zonas-conocidas" value={zona} onChange={(e) => setZona(e.target.value)} aria-invalid={err("zona_horaria") ? true : undefined} />
-        <datalist id="zonas-conocidas">
-          {ZONAS.map((z) => (
-            <option key={z} value={z} />
-          ))}
-        </datalist>
-        <p className="campo-ayuda">Decide el horario de envío de los mensajes (09:00 a 20:00 hora de esta sucursal).</p>
-        {err("zona_horaria") ? <p className="campo-error">{err("zona_horaria")}</p> : null}
-      </div>
+      <CampoSelect etiqueta="Zona horaria" requerido value={zona} opciones={opcionesDeZona(zona)} onChange={(e) => setZona(e.target.value)} error={err("zona_horaria")} ayuda="Decide a qué hora salen los mensajes automáticos (de 09:00 a 20:00, hora de esta sucursal)." />
       <CampoCasilla etiqueta="Activa" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["nombre", "direccion", "zona_horaria"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -68,6 +56,7 @@ function Formulario({ sucursal, alGuardar, alCerrar }: { sucursal: SucursalAdmin
 
 function Ofrece({ sucursal, verticales, alCambiar }: { sucursal: SucursalAdmin; verticales: Vertical[]; alCambiar: () => void }) {
   const accion = useAccion();
+  const { avisar } = useAvisos();
   const mapa = new Map(sucursal.verticales.map((v) => [v.vertical_id, v]));
   return (
     <div className="pila" data-prueba={`ofrece-${sucursal.id}`}>
@@ -82,13 +71,15 @@ function Ofrece({ sucursal, verticales, alCambiar }: { sucursal: SucursalAdmin; 
             etiqueta={v.nombre}
             checked={fila?.activo === true}
             disabled={accion.ocupado}
-            onChange={(e) =>
+            onChange={(e) => {
+              const marcado = e.target.checked;
               void accion.ejecutar(async () => {
-                if (e.target.checked) await api.put(`/api/sucursales/${sucursal.id}/verticales/${v.id}`, {});
+                if (marcado) await api.put(`/api/sucursales/${sucursal.id}/verticales/${v.id}`, {});
                 else if (fila) await api.delete(`/api/sucursales/${sucursal.id}/verticales/${v.id}`);
                 alCambiar();
-              })
-            }
+                avisar(`${sucursal.nombre} ${marcado ? "ahora imparte" : "ya no imparte"} ${v.nombre}.`);
+              });
+            }}
           />
         );
       })}
@@ -100,6 +91,7 @@ export default function Sucursales() {
   useTitulo("Sucursales");
   const lista = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
   const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", { activo: true }, senal), []);
+  const { avisar } = useAvisos();
   const edicion = useEdicion<SucursalAdmin>();
   const [baja, setBaja] = useState<SucursalAdmin | null>(null);
   return (
@@ -115,7 +107,7 @@ export default function Sucursales() {
               <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activa" : "Inactiva"}</Insignia>
             </div>
             <p className="muted">
-              {s.direccion ?? "Sin dirección"} · {s.zona_horaria}
+              {s.direccion ?? "Sin dirección"} · {nombreDeZona(s.zona_horaria)}
             </p>
             <Ofrece sucursal={s} verticales={verticales.datos?.datos ?? []} alCambiar={lista.recargar} />
             <div className="fila">
@@ -131,18 +123,17 @@ export default function Sucursales() {
         {edicion.actual !== null ? (
           <Formulario
             sucursal={edicion.actual === "nuevo" ? null : edicion.actual}
-            alGuardar={() => {
+            alGuardar={(nombre) => {
               edicion.cerrar();
               lista.recargar();
+              avisar(`La sucursal «${nombre}» se guardó.`);
             }}
             alCerrar={edicion.cerrar}
           />
         ) : null}
       </Dialogo>
-      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la sucursal" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/sucursales/${baja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">
-          Solo se puede dar de baja una sucursal que nada usa. Si ya tiene programas, usuarios, leads o alumnos, el sistema lo dirá: desactívala en su lugar. Baja de <strong>{baja?.nombre}</strong>.
-        </Aviso>
+      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la sucursal" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/sucursales/${baja!.id}`); lista.recargar(); avisar(`La sucursal «${baja!.nombre}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="sucursal" genero="f" nombre={baja?.nombre} consecuencia="Solo se puede si nada la usa: si ya tiene programas, usuarios, leads o alumnos, el sistema lo dirá." />
       </ConfirmarAccion>
     </Pagina>
   );

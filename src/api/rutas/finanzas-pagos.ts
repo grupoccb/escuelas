@@ -2,6 +2,7 @@
 //
 //   GET  /api/pagos/propuesta?tutor_id=&monto=                                                                  (pagos:registrar)  cómo se repartiría un pago (más antiguo primero)
 //   POST /api/pagos { tutor_id, monto, metodo, referencia?, fecha?, clave_idempotencia?, aplicaciones?: [{ cargo_id, monto }] }   (pagos:registrar)
+//   GET  /api/pagos/corte?fecha=&sucursal_id=                                                                   (pagos:leer)       el corte de caja del día (V7): lo cobrado por usuario y forma de pago
 //   GET  /api/pagos?tutor_id=&estatus=&desde=&hasta=&limite=&pagina=                                            (pagos:leer)
 //   GET  /api/pagos/:id                                                                                         (pagos:leer)
 //   POST /api/pagos/:id/cancelar { motivo }                                                                     (pagos:cancelar)
@@ -18,6 +19,11 @@ import { aFecha } from "../../catalogo/precios.ts";
 import { dondeTutorVisible } from "../../familias/alcance.ts";
 import { proponerDistribucion } from "../../finanzas/distribucion.ts";
 import { alRegistrarPago, alCancelarPago } from "../../finanzas/despues-del-pago.ts";
+import { calcularCorte, presentarCorte, type FormaDePago } from "../../finanzas/corte.ts";
+import { fechaLocal } from "../../lib/horario.ts";
+import { limitesDelDia } from "../../mensajeria/reglas.ts";
+import { deDecimal } from "../../lib/dinero.ts";
+import { filtroDeSucursal } from "../alcance.ts";
 import { METODOS_DE_PAGO, RechazoDePago, cancelarPago, cargosAbiertosDe, registrarPago } from "../../finanzas/pagos.ts";
 import { presentarPago, SELECCION_PAGO, type FilaDePago } from "../../finanzas/presentar.ts";
 import { aTexto, sumar } from "../../lib/dinero.ts";
@@ -32,6 +38,9 @@ import { dinero, enumerado, fechaISO, listaDe, objeto, opcional, parsear, parsea
 const ESTATUS = ["aplicado", "cancelado"] as const;
 const esquemaId = objeto({ id: uuid() });
 const esquemaListado = objeto({ ...esquemaPaginacion, tutor_id: opcional(uuid()), estatus: opcional(enumerado(ESTATUS)), desde: opcional(fechaISO()), hasta: opcional(fechaISO()) });
+const esquemaCorte = objeto({ fecha: opcional(fechaISO()), sucursal_id: opcional(uuid()) });
+/** Lo máximo que se lee para un corte: un día de una escuela son decenas de pagos; más de esto sería un dato anómalo y se rechaza en lugar de dar un corte incompleto. */
+const TOPE_DEL_CORTE = 5000;
 const esquemaPropuesta = objeto({ tutor_id: uuid(), monto: dinero() });
 const esquemaPago = objeto({
   tutor_id: uuid(),
@@ -81,6 +90,47 @@ export function rutasDePagos(_deps: DepsApi): express.Router {
       excedente: !p.ok && p.motivo === "excedente_sin_cargo" ? aTexto(p.excedente) : null,
       aplicaciones: p.ok ? p.aplicaciones.map((a) => ({ cargo_id: a.cargoId, monto: aTexto(a.monto) })) : [],
     });
+  });
+
+  // El corte de caja del día. Va ANTES de `/pagos/:id` (si no, «corte» se leería como un identificador). Solo lee.
+  r.get("/pagos/corte", requierePermiso("pagos:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const q = parsearQuery(esquemaCorte, req.query);
+    // La zona del día: la de la sucursal pedida (que el usuario debe ver) o, si no se pide, la primera de las suyas. El día es el de la sucursal, no el del servidor.
+    const filtro = filtroDeSucursal(await ctx.alcance());
+    const sucursal = await ctx.db.sucursal.findFirst({
+      where: { AND: [...(q.sucursal_id ? [{ id: q.sucursal_id }] : []), ...(filtro ? [{ id: filtro }] : [])] },
+      select: { zona_horaria: true },
+      orderBy: [{ nombre: "asc" }, { id: "asc" }],
+    });
+    if (q.sucursal_id && !sucursal) throw noEncontrado("No se encontró la sucursal");
+    const zona = sucursal?.zona_horaria ?? "America/Mexico_City";
+    const hoy = fechaLocal(ctx.ahora(), zona);
+    const fecha = q.fecha ?? hoy;
+    const dia = limitesDelDia(fecha, zona);
+    const filas = await ctx.db.pago.findMany({
+      where: { tutor: await dondeTutorVisible(ctx), OR: [{ creado_en: { gte: dia.desde, lt: dia.hasta } }, { cancelado_en: { gte: dia.desde, lt: dia.hasta } }] },
+      select: {
+        id: true,
+        monto: true,
+        metodo: true,
+        referencia: true,
+        creado_en: true,
+        cancelado_en: true,
+        motivo_cancelacion: true,
+        tutor: { select: { nombre: true, apellidos: true } },
+        registrado_por: { select: { id: true, nombre: true } },
+        cancelado_por: { select: { id: true, nombre: true } },
+      },
+      orderBy: [{ creado_en: "asc" }, { id: "asc" }],
+      take: TOPE_DEL_CORTE + 1,
+    });
+    if (filas.length > TOPE_DEL_CORTE) throw conflicto("Hay demasiados pagos ese día para un solo corte: avisa al administrador");
+    const corte = calcularCorte(
+      filas.map((f) => ({ id: f.id, monto: deDecimal(f.monto), metodo: f.metodo as FormaDePago, referencia: f.referencia, creado_en: f.creado_en, cancelado_en: f.cancelado_en, motivo_cancelacion: f.motivo_cancelacion, familia: `${f.tutor.nombre} ${f.tutor.apellidos ?? ""}`.trim(), registrado_por: f.registrado_por, cancelado_por: f.cancelado_por })),
+      dia,
+    );
+    res.json({ fecha, hoy, zona_horaria: zona, ...presentarCorte(corte) });
   });
 
   r.post("/pagos", requierePermiso("pagos:registrar"), json, async (req, res) => {

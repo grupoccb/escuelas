@@ -198,7 +198,11 @@ export default function CargarCatalogo() {
           ) : (
             <p className="muted">Todavía no elegiste archivos.</p>
           )}
-          {problema ? <Aviso tono="alerta">{problema}</Aviso> : null}
+          {problema ? (
+            <Aviso tono="alerta">
+              <span data-prueba="problema-de-archivos">{problema}</span>
+            </Aviso>
+          ) : null}
           <div className="formulario-acciones">
             <Boton variante="primario" onClick={revisarAhora} cargando={revisar.ocupado} disabled={archivos.length === 0 || problema !== null} data-prueba="boton-revisar">
               Revisar

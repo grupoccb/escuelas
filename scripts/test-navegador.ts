@@ -9,6 +9,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import pg from "pg";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -20,7 +21,9 @@ if (!/^[a-z_][a-z0-9_]*inscripciones_navegador_pruebas$|^inscripciones_navegador
 }
 
 // 1. La interfaz compilada: es lo que sirve el backend real.
-execFileSync("npm", ["--prefix", "web", "run", "build"], { stdio: "inherit" });
+// WEB_DIST (opcional) compila a otra carpeta: varias corridas a la vez no se pisan.
+const destino = process.env["WEB_DIST"];
+execFileSync("npm", ["--prefix", "web", "run", "build", ...(destino ? ["--", "--outDir", resolve(destino), "--emptyOutDir"] : [])], { stdio: "inherit" });
 
 // 2. Base limpia y migrada.
 const mantenimiento = new URL(url);

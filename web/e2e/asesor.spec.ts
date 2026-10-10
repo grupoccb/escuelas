@@ -28,7 +28,7 @@ test.describe("embudo", () => {
     await expect(page.getByText("Familia Delta")).toHaveCount(0);
     await expect(page.getByTestId(`lead-${gamma.leadId}`)).toContainText("Sin movimiento 10 d");
     await expect(page.getByTestId(`lead-${beta.leadId}`)).not.toContainText("Sin movimiento");
-    await expect(page.getByText("1 lead(s) llevan días sin movimiento")).toBeVisible();
+    await expect(page.getByText("1 lead lleva días sin movimiento")).toBeVisible();
     await capturar(page, "20-embudo", "escritorio");
     await capturar(page, "20-embudo", "celular");
   });
@@ -148,7 +148,7 @@ test.describe("tareas", () => {
     const t1 = page.getByTestId(`tarea-${alfa.tareaId}`);
     await expect(t1).toContainText("Revisión manual");
     await expect(t1).toContainText("Revisar los datos de Familia Alfa");
-    await expect(t1.getByRole("link", { name: "Abrir el lead" })).toHaveAttribute("href", `/leads/${alfa.leadId}`);
+    await expect(t1.getByRole("link", { name: "Abrir la ficha" })).toHaveAttribute("href", `/leads/${alfa.leadId}`);
     await capturar(page, "22-tareas", "celular");
     await t1.getByRole("button", { name: "Marcar como hecha" }).click();
     await expect(t1).toHaveCount(0);

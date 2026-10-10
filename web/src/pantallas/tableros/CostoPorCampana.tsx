@@ -3,9 +3,11 @@
 
 import { useRef, useState } from "react";
 import { api, armarConsulta } from "../../api/cliente.ts";
+import { cantidad } from "../../lib/cantidad.ts";
 import { aCentavos, formatear, normalizarCaptura } from "../../lib/dinero.ts";
 import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Tarjeta } from "../../ui/basicos.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
@@ -24,6 +26,9 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
   const [local, setLocal] = useState<Record<string, string>>({});
   const guardar = useAccion();
   const quitar = useAccion();
+  const { avisar } = useAvisos();
+  // V7: quitar un gasto pide confirmar en la misma fila (antes se perdía con un clic; si se equivoca, hay que volver a capturarlo).
+  const [confirmando, setConfirmando] = useState<string | null>(null);
   // EK-I04: la misma captura reintentada (doble clic, red) lleva la MISMA clave y no duplica el gasto; otra captura (o una ya guardada) lleva una nueva.
   const claveRef = useRef<{ firma: string; clave: string } | null>(null);
   const servidor = guardar.error?.porCampo() ?? {};
@@ -43,23 +48,41 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
           <ul data-prueba="gastos">
             {lista.datos.datos.map((g) => (
               <li key={g.id} className="fila fila-entre">
-                <span>
-                  {formatearFecha(g.fecha)} · <strong>{formatear(g.monto)}</strong>
-                  {g.nota ? ` · ${g.nota}` : ""}
-                </span>
-                <Boton
-                  variante="fantasma"
-                  disabled={quitar.ocupado}
-                  onClick={() =>
-                    void quitar.ejecutar(async () => {
-                      await api.delete(`/api/campanas/${campana.id}/gastos/${g.id}`);
-                      lista.recargar();
-                      alCambiar();
-                    })
-                  }
-                >
-                  Dar de baja
-                </Boton>
+                {confirmando === g.id ? (
+                  <>
+                    <span>
+                      ¿Quitar el gasto de <strong>{formatear(g.monto)}</strong> del {formatearFecha(g.fecha)}?
+                    </span>
+                    <span className="fila">
+                      <Boton
+                        variante="peligro"
+                        disabled={quitar.ocupado}
+                        onClick={() =>
+                          void quitar.ejecutar(async () => {
+                            await api.delete(`/api/campanas/${campana.id}/gastos/${g.id}`);
+                            setConfirmando(null);
+                            lista.recargar();
+                            alCambiar();
+                            avisar(`Se quitó el gasto de ${formatear(g.monto)} de «${campana.nombre}»: el costo ya está recalculado.`);
+                          })
+                        }
+                      >
+                        Sí, quitarlo
+                      </Boton>
+                      <Boton onClick={() => setConfirmando(null)}>No</Boton>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      {formatearFecha(g.fecha)} · <strong>{formatear(g.monto)}</strong>
+                      {g.nota ? ` · ${g.nota}` : ""}
+                    </span>
+                    <Boton variante="fantasma" disabled={quitar.ocupado} onClick={() => setConfirmando(g.id)}>
+                      Dar de baja
+                    </Boton>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -68,6 +91,7 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
       <ErrorDeAccion error={quitar.error} />
       <form
         className="formulario"
+        noValidate
         onSubmit={(ev) => {
           ev.preventDefault();
           const e: Record<string, string> = {};
@@ -86,6 +110,7 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
             setNota("");
             lista.recargar();
             alCambiar();
+            avisar(`Se capturó el gasto de ${formatear(m)} en «${campana.nombre}»: el costo ya está recalculado.`);
           });
         }}
       >
@@ -94,7 +119,7 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
         <CampoTexto etiqueta="Fecha" type="date" max={hoyLocal()} value={fecha} onChange={(e) => setFecha(e.target.value)} error={err("fecha")} />
         <CampoTexto etiqueta="Monto (MXN)" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} error={err("monto")} />
         <CampoTexto etiqueta="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
-        <ErrorDeAccion error={guardar.error} />
+        <ErrorDeAccion error={guardar.error} enCampos={["fecha", "monto"]} />
         <div className="formulario-acciones">
           <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
             Capturar el gasto
@@ -127,12 +152,26 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
             <Indicador etiqueta="Gasto total" valor={formatear(r.total.gasto)} prueba="ind-gasto" />
             <Indicador etiqueta="Costo por lead" valor={texto(r.total.costo_por_lead_texto)} />
             <Indicador etiqueta="Costo por clase muestra" valor={texto(r.total.costo_por_clase_muestra_texto)} />
-            <Indicador etiqueta="Costo por alumno inscrito" valor={texto(r.total.costo_por_alumno_texto)} nota={`${r.total.inscripciones_activas} inscripciones activas`} prueba="ind-costo-alumno" />
+            <Indicador etiqueta="Costo por alumno inscrito" valor={texto(r.total.costo_por_alumno_texto)} nota={`${cantidad(r.total.inscripciones_activas, "inscripción activa", "inscripciones activas")}`} prueba="ind-costo-alumno" />
           </div>
+          {r.filas.length === 0 ? (
+            <Aviso tono="info">
+              <span data-prueba="aviso-sin-campanas">Todavía no hay campañas. Se dan de alta en Administración → Campañas y códigos QR; luego aquí capturas lo que gastas en cada una.</span>
+            </Aviso>
+          ) : r.filas.some((f) => f.gasto === "0.00") ? (
+            <Aviso tono="info">
+              <span data-prueba="aviso-sin-gasto">
+                {(() => {
+                  const sin = r.filas.filter((f) => f.gasto === "0.00");
+                  return `${sin.length === 1 ? "Una campaña no tiene" : `${sin.length} campañas no tienen`} gasto capturado (${sin.slice(0, 3).map((f) => `«${f.campana.nombre}»`).join(", ")}${sin.length > 3 ? " y otras" : ""}): sus costos salen en $0.00, que no quiere decir que cuesten cero. Toca «Capturar o ver gastos» y anota lo que gastaste.`;
+                })()}
+              </span>
+            </Aviso>
+          ) : null}
           <Tarjeta>
             <Barras
               titulo="Gasto por campaña"
-              filas={r.filas.map((f) => ({ clave: f.campana.id, etiqueta: f.campana.nombre, valor: aCentavos(f.gasto), texto: formatear(f.gasto), nota: `${f.leads} leads · ${f.clases_muestra} clases muestra · ${f.inscripciones_activas} alumnos inscritos` }))}
+              filas={r.filas.map((f) => ({ clave: f.campana.id, etiqueta: f.campana.nombre, valor: aCentavos(f.gasto), texto: formatear(f.gasto), nota: `${cantidad(f.leads, "lead", "leads")} · ${cantidad(f.clases_muestra, "clase muestra", "clases muestra")} · ${cantidad(f.inscripciones_activas, "alumno inscrito", "alumnos inscritos")}` }))}
               vacio="Todavía no hay campañas."
             />
           </Tarjeta>
@@ -158,7 +197,7 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
                       <td className="derecha numero">{texto(f.costo_por_clase_muestra_texto)}</td>
                       <td className="derecha numero">{texto(f.costo_por_alumno_texto)}</td>
                       <td>
-                        <Boton onClick={() => setGastos(f.campana)}>Gastos</Boton>
+                        <Boton onClick={() => setGastos(f.campana)}>Capturar o ver gastos</Boton>
                       </td>
                     </tr>
                   ))}

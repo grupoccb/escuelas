@@ -55,12 +55,13 @@ function DialogoDeSesion({ lead, clase, abierto, alCerrar, alGuardar }: { lead: 
       >
         {!reprograma ? <CampoSelect etiqueta="Alumno" value={prospecto} onChange={(e) => setProspectoId(e.target.value)} opciones={aspirantes.map((p) => ({ valor: p.id, texto: p.nombre ?? "Sin nombre" }))} /> : <p>Alumno: <strong>{clase.prospecto}</strong></p>}
         {grupos.error ? <ErrorDeCarga error={grupos.error} alReintentar={grupos.recargar} /> : null}
+        {grupos.datos && delLead.length === 0 ? <Aviso tono="alerta">No hay grupos activos de la disciplina que busca la familia{lead.sucursal ? " en esta sucursal" : ""}. Revisa con quien administra el catálogo.</Aviso> : null}
         <CampoSelect etiqueta="Grupo" value={grupoId} onChange={(e) => { setGrupoElegido(e.target.value); setFechaHora(""); }} opciones={delLead.map((g) => ({ valor: g.id, texto: `${g.nombre} · ${g.programa.nombre}` }))} />
         {sesiones.cargando ? <Cargando texto="Buscando sesiones con lugar…" /> : null}
         {sesiones.error ? <ErrorDeCarga error={sesiones.error} alReintentar={sesiones.recargar} /> : null}
         {sesiones.datos && sesiones.datos.length === 0 ? <Aviso tono="alerta">Este grupo no tiene sesiones con lugar en los próximos días.</Aviso> : null}
         {sesiones.datos && sesiones.datos.length > 0 ? (
-          <GrupoDeOpciones etiqueta="Sesión" valor={fechaHora} alCambiar={setFechaHora} opciones={sesiones.datos.map((s) => ({ valor: s.fecha_hora, texto: `${s.completa} · ${s.lugares} ${s.lugares === 1 ? "lugar" : "lugares"}` }))} />
+          <GrupoDeOpciones rejilla etiqueta="Sesión" valor={fechaHora} alCambiar={setFechaHora} opciones={sesiones.datos.map((s) => ({ valor: s.fecha_hora, texto: `${s.completa} · ${s.lugares} ${s.lugares === 1 ? "lugar" : "lugares"}` }))} />
         ) : null}
         <CampoArea etiqueta="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} ayuda="Sin datos de salud." maxLength={1000} />
         <ErrorDeAccion error={accion.error} />

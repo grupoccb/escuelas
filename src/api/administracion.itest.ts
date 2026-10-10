@@ -155,7 +155,7 @@ test("J7 programas: la sucursal debe ofrecer la vertical; edades coherentes; el 
   const traslape = await nuevo({ nombre: "Se pisa", edad_min: 8, edad_max: 12 });
   assert.equal(traslape.estado, 409);
   assert.match((traslape.cuerpo as Err).error.mensaje, /Infantil/);
-  assert.match((traslape.cuerpo as Err).error.mensaje, /permite traslape/);
+  assert.match((traslape.cuerpo as Err).error.mensaje, /permite traslape/i);
   assert.equal((await nuevo({ nombre: "Siguiente", edad_min: 9, edad_max: 12 })).estado, 201, "la edad siguiente no se traslapa");
   // Alternativas: AMBAS deben permitirlo.
   const alt1 = await nuevo({ nombre: "Estilo A", edad_min: 13, edad_max: 17, permite_traslape: true });

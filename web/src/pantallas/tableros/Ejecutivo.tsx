@@ -1,6 +1,7 @@
 // Reporte ejecutivo (I3): alumnos activos, altas y bajas del mes, deserción, ingreso mensual recurrente, cartera vencida con su antigüedad y ocupación por grupo.
 // Activos, ingreso, cartera y ocupación son la foto de HOY; altas, bajas y deserción son del mes elegido. Importes: texto exacto.
 
+import { cantidad } from "../../lib/cantidad.ts";
 import { api, armarConsulta } from "../../api/cliente.ts";
 import { aCentavos, formatear } from "../../lib/dinero.ts";
 import { hoyLocal } from "../../lib/fechas.ts";
@@ -37,7 +38,7 @@ export function Ejecutivo({ mes, alCambiarMes }: { mes: string; alCambiarMes: (m
       {r ? (
         <>
           <div className="indicadores" data-prueba="indicadores-ejecutivo">
-            <Indicador etiqueta="Alumnos activos" valor={r.activos.total_alumnos} nota={`${r.activos.total_inscripciones} inscripciones`} prueba="ind-activos" />
+            <Indicador etiqueta="Alumnos activos" valor={r.activos.total_alumnos} nota={cantidad(r.activos.total_inscripciones, "inscripción", "inscripciones")} prueba="ind-activos" />
             <Indicador etiqueta="Altas del mes" valor={r.altas_del_mes} prueba="ind-altas" />
             <Indicador etiqueta="Bajas del mes" valor={r.bajas_del_mes} prueba="ind-bajas" />
             <Indicador etiqueta="Deserción" valor={r.desercion_texto} nota={`sobre ${r.base_al_inicio_del_mes} al inicio del mes`} prueba="ind-desercion" />
@@ -45,14 +46,14 @@ export function Ejecutivo({ mes, alCambiarMes }: { mes: string; alCambiarMes: (m
             <Indicador etiqueta="Cartera vencida" valor={formatear(r.cartera_vencida.total)} prueba="ind-cartera" />
           </div>
           <Tarjeta>
-            <Barras titulo="Alumnos activos por disciplina y sucursal" filas={r.activos.por_vertical_y_sucursal.map((f) => ({ clave: `${f.vertical.id}|${f.sucursal.id}`, etiqueta: `${f.vertical.nombre} · ${f.sucursal.nombre}`, valor: BigInt(f.alumnos), texto: `${f.alumnos} alumnos`, nota: `Ingreso mensual ${formatear(f.ingreso_mensual_recurrente)}` }))} vacio="Todavía no hay alumnos activos." />
+            <Barras titulo="Alumnos activos por disciplina y sucursal" filas={r.activos.por_vertical_y_sucursal.map((f) => ({ clave: `${f.vertical.id}|${f.sucursal.id}`, etiqueta: `${f.vertical.nombre} · ${f.sucursal.nombre}`, valor: BigInt(f.alumnos), texto: cantidad(f.alumnos, "alumno", "alumnos"), nota: `Ingreso mensual ${formatear(f.ingreso_mensual_recurrente)}` }))} vacio="Todavía no hay alumnos activos." />
           </Tarjeta>
           <Tarjeta>
             <Barras titulo="Antigüedad de la cartera vencida" filas={TRAMOS.map(([clave, etiqueta]) => ({ clave, etiqueta, valor: aCentavos(r.cartera_vencida.antiguedad[clave]), texto: formatear(r.cartera_vencida.antiguedad[clave]) }))} />
           </Tarjeta>
           <Tarjeta>
             <Barras titulo="Ocupación por grupo" filas={r.ocupacion_por_grupo.map((g) => ({ clave: g.grupo.id, etiqueta: `${g.grupo.nombre} · ${g.programa}`, valor: BigInt(g.ocupados), fondo: BigInt(g.cupo_maximo), texto: `${g.ocupados} de ${g.cupo_maximo} (${g.ocupacion} %)`, nota: `${ESTADO[g.estado].texto} · ${g.sucursal.nombre}` }))} vacio="Todavía no hay grupos activos." />
-            <p className="muted">Los grupos más llenos van primero. Con 90 % o más se sugiere abrir otro grupo; con 25 % o menos, promoverlo o cerrarlo.</p>
+            <p className="muted">Los grupos más llenos van primero. Cuándo un grupo cuenta como «a reventar» o como «vacío» se decide en Administración → Configuración.</p>
           </Tarjeta>
           <Tarjeta titulo="Ocupación en tabla">
             <div className="tabla-scroll">

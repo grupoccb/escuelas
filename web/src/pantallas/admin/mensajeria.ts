@@ -49,17 +49,18 @@ export const ORIGENES: Record<string, string> = {
   barrido_twilio: "Reenvío de WhatsApp",
 };
 
+/** Por qué algo llegó raro, en palabras (V7: antes decía «El cuerpo no era un JSON válido»). El detalle técnico sigue disponible, plegado, para quien da soporte. */
 export const CAUSAS: Record<string, string> = {
-  json_invalido: "El cuerpo no era un JSON válido",
+  json_invalido: "Llegó un mensaje que el sistema no pudo leer",
   forma_inesperada: "Faltaban datos o venían con otra forma",
-  sin_identificador: "No traía identificador",
-  dato_invalido: "Un dato no era válido",
-  texto_con_nul: "Traía un carácter no permitido",
-  restriccion_base: "La base rechazó el dato",
-  registro_inexistente: "Se refería a algo que no existe",
-  bandeja_sin_aprovisionar: "La bandeja no está dada de alta",
+  sin_identificador: "No traía con qué reconocerlo",
+  dato_invalido: "Uno de los datos no era válido",
+  texto_con_nul: "Traía un carácter que no se puede guardar",
+  restriccion_base: "El sistema no pudo guardar uno de los datos",
+  registro_inexistente: "Se refería a algo que ya no existe",
+  bandeja_sin_aprovisionar: "La bandeja de WhatsApp todavía no está dada de alta",
   reenvio_abandonado: "Se agotaron los reintentos de reenvío",
-  error_interno: "Error interno",
+  error_interno: "Falló algo dentro del sistema",
 };
 
 export const ROLES = [
@@ -68,6 +69,14 @@ export const ROLES = [
   { valor: "maestro", texto: "Maestro" },
   { valor: "recepcion", texto: "Recepción" },
 ] as const;
+
+/** Qué ve y qué hace cada rol, dicho para quien da de alta a una persona (V7: antes se elegía el rol sin saber qué iba a ver esa persona). */
+export const AYUDA_DE_ROL: Record<string, string> = {
+  administrador: "Ve y cambia todo: catálogo, precios, usuarios, módulos, tableros y la bandeja. Dáselo con cuidado.",
+  asesor: "Atiende a las familias que escriben: embudo, tareas, cotizaciones, clases muestra e inscripciones de su sucursal. No ve Administración ni cobros.",
+  maestro: "Ve sus clases: «Hoy», el registro de la clase muestra y el pase de lista de sus grupos. No ve cobros ni a las familias de otros grupos.",
+  recepcion: "Atiende el mostrador: cobros, estados de cuenta, uniformes, ventas y el cierre del día de su sucursal. No ve el embudo ni la salud de los alumnos.",
+};
 
 /** Los roles que trabajan por sucursal (el administrador las ve todas; el maestro entra por sus grupos). */
 export const ROLES_CON_SUCURSALES = new Set(["asesor", "recepcion"]);

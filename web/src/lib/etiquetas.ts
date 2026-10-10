@@ -85,3 +85,6 @@ export const TIPOS_DE_TAREA: Record<string, { titulo: string; ayuda: string }> =
 export function tipoDeTarea(tipo: string): { titulo: string; ayuda: string } {
   return TIPOS_DE_TAREA[tipo] ?? { titulo: tipo.replace(/_/g, " "), ayuda: "" };
 }
+
+/** «1 lugar», «5 lugares», «0 lugares» (V7: una cotización decía «1 lugares»). */
+export const textoDeLugares = (n: number): string => `${n} ${n === 1 ? "lugar" : "lugares"}`;

@@ -334,6 +334,8 @@ for (const vista of Object.keys(VISTAS) as Vista[]) {
       expect(csvCosto).toContain("1200.00");
       await fila.getByRole("button", { name: "Gastos" }).click();
       await t.getByRole("dialog").getByTestId("gastos").getByRole("listitem").filter({ hasText: `Gasto del recorrido (${vista})` }).getByRole("button", { name: "Dar de baja" }).click();
+      // V7: quitar un gasto se confirma en la misma fila.
+      await t.getByRole("dialog").getByRole("button", { name: "Sí, quitarlo" }).click();
       await expect(t.getByRole("dialog").getByTestId("gasto-total")).toHaveText("$0.00");
       await t.getByRole("dialog").getByRole("button", { name: "Cerrar" }).click();
 

@@ -32,6 +32,7 @@ import { crearAlumno, encontrarOCrearTutor, PARENTESCO_MAX, vincularTutor, type 
 import { autorizaUsoDeImagen } from "../../legal/aceptaciones.ts";
 import { edadCumplida } from "../../lib/edad.ts";
 import { normalizarTelefono } from "../../lib/telefono.ts";
+import { contieneTodas } from "../../lib/texto.ts";
 import { MOTIVOS_DE_CLASE, SEXOS, TURNOS_ESCOLARES } from "../../clases-muestra/registro.ts";
 import { veSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -302,13 +303,20 @@ const instVinculo = (v: { tutor_id: string; alumno_id: string; parentesco: strin
 
 // ── Utilidades ────────────────────────────────────────────────────────────────────────────────────────
 
-/** Cada palabra del texto debe aparecer en el nombre o en los apellidos (sin importar mayúsculas). */
-const porNombre = (q: string) =>
-  q
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 6)
-    .map((p) => ({ OR: [{ nombre: { contains: p, mode: "insensitive" as const } }, { apellidos: { contains: p, mode: "insensitive" as const } }] }));
+/**
+ * Lo que se compara en una búsqueda por nombre cabe en memoria: una escuela tiene a lo más unos miles de familias. Más allá de este tope la búsqueda se queda con las primeras
+ * (ordenadas como el listado) y lo dice el límite, no un error: mejor una lista corta que ninguna.
+ */
+const TOPE_DE_CANDIDATOS = 20_000;
+
+/**
+ * Los ids de lo que coincide con lo escrito: cada palabra aparece en el nombre o en los apellidos, SIN importar mayúsculas ni acentos («angel» encuentra a «Ángel», «nunez» a
+ * «Núñez»). Postgres compara con acentos y el cliente con alcance no ofrece SQL crudo, así que se trae lo que está a la vista (ya con alcance y filtros) y se compara aquí con
+ * `contieneTodas`. `pajar` arma el texto de cada fila donde se busca.
+ */
+async function idsPorNombre<F extends { id: string }>(traer: () => Promise<F[]>, pajar: (fila: F) => string, q: string): Promise<string[]> {
+  return (await traer()).filter((f) => contieneTodas(pajar(f), q)).map((f) => f.id);
+}
 
 function telefonoOError(campo: string, valor: string): string {
   const t = normalizarTelefono(valor);
@@ -397,8 +405,16 @@ export function rutasDeFamilias(_deps: DepsApi): Router {
     const pag = leerPaginacion(q);
     const condiciones: Record<string, unknown>[] = [await dondeTutorVisible(ctx)];
     if (q.telefono !== undefined) condiciones.push({ telefono: telefonoOError("telefono", q.telefono) });
-    if (q.nombre) condiciones.push(...porNombre(q.nombre));
     if (q.sucursal_id) condiciones.push({ sucursal_id: q.sucursal_id });
+    // Por nombre: el de la mamá o el de cualquiera de sus hijos (quien llega a pagar dice «vengo por Valentina»), sin importar mayúsculas ni acentos.
+    if (q.nombre && q.nombre.trim() !== "") {
+      const ids = await idsPorNombre(
+        () => ctx.db.tutor.findMany({ where: { AND: condiciones }, select: { id: true, nombre: true, apellidos: true, alumnos: { where: { eliminado_en: null }, select: { alumno: { select: { nombre: true, apellidos: true } } } } }, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], take: TOPE_DE_CANDIDATOS }),
+        (t) => [t.nombre, t.apellidos ?? "", ...t.alumnos.map((v) => `${v.alumno.nombre} ${v.alumno.apellidos}`)].join(" "),
+        q.nombre,
+      );
+      condiciones.push({ id: { in: ids } });
+    }
     const where = { AND: condiciones };
     res.json(
       await paginar(
@@ -483,7 +499,6 @@ export function rutasDeFamilias(_deps: DepsApi): Router {
     const q = parsearQuery(esquemaListadoAlumnos, req.query);
     const pag = leerPaginacion(q);
     const condiciones: Record<string, unknown>[] = [await dondeAlumnoVisible(ctx)];
-    if (q.nombre) condiciones.push(...porNombre(q.nombre));
     if (q.estatus) condiciones.push({ estatus: q.estatus });
     if (q.sucursal_id) condiciones.push({ sucursal_id: q.sucursal_id });
     if (q.tutor_id) condiciones.push({ tutores: { some: { tutor_id: q.tutor_id, eliminado_en: null } } });
@@ -491,6 +506,15 @@ export function rutasDeFamilias(_deps: DepsApi): Router {
       // Por el teléfono de algún adulto de la familia. El maestro no busca por teléfono (no ve cómo contactar a la familia).
       if (ctx.usuario.rol === "maestro") throw validacion([{ campo: "telefono", mensaje: "No puedes buscar por teléfono" }]);
       condiciones.push({ tutores: { some: { eliminado_en: null, tutor: { telefono: telefonoOError("telefono", q.telefono) } } } });
+    }
+    // Por nombre, sin importar mayúsculas ni acentos (se compara después de aplicar el alcance y los demás filtros).
+    if (q.nombre && q.nombre.trim() !== "") {
+      const ids = await idsPorNombre(
+        () => ctx.db.alumno.findMany({ where: { AND: condiciones }, select: { id: true, nombre: true, apellidos: true }, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], take: TOPE_DE_CANDIDATOS }),
+        (a) => `${a.nombre} ${a.apellidos}`,
+        q.nombre,
+      );
+      condiciones.push({ id: { in: ids } });
     }
     const where = { AND: condiciones };
     const hoy = hoyUTC(ctx);

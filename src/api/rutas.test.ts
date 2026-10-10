@@ -51,6 +51,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "POST /api/bandejas-chatwoot": "catalogo:escribir",
   "PATCH /api/bandejas-chatwoot/:id": "catalogo:escribir",
   "DELETE /api/bandejas-chatwoot/:id": "catalogo:escribir",
+  "GET /api/administracion/primeros-pasos": "catalogo:escribir",
   "GET /api/configuracion": "catalogo:escribir",
   "PATCH /api/configuracion": "catalogo:escribir",
   // V5: textos del asistente y etapas del embudo, solo el administrador.
@@ -137,6 +138,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "DELETE /api/codigos-rastreo/:id": "catalogo:escribir",
   "GET /api/leads/estancados": "leads:leer",
   "PATCH /api/leads/:id/etapa": "leads:escribir",
+  "PATCH /api/leads/:id": "leads:escribir",
   "GET /api/leads/:id/historial": "leads:leer",
   "GET /api/motivos-perdida": "catalogo:leer",
   "POST /api/motivos-perdida": "catalogo:escribir",
@@ -205,6 +207,7 @@ const LAS_RUTAS: Record<string, Esperado> = {
   "POST /api/cargos": "cargos:escribir",
   "POST /api/cargos/:id/cancelar": "cargos:escribir",
   "GET /api/pagos/propuesta": "pagos:registrar",
+  "GET /api/pagos/corte": "pagos:leer",
   "GET /api/pagos": "pagos:leer",
   "GET /api/pagos/:id": "pagos:leer",
   "POST /api/pagos": "pagos:registrar",

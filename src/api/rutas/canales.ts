@@ -21,6 +21,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
+import { cantidad } from "../../lib/cantidad.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, entero, enumerado, nulable, objeto, opcional, parsear, texto, uuid } from "../validar.ts";
 
@@ -205,7 +206,7 @@ export function rutasDeCanales(_deps: DepsApi): Router {
       const antes = await tx.bandeja_chatwoot.findFirst({ where: { id }, select: SEL_B });
       if (!antes) throw noEncontrado();
       const conversaciones = await tx.conversacion.count({ where: { bandeja_chatwoot_id: id } });
-      if (conversaciones > 0) throw conflicto(`La bandeja tiene ${conversaciones} conversación(es): no se puede dar de baja`);
+      if (conversaciones > 0) throw conflicto(`La bandeja tiene ${cantidad(conversaciones, "conversación", "conversaciones")}: no se puede dar de baja`);
       await tx.bandeja_chatwoot.update({ where: { id }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "bandeja_chatwoot", entidadId: id, accion: "eliminar", antes: instBandeja(antes) });
     });

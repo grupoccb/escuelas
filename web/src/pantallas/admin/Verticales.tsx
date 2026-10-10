@@ -3,12 +3,13 @@
 
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { colorDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { Vertical } from "./tipos.ts";
 
 function Muestra({ color }: { color: string | null }) {
@@ -19,7 +20,7 @@ function Muestra({ color }: { color: string | null }) {
   );
 }
 
-function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | null; alGuardar: () => void; alCerrar: () => void }) {
+function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | null; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [nombre, setNombre] = useState(vertical?.nombre ?? "");
   const [slug, setSlug] = useState("");
   const [usaProgresion, setUsaProgresion] = useState(vertical?.usa_progresion ?? false);
@@ -59,13 +60,14 @@ function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | nu
     void guardar.ejecutar(async () => {
       if (vertical) await api.patch(`/api/verticales/${vertical.id}`, cuerpo);
       else await api.post("/api/verticales", cuerpo);
-      alGuardar();
+      alGuardar(cuerpo.nombre);
     });
   }
 
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         enviar();
@@ -73,10 +75,10 @@ function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | nu
     >
       <CampoTexto etiqueta="Nombre de la disciplina" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
       {vertical === null ? (
-        <CampoTexto etiqueta="Identificador para el enlace (opcional)" value={slug} onChange={(e) => setSlug(e.target.value)} error={err("slug")} ayuda="Va en la dirección de la página de captación y en los QR impresos, y NO se puede cambiar después. Si lo dejas vacío se arma con el nombre." />
+        <CampoTexto etiqueta="Nombre corto para la dirección de la página (opcional)" value={slug} onChange={(e) => setSlug(e.target.value)} error={err("slug")} ayuda="Va al final de la dirección de la página donde las familias dejan sus datos y en los QR impresos (por ejemplo «natacion»), y NO se puede cambiar después. Si lo dejas vacío se arma con el nombre." />
       ) : (
         <p className="muted">
-          Identificador del enlace: <strong>{vertical.slug}</strong> (no cambia: está en los QR impresos).
+          Su página termina en <strong>{vertical.slug}</strong> (no cambia: está en los QR impresos).
         </p>
       )}
       <CampoCasilla etiqueta="Lleva progresión (niveles o grados de los alumnos)" checked={usaProgresion} onChange={(e) => setUsaProgresion(e.target.checked)} />
@@ -88,7 +90,7 @@ function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | nu
       <CampoCasilla etiqueta="El bot agenda la clase muestra" checked={muestra} onChange={(e) => setMuestra(e.target.checked)} />
       {err("clase_muestra_whatsapp_activo") ? <p className="campo-error">{err("clase_muestra_whatsapp_activo")}</p> : null}
       <CampoCasilla etiqueta="Activa" checked={activo} onChange={(e) => setActivo(e.target.checked)} ayuda="Una disciplina inactiva deja de recibir captación nueva; lo ya registrado se conserva." />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["nombre", "slug", "etiqueta_progresion", "etiqueta_evento", "color_marca", "logo_url", "clase_muestra_whatsapp_activo"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -102,6 +104,7 @@ function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | nu
 export default function Verticales() {
   useTitulo("Disciplinas");
   const lista = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
+  const { avisar } = useAvisos();
   const edicion = useEdicion<Vertical>();
   const [baja, setBaja] = useState<Vertical | null>(null);
   const cambiarActivo = useAccion();
@@ -125,7 +128,10 @@ export default function Verticales() {
               </span>
             </div>
             <p className="muted">
-              Enlace: /l/{v.slug}
+              Página para recibir familias:{" "}
+              <a href={`/l/${v.slug}`} target="_blank" rel="noopener noreferrer">
+                abrir
+              </a>
               {v.usa_progresion ? ` · Avance: ${v.etiqueta_progresion ?? "—"}` : " · Sin progresión"}
               {v.etiqueta_evento ? ` · Evento: ${v.etiqueta_evento}` : ""}
             </p>
@@ -137,6 +143,7 @@ export default function Verticales() {
                   void cambiarActivo.ejecutar(async () => {
                     await api.patch(`/api/verticales/${v.id}`, { activo: !v.activo });
                     lista.recargar();
+                    avisar(v.activo ? `${v.nombre} quedó desactivada: deja de recibir captación nueva, y lo ya registrado se conserva.` : `${v.nombre} quedó activa otra vez.`);
                   })
                 }
               >
@@ -153,18 +160,17 @@ export default function Verticales() {
         {edicion.actual !== null ? (
           <Formulario
             vertical={edicion.actual === "nuevo" ? null : edicion.actual}
-            alGuardar={() => {
+            alGuardar={(nombre) => {
               edicion.cerrar();
               lista.recargar();
+              avisar(`La disciplina «${nombre}» se guardó.`);
             }}
             alCerrar={edicion.cerrar}
           />
         ) : null}
       </Dialogo>
-      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la disciplina" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/verticales/${baja!.id}`); lista.recargar(); }}>
-        <Aviso tono="alerta">
-          Solo se puede dar de baja una disciplina que nada usa (sin programas, canales, campañas ni leads). Si ya se usa, el sistema lo dirá: desactívala en su lugar. Baja de <strong>{baja?.nombre}</strong>.
-        </Aviso>
+      <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la disciplina" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/verticales/${baja!.id}`); lista.recargar(); avisar(`La disciplina «${baja!.nombre}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="disciplina" genero="f" nombre={baja?.nombre} consecuencia="Solo se puede si nada la usa (sin programas, canales, campañas ni leads): si ya se usa, el sistema lo dirá." />
       </ConfirmarAccion>
     </Pagina>
   );

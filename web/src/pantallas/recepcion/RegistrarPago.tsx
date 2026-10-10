@@ -14,7 +14,7 @@ import { CampoArea, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { BuscadorDeFamilia } from "./BuscadorDeFamilia.tsx";
-import { claveParaEnvio, firmaDelPago, validarReparto } from "./reparto.ts";
+import { claveParaEnvio, firmaDelPago, mensajeDeCaptura, validarReparto } from "./reparto.ts";
 import { METODOS, nombreDeCargo, type CargoDeCuenta, type EstadoDeCuenta, type Pago, type Propuesta } from "./tipos.ts";
 
 /** Los cargos con saldo de todos los hijos, en el orden en que el servidor los pagaría: primero el que venció antes. */
@@ -46,6 +46,24 @@ function DeudaDeLaFamilia({ estado }: { estado: EstadoDeCuenta }) {
           </li>
         ))}
       </ul>
+    </Tarjeta>
+  );
+}
+
+/** Quien no debe nada no tiene a qué abonar: en lugar del formulario (que solo se podría rechazar) se dice qué hacer. */
+function NadaQueCobrar({ tutor, tieneCargos }: { tutor: Tutor; tieneCargos: boolean }) {
+  return (
+    <Tarjeta titulo="No hay nada que cobrar" className="cobro-formulario no-imprimir">
+      <p>{tieneCargos ? "Esta familia está al corriente: no tiene ningún cargo pendiente, así que no se puede registrar un pago." : "Esta familia todavía no tiene cargos, así que no se puede registrar un pago."}</p>
+      <p className="muted">Si va a comprar algo (un uniforme, una playera…), primero se registra la venta en «Ventas»: eso genera el cargo y después se cobra aquí.</p>
+      <div className="fila">
+        <Link className="boton boton-primario" to="/ventas">
+          Ir a Ventas
+        </Link>
+        <Link className="boton" to={`/cuenta/${tutor.id}`}>
+          Ver el estado de cuenta
+        </Link>
+      </div>
     </Tarjeta>
   );
 }
@@ -89,7 +107,7 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
   }
 
   return (
-    <Tarjeta titulo="Registrar un pago">
+    <Tarjeta titulo="Registrar un pago" className="cobro-formulario no-imprimir">
       <form
         className="formulario"
         onSubmit={(e) => {
@@ -97,7 +115,7 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
           if (puedeEnviar) void registrar();
         }}
       >
-        <CampoTexto etiqueta="Monto recibido" inputMode="decimal" autoComplete="off" value={monto} onChange={(e) => setMonto(e.target.value)} error={monto.trim() !== "" && montoOk === null ? "Escribe un importe válido, con hasta dos decimales (por ejemplo 1500 o 1,250.50)" : undefined} ayuda={`Se muestra como ${hayMonto ? formatear(montoOk) : "$0.00"}`} requerido />
+        <CampoTexto etiqueta="Monto recibido" inputMode="decimal" autoComplete="off" value={monto} onChange={(e) => setMonto(e.target.value)} error={mensajeDeCaptura(monto)} ayuda={`Se muestra como ${hayMonto ? formatear(montoOk) : "$0.00"}`} requerido />
         <CampoSelect etiqueta="Método de pago" value={metodo} onChange={(e) => setMetodo(e.target.value)} opciones={METODOS.map((m) => ({ valor: m.valor, texto: m.texto }))} />
         <CampoTexto etiqueta="Referencia (opcional)" autoComplete="off" value={referencia} onChange={(e) => setReferencia(e.target.value)} ayuda="Folio del voucher o de la transferencia." maxLength={120} />
         <CampoTexto etiqueta="Fecha del pago (opcional)" type="date" max={hoyLocal()} value={fecha} onChange={(e) => setFecha(e.target.value)} ayuda="Si la dejas vacía, es hoy." />
@@ -173,7 +191,7 @@ function PagosRecientes({ tutorId, version, alCambiar }: { tutorId: string; vers
               <strong>{formatear(p.monto)}</strong> · {METODOS.find((m) => m.valor === p.metodo)?.texto ?? p.metodo} · {formatearFecha(p.fecha)} <Insignia tono={p.estatus === "aplicado" ? "exito" : "neutro"}>{p.estatus === "aplicado" ? "Aplicado" : "Cancelado"}</Insignia>
               {p.motivo_cancelacion ? <span className="muted"> · {p.motivo_cancelacion}</span> : null}
             </span>
-            {p.estatus === "aplicado" && puede("pagos:cancelar") ? <Boton variante="peligro" onClick={() => setCancelando(p)}>Cancelar pago</Boton> : null}
+            {p.estatus === "aplicado" && puede("pagos:cancelar") ? <Boton variante="peligro" className="no-imprimir" onClick={() => setCancelando(p)}>Cancelar pago</Boton> : null}
           </li>
         ))}
       </ul>
@@ -217,7 +235,7 @@ export default function RegistrarPago() {
   const estado = useCarga((senal) => api.get<EstadoDeCuenta>(`/api/tutores/${tutor?.id ?? ""}/estado-cuenta`, undefined, senal), [tutor?.id, version], tutor !== null);
 
   return (
-    <Marco titulo="Registrar pago" subtitulo={tutor ? `${tutor.nombre} ${tutor.apellidos ?? ""} · ${tutor.telefono}` : "Busca a la familia"} acciones={tutor ? <Boton onClick={() => { setTutor(null); setPago(null); ponerParams({}); }}>Cambiar de familia</Boton> : undefined}>
+    <Marco titulo="Registrar pago" subtitulo={tutor ? `${tutor.nombre} ${tutor.apellidos ?? ""} · ${tutor.telefono}` : "Busca a la familia"} acciones={tutor ? <Boton className="no-imprimir" onClick={() => { setTutor(null); setPago(null); ponerParams({}); }}>Cambiar de familia</Boton> : undefined}>
       {!tutor ? <BuscadorDeFamilia alElegir={(t) => { setTutor(t); setPago(null); }} /> : null}
       {tutor && estado.error ? <ErrorDeCarga error={estado.error} alReintentar={estado.recargar} /> : null}
       {tutor && estado.cargando && !estado.datos ? <Cargando /> : null}
@@ -227,7 +245,7 @@ export default function RegistrarPago() {
             <Aviso tono="exito" titulo={pago.repetido ? "Este pago ya estaba registrado: no se duplicó" : "Pago registrado"}>
               <div data-prueba="pago-registrado" className="pila">
                 <p>
-                  <strong>{formatear(pago.monto)}</strong> · {METODOS.find((m) => m.valor === pago.metodo)?.texto ?? pago.metodo}
+                  <strong>{formatear(pago.monto)}</strong> · {METODOS.find((m) => m.valor === pago.metodo)?.texto ?? pago.metodo} · {formatearFecha(pago.fecha)}
                   {pago.referencia ? ` · ref. ${pago.referencia}` : ""}
                 </p>
                 <ul>
@@ -237,10 +255,16 @@ export default function RegistrarPago() {
                     </li>
                   ))}
                 </ul>
-                <div className="fila">
+                {estado.cargando ? null : (
+                  <p data-prueba="saldo-despues-del-pago">
+                    Ahora la familia debe: <strong>{formatear(estado.datos.resumen.saldo)}</strong>
+                  </p>
+                )}
+                <div className="fila no-imprimir">
                   <Boton variante="primario" onClick={() => setPago(null)}>
                     Registrar otro pago
                   </Boton>
+                  <Boton onClick={() => window.print()}>Imprimir recibo</Boton>
                   <Link className="boton" to={`/cuenta/${tutor.id}`}>
                     Ver el estado de cuenta
                   </Link>
@@ -248,18 +272,24 @@ export default function RegistrarPago() {
               </div>
             </Aviso>
           ) : null}
-          <DeudaDeLaFamilia estado={estado.datos} />
-          {!pago ? (
-            <FormularioDePago
-              key={`${tutor.id}-${version}`}
-              tutor={tutor}
-              estado={estado.datos}
-              alRegistrar={(p) => {
-                setPago(p);
-                setVersion((v) => v + 1);
-              }}
-            />
-          ) : null}
+          <div className="cobro">
+            <DeudaDeLaFamilia estado={estado.datos} />
+            {!pago ? (
+              abiertos(estado.datos).length === 0 ? (
+                <NadaQueCobrar tutor={tutor} tieneCargos={estado.datos.hijos.length > 0} />
+              ) : (
+                <FormularioDePago
+                  key={`${tutor.id}-${version}`}
+                  tutor={tutor}
+                  estado={estado.datos}
+                  alRegistrar={(p) => {
+                    setPago(p);
+                    setVersion((v) => v + 1);
+                  }}
+                />
+              )
+            ) : null}
+          </div>
           <PagosRecientes tutorId={tutor.id} version={version} alCambiar={() => setVersion((v) => v + 1)} />
         </>
       ) : null}

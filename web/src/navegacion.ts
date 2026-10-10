@@ -28,6 +28,7 @@ export const SECCIONES: readonly Seccion[] = [
   { id: "cuenta", ruta: "/cuenta", etiqueta: "Estado de cuenta", icono: "cuenta", permiso: "estado_cuenta:leer", modulo: "finanzas" },
   { id: "uniformes", ruta: "/uniformes", etiqueta: "Uniformes", icono: "uniforme", permiso: "beneficios:entregar", modulo: "finanzas" },
   { id: "ventas", ruta: "/ventas", etiqueta: "Ventas", icono: "ventas", permiso: "ventas:registrar", modulo: "finanzas" },
+  { id: "corte", ruta: "/corte", etiqueta: "Cierre del día", icono: "cuenta", permiso: "pagos:registrar", modulo: "finanzas" },
   { id: "tableros", ruta: "/tableros", etiqueta: "Tableros", icono: "tableros", permiso: "reportes:clases_muestra", modulo: "tableros" },
   { id: "alumnos", ruta: "/alumnos", etiqueta: "Alumnos", icono: "familia", permiso: "alumnos:leer", modulo: "inscripcion" },
   { id: "familias", ruta: "/familias", etiqueta: "Familias", icono: "familia", permiso: "tutores:leer", modulo: "inscripcion" },

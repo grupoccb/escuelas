@@ -58,17 +58,23 @@ function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle;
     capturado.datos !== null,
   );
 
+  // V7: al teclear la fecha de nacimiento la oferta se recalcula (la edad al corte cambia el programa). Mientras llega la nueva se SIGUE mostrando la anterior: antes todo el formulario
+  // se reemplazaba por «Juntando lo que ya se capturó…», el campo perdía el foco a mitad de la fecha y se perdían las teclas que seguían.
+  const [ofertasVistas, setOfertasVistas] = useState<typeof ofertas.datos>(null);
+  if (ofertas.datos && ofertas.datos !== ofertasVistas) setOfertasVistas(ofertas.datos);
+  const ofertasActuales = ofertas.datos ?? ofertasVistas;
+
   if (resultado) return <Resultado r={resultado} lead={lead} />;
   if (capturado.error) return <ErrorDeCarga error={capturado.error} alReintentar={capturado.recargar} />;
   if (ofertas.error) return <ErrorDeCarga error={ofertas.error} alReintentar={ofertas.recargar} />;
-  if (!capturado.datos || !ofertas.datos) return <Cargando texto="Juntando lo que ya se capturó…" />;
+  if (!capturado.datos || !ofertasActuales) return <Cargando texto="Juntando lo que ya se capturó…" />;
 
   const ctx: ContextoDePasos = {
     lead,
     faltas: vista.faltantes,
     pendientes,
     capturado: capturado.datos,
-    ofertas: ofertas.datos,
+    ofertas: ofertasActuales,
     previsiones,
     entrada,
     opciones,
@@ -89,6 +95,8 @@ function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle;
   const pasoActual = PASOS[paso] ?? PASOS[PASOS.length - 1]!;
   const enConfirmar = paso >= PASOS.length;
   const faltasDelPaso = enConfirmar ? [] : delPaso(quedan, pasoActual.id);
+  // Con varios niños, cada falta dice de cuál es (V7).
+  const nombreDeFalta = pendientes.length > 1 ? (id: string) => (pendientes.includes(id) ? nombreDeProspecto(ctx, id) : null) : undefined;
   const irAlPaso = (campo: string) => setPaso(Math.min(INDICE_DE[pasoDe(campo)], PASOS.length - 1));
 
   async function convertir() {
@@ -126,13 +134,13 @@ function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle;
       ) : (
         <>
           <h2>Confirmar</h2>
-          <PasoConfirmar c={ctx} quedan={quedan} alIrAlPaso={irAlPaso}>
+          <PasoConfirmar c={ctx} quedan={quedan} alIrAlPaso={irAlPaso} nombreDeFalta={nombreDeFalta}>
             {confirmar.error ? (
               <Aviso tono="peligro" titulo={confirmar.error.message}>
                 {confirmar.error.detalles.filter((d) => d.campo && !["motivo", "prospecto_id"].includes(d.campo)).length > 0 ? (
                   <ul>
                     {confirmar.error.detalles.filter((d) => d.campo && !["motivo", "prospecto_id"].includes(d.campo)).map((d) => (
-                      <li key={d.campo}>{etiquetaDeFalta(d.campo ?? "")}</li>
+                      <li key={d.campo}>{etiquetaDeFalta(d.campo ?? "", nombreDeFalta)}</li>
                     ))}
                   </ul>
                 ) : null}
@@ -193,7 +201,7 @@ function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle;
       <ErrorDeAccion error={confirmar.error && pasoDelError === null && !(confirmar.error instanceof ErrorDeApi && confirmar.error.detalles.length > 0) ? confirmar.error : null} />
       {faltasDelPaso.length > 0 ? (
         <p className="muted" data-prueba="falta-en-el-paso">
-          Para seguir falta: {faltasDelPaso.map((f) => etiquetaDeFalta(f.campo)).join(", ")}.
+          Para seguir falta: {faltasDelPaso.map((f) => etiquetaDeFalta(f.campo, nombreDeFalta)).join(", ")}.
         </p>
       ) : null}
       <div className="barra-guardado">

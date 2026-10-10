@@ -23,11 +23,14 @@ import { ClienteApi } from "../../src/testutil/api.ts";
 import { sembrarMundo } from "./mundo.ts";
 
 const RAIZ = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+// Varias corridas a la vez (V7: un recorrido por rol) usan carpetas y puertos propios: DIR_NAVEGADOR (estado y mundo) y WEB_DIST (la interfaz compilada). Por omisión, las de siempre.
+const DIR_NAVEGADOR = resolve(RAIZ, process.env["DIR_NAVEGADOR"] ?? ".tmp/navegador");
+const WEB_DIST = resolve(RAIZ, process.env["WEB_DIST"] ?? "web/dist");
 const url = process.env["DATABASE_URL"];
 if (!url || !/inscripciones_navegador_pruebas$/.test(url)) throw new Error("El servidor del navegador solo corre contra la base inscripciones_navegador_pruebas");
 const puerto = Number(process.env["PUERTO"] ?? 4318);
 // Un `mundo.json` de una corrida anterior no vale: quien espera (e2e/preparar.ts) lo espera NUEVO.
-rmSync(resolve(RAIZ, ".tmp/navegador/mundo.json"), { force: true });
+rmSync(resolve(DIR_NAVEGADOR, "mundo.json"), { force: true });
 
 // Datos de salud de prueba: una clave aleatoria por corrida (no es la de nadie).
 process.env["CLAVE_DATOS_SENSIBLES"] = randomBytes(32).toString("base64");
@@ -52,7 +55,7 @@ const app = crearApp({
   registrarTomaDeConversacion: async () => "tomada",
   estadosEntrega: { interpretar: () => null },
   registrarEstadoEntrega: async () => "actualizado",
-  web: { directorio: resolve(RAIZ, "web/dist") },
+  web: { directorio: WEB_DIST },
   // La landing pública (`/l/<vertical>`): sin ella el recorrido del anuncio no tendría a dónde llegar.
   landing: { prisma },
   reloj,
@@ -73,10 +76,10 @@ const app = crearApp({
 const servidor = app.listen(puerto, "127.0.0.1", () => {
   void (async () => {
     const mundo = await sembrarMundo(prisma, () => new ClienteApi(`http://127.0.0.1:${puerto}`), `http://127.0.0.1:${puerto}`);
-    mkdirSync(resolve(RAIZ, ".tmp/navegador"), { recursive: true });
+    mkdirSync(DIR_NAVEGADOR, { recursive: true });
     // Escritura atómica: quien espera el archivo nunca lo lee a medias.
-    writeFileSync(resolve(RAIZ, ".tmp/navegador/mundo.json.tmp"), JSON.stringify(mundo, null, 2));
-    renameSync(resolve(RAIZ, ".tmp/navegador/mundo.json.tmp"), resolve(RAIZ, ".tmp/navegador/mundo.json"));
+    writeFileSync(resolve(DIR_NAVEGADOR, "mundo.json.tmp"), JSON.stringify(mundo, null, 2));
+    renameSync(resolve(DIR_NAVEGADOR, "mundo.json.tmp"), resolve(DIR_NAVEGADOR, "mundo.json"));
     listo = true;
   })().catch((e: unknown) => {
     process.stderr.write(`No se pudo sembrar el mundo de pruebas: ${e instanceof Error ? e.stack : String(e)}\n`);

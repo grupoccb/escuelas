@@ -3,7 +3,9 @@
 
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
+import { cantidad } from "../../lib/cantidad.ts";
 import { horaDeMinutos } from "../../lib/fechas.ts";
+import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
@@ -121,7 +123,7 @@ function Formulario({ auto, plantillas, alGuardar, alCerrar }: { auto: Automatiz
         {err("dias_permitidos") ? <p className="campo-error">{err("dias_permitidos")}</p> : null}
       </fieldset>
       <CampoSelect etiqueta="Plantilla" value={plantillaId} vacio="Sin plantilla (no se manda fuera de la ventana de 24 h)" opciones={plantillas.map((p) => ({ valor: p.id, texto: `${p.codigo} · ${p.idioma} · ${p.clase_mensaje === "servicio" ? "servicio" : "marketing"}` }))} onChange={(e) => setPlantillaId(e.target.value)} error={err("plantilla_id")} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["offset_minutos", "max_intentos", "espaciado_minutos", "max_atraso_dias", "hora_inicio_min", "dias_permitidos", "plantilla_id"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -139,6 +141,7 @@ export default function Automatizaciones() {
   const plantillas = useCarga((senal) => api.get<Pag<PlantillaMinima>>("/api/plantillas", { limite: 100, activo: true }, senal), []);
   const edicion = useEdicion<AutomatizacionAdmin>();
   const alternar = useAccion();
+  const { avisar } = useAvisos();
   const { moduloEncendido } = useSesion();
   return (
     <Pagina titulo="Automatizaciones" subtitulo="Los avisos que el sistema manda solo." acciones={<Regreso />}>
@@ -158,7 +161,7 @@ export default function Automatizaciones() {
               </span>
             </div>
             <p className="muted">
-              {tituloDeEvento(a.evento_disparador)} · {textoDeDesfase(a.offset_minutos)} · {a.max_intentos} intento(s) · de {horaDeMinutos(a.hora_inicio_min)} a {horaDeMinutos(a.hora_fin_min)}
+              {tituloDeEvento(a.evento_disparador)} · {textoDeDesfase(a.offset_minutos)} · {cantidad(a.max_intentos, "intento", "intentos")} · de {horaDeMinutos(a.hora_inicio_min)} a {horaDeMinutos(a.hora_fin_min)}
               {a.vertical ? ` · ${a.vertical}` : ""}
               {a.sucursal ? ` · ${a.sucursal}` : ""}
             </p>
@@ -174,6 +177,7 @@ export default function Automatizaciones() {
                   void alternar.ejecutar(async () => {
                     await api.patch(`/api/automatizaciones/${a.id}`, { activo: !a.activo });
                     lista.recargar();
+                    avisar(a.activo ? `«${a.nombre}» quedó apagada: ya no se programan envíos nuevos (lo ya programado sigue su curso).` : `«${a.nombre}» quedó encendida: desde ahora se programan sus envíos.`);
                   })
                 }
               >
@@ -185,7 +189,7 @@ export default function Automatizaciones() {
       </ul>
       {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
       <Dialogo abierto={edicion.actual !== null} titulo="Ajustar la automatización" alCerrar={edicion.cerrar}>
-        {edicion.actual !== null && edicion.actual !== "nuevo" ? <Formulario key={edicion.actual.id} auto={edicion.actual} plantillas={plantillas.datos?.datos ?? []} alGuardar={() => { edicion.cerrar(); lista.recargar(); }} alCerrar={edicion.cerrar} /> : null}
+        {edicion.actual !== null && edicion.actual !== "nuevo" ? <Formulario key={edicion.actual.id} auto={edicion.actual} plantillas={plantillas.datos?.datos ?? []} alGuardar={() => { const nombre = edicion.actual !== null && edicion.actual !== "nuevo" ? edicion.actual.nombre : ""; edicion.cerrar(); lista.recargar(); avisar(`«${nombre}» quedó guardada. Vale para los avisos que se programen de ahora en adelante.`); }} alCerrar={edicion.cerrar} /> : null}
       </Dialogo>
     </Pagina>
   );

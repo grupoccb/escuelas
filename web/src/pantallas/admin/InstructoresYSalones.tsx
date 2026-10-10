@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
 import type { InstructorAdmin, SalonAdmin, SucursalAdmin } from "./tipos.ts";
 
 interface UsuarioMinimo {
@@ -17,7 +18,7 @@ interface UsuarioMinimo {
   activo: boolean;
 }
 
-function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alCerrar }: { instructor: InstructorAdmin | null; sucursales: SucursalAdmin[]; usuarios: UsuarioMinimo[]; alGuardar: () => void; alCerrar: () => void }) {
+function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alCerrar }: { instructor: InstructorAdmin | null; sucursales: SucursalAdmin[]; usuarios: UsuarioMinimo[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [nombre, setNombre] = useState(instructor?.nombre ?? "");
   const [telefono, setTelefono] = useState(instructor?.telefono ?? "");
   const [correo, setCorreo] = useState(instructor?.correo ?? "");
@@ -31,6 +32,7 @@ function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alC
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -41,7 +43,7 @@ function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alC
         void guardar.ejecutar(async () => {
           if (instructor) await api.patch(`/api/instructores/${instructor.id}`, cuerpo);
           else await api.post("/api/instructores", cuerpo);
-          alGuardar();
+          alGuardar(cuerpo.nombre);
         });
       }}
     >
@@ -59,7 +61,7 @@ function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alC
         ))}
       </fieldset>
       <CampoCasilla etiqueta="Activo" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["nombre", "telefono", "correo", "usuario_id"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -70,7 +72,7 @@ function FormularioInstructor({ instructor, sucursales, usuarios, alGuardar, alC
   );
 }
 
-function FormularioSalon({ salon, sucursales, alGuardar, alCerrar }: { salon: SalonAdmin | null; sucursales: SucursalAdmin[]; alGuardar: () => void; alCerrar: () => void }) {
+function FormularioSalon({ salon, sucursales, alGuardar, alCerrar }: { salon: SalonAdmin | null; sucursales: SucursalAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [sucursalId, setSucursalId] = useState(salon?.sucursal_id ?? "");
   const [nombre, setNombre] = useState(salon?.nombre ?? "");
   const [capacidad, setCapacidad] = useState(salon?.capacidad ? String(salon.capacidad) : "");
@@ -82,6 +84,7 @@ function FormularioSalon({ salon, sucursales, alGuardar, alCerrar }: { salon: Sa
   return (
     <form
       className="formulario"
+      noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
         const e: Record<string, string> = {};
@@ -94,7 +97,7 @@ function FormularioSalon({ salon, sucursales, alGuardar, alCerrar }: { salon: Sa
         void guardar.ejecutar(async () => {
           if (salon) await api.patch(`/api/salones/${salon.id}`, { nombre: nombre.trim(), capacidad: cap, activo });
           else await api.post("/api/salones", { sucursal_id: sucursalId, nombre: nombre.trim(), capacidad: cap, activo });
-          alGuardar();
+          alGuardar(nombre.trim());
         });
       }}
     >
@@ -102,7 +105,7 @@ function FormularioSalon({ salon, sucursales, alGuardar, alCerrar }: { salon: Sa
       <CampoTexto etiqueta="Nombre del salón" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
       <CampoTexto etiqueta="Capacidad (opcional)" inputMode="numeric" value={capacidad} onChange={(e) => setCapacidad(e.target.value)} error={err("capacidad")} />
       <CampoCasilla etiqueta="Activo" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
-      <ErrorDeAccion error={guardar.error} />
+      <ErrorDeAccion error={guardar.error} enCampos={["sucursal_id", "nombre", "capacidad"]} />
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
           Guardar
@@ -119,6 +122,7 @@ export default function InstructoresYSalones() {
   const salones = useCarga((senal) => api.get<Pag<SalonAdmin>>("/api/salones", { limite: 100 }, senal), []);
   const sucursales = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
   const usuarios = useCarga((senal) => api.get<Pag<UsuarioMinimo>>("/api/usuarios", { rol: "maestro", limite: 100 }, senal), []);
+  const { avisar } = useAvisos();
   const edI = useEdicion<InstructorAdmin>();
   const edS = useEdicion<SalonAdmin>();
   const [bajaI, setBajaI] = useState<InstructorAdmin | null>(null);
@@ -169,16 +173,16 @@ export default function InstructoresYSalones() {
         </ul>
       </Tarjeta>
       <Dialogo abierto={edI.actual !== null} titulo={edI.actual === "nuevo" ? "Nuevo instructor" : "Editar instructor"} alCerrar={edI.cerrar}>
-        {edI.actual !== null ? <FormularioInstructor instructor={edI.actual === "nuevo" ? null : edI.actual} sucursales={sucursales.datos?.datos ?? []} usuarios={usuarios.datos?.datos ?? []} alGuardar={() => { edI.cerrar(); instructores.recargar(); }} alCerrar={edI.cerrar} /> : null}
+        {edI.actual !== null ? <FormularioInstructor instructor={edI.actual === "nuevo" ? null : edI.actual} sucursales={sucursales.datos?.datos ?? []} usuarios={usuarios.datos?.datos ?? []} alGuardar={(nombre) => { edI.cerrar(); instructores.recargar(); avisar(`${nombre} se guardó como instructor.`); }} alCerrar={edI.cerrar} /> : null}
       </Dialogo>
       <Dialogo abierto={edS.actual !== null} titulo={edS.actual === "nuevo" ? "Nuevo salón" : "Editar salón"} alCerrar={edS.cerrar}>
-        {edS.actual !== null ? <FormularioSalon salon={edS.actual === "nuevo" ? null : edS.actual} sucursales={sucursales.datos?.datos ?? []} alGuardar={() => { edS.cerrar(); salones.recargar(); }} alCerrar={edS.cerrar} /> : null}
+        {edS.actual !== null ? <FormularioSalon salon={edS.actual === "nuevo" ? null : edS.actual} sucursales={sucursales.datos?.datos ?? []} alGuardar={(nombre) => { edS.cerrar(); salones.recargar(); avisar(`El salón «${nombre}» se guardó.`); }} alCerrar={edS.cerrar} /> : null}
       </Dialogo>
-      <ConfirmarAccion abierto={bajaI !== null} titulo="Dar de baja al instructor" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaI(null)} alConfirmar={async () => { await api.delete(`/api/instructores/${bajaI!.id}`); instructores.recargar(); }}>
-        <Aviso tono="alerta">Si todavía imparte grupos, el sistema pedirá que se los cambies antes. Baja de <strong>{bajaI?.nombre}</strong>.</Aviso>
+      <ConfirmarAccion abierto={bajaI !== null} titulo="Dar de baja al instructor" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaI(null)} alConfirmar={async () => { await api.delete(`/api/instructores/${bajaI!.id}`); instructores.recargar(); avisar(`${bajaI!.nombre} se dio de baja como instructor.`); }}>
+        <AvisoDeBaja cosa="instructor" genero="m" nombre={bajaI?.nombre} consecuencia="Si todavía imparte grupos, el sistema no lo dejará: cámbiales el instructor antes." />
       </ConfirmarAccion>
-      <ConfirmarAccion abierto={bajaS !== null} titulo="Dar de baja el salón" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaS(null)} alConfirmar={async () => { await api.delete(`/api/salones/${bajaS!.id}`); salones.recargar(); }}>
-        <Aviso tono="alerta">Si algún grupo lo usa, el sistema pedirá que le cambies el salón antes. Baja de <strong>{bajaS?.nombre}</strong>.</Aviso>
+      <ConfirmarAccion abierto={bajaS !== null} titulo="Dar de baja el salón" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaS(null)} alConfirmar={async () => { await api.delete(`/api/salones/${bajaS!.id}`); salones.recargar(); avisar(`El salón «${bajaS!.nombre}» se dio de baja.`); }}>
+        <AvisoDeBaja cosa="salón" genero="m" nombre={bajaS?.nombre} consecuencia="Si algún grupo lo usa, el sistema no lo dejará: cámbiales el salón antes." />
       </ConfirmarAccion>
     </Pagina>
   );

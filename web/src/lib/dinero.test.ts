@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aCentavos, comparar, multiplicar, deCentavos, esImporte, formatear, minimo, normalizarCaptura, restar, sumar } from "./dinero.ts";
+import { aCentavos, comparar, multiplicar, deCentavos, esImporte, formatear, minimo, normalizarCaptura, problemaDeImporte, restar, sumar } from "./dinero.ts";
 
 test("aCentavos y deCentavos son inversos y exactos (sin flotantes)", () => {
   for (const t of ["0.00", "0.01", "0.10", "1234.50", "9999999999.99", "-15.05", "100.00"]) assert.equal(deCentavos(aCentavos(t)), t);
@@ -41,6 +41,27 @@ test("normalizarCaptura acepta lo que teclea una persona y rechaza lo dudoso", (
   assert.equal(normalizarCaptura("-5"), null);
   assert.equal(normalizarCaptura("1e3"), null);
   assert.equal(normalizarCaptura(""), null);
+});
+
+test("normalizarCaptura: la coma solo es separador de miles, nunca un decimal ni algo que se adivine (V7)", () => {
+  assert.equal(normalizarCaptura("1,234"), "1234.00");
+  assert.equal(normalizarCaptura("12,345,678.9"), "12345678.90");
+  for (const raro of ["100,50", "12,34,5", "1,5", "1,2345", ",500", "1234,567", "1,23", "99999999999"]) assert.equal(normalizarCaptura(raro), null, raro);
+});
+
+test("problemaDeImporte dice qué tiene de malo lo tecleado (para decirle a la persona qué hacer)", () => {
+  assert.equal(problemaDeImporte(""), null);
+  assert.equal(problemaDeImporte("1,250.50"), null);
+  assert.equal(problemaDeImporte("-50"), "negativo");
+  assert.equal(problemaDeImporte("0"), "cero");
+  assert.equal(problemaDeImporte("0.00"), "cero");
+  assert.equal(problemaDeImporte("abc"), "letras");
+  assert.equal(problemaDeImporte("1e5"), "letras");
+  assert.equal(problemaDeImporte("12.345"), "decimales");
+  assert.equal(problemaDeImporte("1.2.3"), "decimales");
+  assert.equal(problemaDeImporte("100,50"), "comas");
+  assert.equal(problemaDeImporte("12,34,5"), "comas");
+  assert.equal(problemaDeImporte("99999999999"), "enorme");
 });
 
 test("esImporte y aCentavos rechazan lo que no es un importe", () => {

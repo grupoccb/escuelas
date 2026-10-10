@@ -1,6 +1,6 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Link, type LinkProps } from "react-router-dom";
-import type { ErrorDeApi } from "../api/cliente.ts";
+import { MENSAJE_NO_ENCONTRADO, type ErrorDeApi } from "../api/cliente.ts";
 
 type Variante = "primario" | "secundario" | "peligro" | "fantasma";
 
@@ -75,8 +75,13 @@ export function Vacio({ children, titulo }: { children?: ReactNode; titulo: stri
 export function ErrorDeCarga({ error, alReintentar }: { error: ErrorDeApi; alReintentar?: () => void }) {
   return (
     <Aviso tono="peligro" titulo="No se pudo cargar">
-      <p>{error.message}</p>
-      {alReintentar ? (
+      <p>{error.estado === 404 ? MENSAJE_NO_ENCONTRADO : error.message}</p>
+      {/* Un «no se encontró» no se arregla reintentando: se ofrece volver al inicio (V7). */}
+      {error.estado === 404 ? (
+        <EnlaceBoton to="/" variante="secundario">
+          Ir a mi inicio
+        </EnlaceBoton>
+      ) : alReintentar ? (
         <Boton variante="secundario" onClick={alReintentar}>
           Reintentar
         </Boton>
@@ -85,25 +90,42 @@ export function ErrorDeCarga({ error, alReintentar }: { error: ErrorDeApi; alRei
   );
 }
 
-/** El error de una acción (guardar, cobrar…): mensaje y, si hay, el detalle por campo. */
-export function ErrorDeAccion({ error }: { error: ErrorDeApi | null }) {
+/**
+ * El error de una acción (guardar, cobrar…): mensaje y, si hay, el detalle por campo.
+ *
+ * V7: `enCampos` son los campos que el formulario ya muestra junto a su caja. Un detalle de esos campos NO se repite aquí (antes el mismo texto salía dos veces: junto al campo y otra vez
+ * abajo), y cuando el mensaje principal es justo uno de esos detalles se dice solo «Revisa lo marcado en rojo». Al aparecer, el error se acerca a la vista: en un diálogo largo quedaba
+ * debajo de lo que se ve y parecía que «Guardar» no hacía nada.
+ */
+export function ErrorDeAccion({ error, enCampos }: { error: ErrorDeApi | null; enCampos?: readonly string[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // `scrollIntoView` no existe en los entornos sin pantalla de las pruebas de lógica.
+    if (error) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [error]);
   if (!error) return null;
   const espera = error.reintentarEn ? ` Intenta de nuevo en ${error.reintentarEn} s.` : "";
-  const extras = error.detalles.filter((d) => d.mensaje && d.mensaje !== error.message && (d.campo === undefined || !["motivo", "prospecto_id"].includes(d.campo))).slice(0, 8);
+  const enCampo = (campo: string | undefined): boolean => campo !== undefined && (enCampos ?? []).some((c) => campo === c || campo.startsWith(`${c}[`) || campo.startsWith(`${c}.`));
+  const sueltos = error.detalles.filter((d) => d.mensaje && d.mensaje !== error.message && !enCampo(d.campo) && (d.campo === undefined || !["motivo", "prospecto_id"].includes(d.campo))).slice(0, 8);
+  const yaJuntoAlCampo = error.detalles.some((d) => enCampo(d.campo) && d.mensaje === error.message);
+  const todoJuntoAlCampo = error.detalles.length > 0 && error.detalles.every((d) => enCampo(d.campo)) && error.message === "Los datos enviados no son válidos";
+  const principal = yaJuntoAlCampo || todoJuntoAlCampo ? "Revisa lo marcado en rojo." : error.message;
   return (
-    <Aviso tono="peligro">
-      <p>
-        {error.message}
-        {espera}
-      </p>
-      {extras.length > 0 ? (
-        <ul>
-          {extras.map((d, i) => (
-            <li key={`${d.campo ?? ""}-${i}`}>{d.mensaje}</li>
-          ))}
-        </ul>
-      ) : null}
-    </Aviso>
+    <div ref={ref} data-prueba="error-de-guardado">
+      <Aviso tono="peligro">
+        <p>
+          {principal}
+          {espera}
+        </p>
+        {sueltos.length > 0 ? (
+          <ul>
+            {sueltos.map((d, i) => (
+              <li key={`${d.campo ?? ""}-${i}`}>{d.mensaje}</li>
+            ))}
+          </ul>
+        ) : null}
+      </Aviso>
+    </div>
   );
 }
 

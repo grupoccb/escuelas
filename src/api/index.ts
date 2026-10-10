@@ -26,6 +26,7 @@ import { noEncontrado } from "./errores.ts";
 import { esEntornoLocal } from "../seguridad/entorno.ts";
 import { guardaDeModulos } from "./modulos-rutas.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
+import { rutasDeAdministracion } from "./rutas/administracion.ts";
 import { rutasDeAutomatizaciones } from "./rutas/automatizaciones.ts";
 import { rutasDeCanales } from "./rutas/canales.ts";
 import { rutasDeConfiguracion } from "./rutas/configuracion.ts";
@@ -158,6 +159,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeTextosBot(deps));
   api.use(rutasDeEtapas(deps));
   api.use(rutasDeModulos(deps));
+  api.use(rutasDeAdministracion(deps));
   api.use(rutasDePlantillas(deps));
   api.use(rutasDeAutomatizaciones(deps));
   api.use(rutasDeEventosInesperados(deps));

@@ -20,6 +20,7 @@ import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion, type DetalleDeError } from "../errores.ts";
+import { cantidad, segun } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, entero, enumerado, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -175,7 +176,7 @@ export function rutasDePlantillas(_deps: DepsApi): Router {
     await ctx.db.$transaction(async (tx) => {
       const antes = (await tx.plantilla_mensaje.findFirst({ where: { id }, select: SELECCION })) as unknown as Fila | null;
       if (!antes) throw noEncontrado();
-      if (antes._count.automatizaciones > 0) throw conflicto(`La usan ${antes._count.automatizaciones} automatización(es): cámbialas de plantilla antes de darla de baja`);
+      if (antes._count.automatizaciones > 0) throw conflicto(`La ${segun(antes._count.automatizaciones, "usa", "usan")} ${cantidad(antes._count.automatizaciones, "automatización", "automatizaciones")}: ${segun(antes._count.automatizaciones, "cámbiala", "cámbialas")} de plantilla antes de darla de baja`);
       await tx.plantilla_mensaje.update({ where: { id }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "plantilla_mensaje", entidadId: id, accion: "eliminar", antes: instantanea(antes) });
     });

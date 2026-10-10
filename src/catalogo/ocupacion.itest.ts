@@ -258,7 +258,7 @@ test("choque de SALÓN: 409 con el detalle de qué se pisa; terminar cuando la o
   assert.equal(pisa.cuerpo.error.codigo, "conflicto");
   assert.equal(pisa.cuerpo.error.detalles?.length, 1);
   assert.equal(pisa.cuerpo.error.detalles?.[0]?.campo, "salon_id");
-  assert.match(pisa.cuerpo.error.detalles?.[0]?.mensaje ?? "", /Base salón.*martes de 17:00 a 18:00.*17:30–18:30/);
+  assert.match(pisa.cuerpo.error.detalles?.[0]?.mensaje ?? "", /Base salón.*martes de 17:00 a 18:00.*17:30 a 18:30/);
   assert.equal(await prisma.grupo.count({ where: { organizacion_id: org.organizacionId, nombre: "Pisa salón" } }), 0, "no se creó nada");
 
   assert.equal((await crearGrupo(pNorte2, "Contiguo", { salon_id: salon.id, horarios: [H(SEMANA, 1080, 1140)] })).estado, 201, "empieza cuando la otra termina");

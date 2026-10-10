@@ -134,7 +134,8 @@ export function rutasDeEmbudo(_deps: DepsApi): Router {
         usuario: c.usuario,
         motivo: c.motivo,
         motivo_perdida: c.motivoPerdida,
-        nota: c.nota,
+        // V7: la nota con la que el asesor movió al lead es del asesor (a veces dice cómo es la familia o cómo salió la llamada): recepción lee el avance, no la nota.
+        nota: ctx.usuario.rol === "recepcion" ? null : c.nota,
         es_recuperacion: c.esRecuperacion,
         creado_en: c.creadoEn,
         segundos_en_la_etapa: c.segundosEnLaEtapa,

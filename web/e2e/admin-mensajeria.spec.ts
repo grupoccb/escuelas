@@ -39,7 +39,7 @@ test.describe("administrador", () => {
     const servicio = page.getByTestId(`plantilla-${plantillaServicio.codigo}`);
     await expect(servicio).toContainText("Servicio");
     await expect(servicio).toContainText("Aprobada");
-    await expect(servicio).toContainText("2 automatización(es)");
+    await expect(servicio).toContainText("2 automatizaciones");
     const marketing = page.getByTestId(`plantilla-${plantillaMarketing.codigo}`);
     await expect(marketing).toContainText("Marketing");
     await expect(marketing).toContainText("Pendiente de aprobación");

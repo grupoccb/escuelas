@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, traerTodo } from "../../api/cliente.ts";
+import { api, armarConsulta, traerTodo } from "../../api/cliente.ts";
 import type { Etapa, LeadResumen, MotivoPerdida } from "../../api/tipos.ts";
 import { diasDesde } from "../../lib/fechas.ts";
 import { useSesion, useYo } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
+import { AvisoDePrimerosPasos } from "../admin/AvisoDePrimerosPasos.tsx";
 import { MoverEtapa, type LeadParaMover } from "./MoverEtapa.tsx";
 
 interface Estancado {
@@ -40,7 +41,7 @@ function TarjetaDeLead({ lead, estancado, sucursal, alMover }: { lead: LeadResum
       <span className="muted">{lead.telefono ?? "Sin teléfono"}</span>
       <span className="fila">
         <Insignia>{FUENTES[lead.fuente] ?? lead.fuente}</Insignia>
-        {sucursal ? <Insignia>{sucursal}</Insignia> : null}
+        {sucursal ? <Insignia>{sucursal}</Insignia> : <Insignia tono="alerta">Sin sucursal</Insignia>}
         {estancado ? <Insignia tono="alerta">Sin movimiento {estancado.dias_sin_movimiento} d</Insignia> : null}
         {lead.recuperaciones > 0 ? <Insignia tono="info">Recuperado {lead.recuperaciones}×</Insignia> : null}
       </span>
@@ -78,10 +79,20 @@ export default function Embudo() {
   };
 
   return (
-    <Pagina titulo="Embudo" subtitulo={leads.datos ? `${visibles.length} de ${leads.datos.total} leads` : undefined}>
+    <Pagina
+      titulo="Embudo"
+      subtitulo={leads.datos ? `${visibles.length} de ${leads.datos.total} leads` : undefined}
+      acciones={
+        // V7: la lista de leads para Excel (la misma que ve esta persona: respeta su sucursal y su alcance en el servidor).
+        <a className="boton" href={`/api/exportaciones/leads${armarConsulta({ sucursal_id: sucursalId ?? undefined })}`} download data-prueba="descargar-leads">
+          Descargar lista (CSV para Excel)
+        </a>
+      }
+    >
+      <AvisoDePrimerosPasos />
       {error ? <ErrorDeCarga error={error} alReintentar={() => { etapas.recargar(); leads.recargar(); }} /> : null}
       {cuantosEstancados > 0 && !soloEstancados ? (
-        <Aviso tono="alerta" titulo={`${cuantosEstancados} lead(s) llevan días sin movimiento`}>
+        <Aviso tono="alerta" titulo={cuantosEstancados === 1 ? "1 lead lleva días sin movimiento" : `${cuantosEstancados} leads llevan días sin movimiento`}>
           <Boton onClick={() => setSoloEstancados(true)}>Ver solo los estancados</Boton>
         </Aviso>
       ) : null}

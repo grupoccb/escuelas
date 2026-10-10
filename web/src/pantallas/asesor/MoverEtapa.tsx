@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import type { Etapa, MotivoPerdida } from "../../api/tipos.ts";
+import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, ErrorDeAccion } from "../../ui/basicos.tsx";
 import { CampoArea, CampoSelect } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
@@ -22,6 +23,9 @@ export function MoverEtapa({ lead, etapas, motivos, abierto, alCerrar, alMover }
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
   const accion = useAccion();
+  // V1/V7: a la etapa de inscrito se llega inscribiendo; con la inscripción apagada nadie puede hacerlo, y el texto lo dice en vez de prometer un camino que no existe.
+  const { moduloEncendido } = useSesion();
+  const sePuedeInscribir = moduloEncendido("inscripcion");
   const actual = etapas.find((e) => e.id === lead?.etapa_id);
   const objetivo = etapas.find((e) => e.id === destino);
   const pierde = objetivo?.es_perdido === true || objetivo?.tipo_sistema === "perdido";
@@ -58,7 +62,7 @@ export function MoverEtapa({ lead, etapas, motivos, abierto, alCerrar, alMover }
           vacio="Elige…"
           value={destino}
           onChange={(e) => setDestino(e.target.value)}
-          opciones={etapas.filter((e) => e.id !== lead?.etapa_id).map((e) => ({ valor: e.id, texto: esDeInscripcion(e) ? `${e.nombre} (se llega inscribiendo)` : e.nombre, deshabilitada: esDeInscripcion(e) }))}
+          opciones={etapas.filter((e) => e.id !== lead?.etapa_id).map((e) => ({ valor: e.id, texto: esDeInscripcion(e) ? `${e.nombre} (${sePuedeInscribir ? "se llega inscribiendo" : "todavía no está activada la inscripción"})` : e.nombre, deshabilitada: esDeInscripcion(e) }))}
           requerido
         />
         {pierde ? <CampoSelect etiqueta="Motivo de pérdida" vacio="Elige…" value={motivo} onChange={(e) => setMotivo(e.target.value)} opciones={motivos.map((m) => ({ valor: m.id, texto: m.nombre }))} requerido /> : null}
