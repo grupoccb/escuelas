@@ -2,6 +2,8 @@
 
 Para quien usa el sistema (administrador, asesor, maestro, recepción) y para quien lo mantiene. **Guías de una página por rol, con capturas, para quien nunca vio el sistema: [`docs/guias/README.md`](guias/README.md)** (asesor, con Chatwoot; maestro, para el celular; recepción; administrador). Las pantallas se llaman como en la barra de la interfaz. Todo lo que dice «el sistema manda…» pasa por `MessagingProvider`: respeta la ventana de 24 h (fuera de ella solo sale una plantilla aprobada), el horario de 09:00 a 20:00 de la sucursal, las bajas, el tope de frecuencia y la atención humana.
 
+**Lo que falta decidir o conseguir antes de abrir la escuela, y antes de encender cada módulo: [`docs/DECISIONES-PARA-EDUARDO.md`](DECISIONES-PARA-EDUARDO.md)** (la lista única, en tres grupos, con la recomendación de cada una). Los valores de ejemplo que hoy están en vigor y que la escuela debe confirmar están en [`docs/SUPUESTOS-Y-DECISIONES.md`](SUPUESTOS-Y-DECISIONES.md).
+
 ## Módulos: qué tiene encendido la escuela (V1)
 
 La escuela arranca con la **captación**: el bot de tres preguntas, el pase al asesor, las tareas, el embudo y el reporte de leads. Lo demás se enciende cuando esté lista, desde **Administración → Módulos** (solo el administrador), sin reiniciar nada y sin tocar código:
