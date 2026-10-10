@@ -170,6 +170,8 @@ export interface MapaDeEncabezados {
   posiciones: Record<string, number>;
   /** Encabezados del archivo que no corresponden a ninguna columna (se ignoran, con un aviso). */
   desconocidos: string[];
+  /** V13-fix (EV-33): encabezados repetidos (la misma columna dos veces): se usa la primera y la repetida se ignora, con un aviso. */
+  repetidos: { encabezado: string; posicion: number }[];
   /** Columnas obligatorias que no están. */
   faltan: Columna[];
 }
@@ -179,14 +181,16 @@ export function mapearEncabezados(tipo: Tipo, encabezados: readonly string[]): M
   const esquema = ESQUEMAS[tipo];
   const posiciones: Record<string, number> = {};
   const desconocidos: string[] = [];
+  const repetidos: { encabezado: string; posicion: number }[] = [];
   encabezados.forEach((e, i) => {
     const k = claveDeEncabezado(e);
     if (k === "") return;
     const col = esquema.columnas.find((x) => [x.titulo, ...(x.alias ?? [])].some((t) => claveDeEncabezado(t) === k));
     if (col && !(col.clave in posiciones)) posiciones[col.clave] = i;
-    else if (!col) desconocidos.push(e);
+    else if (col) repetidos.push({ encabezado: e, posicion: i });
+    else desconocidos.push(e);
   });
-  return { posiciones, desconocidos, faltan: esquema.columnas.filter((x) => x.obligatoria && !(x.clave in posiciones)) };
+  return { posiciones, desconocidos, repetidos, faltan: esquema.columnas.filter((x) => x.obligatoria && !(x.clave in posiciones)) };
 }
 
 /** Pista del tipo por el nombre del archivo («sucursales (1).csv» → sucursales). */

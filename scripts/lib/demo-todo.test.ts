@@ -1,6 +1,7 @@
 // V12: `npm run demo:todo`. La lógica (opciones, guardas, plan, ejecución, comprobaciones, resumen) con un Docker FALSO, y el comando de verdad sin confirmación, en simulacro y con
 // NODE_ENV=production (con un `docker` falso en el PATH que deja una marca si alguien lo llama: en esos tres casos NO debe llamarse).
 
+import { revisarGuardasDeScript } from "./demo-todo.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -105,7 +106,8 @@ test("guardas: las contraseñas de demo las niega la política de contraseñas y
   const conDemo = impedimentosParaArrancar({ ...prod, CHATWOOT_ADMIN_PASSWORD: CONTRASENA_DE_DEMO });
   assert.deepEqual(conDemo.map((h) => h.codigo), ["valores_de_demo"]);
   assert.ok(!conDemo[0]!.mensaje.includes(CONTRASENA_DE_DEMO), "el mensaje nombra la variable, nunca el valor");
-  assert.deepEqual(impedimentosParaArrancar({ ...prod, ENTORNO_DEMO: "si", CHATWOOT_ADMIN_PASSWORD: CONTRASENA_DE_DEMO }), []);
+  // (V13-fix EV-28: la marca de demo solo vale con una base local o la del compose; aquí, la del compose.)
+  assert.deepEqual(impedimentosParaArrancar({ ...prod, DATABASE_URL: "postgresql://app:Clave-larga-de-verdad-9@postgres:5432/escuela", ENTORNO_DEMO: "si", CHATWOOT_ADMIN_PASSWORD: CONTRASENA_DE_DEMO }), []);
   // El seed de la demo trae esos cuatro usuarios con ESA contraseña (y solo ella).
   const sql = readFileSync(new URL("../../prisma/seed/demo.sql", import.meta.url), "utf8");
   for (const u of USUARIOS_DE_DEMO) {
@@ -431,4 +433,34 @@ test("el comando rechaza un uso inválido con 2 y en español", () => {
   assert.match(r.stderr, /necesita su propio puerto/);
   assert.equal(correr(["--apagar", "--borrar", "--si"], env).status, 2);
   assert.equal(existsSync(marca), false);
+});
+
+// ── V13-fix EV-09 / EV-37: las guardas de los guiones que escriben en la base ───────────────────────────────
+
+const DEMO = { slug: "escuela-demo", nombre: "Escuela demo" };
+const OTRA = { slug: "colegio-real", nombre: "Colegio real" };
+const codigosDe = (env: Record<string, string | undefined>, o: Parameters<typeof revisarGuardasDeScript>[1]) => revisarGuardasDeScript(env, o).map((h) => h.codigo);
+
+test("guardas de guion: producción (también «Production» o un valor desconocido), una base que no es local y una organización que no es la de la demo se rechazan", () => {
+  const local = { DATABASE_URL: "postgresql://inscripciones:inscripciones@localhost:5432/inscripciones" };
+  assert.deepEqual(codigosDe(local, { organizacion: DEMO, que: "x" }), []);
+  assert.deepEqual(codigosDe({ ...local, NODE_ENV: "development" }, { organizacion: DEMO, que: "x" }), []);
+  for (const modo of ["production", "Production", " PRODUCTION ", "prod", "staging"]) assert.deepEqual(codigosDe({ ...local, NODE_ENV: modo }, { organizacion: DEMO, que: "x" }), ["produccion"], modo);
+  for (const url of ["postgresql://u:p@127.0.0.2:5543/inscripciones", "postgresql://u:p@db.interna:5432/x", "postgresql://u:p@escuela.abc.us-east-1.rds.amazonaws.com/x", "postgresql://u:p@0.0.0.0:5432/x"]) {
+    assert.deepEqual(codigosDe({ DATABASE_URL: url }, { organizacion: DEMO, que: "x" }), ["base_no_local"], url);
+  }
+  // La repro de la auditoría: producción + 127.0.0.2 + la bandera: ya no pasa.
+  assert.deepEqual(codigosDe({ NODE_ENV: "production", DATABASE_URL: "postgresql://inscripciones:inscripciones@127.0.0.2:5543/inscripciones" }, { organizacion: DEMO, que: "x" }), ["produccion", "base_no_local"]);
+  // Otra organización en la base de la demo: no. En una base de pruebas, cualquiera.
+  assert.deepEqual(codigosDe(local, { organizacion: OTRA, que: "x" }), ["organizacion_no_demo"]);
+  assert.deepEqual(codigosDe({ DATABASE_URL: "postgresql://u:p@localhost:5432/inscripciones_pruebas" }, { organizacion: OTRA, que: "x" }), []);
+  assert.deepEqual(codigosDe({ DATABASE_URL: "postgresql://u:p@localhost:5432/otra_test" }, { organizacion: OTRA, que: "x" }), []);
+});
+
+test("guardas de guion: cargar un catálogo exige confirmar el nombre de la base, y debe coincidir", () => {
+  const env = { DATABASE_URL: "postgresql://u:p@localhost:5432/inscripciones" };
+  assert.deepEqual(codigosDe(env, { organizacion: DEMO, que: "x", exigirConfirmacion: true }), ["falta_confirmacion"]);
+  assert.deepEqual(codigosDe(env, { organizacion: DEMO, que: "x", exigirConfirmacion: true, confirmarBase: "otra" }), ["falta_confirmacion"]);
+  assert.deepEqual(codigosDe(env, { organizacion: DEMO, que: "x", exigirConfirmacion: true, confirmarBase: "inscripciones" }), []);
+  assert.match(revisarGuardasDeScript(env, { que: "x", exigirConfirmacion: true })[0]!.mensaje, /--confirmar-base inscripciones/);
 });

@@ -44,6 +44,21 @@ export function listaEnPalabras(nombres: readonly string[], tope = 3): string {
 
 const plural = (n: number, uno: string, varios: string): string => `${n} ${n === 1 ? uno : varios}`;
 
+/**
+ * V13-fix (EV-16): lo que se dice que pasa sin precio o sin horario depende de lo que la escuela tiene ENCENDIDO. Con el cotizador apagado no se habla del cotizador (la escuela ni lo ve);
+ * la inscripción necesita el cotizador (no se enciende sin él), así que «ni se puede inscribir» solo se dice cuando esos módulos están encendidos.
+ */
+export function paraQueSirveElPrecio(modulos: ModulosEncendidos): string {
+  if (modulos.cotizador && modulos.inscripcion) return ": sin precio no aparece en el cotizador ni se puede inscribir a nadie.";
+  if (modulos.cotizador) return ": sin precio no aparece en el cotizador.";
+  return ".";
+}
+export function paraQueSirveElHorario(modulos: ModulosEncendidos, grupos: number): string {
+  if (modulos.cotizador) return `: sin horario no ${grupos === 1 ? "aparece" : "aparecen"} en el cotizador.`;
+  if (modulos.clase_muestra) return `: sin horario no se pueden agendar clases muestra ${grupos === 1 ? "en él" : "en ellos"}.`;
+  return ".";
+}
+
 /** Qué roles hacen falta según los módulos que la escuela tiene encendidos (el asesor siempre: la captación nunca se apaga). */
 export function rolesNecesarios(modulos: ModulosEncendidos): { rol: "asesor" | "maestro" | "recepcion"; nombre: string }[] {
   return [
@@ -101,7 +116,7 @@ export async function calcularPrimerosPasos(db: Consultas, ahora: Date, modulos:
     id: "precios",
     titulo: "Ponle precio a cada programa",
     hecho: programas.length > 0 && sinPrecio.length === 0,
-    detalle: programas.length === 0 ? "Primero crea un programa." : sinPrecio.length > 0 ? `Falta el precio de ${listaEnPalabras(sinPrecio.map((p) => `«${p.nombre}»`))}: sin precio no aparece en el cotizador ni se puede inscribir a nadie.` : null,
+    detalle: programas.length === 0 ? "Primero crea un programa." : sinPrecio.length > 0 ? `Falta el precio de ${listaEnPalabras(sinPrecio.map((p) => `«${p.nombre}»`))}${paraQueSirveElPrecio(modulos)}` : null,
     ruta: "/admin/precios",
   };
 
@@ -112,7 +127,7 @@ export async function calcularPrimerosPasos(db: Consultas, ahora: Date, modulos:
     id: "grupos",
     titulo: "Crea un grupo con su horario y su cupo",
     hecho: conHorario.length > 0,
-    detalle: sinHorario > 0 ? `${plural(sinHorario, "grupo no tiene", "grupos no tienen")} horario: sin horario no ${sinHorario === 1 ? "aparece" : "aparecen"} en el cotizador.` : null,
+    detalle: sinHorario > 0 ? `${plural(sinHorario, "grupo no tiene", "grupos no tienen")} horario${paraQueSirveElHorario(modulos, sinHorario)}` : null,
     ruta: "/admin/grupos",
   };
 

@@ -1,6 +1,6 @@
 # Decisiones para Eduardo
 
-Una sola lista, sin duplicados, de todo lo que falta decidir o conseguir para que la escuela use el sistema: 117 decisiones en tres grupos. Corte: 10 de octubre de 2026, rama `v1-escuela`, después del bloque V10b (bloque V11 del plan).
+Una sola lista, sin duplicados, de todo lo que falta decidir o conseguir para que la escuela use el sistema: 128 decisiones en tres grupos. Corte: 10 de octubre de 2026, rama `v1-escuela`; D-01 a D-117 después del bloque V10b (bloque V11 del plan) y D-118 a D-128 de la auditoría final V13 (todas del grupo C: el sistema sigue con el valor de hoy mientras no se decida).
 
 Reúne y reemplaza, sin repetir, lo que estaba disperso en `docs/SUPUESTOS-Y-DECISIONES.md` (que ahora apunta a esta lista y conserva los valores vigentes), `docs/HALLAZGOS-ABIERTOS-V1.md` (las 52 filas de «decisión de producto» y las filas de credenciales), `docs/PENDIENTES-CREDENCIALES-REALES.md`, los «Para Eduardo» de `docs/BITACORA-V1.md`, `docs/BITACORA-NOCHE-2.md` y `docs/BITACORA-NOCHE.md`, las auditorías (`docs/auditorias/`), `docs/DECISION-ATRIBUCION.md`, `docs/REVISION-INSUMOS.md`, `docs/QUE-PEDIRLE-A-LA-ESCUELA.md`, `docs/ENSAYO-WHATSAPP-REAL.md` y los `[SUPUESTO]` de `prisma/seed/*.sql`. Cada decisión lleva todos sus identificadores de origen. Lo que ya decidiste no se vuelve a preguntar: está en la tabla «Ya decidido» al final.
 
@@ -18,7 +18,7 @@ Reúne y reemplaza, sin repetir, lo que estaba disperso en `docs/SUPUESTOS-Y-DEC
 |---|---|---|
 | A. Bloquea salir con captación | Lo que la escuela necesita decidir o entregar, o Grupo CCB y tú necesitan conseguir, para usar el primer día el asistente de tres preguntas, el pase al asesor, las tareas, el embudo y el reporte de leads (incluye credenciales reales y producción) | 28 |
 | B. Bloquea un módulo posterior | Lo que hay que decidir antes de encender un módulo: cotizador, clase muestra, inscripción, operación, finanzas o tableros. Cada decisión dice a cuál | 52 |
-| C. Puede esperar | Mejoras, pantallas faltantes y preferencias; si no se decide, se queda el valor de hoy sin riesgo | 37 |
+| C. Puede esperar | Mejoras, pantallas faltantes y preferencias; si no se decide, se queda el valor de hoy sin riesgo | 48 |
 
 ## Las 10 que más urgen
 
@@ -194,6 +194,17 @@ Dependencias entre módulos (V1): inscripción necesita el cotizador; operación
 | D-115 | Dónde aterriza el administrador | C | Varios | Dejar el embudo |
 | D-116 | Gates de las Fases 2 y 3 del SPEC | C | Varios | Revisarlos tú |
 | D-117 | Datos de ejemplo en la demo | C | Varios | Solo en una copia |
+| D-118 | Cobros que se generan con Finanzas apagada | C | Finanzas | Seguir generando |
+| D-119 | Qué se recupera al encender un módulo que estuvo apagado | C | Finanzas | Botón Ponerse al corriente |
+| D-120 | Inscripción sin Clase muestra: dónde se acepta el reglamento | C | Inscripción | Ruta propia |
+| D-121 | Lo que dice el asistente cuando el Cotizador está apagado | C | Cotizador | Texto sin horarios |
+| D-122 | Etapas «Clase muestra agendada / asistida» con Clase muestra apagada | C | Clase muestra | Dejarlas manuales |
+| D-123 | Administración con módulos apagados: ¿qué se sigue mostrando? | C | Varios | Dejarlo con avisos |
+| D-124 | Registro de la clase muestra con Finanzas u Operación apagadas | C | Clase muestra | Seguir pidiéndolos |
+| D-125 | Registro de cambios y accesos con módulos apagados | C | Varios | Dejarlo |
+| D-126 | Qué enlaces se permiten en los textos del asistente | C | Varios | Rechazar enlaces |
+| D-127 | Qué perdona la marca de demo al arrancar y qué pasa sin NODE_ENV | C | Varios | Cerrar más |
+| D-128 | Una etapa propia del embudo antes de «Nuevo» | C | Varios | Siempre «Nuevo» |
 
 ---
 
@@ -2830,6 +2841,253 @@ Dependencias entre módulos (V1): inscripción necesita el cotizador; operación
 **Dónde se cambia:** `npm run demo:datos` (S).
 
 **Ids origen:** I4-demo, SUP-DEMO
+
+- [ ] Decidido: ______
+
+### D-118 · Cobros que se generan con Finanzas apagada
+
+**Grupo:** C · **Módulo:** Finanzas · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿Con Finanzas apagada se siguen generando los cargos al inscribir o convertir, y qué se hace con ellos al encender el módulo?
+
+**Contexto:** Hoy inscribir o convertir con Finanzas apagada CREA los cargos (inscripción y primera mensualidad) aunque nadie los ve (`GET /api/cargos` da 404). Al encender Finanzas semanas después, el barrido los vuelve vencidos de golpe y crea la tarea de deuda vencida.
+
+**Opciones:**
+- **A.** Seguir generándolos siempre, para no perder la obligación, y al encender Finanzas empezar la cobranza de lo atrasado de forma gradual (hoy sale todo junto).
+- **B.** Generarlos solo con Finanzas encendida: sin el módulo no nace ningún cargo y quien inscribe recibe un aviso de que el cobro hay que llevarlo aparte.
+- **C.** Generarlos siempre pero marcados «sin cobrar todavía»: al encender el módulo la escuela decide cuáles cobrar.
+
+**Recomendación:** A con aviso al encender: no se pierde ninguna obligación.
+
+**Si no se decide:** Se queda la opción A tal como está hoy, sin el aviso al encender.
+
+**Dónde se cambia:** `src/inscripciones/inscribir.ts` (`crearCargosAlInscribir`) y `src/finanzas/barrido.ts` (M).
+
+**Ids origen:** EV-02
+
+- [ ] Decidido: ______
+
+### D-119 · Qué se recupera al encender un módulo que estuvo apagado
+
+**Grupo:** C · **Módulo:** Finanzas · **Esfuerzo:** M (días)
+
+**Pregunta:** Cuando Finanzas (o cualquier módulo que corre solo) estuvo apagado semanas, ¿qué debe ponerse al corriente al encenderlo?
+
+**Contexto:** Ya se corrigió el TEXTO de la guía y del diálogo de apagar (lo guardado se conserva; lo que pasó en ese tiempo no se recupera). Lo que el sistema hace: solo genera la mensualidad del mes en curso, los meses que pasaron nunca se generan y los recordatorios programados durante el apagón quedan omitidos, así que un cargo que sigue vencido puede no recibir nunca su primer recordatorio por WhatsApp. Un mes apagado es un mes sin cobrar en el sistema.
+
+**Opciones:**
+- **A.** No recuperar nada (hoy): la escuela cobra a mano lo de ese tiempo; el aviso del diálogo ya lo dice.
+- **B.** Al encender, generar las mensualidades de los meses faltantes de cada inscripción activa y reprogramar los recordatorios de lo que siga vencido.
+- **C.** Ofrecer un botón «Ponerse al corriente» en Módulos que muestra qué se generaría y deja a la escuela confirmarlo.
+
+**Recomendación:** C: la escuela ve qué se generaría antes de que pase.
+
+**Si no se decide:** Se queda la opción A (nada se recupera solo) y el aviso del diálogo.
+
+**Dónde se cambia:** `src/finanzas/barrido.ts`, `src/finanzas/cargos.ts`, `web/src/pantallas/admin/Modulos.tsx` (M).
+
+**Ids origen:** EV-03
+
+- [ ] Decidido: ______
+
+### D-120 · Inscripción sin Clase muestra: dónde se acepta el reglamento
+
+**Grupo:** C · **Módulo:** Inscripción · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿Se puede tener la Inscripción encendida con la Clase muestra apagada?
+
+**Contexto:** Hoy el reglamento solo se acepta en las pantallas de clase muestra. El administrador puede apagar Clase muestra con Inscripción encendida (la API lo permite); después inscribir o convertir una familia nueva da «Falta que la familia acepte el reglamento» y la pantalla donde se acepta devuelve «No disponible». La escuela se queda sin poder inscribir a una familia nueva.
+
+**Opciones:**
+- **A.** Agregar la dependencia: Inscripción necesita Clase muestra (no se puede apagar una con la otra encendida).
+- **B.** Crear una ruta para aceptar el reglamento dentro de Inscripción, para que no dependa de la clase muestra.
+- **C.** Dejarlo como está y explicarlo en la guía del administrador.
+
+**Recomendación:** B: es lo que menos cambia lo que ya funciona.
+
+**Si no se decide:** Se queda la opción C (como hoy).
+
+**Dónde se cambia:** `src/modulos/index.ts` (dependencias y el CHECK de la base) o `src/api/rutas/legal.ts` (M).
+
+**Ids origen:** EV-04
+
+- [ ] Decidido: ______
+
+### D-121 · Lo que dice el asistente cuando el Cotizador está apagado
+
+**Grupo:** C · **Módulo:** Cotizador · **Esfuerzo:** S (horas)
+
+**Pregunta:** Con el Cotizador apagado (y con solo la captación, el arranque de la escuela), ¿el asistente de WhatsApp y la página de registro pueden decir «te damos horarios y costos exactos»?
+
+**Contexto:** El plan dice que sin cotizador el asistente no ofrece horarios ni precios. Hoy el cierre dice «un asesor te escribe con horarios y costos» y la página de registro, «te escribimos por WhatsApp con horarios y costos». Es el texto del asistente SIN cotizador (ya existía) y la bitácora de V1 lo dejó como diseño.
+
+**Opciones:**
+- **A.** Dejarlo: es una promesa de que el asesor dará los horarios, no una oferta del asistente.
+- **B.** Cambiarlo a un texto sin mencionar horarios ni costos («un asesor te escribe para ayudarte») cuando el Cotizador está apagado.
+
+**Recomendación:** B, para ser literales con el plan.
+
+**Si no se decide:** Se queda la opción A (el texto de hoy).
+
+**Dónde se cambia:** `src/captacion/` (textos del asistente), `src/http/landing-html.ts` (S).
+
+**Ids origen:** EV-12
+
+- [ ] Decidido: ______
+
+### D-122 · Etapas «Clase muestra agendada / asistida» con Clase muestra apagada
+
+**Grupo:** C · **Módulo:** Clase muestra · **Esfuerzo:** S (horas)
+
+**Pregunta:** Con solo la captación, ¿se siguen listando esas dos etapas y se puede mover un lead a ellas a mano?
+
+**Contexto:** Hoy siguen listadas y mover un lead a ellas responde 200. «Inscrito» sí se oculta cuando la Inscripción está apagada (V10b).
+
+**Opciones:**
+- **A.** Dejarlas como etapas manuales: el asesor las puede usar aunque el módulo esté apagado.
+- **B.** Ocultarlas y rechazar el movimiento mientras Clase muestra esté apagada, como se hizo con «Inscrito».
+
+**Recomendación:** A: no estorban y algunas escuelas agendan clases muestra a mano.
+
+**Si no se decide:** Se queda la opción A (como hoy).
+
+**Dónde se cambia:** `src/embudo/transiciones.ts`, `src/api/rutas/etapas.ts` (S).
+
+**Ids origen:** EV-13
+
+- [ ] Decidido: ______
+
+### D-123 · Administración con módulos apagados: ¿qué se sigue mostrando?
+
+**Grupo:** C · **Módulo:** Varios · **Esfuerzo:** M (días)
+
+**Pregunta:** ¿Administración debe esconder por completo lo de los módulos apagados o seguir mostrándolo con el aviso «En pausa»?
+
+**Contexto:** Hoy Administración sigue mostrando y editando lo de módulos apagados (promociones con uniforme, automatizaciones, plantillas, textos del asistente, límites de cotización, clase muestra y tablero, motivos de baja, «Cargar catálogo» con precios, ayuda de Grupos con «lista de espera»), con avisos «En pausa» o «apagado». `GET /api/configuracion` y `GET /api/textos-bot` devuelven también esos ajustes. El plan dice «no aparece en la interfaz» para lo apagado.
+
+**Opciones:**
+- **A.** Dejarlo con los avisos (hoy): permite preparar un módulo antes de encenderlo.
+- **B.** Esconder por módulo todo lo que lo mencione y no devolverlo por la API.
+- **C.** Esconder lo que da miedo (precios, uniformes, automatizaciones) y dejar la configuración general.
+
+**Recomendación:** A: preparar antes de encender es justo para lo que sirve apagar.
+
+**Si no se decide:** Se queda la opción A (como hoy).
+
+**Dónde se cambia:** `web/src/pantallas/admin/`, `src/api/rutas/configuracion.ts`, `src/api/rutas/textos-bot.ts` (L).
+
+**Ids origen:** EV-14
+
+- [ ] Decidido: ______
+
+### D-124 · Registro de la clase muestra con Finanzas u Operación apagadas
+
+**Grupo:** C · **Módulo:** Clase muestra · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿El registro del alumno que llena el maestro debe seguir pidiendo «Talla de uniforme» y «Nivel observado en la clase» con Finanzas u Operación apagadas?
+
+**Contexto:** Hoy sigue pidiéndolos aunque el uniforme (Finanzas) y los niveles (Operación) no estén encendidos; los datos se guardan para cuando se enciendan.
+
+**Opciones:**
+- **A.** Seguir pidiéndolos: se capturan una sola vez y no hay que volver a preguntar (cero recaptura).
+- **B.** Esconder cada campo mientras su módulo esté apagado.
+
+**Recomendación:** A, por la regla de no recapturar.
+
+**Si no se decide:** Se queda la opción A (como hoy).
+
+**Dónde se cambia:** `web/src/pantallas/maestro/` y el esquema del registro de clase muestra (S).
+
+**Ids origen:** EV-17
+
+- [ ] Decidido: ______
+
+### D-125 · Registro de cambios y accesos con módulos apagados
+
+**Grupo:** C · **Módulo:** Varios · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿El administrador debe seguir viendo en el registro de cambios y en los accesos lo que pasó en módulos que hoy están apagados?
+
+**Contexto:** `GET /api/registro-cambios` (importes, productos, ids) y `GET /api/salud-accesos` siguen mostrando datos de módulos apagados. Puede ser deseable como bitácora de auditoría.
+
+**Opciones:**
+- **A.** Dejarlo: es una bitácora, no una pantalla del módulo.
+- **B.** Filtrarlo por módulo encendido, como las tareas.
+
+**Recomendación:** A: una bitácora de auditoría no debe desaparecer al apagar algo.
+
+**Si no se decide:** Se queda la opción A (como hoy).
+
+**Dónde se cambia:** `src/api/rutas/registro-cambios.ts`, `src/api/rutas/salud.ts` (S).
+
+**Ids origen:** EV-20
+
+- [ ] Decidido: ______
+
+### D-126 · Qué enlaces se permiten en los textos del asistente
+
+**Grupo:** C · **Módulo:** Varios · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿El filtro de enlaces de los textos del asistente debe ser una lista corta de dominios o rechazar todo lo que parezca un enlace?
+
+**Contexto:** Hoy el filtro reconoce una lista corta de dominios: pasan `promo.xyz`, `.shop`, `.store`, `.dev`, `.ai`, y también `tel:`, `mailto:`, `whatsapp://` y el carácter invisible U+202E. No hay riesgo de código (la pantalla escapa todo y un `http://` metido por SQL no llega al asistente porque el lector lo revalida).
+
+**Opciones:**
+- **A.** Dejar el filtro de hoy.
+- **B.** Rechazar cualquier texto con aspecto de enlace (con punto y dos letras, o con esquema) y los caracteres de dirección invisibles.
+
+**Recomendación:** B: es más simple de explicar a la escuela.
+
+**Si no se decide:** Se queda la opción A (como hoy).
+
+**Dónde se cambia:** `src/api/rutas/textos-bot.ts` y `src/captacion/textos.ts` (S).
+
+**Ids origen:** EV-25
+
+- [ ] Decidido: ______
+
+### D-127 · Qué perdona la marca de demo al arrancar y qué pasa sin NODE_ENV
+
+**Grupo:** C · **Módulo:** Varios · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿Hasta dónde debe perdonar ENTORNO_DEMO=si al arrancar, y qué debe hacer el sistema si NODE_ENV no está definido?
+
+**Contexto:** Ya se corrigió lo que no es de política: NODE_ENV se lee sin distinguir mayúsculas y un valor desconocido (`prod`, `staging`) cuenta como producción con todas sus negativas; ENTORNO_DEMO=si no deja arrancar si la base no es local o del compose; hay una prueba que impide que `infra/` defina variables de demo, ensayo o pruebas. Falta decidir: con ENTORNO_DEMO=si hoy siguen permitidas las variables del ensayo y del reloj de pruebas (PRUEBAS_AHORA), y sin NODE_ENV el sistema se comporta como desarrollo.
+
+**Opciones:**
+- **A.** Dejarlo como está.
+- **B.** Que ENTORNO_DEMO=si perdone solo los valores públicos de la demo (claves y contraseñas) y nunca el reloj de pruebas.
+- **C.** Además, tratar un NODE_ENV sin definir como producción en cualquier arranque de servidor (`npm run dev` ya lo define).
+
+**Recomendación:** B y C juntas: lo más cerrado y sin costo para la demo.
+
+**Si no se decide:** Se queda la opción A con las correcciones ya hechas.
+
+**Dónde se cambia:** `src/seguridad/entorno.ts` (S).
+
+**Ids origen:** EV-28
+
+- [ ] Decidido: ______
+
+### D-128 · Una etapa propia del embudo antes de «Nuevo»
+
+**Grupo:** C · **Módulo:** Varios · **Esfuerzo:** S (horas)
+
+**Pregunta:** ¿Una etapa propia puede ordenarse antes de «Nuevo» y volverse la etapa inicial de todo lead nuevo?
+
+**Contexto:** Hoy sí: la etapa inicial es la primera por orden que no es de cierre; si la escuela pone una propia primero, el asistente y la página de registro dejan ahí a todos los leads nuevos.
+
+**Opciones:**
+- **A.** Dejarlo: es la escuela quien decide dónde empieza el embudo.
+- **B.** No permitir que una propia quede antes de las de sistema: la inicial siempre es «Nuevo».
+
+**Recomendación:** B: evita que un orden mal puesto cambie por dónde entran las familias.
+
+**Si no se decide:** Se queda la opción A (como hoy).
+
+**Dónde se cambia:** `src/embudo/etapas.ts` y `src/api/rutas/etapas.ts` (orden) (S).
+
+**Ids origen:** EV-30
 
 - [ ] Decidido: ______
 

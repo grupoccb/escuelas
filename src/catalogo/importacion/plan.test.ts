@@ -428,3 +428,41 @@ test("los encabezados se reconocen sin importar mayúsculas, acentos ni orden; l
   assert.equal(l.avisos.length, 1);
   assert.match(l.avisos[0]!.mensaje, /no es de la plantilla y se ignoró/);
 });
+
+// ── V13-fix EV-33: lo que el importador ignoraba en silencio ahora se avisa con su fila ───────────────────────
+
+function leerCrudo(tipo: Tipo, filas: string[][]) {
+  const bytes = Buffer.from(csvDe(filas), "utf8");
+  return leerArchivos([{ nombre: ESQUEMAS[tipo].archivo, bytes }]);
+}
+
+test("EV-33: una columna con el encabezado REPETIDO se usa la primera vez y la repetida se avisa (antes se ignoraba sin decir nada)", () => {
+  const titulos = ESQUEMAS.salones.columnas.map((c) => c.titulo);
+  const l = leerCrudo("salones", [[...titulos, titulos[2]!], ["Centro", "Salón 1", "20", "99"]]);
+  assert.deepEqual(l.problemas, []);
+  const aviso = l.avisos.find((a) => /repetida/.test(a.mensaje));
+  assert.ok(aviso, `salieron: ${l.avisos.map(textoDeProblema).join(" | ")}`);
+  assert.equal(aviso.fila, 1);
+  assert.equal(aviso.columna, titulos[2]);
+  assert.equal(l.tablas.salones!.filas[0]!.v["capacidad"], "20", "manda la primera");
+});
+
+test("EV-33: celdas con datos DESPUÉS de la última columna (una coma de más) se avisan por fila; las vacías no", () => {
+  const titulos = ESQUEMAS.salones.columnas.map((c) => c.titulo);
+  const l = leerCrudo("salones", [titulos, ["Centro", "Salón 1", "20", "sobra", "otra"], ["Centro", "Salón 2", "15"], ["Centro", "Salón 3", "10", "", ""], ["Centro", "Salón 4", "12", "x"]]);
+  const sobrantes = l.avisos.filter((a) => /con datos de más/.test(a.mensaje));
+  assert.deepEqual(sobrantes.map((a) => a.fila), [2, 5]);
+  assert.match(sobrantes[0]!.mensaje, /^trae 2 celdas con datos de más/);
+  assert.match(sobrantes[1]!.mensaje, /^trae 1 celda con datos de más/);
+  assert.equal(l.tablas.salones!.filas.length, 4, "las filas se leen igual");
+});
+
+test("EV-33: la fila de ejemplo ignorada dice cuál era, para que quien tenía una fila real que empieza con «Ejemplo» lo note", () => {
+  const titulos = ESQUEMAS.salones.columnas.map((c) => c.titulo);
+  const l = leerCrudo("salones", [titulos, ["Ejemplo Escuela del Norte", "Salón 1", "20"], ["Centro", "Salón 2", "15"]]);
+  const aviso = l.avisos.find((a) => /fila de ejemplo/.test(a.mensaje))!;
+  assert.equal(aviso.fila, 2);
+  assert.match(aviso.mensaje, /«Ejemplo Escuela del Norte»/);
+  assert.match(aviso.mensaje, /no empiece con «Ejemplo»/);
+  assert.equal(l.tablas.salones!.filas.length, 1);
+});

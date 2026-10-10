@@ -98,10 +98,10 @@ export async function resolverBandejaPorNumero(raiz: PrismaRaiz, numeroReceptor:
 }
 
 /** Organizaciones vivas. Lo usa el aprovisionamiento de la demo para recorrerlas una por una. */
-export async function listarOrganizaciones(raiz: PrismaRaiz): Promise<{ id: string; nombre: string }[]> {
+export async function listarOrganizaciones(raiz: PrismaRaiz): Promise<{ id: string; nombre: string; slug: string | null }[]> {
   return clienteSinAlcance(raiz).organizacion.findMany({
     where: { eliminado_en: null },
-    select: { id: true, nombre: true },
+    select: { id: true, nombre: true, slug: true },
     orderBy: { creado_en: "asc" },
   });
 }

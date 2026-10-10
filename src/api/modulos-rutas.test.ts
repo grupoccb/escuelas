@@ -5,7 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MODULOS, SOLO_CAPTACION, TODOS_ENCENDIDOS, type Modulo } from "../modulos/index.ts";
 import { concretas, rutasDeApiReales, UUID_DE_PRUEBA } from "../testutil/rutas-reales.ts";
-import { MODULO_DE_PERMISO, moduloDeRuta, patronDeRuta, PATRONES_DE_MODULOS, permisosEfectivos } from "./modulos-rutas.ts";
+import { variantesDeRuta } from "../testutil/variantes-de-ruta.ts";
+import { MODULO_DE_PERMISO, moduloDeRuta, normalizarRuta, patronDeRuta, PATRONES_DE_MODULOS, permisosEfectivos } from "./modulos-rutas.ts";
 import { PERMISOS, permisosDe } from "./permisos.ts";
 
 const UUID = UUID_DE_PRUEBA;
@@ -136,6 +137,47 @@ test("control negativo: una ruta desconocida no pertenece a ningún módulo, y u
   assert.equal(moduloDeRuta("/api/leads/estancados/"), "captacion", "la barra final no cambia el módulo");
   assert.equal(moduloDeRuta(`/api/leads/${UUID}/convertir`), "inscripcion", "la excepción gana al árbol de captación");
   assert.equal(moduloDeRuta(`/api/leads/${UUID}/cotizaciones`), "cotizador");
+});
+
+// V13-fix EV-01: la guarda se saltaba cambiando las mayúsculas (`/API/cargos`, `/api/leads/:id/Convertir`). Express enrutaba sin distinguirlas y la tabla sí: la ruta no caía en
+// ninguna fila y la guarda dejaba pasar. Ahora la clasificación normaliza (minúsculas, una sola decodificación, sin barras repetidas ni final) y el router distingue mayúsculas.
+test("EV-01: TODAS las rutas de módulo (109 hoy) clasifican en su módulo con cualquier capitalización, barra final, doble barra, codificación y consulta", () => {
+  let rutasDeModulo = 0;
+  let variantesProbadas = 0;
+  const fallas: string[] = [];
+  const conColaDistinta = new Set<string>();
+  for (const r of rutasDeApiReales()) {
+    const patron = r.clave.split(" ")[1]!;
+    for (const c of concretas(patron)) {
+      const esperado = moduloDeRuta(c);
+      assert.ok(esperado !== null, c);
+      if (esperado === "captacion") continue;
+      rutasDeModulo++;
+      for (const v of variantesDeRuta(c).filter((x) => !x.soloServidor)) {
+        variantesProbadas++;
+        const real = moduloDeRuta(v.ruta);
+        if (real !== esperado) fallas.push(`${r.clave}: ${v.tipo}: ${v.ruta} → ${real} (esperado ${esperado})`);
+        if (v.tipo.startsWith("solo el segmento")) conColaDistinta.add(r.clave);
+      }
+    }
+  }
+  assert.deepEqual(fallas, [], `se escapan ${fallas.length} variantes`);
+  assert.ok(rutasDeModulo >= 109, `deben recorrerse las 109 rutas de módulo (hubo ${rutasDeModulo})`);
+  assert.ok(variantesProbadas > rutasDeModulo * 10);
+  // Las 18 rutas de módulo que cuelgan de un árbol de captación (cotizaciones, convertir, gastos, pase…) se probaron con SOLO la cola en otra capitalización.
+  const colas = ["/api/leads/:id/cotizaciones", "/api/leads/:id/convertir", "/api/leads/:id/conversion", "/api/campanas/:id/gastos", "/api/grupos/:id/pase", "/api/tutores/:id/estado-cuenta", "/api/salud/:sujeto_tipo/:sujeto_id"];
+  for (const patron of colas) assert.ok([...conColaDistinta].some((k) => k.endsWith(` ${patron}`)), patron);
+});
+
+test("EV-01: normalizarRuta deja una sola forma (minúsculas, una decodificación, sin barras repetidas ni final) y no se rompe con codificaciones inválidas", () => {
+  assert.equal(normalizarRuta("/API/Cargos/"), "/api/cargos");
+  assert.equal(normalizarRuta("/api//cargos//"), "/api/cargos");
+  assert.equal(normalizarRuta("/api/%63argos"), "/api/cargos");
+  assert.equal(normalizarRuta("/api/%2563argos"), "/api/%63argos", "una sola decodificación: lo doblemente codificado no se decodifica dos veces");
+  assert.equal(normalizarRuta("/api/%E0%A4%A"), "/api/%e0%a4%a", "una codificación rota no lanza: se usa tal cual");
+  assert.equal(normalizarRuta("/"), "/");
+  assert.equal(moduloDeRuta("/API/REPORTES/EJECUTIVO"), "tableros");
+  assert.equal(moduloDeRuta("/api/leads/x/Convertir"), "inscripcion");
 });
 
 test("cada permiso de la matriz tiene su módulo, y los permisos efectivos quitan los de un módulo apagado (y solo esos)", () => {

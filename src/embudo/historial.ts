@@ -14,9 +14,12 @@ import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
 import { leerModulos } from "../modulos/index.ts";
 import { estaInscritoAMano, inscritosAMano } from "./inscrito-a-mano.ts";
+import { caracteresUtiles, normalizarNota } from "./nota.ts";
 import { evaluarTransicion, tiempoPorEtapa, tramosEnEtapa, type MotivoDeRechazoDeTransicion, type ReglaDeMatriz, type TipoDeMovimiento } from "./transiciones.ts";
 
 export const claveDeCandadoDeLead = (leadId: string): string => `lead_etapa:${leadId}`;
+/** El candado de una etapa como DESTINO de un movimiento o como objeto de su baja (V13-fix, EV-24). */
+export const claveDeCandadoDeEtapa = (etapaId: string): string => `etapa_destino:${etapaId}`;
 
 /** El alta del lead es la primera fila del historial (sin etapa anterior). Dentro de la transacción que crea al lead. */
 export async function registrarAltaDeLead(tx: Consultas, leadId: string, etapaId: string, ahora?: Date): Promise<void> {
@@ -69,6 +72,9 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
   return transaccionConBloqueo(db, actor.organizacionId, claveDeCandadoDeLead(e.leadId), async (tx): Promise<ResultadoDeMovimiento> => {
     const lead = await tx.lead.findFirst({ where: { id: e.leadId }, select: { id: true, etapa_id: true, motivo_perdida_id: true, recuperaciones: true, etapa: { select: SELECCION_ETAPA } } });
     if (!lead) return { ok: false, motivo: "lead_inexistente" };
+    // V13-fix (EV-24): el candado de la etapa DESTINO, tomado antes de leerla. `DELETE /api/etapas/:id` toma el mismo: o ve al lead ya movido (y responde 409 «hay leads en esta etapa») o este
+    // movimiento ve la etapa ya dada de baja («etapa_inexistente»). Antes ganaban las dos y el lead quedaba en una etapa que ya no existe.
+    await tx.$tomarCandado(claveDeCandadoDeEtapa(e.haciaEtapaId));
     const hacia = (await tx.etapa_pipeline.findFirst({ where: { id: e.haciaEtapaId }, select: SELECCION_ETAPA })) as FilaEtapa | null;
     if (!hacia) return { ok: false, motivo: "etapa_inexistente" };
     if (e.desdeEtapaId && e.desdeEtapaId !== lead.etapa_id) return { ok: false, motivo: "el_lead_ya_cambio", etapaActualId: lead.etapa_id };
@@ -76,7 +82,10 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
 
     const motivoPerdidaId = e.motivoPerdidaId ?? null;
     if (motivoPerdidaId && !(await tx.motivo_perdida.findFirst({ where: { id: motivoPerdidaId, activo: true }, select: { id: true } }))) return { ok: false, motivo: "motivo_inexistente" };
-    const nota = e.nota?.trim() ? e.nota.trim() : null;
+    // V13-fix (EV-26): la nota se normaliza (sin invisibles) y lo que cuenta es su contenido: letras y dígitos, no «..........» ni caracteres de ancho cero.
+    const textoDeNota = normalizarNota(e.nota);
+    const nota = textoDeNota !== "" ? textoDeNota : null;
+    const utiles = caracteresUtiles(textoDeNota);
     const regla = await tx.transicion_etapa.findFirst({ where: { desde_etapa_id: lead.etapa_id, hacia_etapa_id: hacia.id }, select: { regla: true } });
     const desdeParaRegla = aEtapaParaTransicion(lead.etapa);
     const haciaParaRegla = aEtapaParaTransicion(hacia);
@@ -89,8 +98,8 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
       esAdministrador: actor.esAdministrador,
       regla: (regla?.regla ?? null) as ReglaDeMatriz | null,
       conMotivoDePerdida: motivoPerdidaId !== null,
-      conNota: nota !== null,
-      largoDeNota: nota?.length ?? 0,
+      conNota: utiles > 0,
+      largoDeNota: utiles,
       inscripcionApagada,
       inscritoAMano,
     });

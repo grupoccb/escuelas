@@ -4,6 +4,7 @@
 //   npm run test:navegador                       (todo)
 //   npm run test:navegador -- e2e/acceso.spec.ts (un archivo; lo que sigue a `--` va a Playwright)
 //   DATABASE_URL_NAVEGADOR=postgresql://…/otra_navegador_pruebas npm run test:navegador
+//   npm run capturas:escribir                    (V13-fix, EV-45: igual, pero las capturas se escriben en docs/capturas/; sin esto quedan en .tmp/navegador/capturas y el árbol no cambia)
 //
 //   PRUEBAS_AHORA=2026-10-10T06:30:00Z npm run test:navegador   (todo el mundo de pruebas vive en ese «ahora»: servidor, siembra, specs y navegador; ver scripts/lib/reloj-simulado.ts)
 //

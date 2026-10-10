@@ -86,3 +86,35 @@ test("V9: ningún archivo de infraestructura de AWS lleva variables del ensayo (
   assert.ok(archivos.length > 5);
   for (const f of archivos) assert.ok(!/ENSAYO_|ensayo-borde/.test(readFileSync(new URL(f, dir), "utf8")), `${f} menciona el ensayo`);
 });
+
+// V13-fix EV-28: lo que solo existe para la demo, el ensayo y las pruebas no puede llegar a una instalación real por descuido en la infraestructura. `ENTORNO_DEMO` deja arrancar con
+// valores públicos, `ENSAYO_*` relaja el bloqueo de Twilio y `PRUEBAS_*` desplaza el reloj: ningún archivo de `infra/` (las definiciones de tarea de ECS, los ambientes, los secretos) los
+// nombra, y las etapas «produccion» y «migrar» del Dockerfile tampoco.
+const PROHIBIDAS_EN_INFRA = /\b(ENTORNO_DEMO|ENSAYO_[A-Z_]+|PRUEBAS_[A-Z_]+)\b/;
+
+/** Los archivos de un directorio, a cualquier profundidad (ignora carpetas de herramientas). */
+function archivosDe(directorio: string): string[] {
+  return readdirSync(new URL(`../../${directorio}`, import.meta.url), { withFileTypes: true }).flatMap((e) => {
+    const ruta = `${directorio}/${e.name}`;
+    if (e.isDirectory()) return e.name.startsWith(".") ? [] : archivosDe(ruta);
+    return [ruta];
+  });
+}
+
+test("EV-28 infra: ni infra/ecs.tf ni ningún archivo de infra/ (tareas, ambientes, secretos) define ENTORNO_DEMO, ENSAYO_* ni PRUEBAS_*", () => {
+  const archivos = archivosDe("infra");
+  assert.ok(archivos.includes("infra/ecs.tf") && archivos.length >= 10, `se esperaban los archivos de infra/ (hubo ${archivos.length})`);
+  const infractores = archivos.filter((a) => PROHIBIDAS_EN_INFRA.test(leer(a))).map((a) => `${a}: ${leer(a).match(PROHIBIDAS_EN_INFRA)![1]}`);
+  assert.deepEqual(infractores, [], "una instalación real no puede traer variables de demo, ensayo o pruebas");
+  // Las tareas de ECS sí declaran NODE_ENV=production (cuatro: backend, migración y las dos de apoyo): si ya no hay ninguna, esta prueba dejó de mirar lo que cree.
+  assert.ok((leer("infra/ecs.tf").match(/name = "NODE_ENV", value = "production"/g) ?? []).length >= 2);
+  // Las imágenes de producción y de migración tampoco.
+  for (const nombre of ["produccion", "migrar"]) assert.ok(!PROHIBIDAS_EN_INFRA.test(etapa(nombre)), `la etapa «${nombre}» del Dockerfile nombra una variable de demo`);
+});
+
+test("EV-28 infra: el detector reconoce las variables prohibidas en cualquier forma de declararlas (mutación)", () => {
+  for (const mala of ['{ name = "ENTORNO_DEMO", value = "si" }', 'ENSAYO_LOCAL = "si"', "ENSAYO_TWILIO_BLOQUEO_PREFIJO=apagado-", '{ name = "PRUEBAS_AHORA", value = "2026-01-01T00:00:00Z" }', "PRUEBAS_DESFASE_MS: 0"]) {
+    assert.ok(PROHIBIDAS_EN_INFRA.test(mala), mala);
+  }
+  for (const buena of ['{ name = "NODE_ENV", value = "production" }', "ensayo de carga", "PRUEBAS", "ENTORNO"]) assert.ok(!PROHIBIDAS_EN_INFRA.test(buena), buena);
+});

@@ -1,7 +1,7 @@
 import { expect, test as base, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import { mkdirSync } from "node:fs";
-import { cargarMundo, RAIZ, rutaDeEstado } from "./mundo.ts";
+import { cargarMundo, rutaDeEstado, carpetaDeCapturas } from "./mundo.ts";
 
 export { expect };
 export const mundo = cargarMundo();
@@ -78,7 +78,7 @@ export async function capturar(page: Page, nombre: string, vista: "celular" | "e
   const tamano = vista === "celular" ? VISTA_CELULAR : VISTA_ESCRITORIO;
   await page.setViewportSize(tamano);
   await page.waitForLoadState("networkidle");
-  const carpeta = resolve(RAIZ, "docs/capturas");
+  const carpeta = carpetaDeCapturas();
   mkdirSync(carpeta, { recursive: true });
   if (opciones.completa) {
     // «Página completa» sin los artefactos de una captura por tramos (la barra lateral y la inferior son fijas): se agranda la ventana a lo que mide la página y se captura la ventana.

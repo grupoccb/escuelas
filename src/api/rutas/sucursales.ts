@@ -10,7 +10,8 @@
 //
 // La zona horaria decide el horario de envío (invariante 14: 09:00–20:00 LOCAL): debe ser un nombre IANA que el servidor conozca.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { zonaCanonica } from "../../catalogo/organizacion.ts";
 import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
@@ -66,7 +67,7 @@ function exigirZona<T extends string | undefined>(z: T): T {
 }
 
 export function rutasDeSucursales(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/sucursales", requierePermiso("catalogo:leer"), async (req, res) => {

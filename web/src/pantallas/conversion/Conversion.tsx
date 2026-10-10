@@ -21,7 +21,7 @@ const INDICE_DE: Record<Paso, number> = { familia: 0, alumnos: 1, grupo: 2, prec
 /** Qué paso corrige un rechazo de la inscripción (`detalles[motivo]`). */
 const PASO_DEL_RECHAZO: Record<string, Paso> = { grupo_lleno: "grupo", fuera_de_edad: "grupo", ya_inscrito: "grupo", sin_precio: "precio", reglamento: "reglamento" };
 
-function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle; vista: Vista; recargar: () => void; alDejarFuera: (prospectoId: string) => void }) {
+function Asistente({ lead, vista, marcados, vistaAlDia, recargar, alDejarFuera }: { lead: LeadDetalle; vista: Vista; marcados: readonly string[]; vistaAlDia: boolean; recargar: () => void; alDejarFuera: (prospectoId: string) => void }) {
   const { puede } = useSesion();
   const { modulos } = useYo();
   const hoy = hoyLocal();
@@ -101,7 +101,9 @@ function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle;
 
   async function convertir() {
     // Lo que viaja: SOLO lo escrito o elegido. El grupo del expediente (cotización o recomendación) lo deduce el servidor igual que esta pantalla.
-    const cuerpo = cuerpoDeConversion(entrada, pendientes, opciones, aEntero);
+    // V13-fix (EV-10): y solo los niños que están MARCADOS ahora. `pendientes` viene de la última recarga de «lo que falta», que llega unos instantes después de marcar o desmarcar:
+    // un clic en ese intervalo mandaba al niño que acababa de dejarse fuera. El botón además espera esa recarga (`vistaAlDia`).
+    const cuerpo = cuerpoDeConversion(entrada, pendientes.filter((id) => marcados.includes(id)), opciones, aEntero);
     const r = await confirmar.ejecutar(() => api.post<ResultadoDeConversion>(`/api/leads/${lead.id}/convertir`, cuerpo));
     if (r) setResultado(r);
   }
@@ -213,7 +215,7 @@ function Asistente({ lead, vista, recargar, alDejarFuera }: { lead: LeadDetalle;
             {paso === PASOS.length - 1 ? "Revisar y confirmar" : "Siguiente"}
           </Boton>
         ) : (
-          <Boton variante="primario" cargando={confirmar.ocupado} disabled={quedan.length > 0} onClick={() => void convertir()}>
+          <Boton variante="primario" cargando={confirmar.ocupado} disabled={quedan.length > 0 || !vistaAlDia} onClick={() => void convertir()}>
             Convertir e inscribir
           </Boton>
         )}
@@ -286,6 +288,9 @@ export default function Conversion() {
   const clave = marcados.join(",");
   // Deps solo [id]: marcar o desmarcar recarga la vista sin desmontar el asistente (lo ya escrito se conserva).
   const vista = useCarga((senal) => api.get<Vista>(`/api/leads/${id}/conversion`, porInscribir.length > 1 && marcados.length > 0 ? { prospectos: clave } : undefined, senal), [id], lead.datos !== null);
+  // La vista que se tiene en pantalla es la de los niños marcados AHORA: mientras llega la recarga que sigue a marcar o desmarcar, no se puede confirmar (V13-fix, EV-10).
+  const delaVista = (vista.datos?.prospectos ?? []).filter((p) => !p.ya_convertido).map((p) => p.prospecto_id);
+  const vistaAlDia = !vista.cargando && delaVista.length === marcados.length && delaVista.every((x) => marcados.includes(x));
   const marcar = (pid: string, si: boolean) => {
     setFuera((f) => (si ? f.filter((x) => x !== pid) : [...f, pid]));
     vista.recargar();
@@ -310,7 +315,7 @@ export default function Conversion() {
           <p>No queda nada por hacer en este lead.</p>
         </Aviso>
       ) : null}
-      {lead.datos && vista.datos && !vista.datos.ya_convertido ? <Asistente lead={lead.datos} vista={vista.datos} recargar={vista.recargar} alDejarFuera={(pid) => marcar(pid, false)} /> : null}
+      {lead.datos && vista.datos && !vista.datos.ya_convertido ? <Asistente lead={lead.datos} vista={vista.datos} marcados={marcados} vistaAlDia={vistaAlDia} recargar={vista.recargar} alDejarFuera={(pid) => marcar(pid, false)} /> : null}
     </Marco>
   );
 }

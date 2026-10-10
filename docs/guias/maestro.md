@@ -9,7 +9,7 @@ Es tu pantalla de inicio: las clases muestra de tus grupos de ayer, de hoy y de 
 ## Tu día en 5 pasos
 
 1. Entra con tu correo y tu contraseña y toca «Entrar».
-2. Cuando llegue el niño de una clase muestra, toca «Asistió». Si no vino, «No asistió». Se marca desde la hora de la clase y, si te equivocas, tocas el otro botón (hasta 24 horas después).
+2. Cuando llegue el niño de una clase muestra, toca «Asistió». Si no vino, «No asistió». Se marca desde la hora de la clase y, si te equivocas, tocas el otro botón (hasta 48 horas después).
 3. Toca «Registro del alumno» y llénalo por secciones; toca el título de cada sección para abrirla; cada una tiene su «Guardar esta sección» y abajo siempre está «Guardar borrador». Antes de salir, mira que diga «Todo guardado.». Pide a la familia que acepte el reglamento y la autorización de imagen: toca «Aceptan» en cada uno (si te pide el «Nombre de quien responde», escríbelo). Al final, «Marcar registro como completo»: el sistema te dice qué falta.
 4. Cuando el niño ya asistió y la familia quiere inscribirse, toca «Listo para cerrar la inscripción»: el asesor recibe el aviso. Si ves también «Inscribir a mi alumno», confirma con «Sí, inscribir»; si no lo ves, tu escuela cierra la inscripción por WhatsApp con el asesor.
 5. Para pasar lista de tu grupo: «Pase de lista», «Marcar presentes a todos los que faltan por marcar», marca «Falta» a quien no vino (o «Justificada» si avisó) y toca «Guardar pase de lista».

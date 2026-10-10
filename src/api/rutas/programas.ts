@@ -14,7 +14,8 @@
 //     (son alternativas: el bot pregunta cuál, decisión 9); es la misma regla que la verificación del catálogo (`traslapesDeEdad`);
 //   · el nombre es único por sucursal. Todo bajo el candado del catálogo, así dos altas simultáneas que se traslapan se serializan y gana una.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
 import { traslapesDeEdad, type Catalogo, type ProgramaCatalogo } from "../../catalogo/verificacion.ts";
@@ -27,6 +28,7 @@ import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { cantidad } from "../../lib/cantidad.ts";
+import { leerModulos } from "../../modulos/index.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, entero, fechaISO, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -93,7 +95,7 @@ async function exigirSinTraslape(tx: Consultas, propuesto: { id: string; nombre:
 }
 
 export function rutasDeProgramas(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/programas", requierePermiso("catalogo:leer"), async (req, res) => {
@@ -181,7 +183,12 @@ export function rutasDeProgramas(_deps: DepsApi): Router {
       if (!antes) throw noEncontrado();
       const grupos = await tx.grupo.count({ where: { programa_id: id } });
       const inscripciones = await tx.inscripcion.count({ where: { programa_id: id } });
-      if (grupos > 0 || inscripciones > 0) throw conflicto(`El programa tiene ${cantidad(grupos, "grupo", "grupos")} y ${cantidad(inscripciones, "inscripción", "inscripciones")}: desactívalo en lugar de darlo de baja`);
+      // V13-fix (EV-22): con la inscripción apagada no se habla de «inscripciones» (la escuela no las ve): se dice que hay alumnos inscritos.
+      const conInscripcion = (await leerModulos(tx)).inscripcion;
+      if (grupos > 0 || inscripciones > 0) {
+        const quedan = conInscripcion ? ` y ${cantidad(inscripciones, "inscripción", "inscripciones")}` : inscripciones > 0 ? " y alumnos ya inscritos" : "";
+        throw conflicto(`El programa tiene ${cantidad(grupos, "grupo", "grupos")}${quedan}: desactívalo en lugar de darlo de baja`);
+      }
       // K9 (EK-A3): una cotización guardada, una sugerencia del bot y una promoción también apuntan al programa.
       const otros: [string, number][] = [
         ["cotizaciones", await tx.cotizacion.count({ where: { programa_id: id } })],

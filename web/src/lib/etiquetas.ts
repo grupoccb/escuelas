@@ -82,6 +82,11 @@ export const TIPOS_DE_TAREA: Record<string, { titulo: string; ayuda: string }> =
   beneficio_en_revision: { titulo: "Beneficio en revisión", ayuda: "Se canceló un pago que había liberado un beneficio ya entregado." },
 };
 
+/** Los tipos de tarea que se ofrecen en el filtro: todos menos los de un módulo apagado (V13-fix, EV-15). */
+export function tiposDeTareaVisibles(apagados: readonly string[]): [string, { titulo: string; ayuda: string }][] {
+  return Object.entries(TIPOS_DE_TAREA).filter(([valor]) => !apagados.includes(valor));
+}
+
 export function tipoDeTarea(tipo: string): { titulo: string; ayuda: string } {
   return TIPOS_DE_TAREA[tipo] ?? { titulo: tipo.replace(/_/g, " "), ayuda: "" };
 }

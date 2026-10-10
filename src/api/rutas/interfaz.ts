@@ -4,12 +4,13 @@
 //
 // Solo lee. El código de la interfaz nunca busca una etapa por su nombre: usa `tipo_sistema` y las banderas `es_ganado` / `es_perdido`.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 
 export function rutasDeInterfaz(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/etapas", requierePermiso("leads:leer"), async (_req, res) => {
     const ctx = contextoDe(res);

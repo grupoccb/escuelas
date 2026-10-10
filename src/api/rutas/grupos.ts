@@ -16,7 +16,8 @@
 // Los disparadores de la base repiten la regla por si algo escribe sin pasar por aquí.
 
 import { randomUUID } from "node:crypto";
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { CANDADO_OCUPACION, choquesDeGrupo, describirChoque, franjasSeTraslapan, type Franja } from "../../catalogo/choques.ts";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
@@ -28,6 +29,7 @@ import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion, type DetalleDeError } from "../errores.ts";
 import { cantidad, segun } from "../../lib/cantidad.ts";
+import { leerModulos } from "../../modulos/index.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, entero, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
@@ -178,7 +180,7 @@ async function crearHorarios(tx: Consultas, grupoId: string, porCrear: Horario[]
 }
 
 export function rutasDeGrupos(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/grupos", requierePermiso("grupos:leer"), async (req, res) => {
@@ -279,6 +281,8 @@ export function rutasDeGrupos(_deps: DepsApi): Router {
       const antes = await tx.grupo.findFirst({ where: { id }, select: SELECCION });
       if (!antes) throw noEncontrado();
       const vigentes = await tx.inscripcion.count({ where: { grupo_id: id, estatus: { in: ["activa", "congelada"] } } });
+      // V13-fix (EV-22): con la inscripción apagada no hay dónde pasar a nadie a otro grupo (esa ruta no existe): el mensaje dice qué hacer en lugar de mandar a una pantalla apagada.
+      if (vigentes > 0 && !(await leerModulos(tx)).inscripcion) throw conflicto(`El grupo todavía tiene ${cantidad(vigentes, "alumno inscrito", "alumnos inscritos")} y la inscripción está apagada: enciéndela en Administración → Módulos para ${segun(vigentes, "pasarlo", "pasarlos")} a otro grupo antes de darlo de baja`);
       if (vigentes > 0) throw conflicto(`El grupo tiene ${cantidad(vigentes, "inscripción vigente", "inscripciones vigentes")}: ${segun(vigentes, "pásala", "pásalas")} a otro grupo antes de darlo de baja`);
       const ahora = ctx.ahora();
       await tx.grupo_horario.updateMany({ where: { grupo_id: id }, data: { eliminado_en: ahora } });

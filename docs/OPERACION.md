@@ -32,7 +32,7 @@ Las organizaciones que ya existían (la demo incluida) tienen todo encendido; un
 
 Lo que conviene saber: nunca borra (si quita una fila del archivo, lo que ya estaba se queda; para dar de baja algo se usa su pantalla); una celda vacía en algo que ya existe no borra su dato; un precio nuevo empieza en su fecha y no cambia lo que ya se cobró ni las inscripciones hechas; los horarios solo se agregan. Las mismas verificaciones del catálogo que las pantallas (traslape de edades, choque de salón o de instructor, cupo contra capacidad) corren antes de aceptar. No crea canales de WhatsApp, usuarios, promociones, productos ni documentos legales: esos se dan de alta en su pantalla.
 
-Desde la línea de comandos (por ejemplo, una carga inicial hecha por Grupo CCB): `npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta con los .csv>` simula; con `--aplicar --administrador <correo>` carga, a nombre de ese administrador en el registro de cambios. Detalle técnico: `docs/API.md`, «Carga del catálogo (V6)».
+Desde la línea de comandos (por ejemplo, una carga inicial hecha por Grupo CCB): `npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta con los .csv>` simula; con `--aplicar --administrador <correo> --confirmar-base <nombre de la base>` carga, a nombre de ese administrador en el registro de cambios. (V13: `--aplicar` se niega con `NODE_ENV=production` o con una base que no es local, y pide escribir el nombre de la base a la que va a escribir; para una instalación real se usa Administración → «Cargar catálogo», con una sesión de administrador.) Detalle técnico: `docs/API.md`, «Carga del catálogo (V6)».
 
 ## Configuración sin SQL (V5)
 

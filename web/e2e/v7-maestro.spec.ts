@@ -11,7 +11,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { abrirSeccion, apiComo, haceDiasEnMexico, json } from "./ayudas.ts";
 import { comoRol, contextoNuevo, expect, mundo, test, VISTA_CELULAR } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 
 test.use({ ...comoRol("maestro"), viewport: VISTA_CELULAR, hasTouch: true, isMobile: true });
@@ -19,7 +19,7 @@ test.describe.configure({ mode: "serial" });
 test.setTimeout(45_000);
 
 const FASE = process.env["FASE"] === "antes" ? "antes" : "despues";
-const CARPETA = resolve(RAIZ, "docs/capturas/v1/v7-maestro");
+const CARPETA = carpetaDeCapturas("v1/v7-maestro");
 let numeroDeCaptura = 0;
 
 /** Una captura numerada de lo que ve Mario. `completa`: toda la página (agranda la ventana a lo que mide, sin barras fijas partidas). */

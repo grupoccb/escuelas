@@ -10,7 +10,8 @@
 // grupos están atados a ella: el disparador `grupo_salon_misma_sucursal`). Los choques de horario no se
 // resuelven aquí sino al asignar el salón a un grupo (`PATCH /api/grupos/:id`).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
@@ -47,7 +48,7 @@ async function hayRepetido(tx: Consultas, sucursalId: string, nombre: string, ex
 }
 
 export function rutasDeSalones(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/salones", requierePermiso("catalogo:leer"), async (req, res) => {

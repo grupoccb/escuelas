@@ -12,7 +12,9 @@
 // El contenido de cada archivo llega como texto (`contenido`) o como bytes en base64 (`contenido_base64`, lo mejor: el servidor reconoce UTF-8, Windows-1252 y UTF-16 del Excel).
 // Topes: 12 archivos, 5 000 filas por archivo, cuerpo de 8 MB.
 
-import { Router } from "express";
+import { esBase64Valido } from "../../catalogo/importacion/base64.ts";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { LIMITE_CUERPO_IMPORTACION } from "../cuerpos.ts";
 import { descargasDePlantillas, importarCatalogo, ESQUEMAS, TIPOS, NOMBRE_DEL_ZIP, NOMBRE_DE_INSTRUCCIONES } from "../../catalogo/importacion/index.ts";
@@ -40,7 +42,7 @@ const DESCRIPCION_DE_ARCHIVOS: Record<string, string> = {
 };
 
 export function rutasDeImportacionDeCatalogo(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_IMPORTACION });
 
   r.get("/catalogo/plantillas", requierePermiso("catalogo:escribir"), (_req, res) => {
@@ -60,7 +62,7 @@ export function rutasDeImportacionDeCatalogo(_deps: DepsApi): Router {
     const e = parsear(esquemaCarga, req.body);
     const archivos = e.archivos.map((a, i) => {
       if ((a.contenido === undefined) === (a.contenido_base64 === undefined)) throw validacion([{ campo: `archivos[${i}]`, mensaje: "Manda `contenido` (texto) o `contenido_base64`, uno de los dos" }]);
-      if (a.contenido_base64 !== undefined && !/^[A-Za-z0-9+/\s]*={0,2}\s*$/.test(a.contenido_base64)) throw validacion([{ campo: `archivos[${i}].contenido_base64`, mensaje: "No es base64 válido" }]);
+      if (a.contenido_base64 !== undefined && !esBase64Valido(a.contenido_base64)) throw validacion([{ campo: `archivos[${i}].contenido_base64`, mensaje: "No es base64 válido" }]);
       return { nombre: a.nombre, bytes: a.contenido_base64 !== undefined ? Buffer.from(a.contenido_base64, "base64") : Buffer.from(a.contenido ?? "", "utf8") };
     });
     res.json(await importarCatalogo(ctx.db, { archivos, modo: e.modo, organizacionId: ctx.organizacionId, usuarioId: ctx.usuario.id }));

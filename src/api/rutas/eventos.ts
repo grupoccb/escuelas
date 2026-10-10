@@ -14,7 +14,8 @@
 // El cupo es atómico y está protegido en la base (disparador `evento_alumno_cupo`): ocupan lugar los participantes vivos. La cuota es dinero exacto (texto con dos
 // decimales); el maestro no la ve. Alcance: ver `src/eventos/alcance.ts`; el maestro solo convoca y ve a SUS alumnos. Todo cambio queda en `registro_cambio`.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { hoyEn } from "../../asistencia/pase.ts";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
@@ -114,7 +115,7 @@ const esCupoAgotadoEnLaBase = (e: unknown): boolean => e instanceof Error && e.m
 const esCupoMenorEnLaBase = (e: unknown): boolean => e instanceof Error && e.message.includes("evento_cupo_menor_a_ocupados");
 
 export function rutasDeEventos(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   async function cargar(ctx: ContextoApi, id: string): Promise<FilaDeEvento> {

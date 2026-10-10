@@ -62,10 +62,10 @@ export async function programarCobranza(db: BaseDatos, a: AutomatizacionDeCobran
   const previas = await db.automatizacion_ejecucion.findMany({
     where: { automatizacion_id: a.id, entidad_tipo: "cargo", entidad_id: { in: cargos.map((c) => c.id) } },
     orderBy: { ocurrencia: "desc" },
-    select: { entidad_id: true, ocurrencia: true, estatus: true },
+    select: { entidad_id: true, ocurrencia: true, estatus: true, ejecutado_en: true, actualizado_en: true },
   });
-  const ultima = new Map<string, { ocurrencia: number; salio: boolean }>();
-  for (const p of previas) if (!ultima.has(p.entidad_id)) ultima.set(p.entidad_id, { ocurrencia: p.ocurrencia, salio: p.estatus === "enviado" });
+  const ultima = new Map<string, { ocurrencia: number; salio: boolean; enviadoEn: Date | null }>();
+  for (const p of previas) if (!ultima.has(p.entidad_id)) ultima.set(p.entidad_id, { ocurrencia: p.ocurrencia, salio: p.estatus === "enviado", enviadoEn: p.estatus === "enviado" ? (p.ejecutado_en ?? p.actualizado_en) : null });
 
   let creadas = 0;
   for (const c of cargos) {
@@ -73,7 +73,7 @@ export async function programarCobranza(db: BaseDatos, a: AutomatizacionDeCobran
     const vence = deFecha(c.fecha_vencimiento);
     const n = ocurrenciaPorProgramar(evento, { vencimiento: vence, zona, ahora, maxIntentos: a.max_intentos, offsetMinutos: a.offset_minutos, espaciadoMinutos: a.espaciado_minutos, atrasoMaximoDias: atraso, previa: ultima.get(c.id) ?? null });
     if (n === null) continue;
-    const nominal = nominalDeRecordatorio(evento, vence, zona, { offsetMinutos: a.offset_minutos, espaciadoMinutos: a.espaciado_minutos }, n);
+    const nominal = nominalDeRecordatorio(evento, vence, zona, { offsetMinutos: a.offset_minutos, espaciadoMinutos: a.espaciado_minutos }, n, ultima.get(c.id)?.enviadoEn ?? null);
     // Fuera del horario de envío se recorre al siguiente válido (invariante 14). «Por vencer» tiene un evento al cual no se debe llegar tarde (el final del día de vencimiento): si recorrerlo lo pasa, se descarta.
     const programado = evento === "cargo_por_vencer" ? recorrerODescartar(nominal, zona, limiteDeRecordatorioPorVencer(vence, zona), ventana, true) : siguienteHorarioValido(nominal, zona, ventana);
     if (programado === null) continue;

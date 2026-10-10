@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import type { APIRequestContext } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
 import { comoRol, expect, mundo, test } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 
 test.use(comoRol("asesor"));
@@ -40,7 +40,7 @@ test("el asesor del norte ve en su embudo al lead sin sucursal, abre su ficha y 
   const tarjeta = page.getByTestId(`columna-${etapa("nuevo")}`).getByTestId(`lead-${leadId}`);
   await expect(tarjeta).toContainText("Familia Sin Sucursal");
   await expect(page.getByTestId(`lead-${mundo.asesor.delta.leadId}`)).toHaveCount(0);
-  const carpeta = resolve(RAIZ, "docs/capturas/v1");
+  const carpeta = carpetaDeCapturas("v1");
   mkdirSync(carpeta, { recursive: true });
   await page.screenshot({ path: resolve(carpeta, "v2-03-embudo-lead-sin-sucursal-escritorio.png"), animations: "disabled" });
 

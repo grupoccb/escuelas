@@ -194,6 +194,23 @@ test("APLICAR con errores: no escribe nada y devuelve los mismos errores que la 
   assert.deepEqual(simulada.errores, r.errores);
 });
 
+// V13-fix EV-32: un importe de 16 dígitos o más daba 500 «Ocurrió un error» (simulación y aplicar), sin fila ni columna.
+test("EV-32: un importe de 16 dígitos o más es un error de esa fila y columna (200 con el error), en simulación y en aplicar; nada se escribe", async () => {
+  const e = await nuevaEscuela();
+  const antes = await huella();
+  for (const importe of ["9999999999999999", "99999999999999999999", "1000000000000000000000"]) {
+    for (const modo of ["simulacion", "aplicar"] as const) {
+      const r = await cargar(e, modo, conCelda("precios", 0, 2, importe));
+      assert.equal(r.limpia, false, `${modo} ${importe}`);
+      assert.equal(r.aplicado, false);
+      assert.deepEqual(textos(r), [`precios.csv: Fila 2, columna “Inscripción”: «${importe}» es demasiado grande.`], `${modo} ${importe}`);
+    }
+  }
+  assert.deepEqual(await huella(), antes);
+  // Y el tope de la base (10 dígitos enteros) sigue valiendo para lo normal.
+  assert.equal((await cargar(e, "simulacion", conCelda("precios", 0, 2, "9999999999.99"))).limpia, true);
+});
+
 test("APLICAR es todo o nada: si falla al escribir la ÚLTIMA fila, no queda ni una de las anteriores", async () => {
   const e = await nuevaEscuela();
   const antes = await huella();
@@ -575,6 +592,9 @@ test("COMANDO npm run catalogo:importar: simula sin escribir, imprime los errore
     };
     const correr = (...args: string[]) => spawnSync(process.execPath, ["scripts/catalogo-importar.ts", "--organizacion", e.slug, "--carpeta", carpeta, ...args], { env: { ...process.env }, encoding: "utf8" });
     const antes = await huella();
+    // V13-fix (EV-37): --aplicar pide confirmar el nombre de la base a la que va a escribir.
+    const base = decodeURIComponent(new URL(process.env["DATABASE_URL"]!).pathname.slice(1));
+    const confirmar = ["--confirmar-base", base];
 
     escribir(conCelda("grupos", 0, 4, "Sala 3"));
     const mala = correr();
@@ -590,20 +610,25 @@ test("COMANDO npm run catalogo:importar: simula sin escribir, imprime los errore
     assert.match(simulada.stdout, /Simulación limpia: no se escribió nada/);
     assert.deepEqual(await huella(), antes, "sin --aplicar no escribe");
 
-    const sinAdmin = correr("--aplicar");
+    const sinConfirmar = correr("--aplicar", "--administrador", e.correoAdmin);
+    assert.equal(sinConfirmar.status, 2, sinConfirmar.stdout + sinConfirmar.stderr);
+    assert.match(sinConfirmar.stderr, new RegExp(`--confirmar-base ${base}`));
+    assert.equal(correr("--aplicar", "--administrador", e.correoAdmin, "--confirmar-base", "otra_base").status, 2, "debe coincidir con la base");
+    assert.deepEqual(await huella(), antes, "sin confirmar no escribe");
+    const sinAdmin = correr("--aplicar", ...confirmar);
     assert.equal(sinAdmin.status, 1);
     assert.match(sinAdmin.stderr, /--administrador/);
-    const otroAdmin = correr("--aplicar", "--administrador", "nadie@ejemplo.com");
+    const otroAdmin = correr("--aplicar", ...confirmar, "--administrador", "nadie@ejemplo.com");
     assert.equal(otroAdmin.status, 1);
     assert.deepEqual(await huella(), antes);
 
-    const aplicada = correr("--aplicar", "--administrador", e.correoAdmin);
+    const aplicada = correr("--aplicar", ...confirmar, "--administrador", e.correoAdmin);
     assert.equal(aplicada.status, 0, aplicada.stdout + aplicada.stderr);
     assert.match(aplicada.stdout, /Listo: el catálogo se cargó/);
     assert.deepEqual(await conteos(e), { ...CATALOGO_COMPLETO, registro_cambio: 19 });
     const despues = await huella();
 
-    const otraVez = correr("--aplicar", "--administrador", e.correoAdmin);
+    const otraVez = correr("--aplicar", ...confirmar, "--administrador", e.correoAdmin);
     assert.equal(otraVez.status, 0);
     assert.match(otraVez.stdout, /Sin cambios/);
     assert.deepEqual(await huella(), despues);

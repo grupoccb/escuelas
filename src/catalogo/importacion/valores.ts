@@ -79,7 +79,11 @@ export function leerImporte(texto: string): Leido<bigint> {
   if (/^\s*-/.test(texto)) return mal(`«${texto}» es negativo. Escribe la cantidad sin signo, por ejemplo 500 o 500.50.`);
   const normalizado = importeANormalizado(texto);
   if (normalizado === null) return mal(`«${texto}» no se entiende como cantidad de dinero. Escríbela sin separador de miles y con punto para los centavos, por ejemplo 1500 o 1500.50.`);
-  const centavos = deTexto(normalizado);
+  // V13-fix (EV-32): `deTexto` solo admite hasta 15 dígitos enteros y lanzaba con más (la carga respondía 500 «Ocurrió un error» sin fila ni columna). Lo que cabe en la base son 10.
+  const [enteros = "", decimales] = normalizado.split(".");
+  const sinCeros = enteros.replace(/^0+(?=\d)/, "");
+  if (sinCeros.length > 10) return mal(`«${texto}» es demasiado grande.`);
+  const centavos = deTexto(decimales === undefined ? sinCeros : `${sinCeros}.${decimales}`);
   if (centavos > MAXIMO_DECIMAL_12_2) return mal(`«${texto}» es demasiado grande.`);
   return bien(centavos);
 }

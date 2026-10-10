@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { CLAVE_DE_DEMO_PUBLICADA, esEntornoDeDemo, impedimentosParaArrancar, revisarEntorno } from "./entorno.ts";
+import { cookieSeguraDesdeEntorno } from "../api/cookies.ts";
+import { CLAVE_DE_DEMO_PUBLICADA, esEntornoDeDemo, esEntornoLocal, esProduccion, impedimentosParaArrancar, revisarEntorno } from "./entorno.ts";
 
 const buena = (): NodeJS.ProcessEnv => ({
   NODE_ENV: "production",
@@ -15,6 +16,9 @@ const buena = (): NodeJS.ProcessEnv => ({
   METRICAS_TOKEN: randomBytes(32).toString("hex"),
   TWILIO_AUTH_TOKEN: randomBytes(16).toString("hex"),
 });
+
+/** La base de la demo vive en el servicio «postgres» del compose (V13-fix, EV-28: ENTORNO_DEMO no perdona una base que no sea local). */
+const BASE_DEL_COMPOSE = "postgresql://inscripciones:inscripciones@postgres:5432/inscripciones";
 
 const codigos = (env: NodeJS.ProcessEnv): string[] => revisarEntorno(env).map((h) => h.codigo);
 
@@ -62,7 +66,7 @@ test("los secretos cortos impiden arrancar; sin TRUST_PROXY o con usuario «post
 });
 
 test("ENTORNO_DEMO=si deja arrancar la demo local (que corre con NODE_ENV=production) pero solo con esa marca exacta", () => {
-  const demo = { ...buena(), CLAVE_DATOS_SENSIBLES: CLAVE_DE_DEMO_PUBLICADA, COOKIE_SEGURA: "false", ORIGEN_PUBLICO: "http://localhost:3000" };
+  const demo = { ...buena(), DATABASE_URL: BASE_DEL_COMPOSE, CLAVE_DATOS_SENSIBLES: CLAVE_DE_DEMO_PUBLICADA, COOKIE_SEGURA: "false", ORIGEN_PUBLICO: "http://localhost:3000" };
   assert.ok(impedimentosParaArrancar(demo).length >= 3);
   assert.deepEqual(impedimentosParaArrancar({ ...demo, ENTORNO_DEMO: "si" }), []);
   assert.equal(esEntornoDeDemo({ ENTORNO_DEMO: "SI" }), true);
@@ -81,7 +85,7 @@ test("V9: el ensayo local (ENSAYO_LOCAL=si, sin el bloqueo de Twilio) impide arr
 });
 
 test("V9: la demo local declarada (ENTORNO_DEMO=si) sí puede ensayar: es la máquina de quien prueba", () => {
-  assert.deepEqual(impedimentosParaArrancar({ ...buena(), ENSAYO_LOCAL: "si", ENTORNO_DEMO: "si" }), []);
+  assert.deepEqual(impedimentosParaArrancar({ ...buena(), DATABASE_URL: BASE_DEL_COMPOSE, ENSAYO_LOCAL: "si", ENTORNO_DEMO: "si" }), []);
 });
 
 test("V10b-fix: el reloj simulado de las pruebas (PRUEBAS_AHORA / PRUEBAS_DESFASE_MS) impide arrancar en una instalación real, pero no estorba en desarrollo ni en la demo", () => {
@@ -89,8 +93,41 @@ test("V10b-fix: el reloj simulado de las pruebas (PRUEBAS_AHORA / PRUEBAS_DESFAS
     const conReloj = { ...buena(), [variable]: variable === "PRUEBAS_AHORA" ? "2026-10-10T06:30:00Z" : "-3600000" };
     assert.ok(codigos(conReloj).includes("reloj_de_pruebas_en_produccion"), variable);
     assert.ok(impedimentosParaArrancar(conReloj).some((h) => h.codigo === "reloj_de_pruebas_en_produccion"), variable);
-    assert.deepEqual(impedimentosParaArrancar({ ...conReloj, ENTORNO_DEMO: "si" }), [], "la demo local es la máquina de quien prueba");
+    assert.deepEqual(impedimentosParaArrancar({ ...conReloj, DATABASE_URL: BASE_DEL_COMPOSE, ENTORNO_DEMO: "si" }), [], "la demo local es la máquina de quien prueba");
     assert.deepEqual(revisarEntorno({ ...conReloj, NODE_ENV: "development" }), [], "fuera de producción no se revisa");
   }
   assert.ok(!codigos({ ...buena(), PRUEBAS_AHORA: "  " }).includes("reloj_de_pruebas_en_produccion"));
+});
+
+// ── V13-fix EV-28 ──────────────────────────────────────────────────────────────────────────────────────────
+
+test("EV-28: NODE_ENV se lee sin distinguir mayúsculas ni espacios, y un valor desconocido se trata como producción (falla cerrado)", () => {
+  for (const modo of ["production", "Production", "PRODUCTION", " production ", "prod", "staging", "produccion", "live", "1"]) {
+    assert.equal(esProduccion({ NODE_ENV: modo }), true, `«${modo}» es producción`);
+    assert.ok(impedimentosParaArrancar({ ...buena(), NODE_ENV: modo, CLAVE_DATOS_SENSIBLES: CLAVE_DE_DEMO_PUBLICADA }).some((h) => h.codigo === "clave_datos_de_demo"), `«${modo}»: se revisa el arranque`);
+    assert.equal(esEntornoLocal({ NODE_ENV: modo }), false, `«${modo}»: no es local`);
+  }
+  for (const modo of ["development", "Development", " test ", "TEST"]) {
+    assert.equal(esProduccion({ NODE_ENV: modo }), false, `«${modo}» no es producción`);
+    assert.deepEqual(revisarEntorno({ NODE_ENV: modo, CLAVE_DATOS_SENSIBLES: CLAVE_DE_DEMO_PUBLICADA }), []);
+    assert.equal(esEntornoLocal({ NODE_ENV: modo }), true);
+  }
+  // Sin NODE_ENV es un equipo de desarrollo sin configurar (npm run dev lo define): no se revisa, como siempre.
+  assert.equal(esProduccion({}), false);
+  assert.equal(esProduccion({ NODE_ENV: "" }), false);
+  // Las demás decisiones que dependían de la comparación literal usan la misma función.
+  assert.equal(cookieSeguraDesdeEntorno({ NODE_ENV: "Production" }), true);
+  assert.equal(cookieSeguraDesdeEntorno({ NODE_ENV: "prod" }), true);
+  assert.equal(cookieSeguraDesdeEntorno({ NODE_ENV: "development" }), false);
+});
+
+test("EV-28: ENTORNO_DEMO=si no deja arrancar una instalación cuya base no es local (la marca no perdona eso), pero sí la demo con la base del compose", () => {
+  const demo = { ...buena(), CLAVE_DATOS_SENSIBLES: CLAVE_DE_DEMO_PUBLICADA, ENTORNO_DEMO: "si" };
+  assert.ok(impedimentosParaArrancar({ ...demo, DATABASE_URL: "postgresql://u:p@escuela.abc123.us-east-1.rds.amazonaws.com/inscripciones" }).some((h) => h.codigo === "demo_con_base_remota"));
+  assert.ok(impedimentosParaArrancar({ ...demo, DATABASE_URL: "postgresql://u:p@bd.interna:5432/x" }).some((h) => h.codigo === "demo_con_base_remota"));
+  for (const base of [BASE_DEL_COMPOSE, "postgresql://inscripciones:inscripciones@localhost:5432/inscripciones", "postgresql://u:p@127.0.0.1:5432/x", "postgresql://u:p@[::1]:5432/x"]) {
+    assert.deepEqual(impedimentosParaArrancar({ ...demo, DATABASE_URL: base }), [], base);
+  }
+  // Con «Production» la marca de demo tampoco abre la puerta a una base remota.
+  assert.ok(impedimentosParaArrancar({ ...demo, NODE_ENV: "Production", DATABASE_URL: "postgresql://u:p@rds.example.com/x" }).some((h) => h.codigo === "demo_con_base_remota"));
 });

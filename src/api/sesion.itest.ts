@@ -66,6 +66,41 @@ test("la cookie lleva Secure cuando el entorno lo pide", async () => {
   }
 });
 
+// V13-fix EV-44: la contraseña pública de la demo se negaba al ESTABLECERLA y como variable de entorno, pero no al INICIAR SESIÓN.
+test("EV-44: en producción (sin la marca de demo) el inicio de sesión niega la contraseña pública de la demo aunque sea la correcta, con la respuesta de una contraseña mala; fuera de producción y en la demo local entra", async () => {
+  const PUBLICA = "Demo-local-2026!";
+  // Un usuario nuevo por intento: tras cinco fallos seguidos el inicio de sesión se bloquea (429) y ese no es el caso que se prueba.
+  const conPublica = () => sembrarUsuario(prisma, org.organizacionId, { rol: "asesor", contrasena: PUBLICA });
+  const base = await conPublica();
+  const mala = await api.cliente().login(org.slug, base.correo, "otra-contrasena-que-no-es");
+  assert.equal(mala.estado, 401);
+  const intento = async (entorno: NodeJS.ProcessEnv | undefined, correo: string, contrasena: string) => {
+    const a = levantarApi(prisma, { origenesLocales: true, ...(entorno ? { entorno } : {}) });
+    try {
+      return await a.cliente().login(org.slug, correo, contrasena);
+    } finally {
+      await a.cerrar();
+    }
+  };
+  for (const modo of ["production", "Production", " PRODUCTION ", "prod", "staging"]) {
+    const u = await conPublica();
+    const r = await intento({ NODE_ENV: modo }, u.correo, PUBLICA);
+    assert.equal(r.estado, 401, `${modo}: ${JSON.stringify(r.cuerpo)}`);
+    assert.deepEqual(r.cuerpo, mala.cuerpo, `${modo}: la misma respuesta que una contraseña mala`);
+    assert.equal(r.cabeceras.getSetCookie().length, 0, `${modo}: sin cookie de sesión`);
+    assert.equal(await prisma.sesion.count({ where: { usuario_id: u.id } }), 0, `${modo}: no se creó ninguna sesión`);
+    // También en mayúsculas.
+    assert.equal((await intento({ NODE_ENV: modo }, (await conPublica()).correo, "DEMO-LOCAL-2026!")).estado, 401);
+    // Quien tiene su propia contraseña entra normal.
+    const propia = await sembrarUsuario(prisma, org.organizacionId, { rol: "asesor", contrasena: "una-contrasena-larga-y-propia-9" });
+    assert.equal((await intento({ NODE_ENV: modo }, propia.correo, propia.contrasena)).estado, 201, `${modo}: la contraseña propia entra`);
+  }
+  // Fuera de producción, en la demo local declarada y por omisión: la contraseña pública entra.
+  for (const entorno of [{ NODE_ENV: "development" }, { NODE_ENV: "test" }, {}, { NODE_ENV: "production", ENTORNO_DEMO: "si" }, undefined]) {
+    assert.equal((await intento(entorno, (await conPublica()).correo, PUBLICA)).estado, 201, JSON.stringify(entorno));
+  }
+});
+
 test("sin sesión (o con una cookie inventada) todo da 401 no_autenticado con la convención de errores", async () => {
   const c = api.cliente();
   const r = await c.get<{ error: { codigo: string; mensaje: string } }>("/api/yo");

@@ -15,7 +15,7 @@ export const RUTAS_PUBLICAS_POST = ["/webhooks/twilio/entrantes", "/webhooks/twi
 export const RUTAS_PUBLICAS_GET = ["/salud"] as const;
 /** Igual que el backend (LIMITE_CUERPO_TWILIO): más que esto no es de Twilio. */
 export const LIMITE_CUERPO_BORDE = 100 * 1024;
-const CABECERAS_QUE_PASAN = ["content-type", "x-twilio-signature", "i-twilio-idempotency-token", "user-agent", "x-forwarded-for"] as const;
+const CABECERAS_QUE_PASAN = ["content-type", "x-twilio-signature", "i-twilio-idempotency-token", "user-agent"] as const;
 
 export interface ConfigBordePublico {
   /** El backend, por la red interna: http://backend:3000 */
@@ -64,6 +64,9 @@ export function crearBordePublico(config: ConfigBordePublico): Server {
         const v = req.headers[nombre];
         if (typeof v === "string") cabeceras[nombre] = v;
       }
+      // V13-fix (EV-41): el X-Forwarded-For del cliente NO pasa: cualquiera podía mandar uno inventado y, con TRUST_PROXY encendido, el backend lo habría tomado por su IP (saltándose el límite
+      // por IP). La borde dice lo que él mismo ve: quién le habló (el túnel).
+      cabeceras["x-forwarded-for"] = (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "") || "desconocida";
       // Lo que el túnel avisó, tal cual (el backend solo lo cree si se configuró TRUST_PROXY); si no avisó nada, https: el túnel termina el TLS.
       cabeceras["x-forwarded-proto"] = typeof req.headers["x-forwarded-proto"] === "string" ? req.headers["x-forwarded-proto"] : "https";
       if (typeof req.headers["host"] === "string") cabeceras["x-forwarded-host"] = req.headers["host"];

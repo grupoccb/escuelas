@@ -12,6 +12,7 @@ import type { PrismaRaiz } from "../../datos/prisma.ts";
 import { log } from "../../lib/log.ts";
 import { crearBordeTwilio, type BordeTwilio } from "./borde.ts";
 import { ReenviadorTwilioFalso, ReenviadorTwilioHttp, type ReenviadorTwilio } from "./reenviador.ts";
+import { esProduccion } from "../../seguridad/entorno.ts";
 
 export { calcularFirmaTwilio, explicarRechazoDeTwilio, traeFirmaDeTwilio, verificarFirmaTwilio, verificarWebhookTwilio, urlPublicaDe, parsearFormulario, variantesDeUrl, type ExplicacionDeRechazo, type ParametrosTwilio, type VistaDePeticionTwilio } from "./firma.ts";
 export {
@@ -50,7 +51,7 @@ export function bordeTwilioDesdeEntorno(prisma: PrismaRaiz, env: NodeJS.ProcessE
     reenvio = "http";
   } else {
     // Con el borde encendido en producción, un reenvío "falso" daría 200 a Twilio sin entregar nada.
-    if (authToken && env["NODE_ENV"] === "production") {
+    if (authToken && esProduccion(env)) {
       throw new Error("Con TWILIO_AUTH_TOKEN en producción hace falta CHATWOOT_URL o las URLs de reenvío (TWILIO_REENVIO_*_URL).");
     }
     if (authToken) log.warn("twilio_reenvio_falso", { motivo: "faltan CHATWOOT_URL o TWILIO_REENVIO_*_URL" });

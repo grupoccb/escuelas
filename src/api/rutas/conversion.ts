@@ -11,7 +11,8 @@
 // (si no, 403: la inscripción la cierra el asesor) y solo de SUS alumnos —los prospectos con una clase muestra a la que asistieron en un grupo
 // suyo; lo demás es 404— y eligiendo grupos de las sucursales donde da clases. Recepción nunca. Cambiar el modo cambia esto sin tocar código.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { leerConfiguracion } from "../../configuracion/index.ts";
 import { puedeConvertir } from "../../conversion/cierre.ts";
@@ -108,7 +109,7 @@ export const presentarConversion = (r: ResultadoDeConversion) => ({
 });
 
 export function rutasDeConversion(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** Los grupos que quien convierte puede ver: los de sus sucursales (EF-01). `undefined` = todos (administrador). */
@@ -151,6 +152,8 @@ export function rutasDeConversion(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const cuerpo = parsear(esquemaConversion, req.body ?? {});
+    // V13-fix (EV-29): una lista vacía de niños respondía «ya convertido» con 200 sin convertir a nadie. Sin la lista se inscribe a todos los que faltan; con ella, al menos uno.
+    if ((cuerpo as { prospectos?: unknown[] }).prospectos?.length === 0) throw validacion([{ campo: "prospectos", mensaje: "Indica al menos un niño para inscribir (o no mandes la lista para inscribir a todos los que faltan)" }]);
     const propios = await acceso(ctx, id);
     const entrada = aEntrada(cuerpo, ctx.usuario.rol === "administrador");
     if (propios) {

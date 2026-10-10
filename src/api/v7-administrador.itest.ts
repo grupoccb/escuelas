@@ -216,3 +216,30 @@ test("con un módulo apagado la ruta sigue viva (es de la configuración, no de 
   const e = await escuelaVacia("Sin módulos");
   assert.equal((await e.admin.get("/api/administracion/primeros-pasos")).estado, 200);
 });
+
+// V13-fix EV-16: «Para empezar» no habla del cotizador cuando está apagado (y no promete «inscribir» sin ese módulo).
+test("EV-16: los detalles de «Para empezar» solo mencionan el cotizador (y la inscripción) cuando están encendidos", async () => {
+  const e = await escuelaVacia("Detalles por módulo");
+  const org = e.orgId;
+  const sucursal = await prisma.sucursal.create({ data: { organizacion_id: org, nombre: "Sucursal d", zona_horaria: "America/Mexico_City" } });
+  const vertical = await prisma.vertical.create({ data: { organizacion_id: org, nombre: "Disciplina d", slug: `d-${e.slug}` } });
+  await prisma.sucursal_vertical.create({ data: { organizacion_id: org, sucursal_id: sucursal.id, vertical_id: vertical.id } });
+  const programa = await prisma.programa.create({ data: { organizacion_id: org, vertical_id: vertical.id, sucursal_id: sucursal.id, nombre: "Programa d", edad_min: 4, edad_max: 8 } });
+  await prisma.grupo.create({ data: { organizacion_id: org, programa_id: programa.id, nombre: "Grupo d", cupo_maximo: 10 } });
+  const detalles = async (modulos: Parameters<typeof aFilaDeModulos>[0]) => {
+    await fijarConfiguracion(prisma, org, { ...aFilaDeModulos(modulos) });
+    const r = await leer(e.admin);
+    return { precios: paso(r, "precios").detalle ?? "", grupos: paso(r, "grupos").detalle ?? "" };
+  };
+  const solo = await detalles(SOLO_CAPTACION);
+  assert.equal(solo.precios, "Falta el precio de «Programa d».");
+  assert.equal(solo.grupos, "1 grupo no tiene horario.");
+  const conCotizador = await detalles({ ...SOLO_CAPTACION, cotizador: true });
+  assert.equal(conCotizador.precios, "Falta el precio de «Programa d»: sin precio no aparece en el cotizador.");
+  assert.equal(conCotizador.grupos, "1 grupo no tiene horario: sin horario no aparece en el cotizador.");
+  const conMuestra = await detalles({ ...SOLO_CAPTACION, clase_muestra: true });
+  assert.equal(conMuestra.grupos, "1 grupo no tiene horario: sin horario no se pueden agendar clases muestra en él.");
+  const todo = await detalles(TODOS_ENCENDIDOS);
+  assert.equal(todo.precios, "Falta el precio de «Programa d»: sin precio no aparece en el cotizador ni se puede inscribir a nadie.");
+  for (const x of [solo.precios, solo.grupos, conMuestra.precios]) assert.ok(!/cotizador/.test(x), x);
+});

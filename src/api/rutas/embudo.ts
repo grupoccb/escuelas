@@ -12,7 +12,8 @@
 // administrador (y si estaba inscrita a mano, con nota). Un movimiento es serializado por lead; con `desde_etapa_id` (la etapa que vio quien lo pide) un lead que ya cambió responde 409.
 // Alcance como el resto de los leads: administrador todos; asesor, los de sus sucursales.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { deFecha } from "../../catalogo/precios.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
@@ -28,6 +29,7 @@ import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion } from "../paginacion.ts";
 import { registrarCambio } from "../registro.ts";
+import { MENSAJE_SIN_SALUD, mencionaSalud } from "../../sensibles/index.ts";
 import { booleano, booleanoDeTexto, entero, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const esquemaId = objeto({ id: uuid() });
@@ -69,7 +71,7 @@ function rechazo(motivo: MotivoDeRechazoDeMovimiento): never {
 }
 
 export function rutasDeEmbudo(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** `where` de lead por el alcance de sucursales del usuario. */
@@ -104,6 +106,8 @@ export function rutasDeEmbudo(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     const e = parsear(esquemaMover, req.body);
+    // V13-fix (EV-06): la nota de un movimiento (recuperar un lead, marcar un inscrito a mano) la leen todos los asesores: no es para datos de salud (decisión 12), igual que las notas de la clase muestra.
+    if (typeof e.nota === "string" && mencionaSalud(e.nota)) throw validacion([{ campo: "nota", mensaje: MENSAJE_SIN_SALUD }]);
     if (!(await ctx.db.lead.findFirst({ where: { id, ...(await dondeLead(ctx)) }, select: { id: true } }))) throw noEncontrado();
     const resultado = await moverEtapaDeLead(ctx.db, { usuarioId: ctx.usuario.id, organizacionId: ctx.organizacionId, esAdministrador: ctx.usuario.rol === "administrador", ahora: ctx.ahora() }, {
       leadId: id,

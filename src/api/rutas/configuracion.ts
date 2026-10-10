@@ -9,7 +9,8 @@
 //
 // Un ajuste de un módulo apagado se puede editar (queda guardado) pero no hace nada hasta que el módulo se encienda: la entrada lo dice en `modulo` y la pantalla lo avisa.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
@@ -117,7 +118,7 @@ function problemasDeRango(c: Partial<Record<Clave, number>>): DetalleDeError[] {
 }
 
 export function rutasDeConfiguracion(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   const leer = async (ctx: ReturnType<typeof contextoDe>): Promise<Fila> => {

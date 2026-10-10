@@ -11,7 +11,8 @@
 // `estado_aprobacion` lo fija el administrador mientras no haya sincronización con el proveedor (no se llama a Twilio desde aquí: invariante 4). `variables` es la lista de
 // `{ pos, nombre }` que la plantilla espera; `cuerpo_referencia` es el texto de apoyo (no se manda: el proveedor manda el aprobado).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { problemaDeClase } from "../../automatizaciones/ajustes.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
@@ -105,7 +106,7 @@ function reglas(v: { clase_mensaje: string; categoria: string; variables?: { pos
 }
 
 export function rutasDePlantillas(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/plantillas", requierePermiso("catalogo:escribir"), async (req, res) => {

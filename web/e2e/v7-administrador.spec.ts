@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { apiComo, json, mananaEnMexico } from "./ayudas.ts";
 import { comoRol, contextoNuevo as contextoNuevoBase, expect as expectBase, mundo, test, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { hashContrasena, PARAMETROS_PRUEBA } from "../../src/auth/contrasena.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 
@@ -29,7 +29,7 @@ const contextoNuevo: typeof contextoNuevoBase = async (...args) => {
 test.describe.configure({ mode: "serial" });
 test.setTimeout(FASE === "antes" ? 240_000 : 90_000);
 
-const CARPETA = resolve(RAIZ, "docs/capturas/v1/v7-administrador");
+const CARPETA = carpetaDeCapturas("v1/v7-administrador");
 /** El número de la prueba en curso (su título empieza con él): las capturas se emparejan «antes/después» por prueba y nombre, aunque en una fase salgan más o menos. */
 let pruebaActual = "00";
 test.beforeEach(({ baseURL: _origen }, info) => {
@@ -619,7 +619,10 @@ test.describe("un día normal", () => {
     paso();
     await corregido("apagar un módulo no pide confirmación ni dice qué se pierde", async () => {
       await expect(dialogo(page)).toContainText("Tableros");
-      await expect(dialogo(page)).toContainText("datos se quedan guardados");
+      await expect(dialogo(page)).toContainText("Lo que ya estaba guardado se conserva");
+      // V13-fix (EV-03): y no promete que todo vuelve: lo de ese tiempo no se recupera.
+      await expect(dialogo(page)).toContainText("al encenderlo no se recupera");
+      await expect(dialogo(page)).not.toContainText("vuelven en cuanto");
       await foto(page, "modulo-confirmar-apagar");
       await dialogo(page).getByRole("button", { name: "Apagar Tableros" }).click();
       paso();

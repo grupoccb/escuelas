@@ -7,7 +7,8 @@
 // lead. Idempotente (200 sin duplicar). Funciona igual en los dos modos de cierre: lo que cambia con el modo es quién puede CONVERTIR
 // (`POST /api/leads/:id/convertir`). Alcance: el maestro, las clases de SUS grupos; el asesor, las de sus sucursales; lo ajeno es 404.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { marcarListoParaCerrar } from "../../conversion/cierre.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -21,7 +22,7 @@ import { alcanceDeClases } from "./clases-muestra.ts";
 const esquemaId = objeto({ id: uuid() });
 
 export function rutasDeCierre(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.post("/clases-muestra/:id/listo-para-cerrar", requierePermiso("clases_muestra:listo_para_cerrar"), json, async (req, res) => {

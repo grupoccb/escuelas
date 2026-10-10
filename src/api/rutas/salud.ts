@@ -14,7 +14,8 @@
 // significa ninguno (falla cerrado). Lo que no existe o no es tuyo da 404. Las respuestas no se
 // guardan en cachés (`Cache-Control: no-store` de /api).
 
-import { Router, type Request, type Response } from "express";
+import { type Router, type Request, type Response } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { normalizarTelefono } from "../../lib/telefono.ts";
 import { CAMPOS_SENSIBLES, ErrorAccesoSensible, guardarSensible, leerSensible, listarAccesos, registrarDenegado, type CampoSensible, type SujetoSalud } from "../../sensibles/index.ts";
@@ -66,7 +67,7 @@ function traducir(e: unknown): never {
 }
 
 export function rutasDeSalud(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** Un rol sin permiso que sondea un sujeto válido deja constancia (sin leer nada ni confirmar que exista). */

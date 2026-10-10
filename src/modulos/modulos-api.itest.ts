@@ -8,6 +8,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { MODULO_DE_PERMISO, moduloDeRuta } from "../api/modulos-rutas.ts";
 import { concretas, rutasDeApiReales } from "../testutil/rutas-reales.ts";
+import { variantesDeRuta } from "../testutil/variantes-de-ruta.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { fijarConfiguracion } from "../testutil/semilla.ts";
 import { mundoDeFinanzas, type MundoDeFinanzas } from "../testutil/finanzas.ts";
@@ -99,6 +100,59 @@ for (const modulo of MODULOS_APAGABLES) {
   });
 }
 
+// V13-fix EV-01: con el módulo apagado, cambiar las mayúsculas de la ruta (`/API/cargos`, `/api/PAGOS`, `/Api/leads/:id/convertir`) devolvía datos y ESCRIBÍA (pagos, ventas, conversión que
+// crea alumno, inscripción y cargos). Ahora se recorren las rutas de módulo con sus disfraces —capitalización, barra final, doble barra, codificación, consulta— y los métodos que
+// el servidor acepta (el propio, HEAD y OPTIONS) con TODOS los módulos apagados: todo es 404 y no se escribe nada.
+test("EV-01: con todos los módulos apagados, ninguna variante de ninguna ruta de módulo responde ni escribe (capitalización, barra final, //, %xx, consulta; método propio, HEAD y OPTIONS)", async () => {
+  await fijar(m, { ...TODOS_ENCENDIDOS, cotizador: false, clase_muestra: false, inscripcion: false, operacion: false, finanzas: false, tableros: false });
+  try {
+    const contar = async () => ({
+      pagos: await prisma.pago.count({ where: { organizacion_id: m.org.organizacionId } }),
+      ventas: await prisma.venta.count({ where: { organizacion_id: m.org.organizacionId } }),
+      cargos: await prisma.cargo.count({ where: { organizacion_id: m.org.organizacionId } }),
+      alumnos: await prisma.alumno.count({ where: { organizacion_id: m.org.organizacionId } }),
+      inscripciones: await prisma.inscripcion.count({ where: { organizacion_id: m.org.organizacionId } }),
+      eventos: await prisma.evento.count({ where: { organizacion_id: m.org.organizacionId } }),
+    });
+    const antes = await contar();
+    const deModulo = RUTAS.filter((r) => r.modulo !== "captacion");
+    assert.ok(deModulo.length >= 109, `deben recorrerse las 109 rutas de módulo (hubo ${deModulo.length})`);
+    const fallas: string[] = [];
+    let peticiones = 0;
+    for (const r of deModulo) {
+      for (const v of variantesDeRuta(r.ruta)) {
+        // `…/vigentes;a=b` es, para el router, OTRO recurso (`/documentos-legales/:id` con id «vigentes;a=b», de la captación): no es un disfraz de la ruta de módulo.
+        if (v.soloServidor && moduloDeRuta(v.ruta) !== r.modulo) continue;
+        const metodos = r.metodo === "GET" ? [r.metodo, "HEAD", "OPTIONS"] : [r.metodo, "OPTIONS"];
+        for (const metodo of metodos) {
+          peticiones++;
+          const res = await m.admin.pedir<Err>(metodo, v.ruta, metodo === "GET" || metodo === "DELETE" || metodo === "HEAD" || metodo === "OPTIONS" ? undefined : {});
+          if (res.estado !== 404) fallas.push(`${metodo} ${v.ruta} (${r.modulo}, ${v.tipo}) → ${res.estado}`);
+          else if (metodo !== "HEAD" && metodo !== "OPTIONS" && res.cuerpo?.error?.codigo !== "no_encontrado") fallas.push(`${metodo} ${v.ruta} (${v.tipo}) → 404 pero no es el «no encontrado» de la API`);
+        }
+      }
+    }
+    assert.deepEqual(fallas.slice(0, 20), [], `${fallas.length} de ${peticiones} peticiones no dieron 404`);
+    assert.deepEqual(await contar(), antes, "ninguna variante escribió nada");
+  } finally {
+    await fijar(m, TODOS_ENCENDIDOS);
+  }
+});
+
+test("EV-01: con todo encendido las rutas son exactamente las declaradas: otra capitalización o la barra final son 404 (el router distingue mayúsculas y barra final)", async () => {
+  for (const ruta of ["/api/leads", "/api/cargos", "/api/reportes/ejecutivo", "/api/inscripciones", "/api/yo"]) {
+    assert.equal((await m.admin.get(ruta)).estado, 200, ruta);
+    for (const v of variantesDeRuta(ruta).filter((x) => !x.soloServidor && !x.tipo.startsWith("con consulta") && !x.tipo.startsWith("punto"))) {
+      const res = await m.admin.get<Err>(v.ruta);
+      assert.equal(res.estado, 404, `${v.ruta} (${v.tipo})`);
+      assert.equal(res.cuerpo?.error?.codigo, "no_encontrado", v.ruta);
+    }
+  }
+  // Un prefijo en otra capitalización tampoco cae en la interfaz (que serviría su HTML): es una ruta de API inexistente.
+  const res = await m.admin.get<Err>("/API/leads");
+  assert.equal(res.cuerpo?.error?.mensaje, "Ruta no encontrada");
+});
+
 /** Una ruta de lectura de cada módulo que con todo encendido responde 200 al administrador. */
 const LECTURAS: Record<ModuloApagable, string> = {
   cotizador: "/api/lista-espera",
@@ -136,6 +190,48 @@ for (const modulo of MODULOS_APAGABLES) {
     assert.ok(yoOn.cuerpo.permisos.includes("leads:leer") && Object.entries(MODULO_DE_PERMISO).some(([p, mod]) => mod === modulo && yoOn.cuerpo.permisos.includes(p)), "vuelven los permisos del módulo");
   });
 }
+
+// V13-fix EV-15: `/api/yo` dice qué tipos de tarea son de un módulo apagado (el filtro de tareas de la interfaz no los ofrece).
+test("EV-15: /api/yo trae los tipos de tarea de los módulos apagados, y ninguno con todo encendido", async () => {
+  type Yo = { tipos_de_tarea_apagados: string[] };
+  assert.deepEqual((await m.admin.get<Yo>("/api/yo")).cuerpo.tipos_de_tarea_apagados, []);
+  await fijar(m, apagadoCon("finanzas"));
+  try {
+    for (const cliente of [m.admin, m.asesorNorte, m.recepcion, m.maestro]) {
+      const apagados = (await cliente.get<Yo>("/api/yo")).cuerpo.tipos_de_tarea_apagados;
+      assert.deepEqual([...apagados].sort(), ["beneficio_en_revision", "cobranza_sin_canal", "deuda_vencida"].sort());
+    }
+  } finally {
+    await fijar(m, TODOS_ENCENDIDOS);
+  }
+});
+
+// V13-fix EV-22: los mensajes de baja de un grupo o programa no mandan a una ruta apagada («pásala a otro grupo») ni hablan de inscripciones si la inscripción está apagada.
+test("EV-22: dar de baja un grupo o un programa con alumnos inscritos, con la inscripción apagada, dice qué hacer sin mandar a una ruta apagada ni hablar de «inscripciones»", async () => {
+  const { programaId, grupoId } = await m.programa();
+  const alumno = await m.alumno();
+  const inscribir = await m.admin.post<{ id: string }>("/api/inscripciones", { alumno_id: alumno.alumnoId, grupo_id: grupoId });
+  assert.equal(inscribir.estado, 201, JSON.stringify(inscribir.cuerpo));
+  // Encendida: el mensaje de siempre.
+  const antes = await m.admin.delete<Err>(`/api/grupos/${grupoId}`);
+  assert.equal(antes.estado, 409);
+  assert.match(antes.cuerpo.error.mensaje, /inscripción vigente.*pásala a otro grupo/);
+  await fijar(m, apagadoCon("inscripcion"));
+  try {
+    const grupo = await m.admin.delete<Err>(`/api/grupos/${grupoId}`);
+    assert.equal(grupo.estado, 409);
+    assert.match(grupo.cuerpo.error.mensaje, /alumno inscrito/);
+    assert.match(grupo.cuerpo.error.mensaje, /Administración → Módulos/);
+    assert.ok(!/pásala|inscripciones vigentes|inscripción vigente/.test(grupo.cuerpo.error.mensaje), grupo.cuerpo.error.mensaje);
+    const programa = await m.admin.delete<Err>(`/api/programas/${programaId}`);
+    assert.equal(programa.estado, 409);
+    assert.match(programa.cuerpo.error.mensaje, /1 grupo y alumnos ya inscritos: desactívalo/);
+    assert.ok(!/inscripcion/i.test(programa.cuerpo.error.mensaje.replace(/ya inscritos/, "")), programa.cuerpo.error.mensaje);
+  } finally {
+    await fijar(m, TODOS_ENCENDIDOS);
+  }
+  assert.match((await m.admin.delete<Err>(`/api/programas/${programaId}`)).cuerpo.error.mensaje, /1 grupo y 1 inscripción: desactívalo/);
+});
 
 test("GET /api/modulos: los siete módulos con su nombre, lo que incluye y qué necesitan; la captación es obligatoria y viene encendida", async () => {
   await fijar(m, TODOS_ENCENDIDOS);
@@ -224,6 +320,35 @@ test("sin fila de configuración TODO está encendido (las organizaciones que ya
     assert.ok(esDelModulo(await sin.admin.get<Err>("/api/eventos")));
   } finally {
     await sin.cerrar();
+  }
+});
+
+// V13-fix EV-23: antes, dar de baja por SQL la fila de configuración dejaba los seis módulos ENCENDIDOS (falla abierta); ahora falla cerrado: solo la captación.
+test("EV-23: si la fila de configuración se dio de baja y no hay otra viva, solo queda la captación (falla cerrado), a todos los roles; el administrador los vuelve a encender y eso crea la fila nueva", async () => {
+  const otra = await mundoDeFinanzas(prisma, "Módulos sin fila viva");
+  try {
+    await fijar(otra, { ...TODOS_ENCENDIDOS, operacion: false });
+    assert.equal((await otra.admin.get("/api/eventos")).estado, 404);
+    // Se da de baja la ÚNICA fila viva, por SQL (la API no tiene forma de hacerlo).
+    await prisma.configuracion_organizacion.updateMany({ where: { organizacion_id: otra.org.organizacionId, eliminado_en: null }, data: { eliminado_en: new Date() } });
+    assert.equal(await prisma.configuracion_organizacion.count({ where: { organizacion_id: otra.org.organizacionId, eliminado_en: null } }), 0);
+    for (const cliente of [otra.admin, otra.asesorNorte, otra.recepcion, otra.maestro]) {
+      const yo = await cliente.get<{ modulos: Record<Modulo, boolean>; permisos: string[] }>("/api/yo");
+      assert.deepEqual(yo.cuerpo.modulos, { captacion: true, cotizador: false, clase_muestra: false, inscripcion: false, operacion: false, finanzas: false, tableros: false });
+      assert.ok(!yo.cuerpo.permisos.includes("cargos:leer") && !yo.cuerpo.permisos.includes("pagos:registrar"));
+    }
+    for (const ruta of Object.values(LECTURAS)) assert.ok(esDelModulo(await otra.admin.get<Err>(ruta)), ruta);
+    assert.equal((await otra.admin.get("/api/leads")).estado, 200, "la captación sigue");
+    // Otra organización con su fila viva no se entera.
+    assert.equal((await ajeno.admin.get("/api/cargos")).estado, 200);
+    // El administrador enciende los módulos otra vez: se crea la fila nueva (la dada de baja se queda como estaba).
+    const on = await otra.admin.put<Lista>("/api/modulos", { cotizador: true, clase_muestra: true, inscripcion: true, operacion: true, finanzas: true, tableros: true });
+    assert.equal(on.estado, 200, JSON.stringify(on.cuerpo));
+    assert.equal(await prisma.configuracion_organizacion.count({ where: { organizacion_id: otra.org.organizacionId, eliminado_en: null } }), 1);
+    assert.equal(await prisma.configuracion_organizacion.count({ where: { organizacion_id: otra.org.organizacionId, eliminado_en: { not: null } } }), 1);
+    assert.equal((await otra.admin.get("/api/cargos")).estado, 200);
+  } finally {
+    await otra.cerrar();
   }
 });
 

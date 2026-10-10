@@ -7,7 +7,8 @@
 // Dar de baja un motivo no toca las inscripciones ya dadas de baja por él (conservan su referencia). Es el mismo patrón que los motivos de pérdida
 // del embudo (D7). El seed trae un conjunto de ejemplo `[SUPUESTO]` que la escuela edita.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
@@ -31,7 +32,7 @@ const codigoDe = (nombre: string): string => {
 const instantanea = (m: { codigo: string; nombre: string; orden: number; activo: boolean }) => ({ codigo: m.codigo, nombre: m.nombre, orden: m.orden, activo: m.activo });
 
 export function rutasDeMotivosBaja(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/motivos-baja", requierePermiso("catalogo:leer"), async (req, res) => {

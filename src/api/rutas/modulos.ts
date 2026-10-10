@@ -6,7 +6,8 @@
 // Surte efecto en la siguiente petición (no hay caché ni reinicio). No hay cascada: encender algo a lo que le falta su base, o apagar algo de lo que otro depende, se rechaza
 // con 409 y un mensaje que dice qué hacer primero. La captación no se apaga. La lectura en el resto del sistema es `leerModulos()` (src/modulos/).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
@@ -42,7 +43,7 @@ function presentar(estado: ModulosEncendidos) {
 }
 
 export function rutasDeModulos(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/modulos", requierePermiso("catalogo:escribir"), async (_req, res) => {

@@ -5,7 +5,8 @@
 // Las definiciones (qué cuenta como agendada, asistida, inscrita…) viven en el encabezado de `src/reportes/clases-muestra.ts`. El asesor solo ve lo de SUS sucursales.
 // También por comando: `npm run reporte:clases-muestra`.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { aCsv } from "../../exportacion/csv.ts";
 import { enviarCsv } from "../../exportacion/http.ts";
 import { reporteDeClasesMuestra } from "../../reportes/clases-muestra.ts";
@@ -19,7 +20,7 @@ import { enumerado, fechaISO, objeto, opcional, parsearQuery, uuid } from "../va
 const esquemaClases = objeto({ desde: opcional(fechaISO()), hasta: opcional(fechaISO()), vertical_id: opcional(uuid()), sucursal_id: opcional(uuid()), formato: opcional(enumerado(["json", "csv"] as const)) });
 
 export function rutasDeReporteDeClasesMuestra(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   r.get("/reportes/clases-muestra", requierePermiso("reportes:clases_muestra"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaClases, req.query);

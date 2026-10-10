@@ -269,6 +269,34 @@ test("V2 fuera de horario: el aviso de la noche sale a las 09:00 si todavía lle
   assert.equal((await n.tareas()).length, 1);
 });
 
+// V13-fix EV-27: la tarea «avísale a mano» de un cambio ya no tiene nada que hacer cuando el aviso bueno de la clase de ese niño salió.
+test("EV-27 el aviso de un cambio posterior sale: la tarea «avisar el cambio de clase» del cambio anterior se resuelve sola (hecha), no queda pendiente con una fecha vieja", async () => {
+  const m = await mundo();
+  const f = await m.familia({ nombre: "Sofía" });
+  const clase = await m.agendar(f.prospectoId, hora("2026-11-06 10:00"), AGENDADA_EL);
+  // 22:00: la clase se reprograma a mañana 09:00 → el aviso llegaría tarde: se descarta y queda la tarea de llamar.
+  const r1 = await m.reprogramar(clase, hora("2026-11-05 09:00"), hora("2026-11-04 22:00"));
+  assert.ok(r1.ok, JSON.stringify(r1));
+  const antes = await m.tareas();
+  assert.equal(antes.length, 1);
+  assert.equal(antes[0]!.estado, "pendiente");
+  // 22:10: se vuelve a mover a mañana 10:00 → ESTE aviso sí llega (sale a las 09:00).
+  const r2 = await m.reprogramar(r1.clase.id, hora("2026-11-05 10:00"), hora("2026-11-04 22:10"));
+  assert.ok(r2.ok, JSON.stringify(r2));
+  assert.equal((await m.tareas())[0]!.estado, "pendiente", "mientras el aviso bueno no salga, la tarea sigue");
+  assert.equal((await m.corre(hora("2026-11-05 08:59"))).enviadas, 0);
+  assert.equal((await m.corre(hora("2026-11-05 09:00"))).enviadas, 1);
+  const despues = await m.tareas();
+  assert.equal(despues.length, 1);
+  assert.equal(despues[0]!.estado, "hecha", "salió el aviso bueno: la tarea se resolvió");
+  // Una tarea de otra familia no se toca.
+  const g = await m.familia({ nombre: "Otro" });
+  const claseG = await m.agendar(g.prospectoId, hora("2026-11-06 10:00"), AGENDADA_EL);
+  assert.ok((await m.reprogramar(claseG, hora("2026-11-05 09:00"), hora("2026-11-04 22:00"))).ok);
+  const todas = await m.tareas();
+  assert.deepEqual(todas.map((t) => [t.lead_id, t.estado]).sort(), [[f.leadId, "hecha"], [g.leadId, "pendiente"]].sort());
+});
+
 test("V2 la clase que empieza en menos de una hora, fuera de horario: la cancelación se descarta y se crea la tarea de llamar (20:30, cancelada a las 20:10)", async () => {
   const m = await mundo();
   const f = await m.familia();

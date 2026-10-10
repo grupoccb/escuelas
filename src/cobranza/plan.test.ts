@@ -62,3 +62,17 @@ test("atrasoMaximoDias lee la condición o usa 60", () => {
   assert.equal(atrasoMaximoDias({ max_atraso_dias: 1.5 }), 60);
   assert.equal(atrasoMaximoDias(null), 60);
 });
+
+test("EV-05: el espaciado cuenta desde el ENVÍO del anterior y nunca antes de lo que marca el calendario del vencimiento", () => {
+  const n2 = (anterior: string | null) => iso(nominalDeRecordatorio("cargo_vencido", "2026-11-10", ZONA, { offsetMinutos: 1440, espaciadoMinutos: null }, 2, anterior ? new Date(anterior) : null));
+  assert.equal(n2(null), "2026-11-19T06:00:00.000Z", "sin dato del envío anterior: el calendario de siempre");
+  assert.equal(n2("2026-11-12T15:00:00Z"), "2026-11-19T15:00:00.000Z", "el primero salió a tiempo (12 nov 09:00 locales): 7 días después");
+  assert.equal(n2("2026-12-11T16:00:00Z"), "2026-12-18T16:00:00.000Z", "el primero salió 29 días tarde: el segundo, 7 días después de ESE envío");
+  assert.equal(n2("2026-11-01T00:00:00Z"), "2026-11-19T06:00:00.000Z", "un «envío anterior» absurdamente temprano no adelanta el calendario");
+  // La ocurrencia 1 no se mueve por ningún envío previo.
+  assert.equal(iso(nominalDeRecordatorio("cargo_vencido", "2026-11-10", ZONA, { offsetMinutos: 1440, espaciadoMinutos: null }, 1, new Date("2026-12-11T16:00:00Z"))), "2026-11-12T06:00:00.000Z");
+  const tarde = { ...base, previa: { ocurrencia: 1, salio: true, enviadoEn: en("2026-12-11T16:00:00Z") } };
+  assert.equal(ocurrenciaPorProgramar("cargo_vencido", { ...tarde, ahora: en("2026-12-12T16:00:00Z"), atrasoMaximoDias: 90 }), null, "al día siguiente no");
+  assert.equal(ocurrenciaPorProgramar("cargo_vencido", { ...tarde, ahora: en("2026-12-18T15:59:00Z"), atrasoMaximoDias: 90 }), null);
+  assert.equal(ocurrenciaPorProgramar("cargo_vencido", { ...tarde, ahora: en("2026-12-18T16:00:00Z"), atrasoMaximoDias: 90 }), 2, "a los 7 días del envío sí");
+});

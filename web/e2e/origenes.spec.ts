@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import type { APIRequestContext } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
 import { entrarPorPantalla, expect, mundo, test, contextoConReloj } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -43,7 +43,7 @@ for (const e of ENTRADAS) {
       await expect(page.getByRole("alert")).toHaveCount(0);
       const guardadas = await json<{ datos: { origen: string }[] }>(admin, `/api/leads/${e.lead.leadId}/cotizaciones`);
       expect(guardadas.datos).toHaveLength(1);
-      const carpeta = resolve(RAIZ, "docs/capturas/v1");
+      const carpeta = carpetaDeCapturas("v1");
       mkdirSync(carpeta, { recursive: true });
       await page.screenshot({ path: resolve(carpeta, `${e.captura}-escritorio.png`), animations: "disabled" });
 

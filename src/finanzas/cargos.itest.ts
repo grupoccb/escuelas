@@ -308,3 +308,26 @@ test("EH-11 / EH-18 (M06): una inscripción ANTERIOR a H (sin cargos) recibe en 
   assert.deepEqual(cargos.map((c) => [c.concepto, c.periodo, c.fecha_vencimiento, c.estatus]), [["mensualidad", "2026-11", "2026-11-05", "vencido"]]);
   ponerHora("2026-11-10T16:00:00Z");
 });
+
+// V13-fix EV-43: la base guarda `creado_en` del cargo en milisegundos (como lo lee JavaScript), así el orden de antigüedad es el mismo en la base y en memoria.
+test("EV-43: dos cargos del mismo vencimiento y concepto creados en el mismo milisegundo se ordenan IGUAL en el estado de cuenta (la base) y en el reparto del pago (memoria)", async () => {
+  const f = await m.inscribir();
+  const base = { organizacion_id: m.org.organizacionId, tutor_id: f.tutorId, alumno_id: f.alumnoId, sucursal_id: m.norte, concepto: "producto" as const, monto: "10.00", monto_final: "10.00", fecha_vencimiento: new Date("2027-05-10") };
+  const mismoMs = new Date("2027-05-01T12:00:00.123Z");
+  const a = await prisma.cargo.create({ data: { ...base, descripcion: "A", creado_en: mismoMs } });
+  const b = await prisma.cargo.create({ data: { ...base, descripcion: "B", creado_en: mismoMs } });
+  // Los microsegundos: el que tiene el id MAYOR se creó «antes» por microsegundos. Con la base en microsegundos, ordenar por creado_en lo pondría primero; en memoria (milisegundos) empata y decide el id.
+  const [menor, mayor] = a.id < b.id ? [a, b] : [b, a];
+  await prisma.$executeRaw`UPDATE "cargo" SET "creado_en" = '2027-05-01 12:00:00.123900+00' WHERE "id" = ${menor.id}::uuid`;
+  await prisma.$executeRaw`UPDATE "cargo" SET "creado_en" = '2027-05-01 12:00:00.123100+00' WHERE "id" = ${mayor.id}::uuid`;
+  const micros = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "cargo" WHERE "id" IN (${menor.id}::uuid, ${mayor.id}::uuid) AND "creado_en" <> date_trunc('milliseconds', "creado_en")`;
+  assert.equal(Number(micros[0]!.n), 0, "la base trunca a milisegundos aunque se le pidan microsegundos");
+  const cuenta = await m.recepcion.get<{ hijos: { cargos: { id: string; concepto: string }[] }[] }>(`/api/tutores/${f.tutorId}/estado-cuenta`);
+  assert.equal(cuenta.estado, 200);
+  const enLaCuenta = cuenta.cuerpo.hijos.flatMap((h) => h.cargos).filter((c) => c.concepto === "producto").map((c) => c.id);
+  const propuesta = await m.recepcion.get<{ aplicaciones?: { cargo_id: string }[] }>(`/api/pagos/propuesta?tutor_id=${f.tutorId}&monto=1520.00`);
+  assert.equal(propuesta.estado, 200, JSON.stringify(propuesta.cuerpo));
+  const enElReparto = (propuesta.cuerpo.aplicaciones ?? []).map((x) => x.cargo_id).filter((id) => id === menor.id || id === mayor.id);
+  assert.deepEqual(enLaCuenta, [menor.id, mayor.id], "estado de cuenta: empata por milisegundo y decide el id");
+  assert.deepEqual(enElReparto, [menor.id, mayor.id], "reparto: el mismo orden");
+});

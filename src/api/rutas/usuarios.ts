@@ -14,7 +14,8 @@
 // contraseña cierra las sesiones del usuario. Un usuario con rol maestro tiene un instructor ligado
 // (se crea si falta): de ahí sale «sus grupos». Nunca se devuelve ni se registra una contraseña.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { hashContrasena, problemasDeContrasena } from "../../auth/contrasena.ts";
 import { ROLES } from "../../auth/roles.ts";
@@ -112,7 +113,7 @@ async function asegurarInstructor(tx: Consultas, usuarioId: string, nombre: stri
 }
 
 export function rutasDeUsuarios(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const dentro = [requierePermiso("usuarios:administrar")];
   const json = express.json({ limit: LIMITE_CUERPO_API });
 

@@ -10,7 +10,8 @@
 // Los documentos son inmutables y versionados; las aceptaciones son de solo anexar (la revocación de la autorización de imagen es una fila
 // nueva). Solo se acepta la versión vigente: si la que vio la familia ya no lo es, 409 con la vigente. Repetir lo mismo no duplica (200).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { registrarCambio } from "../registro.ts";
 import { documentosVigentes, crearVersionDeDocumento, TIPOS_DE_DOCUMENTO } from "../../legal/documentos.ts";
@@ -76,7 +77,7 @@ const presentarDocumento = (d: { id: string; tipo: string; verticalId: string | 
 });
 
 export function rutasDeLegal(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/documentos-legales/vigentes", requierePermiso("registro_muestra:leer"), async (req, res) => {

@@ -220,13 +220,46 @@ async function foto(page: Page, nombre: string, o: { sobre?: Locator; altura?: n
   hechas.push(nombre);
 }
 
+
+/**
+ * V13-fix (EV-34): abrir una pantalla COMO LA PERSONA, no escribiendo su dirección. Si se quita una sección de la barra (o un enlace de «Más» o de Administración), las guías la siguen
+ * citando pero nadie puede llegar: antes este recorrido usaba `goto` y seguía en verde. Con la barra visible se hace clic en su sección; si no cabe en la barra, se pasa por «Más».
+ */
+async function irPorLaBarra(page: Page, etiqueta: string, ruta: string): Promise<void> {
+  const barra = page.getByRole("navigation", { name: "Secciones" });
+  const enBarra = barra.getByRole("link", { name: etiqueta, exact: true });
+  if ((await enBarra.count()) > 0) await enBarra.first().click();
+  else {
+    await barra.getByRole("link", { name: "Más", exact: true }).first().click();
+    await expect(page).toHaveURL(/\/mas$/);
+    const enMas = page.getByRole("main").getByRole("link", { name: etiqueta, exact: true }).first();
+    await expect(enMas, `«${etiqueta}» no está en la barra ni en «Más»: la guía la cita y nadie puede llegar`).toBeVisible({ timeout: 4000 });
+    await enMas.click();
+  }
+  await expect(page, `«${etiqueta}» no lleva a ${ruta}`).toHaveURL(new RegExp(`${ruta.replace(/\//g, "\\/")}$`));
+}
+
+/** Un enlace visible de la pantalla actual (un botón de una tarjeta, una área de Administración) que lleva a `ruta`. */
+async function irPorUnEnlace(page: Page, ruta: string): Promise<void> {
+  const enlace = page.getByRole("main").locator(`a[href="${ruta}"]`).first();
+  await expect(enlace, `ninguna pantalla visible enlaza a ${ruta}`).toBeVisible();
+  await enlace.click();
+  await expect(page).toHaveURL(new RegExp(`${ruta.replace(/\//g, "\\/")}$`));
+}
+
+/** La pantalla de inicio de quien acaba de entrar (sin escribir ninguna dirección más que la raíz). */
+async function entrarAlInicio(page: Page, ruta: string): Promise<void> {
+  await page.goto("/");
+  await expect(page).toHaveURL(new RegExp(`${ruta.replace(/\//g, "\\/")}$`));
+}
+
 // ── Asesor ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 test.describe("asesor", () => {
   test.use({ ...comoRol("asesor"), viewport: ESCRITORIO });
 
   test("embudo, ficha, mover de etapa y tareas", async ({ page }) => {
-    await page.goto("/embudo");
+    await entrarAlInicio(page, "/embudo");
     await expect(page.getByRole("heading", { name: "Embudo" })).toBeVisible();
     await foto(page, "asesor-01-embudo", { resaltar: [page.getByRole("button", { name: "Ver solo los estancados" })] });
 
@@ -244,7 +277,7 @@ test.describe("asesor", () => {
     await foto(page, "asesor-03-mover-de-etapa", { sobre: d, resaltar: [d.getByRole("button", { name: "Mover", exact: true })] });
     await d.getByRole("button", { name: "Cancelar" }).click();
 
-    await page.goto("/tareas");
+    await irPorLaBarra(page, "Tareas", "/tareas");
     await expect(page.getByRole("heading", { name: "Tareas" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Marcar como hecha" }).first()).toBeVisible();
     await foto(page, "asesor-04-tareas", { resaltar: [page.getByRole("button", { name: "Marcar como hecha" }), page.getByRole("button", { name: "Descartar" })] });
@@ -257,12 +290,12 @@ test.describe("maestro", () => {
   test.use({ ...comoRol("maestro"), viewport: CELULAR, hasTouch: true, isMobile: true });
 
   test("hoy, registro, pase de lista y sin señal", async ({ page }) => {
-    await page.goto("/hoy");
+    await entrarAlInicio(page, "/hoy");
     await expect(page.getByRole("heading", { name: "Hoy", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Asistió" }).first()).toBeVisible();
     await foto(page, "maestro-01-hoy", { completa: true, resaltar: [page.getByRole("link", { name: "Registro del alumno" }).first()] });
 
-    await page.goto(`/clases/${F.maestro.claseId}/registro`);
+    await irPorUnEnlace(page, `/clases/${F.maestro.claseId}/registro`);
     await expect(page.getByRole("heading", { name: "Registro del alumno" })).toBeVisible();
     const seccion = page.getByTestId("seccion-alumno");
     await expect(seccion).toBeVisible();
@@ -276,7 +309,7 @@ test.describe("maestro", () => {
     await page.evaluate(() => window.scrollBy(0, -90));
     await foto(page, "maestro-02-registro", { completa: true, resaltar: [page.getByRole("button", { name: "Guardar borrador" })] });
 
-    await page.goto("/pase");
+    await irPorLaBarra(page, "Pase de lista", "/pase");
     await expect(page.getByRole("heading", { name: "Pase de lista" })).toBeVisible();
     await page.getByLabel("Grupo").selectOption(F.maestro.grupoPase);
     await expect(page.getByTestId(`alumno-${F.maestro.alumnos[0]!.id}`)).toBeVisible();
@@ -299,7 +332,7 @@ test.describe("recepción", () => {
   test.use({ ...comoRol("recepcion"), viewport: ESCRITORIO });
 
   test("cobrar, repartir, estado de cuenta, uniformes y cierre", async ({ page }) => {
-    await page.goto("/pagos");
+    await entrarAlInicio(page, "/pagos");
     await page.getByLabel("Teléfono o nombre de la familia").fill(F.recepcion.apellido);
     await page.getByRole("button", { name: "Buscar" }).click();
     const tarjeta = page.getByTestId(`familia-${F.recepcion.tutorId}`);
@@ -315,19 +348,24 @@ test.describe("recepción", () => {
     await expect(page.getByTestId("suma-del-reparto")).toContainText("cuadra");
     await foto(page, "recepcion-03-reparto", { sobre: page.getByTestId("ajuste"), resaltar: [page.getByRole("button", { name: "Volver al reparto sugerido" })] });
 
-    await page.goto(`/cuenta/${F.recepcion.tutorId}`);
+    // «Estado de cuenta» de la barra: se busca a la familia y se elige (así llega la persona; no escribiendo la dirección de una familia).
+    await irPorLaBarra(page, "Estado de cuenta", "/cuenta");
+    await page.getByLabel("Teléfono o nombre de la familia").fill(F.recepcion.apellido);
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByTestId(`familia-${F.recepcion.tutorId}`).getByRole("button", { name: "Elegir" }).click();
+    await expect(page).toHaveURL(new RegExp(`/cuenta/${F.recepcion.tutorId}$`));
     await expect(page.getByTestId("saldo")).toBeVisible();
     await foto(page, "recepcion-04-cuenta", { resaltar: [page.getByTestId("imprimir-cuenta")] });
 
-    await page.goto("/uniformes");
+    await irPorLaBarra(page, "Uniformes", "/uniformes");
     await expect(page.getByTestId(`beneficio-${F.recepcion.uniformeBeneficioId}`)).toBeVisible();
     await foto(page, "recepcion-05-uniformes", { resaltar: [page.getByTestId(`beneficio-${F.recepcion.uniformeBeneficioId}`).getByRole("button", { name: "Marcar entregado" })] });
 
-    await page.goto("/ventas");
+    await irPorLaBarra(page, "Ventas", "/ventas");
     await expect(page.getByRole("heading", { name: "Ventas", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Registrar venta" })).toBeVisible();
 
-    await page.goto("/corte");
+    await irPorLaBarra(page, "Cierre del día", "/corte");
     await expect(page.getByRole("heading", { name: "Cierre del día" })).toBeVisible();
     await foto(page, "recepcion-06-cierre", { resaltar: [page.getByTestId("imprimir-corte")] });
   });
@@ -339,7 +377,8 @@ test.describe("administrador", () => {
   test.use({ ...comoRol("administrador"), viewport: ESCRITORIO });
 
   test("para empezar, módulos, catálogo, usuarios, configuración y tableros", async ({ page }) => {
-    await page.goto("/admin");
+    await entrarAlInicio(page, "/embudo");
+    await irPorLaBarra(page, "Administración", "/admin");
     await expect(page.getByRole("heading", { name: "Administración" })).toBeVisible();
     await expect(page.getByText("Para empezar", { exact: true }).first()).toBeVisible();
     await expect(page.getByLabel("Buscar una pantalla")).toBeVisible();
@@ -348,25 +387,29 @@ test.describe("administrador", () => {
     if ((await pasos.textContent()) === "Ver los pasos") await pasos.click();
     await foto(page, "administrador-01-para-empezar", { resaltar: [pasos] });
 
-    await page.goto("/admin/modulos");
+    await irPorLaBarra(page, "Administración", "/admin");
+    await irPorUnEnlace(page, "/admin/modulos");
     await expect(page.getByRole("heading", { name: "Módulos" })).toBeVisible();
     await foto(page, "administrador-02-modulos");
 
-    await page.goto("/admin/catalogo");
+    await irPorLaBarra(page, "Administración", "/admin");
+    await irPorUnEnlace(page, "/admin/catalogo");
     await expect(page.getByRole("heading", { name: "Cargar catálogo" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Descargar todas las plantillas" })).toBeVisible();
     await foto(page, "administrador-03-catalogo", { resaltar: [page.getByRole("link", { name: "Descargar todas las plantillas" })] });
 
-    await page.goto("/admin/usuarios");
+    await irPorLaBarra(page, "Administración", "/admin");
+    await irPorUnEnlace(page, "/admin/usuarios");
     await expect(page.getByRole("heading", { name: "Usuarios y roles" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Agente de Chatwoot" }).first()).toBeVisible();
     await foto(page, "administrador-04-usuarios", { resaltar: [page.getByRole("button", { name: "Nuevo usuario" })] });
 
-    await page.goto("/admin/configuracion");
+    await irPorLaBarra(page, "Administración", "/admin");
+    await irPorUnEnlace(page, "/admin/configuracion");
     await expect(page.getByRole("heading", { name: "Configuración" })).toBeVisible();
     await foto(page, "administrador-05-configuracion");
 
-    await page.goto("/tableros");
+    await irPorLaBarra(page, "Tableros", "/tableros");
     await expect(page.getByRole("heading", { name: "Tableros" })).toBeVisible();
     for (const solapa of ["Clases muestra", "Costo por campaña", "Ejecutivo"]) await expect(page.getByRole("tab", { name: solapa })).toBeVisible();
     await foto(page, "administrador-06-tableros");

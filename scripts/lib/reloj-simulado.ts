@@ -9,6 +9,8 @@
 // navegador) reciben el mismo desfase en PRUEBAS_DESFASE_MS, así que todos coinciden. Solo es para pruebas: nada de `src/` lo importa y el arranque de
 // producción lo niega (src/seguridad/entorno.ts, `reloj_de_pruebas_en_produccion`). Postgres sigue con su `now()` real: el desfase mueve a la APLICACIÓN.
 
+import { esProduccion } from "../../src/seguridad/entorno.ts";
+
 /** El instante REAL de la máquina aunque `Date` ya esté simulada en este proceso (`performance` no la toca). */
 export const ahoraReal = (): number => Math.round(performance.timeOrigin + performance.now());
 
@@ -45,7 +47,7 @@ export function entornoConRelojSimulado(env: NodeJS.ProcessEnv, rutaShim: string
 export function instalarRelojSimulado(env: NodeJS.ProcessEnv = process.env): number {
   const desfase = desfaseDesdeEntorno(env);
   if (desfase === 0) return 0;
-  if (env["NODE_ENV"] === "production" && (env["ENTORNO_DEMO"] ?? "").trim().toLowerCase() !== "si") throw new Error("El reloj simulado de las pruebas no existe en producción");
+  if (esProduccion(env) && (env["ENTORNO_DEMO"] ?? "").trim().toLowerCase() !== "si") throw new Error("El reloj simulado de las pruebas no existe en producción");
   const Real = Date;
   const ahora = (): number => ahoraReal() + desfase;
   class DateSimulada extends Real {

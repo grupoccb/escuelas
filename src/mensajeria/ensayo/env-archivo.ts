@@ -6,10 +6,15 @@ export function fusionarEnv(texto: string, pares: Record<string, string>): strin
   let lineas = texto.split("\n");
   for (const [clave, valor] of Object.entries(pares)) {
     if (/[\r\n]/.test(valor) || !/^[A-Z][A-Z0-9_]*$/.test(clave)) throw new Error(`Valor o nombre inválido para ${clave}`);
-    const activa = new RegExp(`^\\s*${clave}\\s*=`);
+    // V13-fix (EV-39): una línea con `export ` también es una línea activa, y si la clave aparece varias veces (la última gana al cargar el archivo) solo se deja UNA activa: la primera se
+    // reemplaza y las repetidas se comentan. Antes quedaba el valor viejo en una línea de más abajo y era ese el que se usaba.
+    const activa = new RegExp(`^\\s*(export\\s+)?${clave}\\s*=`);
     const i = lineas.findIndex((l) => activa.test(l));
-    if (i >= 0) lineas[i] = `${clave}=${valor}`;
-    else {
+    if (i >= 0) {
+      const prefijo = activa.exec(lineas[i]!)?.[1] ? "export " : "";
+      lineas[i] = `${prefijo}${clave}=${valor}`;
+      lineas = lineas.map((l, j) => (j > i && activa.test(l) ? `# (repetida, la reemplaza la de arriba) ${l.trimStart()}` : l));
+    } else {
       // Sin línea activa: se agrega al final, antes del salto de línea final si lo hay.
       if (lineas.length > 0 && lineas[lineas.length - 1] === "") lineas = lineas.slice(0, -1);
       lineas.push(`${clave}=${valor}`, "");
@@ -22,6 +27,6 @@ export function fusionarEnv(texto: string, pares: Record<string, string>): strin
 export function apagarEnEnv(texto: string, claves: string[]): string {
   return texto
     .split("\n")
-    .map((l) => (claves.some((c) => new RegExp(`^\\s*${c}\\s*=`).test(l)) ? `# ${l.trimStart()}` : l))
+    .map((l) => (claves.some((c) => new RegExp(`^\\s*(?:export\\s+)?${c}\\s*=`).test(l)) ? `# ${l.trimStart()}` : l))
     .join("\n");
 }

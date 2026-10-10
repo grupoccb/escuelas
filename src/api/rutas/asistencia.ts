@@ -8,7 +8,8 @@
 // → 409 con `detalles: [{ campo: "motivo", mensaje: <código> }]`. Una inscripción que no está en la lista del pase o repetida → 400 con su índice. El
 // guardado es TODO o nada, idempotente (una fila por inscripción y fecha) y serializado por (grupo, fecha); cada alta y cada corrección deja su registro de cambios.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { dondeGrupoVisible } from "../../asistencia/alcance.ts";
 import { calcularDerivados, presentarDerivados, recalcularDerivados } from "../../asistencia/derivados.ts";
@@ -32,7 +33,7 @@ const esquemaPase = objeto({
 });
 
 export function rutasDeAsistencia(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/grupos/:id/pase", requierePermiso("asistencia:leer"), async (req, res) => {

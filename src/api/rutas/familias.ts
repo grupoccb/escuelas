@@ -21,7 +21,8 @@
 // constancia. Alcance: ver src/familias/alcance.ts. Lo ajeno responde 404. Cada cambio queda en `registro_cambio` (solo QUÉ campos se
 // tocaron, nunca sus valores: el registro es de solo anexar y no se purga).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { problemaDeFechaDeNacimiento } from "../../clases-muestra/registro-reglas.ts";
 import type { Consultas } from "../../datos/alcance.ts";
@@ -304,18 +305,20 @@ const instVinculo = (v: { tutor_id: string; alumno_id: string; parentesco: strin
 // ── Utilidades ────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * Lo que se compara en una búsqueda por nombre cabe en memoria: una escuela tiene a lo más unos miles de familias. Más allá de este tope la búsqueda se queda con las primeras
- * (ordenadas como el listado) y lo dice el límite, no un error: mejor una lista corta que ninguna.
+ * Lo que se compara en una búsqueda por nombre cabe en memoria: una escuela tiene a lo más unos miles de familias. Más allá del tope (`DepsApi.topeDeBusquedaPorNombre`, 20 000 por
+ * omisión) la búsqueda se queda con las primeras (ordenadas como el listado) y LO DICE: la respuesta lleva `paginacion.busqueda_incompleta` y la pantalla avisa que hay más (V13-fix, EV-36).
+ * Antes truncaba sin avisar.
  */
-const TOPE_DE_CANDIDATOS = 20_000;
 
 /**
  * Los ids de lo que coincide con lo escrito: cada palabra aparece en el nombre o en los apellidos, SIN importar mayúsculas ni acentos («angel» encuentra a «Ángel», «nunez» a
  * «Núñez»). Postgres compara con acentos y el cliente con alcance no ofrece SQL crudo, así que se trae lo que está a la vista (ya con alcance y filtros) y se compara aquí con
- * `contieneTodas`. `pajar` arma el texto de cada fila donde se busca.
+ * `contieneTodas`. `pajar` arma el texto de cada fila donde se busca. Se piden `tope + 1` filas: si llegan todas, hay más de las que se revisaron (`incompleta`).
  */
-async function idsPorNombre<F extends { id: string }>(traer: () => Promise<F[]>, pajar: (fila: F) => string, q: string): Promise<string[]> {
-  return (await traer()).filter((f) => contieneTodas(pajar(f), q)).map((f) => f.id);
+export async function idsPorNombre<F extends { id: string }>(traer: (tomar: number) => Promise<F[]>, pajar: (fila: F) => string, q: string, tope: number): Promise<{ ids: string[]; incompleta: boolean }> {
+  const filas = await traer(tope + 1);
+  const incompleta = filas.length > tope;
+  return { ids: filas.slice(0, tope).filter((f) => contieneTodas(pajar(f), q)).map((f) => f.id), incompleta };
 }
 
 function telefonoOError(campo: string, valor: string): string {
@@ -364,8 +367,8 @@ async function comoConflicto<T>(mensaje: string, trabajo: () => Promise<T>): Pro
   }
 }
 
-export function rutasDeFamilias(_deps: DepsApi): Router {
-  const r = Router();
+export function rutasDeFamilias(deps: DepsApi): Router {
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** El alumno, si el usuario lo ve; 404 si no. */
@@ -407,22 +410,24 @@ export function rutasDeFamilias(_deps: DepsApi): Router {
     if (q.telefono !== undefined) condiciones.push({ telefono: telefonoOError("telefono", q.telefono) });
     if (q.sucursal_id) condiciones.push({ sucursal_id: q.sucursal_id });
     // Por nombre: el de la mamá o el de cualquiera de sus hijos (quien llega a pagar dice «vengo por Valentina»), sin importar mayúsculas ni acentos.
+    let incompleta = false;
     if (q.nombre && q.nombre.trim() !== "") {
-      const ids = await idsPorNombre(
-        () => ctx.db.tutor.findMany({ where: { AND: condiciones }, select: { id: true, nombre: true, apellidos: true, alumnos: { where: { eliminado_en: null }, select: { alumno: { select: { nombre: true, apellidos: true } } } } }, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], take: TOPE_DE_CANDIDATOS }),
+      const r = await idsPorNombre(
+        (tomar) => ctx.db.tutor.findMany({ where: { AND: condiciones }, select: { id: true, nombre: true, apellidos: true, alumnos: { where: { eliminado_en: null }, select: { alumno: { select: { nombre: true, apellidos: true } } } } }, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], take: tomar }),
         (t) => [t.nombre, t.apellidos ?? "", ...t.alumnos.map((v) => `${v.alumno.nombre} ${v.alumno.apellidos}`)].join(" "),
         q.nombre,
+        deps.topeDeBusquedaPorNombre,
       );
-      condiciones.push({ id: { in: ids } });
+      incompleta = r.incompleta;
+      condiciones.push({ id: { in: r.ids } });
     }
     const where = { AND: condiciones };
-    res.json(
-      await paginar(
-        pag,
-        () => ctx.db.tutor.count({ where }),
-        async (saltar, tomar) => (await ctx.db.tutor.findMany({ where, select: SELECCION_TUTOR, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((t) => presentarTutor(t as FilaTutor)),
-      ),
+    const respuesta = await paginar(
+      pag,
+      () => ctx.db.tutor.count({ where }),
+      async (saltar, tomar) => (await ctx.db.tutor.findMany({ where, select: SELECCION_TUTOR, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((t) => presentarTutor(t as FilaTutor)),
     );
+    res.json(incompleta ? { ...respuesta, paginacion: { ...respuesta.paginacion, busqueda_incompleta: true } } : respuesta);
   });
 
   r.get("/tutores/:id", requierePermiso("tutores:leer"), async (req, res) => {
@@ -508,23 +513,25 @@ export function rutasDeFamilias(_deps: DepsApi): Router {
       condiciones.push({ tutores: { some: { eliminado_en: null, tutor: { telefono: telefonoOError("telefono", q.telefono) } } } });
     }
     // Por nombre, sin importar mayúsculas ni acentos (se compara después de aplicar el alcance y los demás filtros).
+    let incompleta = false;
     if (q.nombre && q.nombre.trim() !== "") {
-      const ids = await idsPorNombre(
-        () => ctx.db.alumno.findMany({ where: { AND: condiciones }, select: { id: true, nombre: true, apellidos: true }, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], take: TOPE_DE_CANDIDATOS }),
+      const r = await idsPorNombre(
+        (tomar) => ctx.db.alumno.findMany({ where: { AND: condiciones }, select: { id: true, nombre: true, apellidos: true }, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], take: tomar }),
         (a) => `${a.nombre} ${a.apellidos}`,
         q.nombre,
+        deps.topeDeBusquedaPorNombre,
       );
-      condiciones.push({ id: { in: ids } });
+      incompleta = r.incompleta;
+      condiciones.push({ id: { in: r.ids } });
     }
     const where = { AND: condiciones };
     const hoy = hoyUTC(ctx);
-    res.json(
-      await paginar(
-        pag,
-        () => ctx.db.alumno.count({ where }),
-        async (saltar, tomar) => (await ctx.db.alumno.findMany({ where, select: SELECCION_ALUMNO, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((a) => presentarAlumno(a as FilaAlumno, ctx.usuario.rol, hoy)),
-      ),
+    const respuesta = await paginar(
+      pag,
+      () => ctx.db.alumno.count({ where }),
+      async (saltar, tomar) => (await ctx.db.alumno.findMany({ where, select: SELECCION_ALUMNO, orderBy: [{ apellidos: "asc" }, { nombre: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((a) => presentarAlumno(a as FilaAlumno, ctx.usuario.rol, hoy)),
     );
+    res.json(incompleta ? { ...respuesta, paginacion: { ...respuesta.paginacion, busqueda_incompleta: true } } : respuesta);
   });
 
   r.get("/alumnos/:id", requierePermiso("alumnos:leer"), async (req, res) => {

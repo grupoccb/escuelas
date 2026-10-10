@@ -13,7 +13,8 @@
 // `productos_comprados` vienen en `null`.
 // Alcance: el de los alumnos (`dondeAlumnoVisible`); el maestro solo ve a sus alumnos y SIN importes (EF-03): `economico` y `comercial` vienen en `null`.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { dondeEventoVisible } from "../../eventos/alcance.ts";
 import { armarExpediente } from "../../expediente/expediente.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
@@ -26,7 +27,7 @@ import { objeto, parsear, uuid } from "../validar.ts";
 const esquemaId = objeto({ id: uuid() });
 
 export function rutasDeExpediente(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/alumnos/:id/expediente", requierePermiso("alumnos:leer"), async (req, res) => {
     const ctx = contextoDe(res);

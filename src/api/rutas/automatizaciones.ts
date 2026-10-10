@@ -11,7 +11,8 @@
 //   · `max_atraso_dias` (V5): hasta cuántos días de atraso se persigue — solo en el lead frío (1 a 90: se enfrió hace menos) y en el pago atrasado (1 a 365: venció hace menos); vive en `condiciones`;
 //   · la plantilla debe existir. Apagar una automatización impide que se programen envíos NUEVOS; lo que ya estaba programado sigue su curso (EF-14, pendiente).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { EVENTOS_DISPARADORES, ESPACIADO_MINIMO_MIN, problemaDeClase, problemaDeDesfase, problemaDeDias, problemaDeHorario } from "../../automatizaciones/ajustes.ts";
 import { atrasoMaximoDias as atrasoDeLeadFrio } from "../../automatizaciones/seguimiento.ts";
@@ -86,7 +87,7 @@ const esquemaCambio = objeto({
 });
 
 export function rutasDeAutomatizaciones(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/automatizaciones", requierePermiso("catalogo:escribir"), async (req, res) => {

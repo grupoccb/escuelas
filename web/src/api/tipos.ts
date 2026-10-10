@@ -20,6 +20,8 @@ export interface Yo {
   permisos: string[];
   /** Los módulos encendidos de la organización. */
   modulos: Modulos;
+  /** Los tipos de tarea cuyo módulo está apagado: no se ofrecen en el filtro de tareas. */
+  tipos_de_tarea_apagados: string[];
   configuracion: { modo_cierre: ModoDeCierre; chatwoot_url_publica: string | null };
 }
 

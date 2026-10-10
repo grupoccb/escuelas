@@ -136,6 +136,15 @@ const CONTRASENAS_COMUNES = new Set([
 ]);
 
 /**
+ * V13-fix (EV-44): ¿es la contraseña PÚBLICA de la demo (está en el repositorio)? La política ya impide ESTABLECERLA y la revisión de arranque impide tenerla en una variable de entorno;
+ * esto es lo que falta: que alguien ENTRE con ella en una instalación real (por ejemplo si los usuarios de `prisma/seed/demo.sql` llegaran a una base real). Ver `iniciarSesion`.
+ */
+export const CONTRASENAS_PUBLICAS_DE_DEMO: readonly string[] = ["demo-local-2026!"];
+export function esContrasenaPublicaDeDemo(contrasena: string): boolean {
+  return CONTRASENAS_PUBLICAS_DE_DEMO.includes(contrasena.normalize("NFKC").toLowerCase());
+}
+
+/**
  * Política mínima: de 10 a 128 caracteres, que no sea de las más comunes, sin ser el correo ni el nombre del usuario, y con algo
  * más que un solo carácter repetido. Devuelve los problemas en español (vacío = cumple).
  */

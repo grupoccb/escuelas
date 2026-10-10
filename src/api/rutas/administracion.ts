@@ -5,14 +5,15 @@
 //
 // Solo lee. Todo por el scope de la organización. No depende de ningún módulo: es parte de la configuración con la que se prepara la escuela.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { calcularPrimerosPasos } from "../../administracion/primeros-pasos.ts";
 import { leerModulos } from "../../modulos/index.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 
 export function rutasDeAdministracion(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/administracion/primeros-pasos", requierePermiso("catalogo:escribir"), async (_req, res) => {
     const ctx = contextoDe(res);

@@ -11,7 +11,7 @@ import { resolve } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
 import { comoRol, contextoNuevo, expect, mundo, test } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 
 test.use(comoRol("asesor"));
@@ -23,7 +23,7 @@ let asesor: APIRequestContext;
 const org = mundo.organizacion.id;
 const norte = mundo.sucursales.norte.id;
 const creados = { programa: "", promo: "", leads: [] as string[], apagadas: [] as string[] };
-let grupos: { a: string; b: string; c: string };
+let grupos: { a: string; b: string; c: string; d: string };
 let n = 0;
 
 /** La fecha de nacimiento de alguien que hoy tiene `anios` años cumplidos (más unos meses): estable mientras corre la prueba. */
@@ -35,7 +35,7 @@ function nacidoHaceAnios(anios: number): string {
 }
 
 async function capturaV1(page: Page, nombre: string): Promise<void> {
-  const carpeta = resolve(RAIZ, "docs/capturas/v1");
+  const carpeta = carpetaDeCapturas("v1");
   mkdirSync(carpeta, { recursive: true });
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: resolve(carpeta, `${nombre}.png`), animations: "disabled" });
@@ -71,7 +71,7 @@ test.beforeAll(async () => {
     for (const dia of [0, 1, 2, 3, 4, 5, 6]) await prisma.grupo_horario.create({ data: { organizacion_id: org, grupo_id: g.id, dia_semana: dia, hora_inicio_min: 600, hora_fin_min: 660 } });
     return g.id;
   };
-  grupos = { a: await grupo("Grupo V3 A", 20), b: await grupo("Grupo V3 B", 20), c: await grupo("Grupo V3 C", 1) };
+  grupos = { a: await grupo("Grupo V3 A", 20), b: await grupo("Grupo V3 B", 20), c: await grupo("Grupo V3 C", 1), d: await grupo("Grupo V3 D", 1) };
   const promo = await prisma.promocion.create({ data: { organizacion_id: org, nombre: "Hermanos V3", codigo: "HERMANOS-V3", vigencia_desde: new Date("2020-01-01"), condicion_tipo: "min_hermanos", condicion_valor: { hermanos: 2 }, acumulable: true, prioridad: 5 } });
   creados.promo = promo.id;
   await prisma.promocion_beneficio.create({ data: { organizacion_id: org, promocion_id: promo.id, tipo: "descuento_mensualidad", modo: "porcentaje", valor: "10.00" } });
@@ -307,6 +307,62 @@ test("SIN LUGAR para uno: la operación completa se rechaza con un mensaje claro
   await page.goto(`/leads/${f.leadId}`);
   await expect(page.getByTestId(`prospecto-${segundo.id}`)).toContainText("Por inscribir");
   await expect(page.getByRole("link", { name: "Convertir e inscribir" })).toBeVisible();
+});
+
+// V13-fix EV-10 (la prueba «SIN LUGAR para uno» fallaba una de cada varias corridas, sobre todo con la máquina cargada): después de «Dejar fuera a Segundo» la pantalla recarga lo que
+// falta de la conversión; si el clic en «Convertir e inscribir» llegaba ANTES de esa recarga, la pantalla armaba el cuerpo con el niño que ya se había dejado fuera y el servidor lo
+// rechazaba otra vez (en un celular con mala red, la persona veía el mismo rechazo dos veces). Aquí la recarga se RETIENE a propósito: con la pantalla vieja el botón estaría
+// habilitado y esta prueba falla SIEMPRE; con el arreglo el botón espera a que la recarga llegue y manda solo a quien está marcado.
+test("DEJAR FUERA con la recarga lenta: el botón de confirmar espera la recarga y lo que se manda es solo lo que está marcado (no el niño que se acaba de dejar fuera)", async ({ page }) => {
+  const f = await leadDelBot("Familia Ocho", "Primera");
+  await asesor.patch(`/api/leads/${f.leadId}/prospectos/${f.prospectoId}`, { data: { apellidos: "Rey Soto", fecha_nacimiento: nacidoHaceAnios(8) } });
+  const segundo = await (await asesor.post(`/api/leads/${f.leadId}/prospectos`, { data: { nombre: "Segundo", apellidos: "Rey Soto", fecha_nacimiento: nacidoHaceAnios(6) } })).json();
+  expect((await asesor.post(`/api/leads/${f.leadId}/prospectos/${segundo.id}/aceptaciones-del-hermano`, { data: { desde_prospecto_id: f.prospectoId } })).status()).toBe(201);
+  const cuerpos: { prospectos: { prospecto_id: string }[] }[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.url().endsWith(`/api/leads/${f.leadId}/convertir`)) cuerpos.push(r.postDataJSON());
+  });
+  await page.goto(`/leads/${f.leadId}/convertir`);
+  await page.getByLabel(/^Parentesco con el alumno/).fill("madre");
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  // El grupo D tiene UN lugar y los dos lo eligen: el servidor rechaza al segundo.
+  await page.getByTestId(`grupo-${f.prospectoId}`).getByRole("radio", { name: /Grupo V3 D/ }).check();
+  await page.getByTestId(`grupo-${segundo.id}`).getByRole("radio", { name: /Grupo V3 D/ }).check();
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Revisar y confirmar" }).click();
+  await page.getByRole("button", { name: "Convertir e inscribir" }).click();
+  const salida = page.getByTestId("salida-grupo-lleno");
+  await expect(salida).toContainText("Segundo se quedó sin lugar");
+  expect(cuerpos).toHaveLength(1);
+  expect(cuerpos[0]!.prospectos.map((p) => p.prospecto_id).sort()).toEqual([f.prospectoId, segundo.id].sort());
+
+  // De aquí en adelante la recarga de «lo que falta» (con SOLO la primera) no llega hasta que la prueba lo decide.
+  let soltar: () => void = () => {};
+  const retenida = new Promise<void>((r) => (soltar = r));
+  let retenidas = 0;
+  await page.route(
+    (url) => url.pathname === `/api/leads/${f.leadId}/conversion` && url.searchParams.get("prospectos") === f.prospectoId,
+    async (ruta) => {
+      retenidas++;
+      await retenida;
+      await ruta.continue();
+    },
+  );
+  await salida.getByRole("button", { name: "Dejar fuera a Segundo" }).click();
+  await expect(page.getByTestId(`marcar-${segundo.id}`)).not.toBeChecked();
+  await expect.poll(() => retenidas).toBe(1); // la recarga salió y está retenida
+  const confirmar = page.getByRole("button", { name: "Convertir e inscribir" });
+  await expect(confirmar).toBeDisabled(); // con la pantalla vieja aquí estaba habilitado y un clic mandaba a Segundo otra vez
+  expect(cuerpos).toHaveLength(1);
+  soltar();
+  await expect(confirmar).toBeEnabled();
+  await confirmar.click();
+  await expect(page.getByTestId("conversion-lista")).toContainText("Primera");
+  expect(cuerpos).toHaveLength(2);
+  expect(cuerpos[1]!.prospectos.map((p) => p.prospecto_id)).toEqual([f.prospectoId]);
+  await page.unroute(() => true).catch(() => {});
 });
 
 test("COTIZADOR APAGADO: la ficha no enseña nada de cotización (ni «Cotizar» ni el programa sugerido), pero agregar niños sigue funcionando", async ({ page }) => {

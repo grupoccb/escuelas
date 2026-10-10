@@ -208,7 +208,7 @@ Por comando: `npm run reporte:clases-muestra`.
 #### Datos de demo (~300 alumnos, seis meses)
 
 ```bash
-npm run demo:datos -- --confirmar-base-de-demo     # genera la historia en la base de DATABASE_URL (la de la demo exige la bandera)
+npm run demo:datos -- --confirmar-base-de-demo     # genera la historia en la base de DATABASE_URL (la de la demo exige la bandera; V13: además se niega con NODE_ENV=production, con una base que no es local y, fuera de una base de pruebas, en una organización que no sea la de la demo. Igual `demo:vivo`)
 npm run demo:datos -- --confirmar-base-de-demo --alumnos 300 --meses 6 --semilla 20261008 --hasta 2026-10-08
 npm run cuadratura                                  # y verifica que el dinero cuadra
 ```

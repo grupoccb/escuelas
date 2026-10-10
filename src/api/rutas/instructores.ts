@@ -12,7 +12,8 @@
 // usuario): de ahí sale «sus grupos». Alcance de lectura: administrador todos; asesor y recepción, los de sus
 // sucursales (y los sin restricción); maestro, solo el suyo.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
@@ -101,7 +102,7 @@ async function fijarSucursales(tx: Consultas, instructorId: string, ids: string[
 const usuarioOcupado = () => conflicto("Ese usuario ya tiene un instructor", [{ campo: "usuario_id", mensaje: "Ya está ligado a otro instructor" }]);
 
 export function rutasDeInstructores(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** El `where` que limita lo que ve cada rol. */

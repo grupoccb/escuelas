@@ -13,6 +13,10 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { BLOQUEO_POR_DEFECTO } from "../src/auth/acceso.ts";
+import { DIAS_ADELANTE_DEL_MAESTRO } from "../src/api/rutas/maestro.ts";
+import { CONFIGURACION_POR_DEFECTO } from "../src/configuracion/index.ts";
+import { DURACION_VENTANA_SERVICIO_MS } from "../src/mensajeria/reglas.ts";
 
 const RAIZ = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const CARPETA = join(RAIZ, "docs", "guias");
@@ -158,3 +162,49 @@ test("la extracción de citas separa nombres, mensajes y negritas", () => {
 });
 
 void dirname;
+
+// V13-fix EV-08: la guía del maestro decía «hasta 24 horas» para corregir la asistencia y el valor real es 48 (y se puede cambiar). Cada cifra con unidad que una guía da debe compararse con
+// el valor del sistema de donde sale: si el valor cambia y la guía no, esta prueba falla. Una cifra nueva en una guía sin su fila aquí también falla.
+const UNIDADES = "horas|hora|minutos|minuto|días|día|veces|intentos";
+const CIFRAS: { guia: string; patron: RegExp; valor: number; origen: string }[] = [
+  { guia: "maestro", patron: /hasta (\d+) horas después/, valor: CONFIGURACION_POR_DEFECTO.claseMuestraCorreccionHoras, origen: "CONFIGURACION_POR_DEFECTO.claseMuestraCorreccionHoras" },
+  { guia: "maestro", patron: /próximos (\d+) días/, valor: DIAS_ADELANTE_DEL_MAESTRO, origen: "DIAS_ADELANTE_DEL_MAESTRO" },
+  { guia: "asesor", patron: /últimas (\d+) horas/, valor: DURACION_VENTANA_SERVICIO_MS / 3_600_000, origen: "DURACION_VENTANA_SERVICIO_MS" },
+  { guia: "administrador", patron: /contraseña (\d+) veces/, valor: BLOQUEO_POR_DEFECTO.maxFallos, origen: "BLOQUEO_POR_DEFECTO.maxFallos" },
+  { guia: "administrador", patron: /unos (\d+) minutos/, valor: BLOQUEO_POR_DEFECTO.ventanaMs / 60_000, origen: "BLOQUEO_POR_DEFECTO.ventanaMs" },
+];
+
+test("EV-08: cada cifra con unidad de las guías (horas, días, minutos, veces) coincide con el valor real del sistema", () => {
+  for (const c of CIFRAS) {
+    const texto = leerGuia(c.guia);
+    const m = texto.match(c.patron);
+    assert.ok(m, `La guía «${c.guia}» ya no dice ${c.patron}: actualiza la fila en scripts/guias-validar.test.ts`);
+    assert.equal(Number(m[1]), c.valor, `La guía «${c.guia}» dice ${m[0]} pero el sistema usa ${c.valor} (${c.origen}): corrige la guía`);
+  }
+});
+
+test("EV-08: no hay cifras con unidad en las guías que no estén comparadas con su valor real", () => {
+  const sinFila: string[] = [];
+  for (const guia of GUIAS) {
+    const texto = extraerCitas(leerGuia(guia)).prosa;
+    for (const m of leerGuia(guia).matchAll(new RegExp(`(\\d+) (?:${UNIDADES})(?![\\p{L}])`, "gu"))) {
+      const cubierta = CIFRAS.some((c) => c.guia === guia && leerGuia(guia).match(c.patron)?.[0]?.includes(m[0]));
+      if (!cubierta && texto.includes(m[0])) sinFila.push(`${guia}: «${m[0]}»`);
+    }
+  }
+  assert.deepEqual(sinFila, [], "agrega la cifra a CIFRAS (scripts/guias-validar.test.ts) con el valor del sistema del que sale");
+});
+
+// V13-fix EV-03: la guía del administrador y el diálogo de apagar prometían «nada se borra y todo vuelve al encenderlo». Es falso para lo que el sistema hace solo: mientras el módulo estuvo
+// apagado no se generaron los cobros de esos meses ni se mandaron sus recordatorios, y al encenderlo no se ponen al corriente. Se conserva lo guardado, y así debe decirse.
+test("EV-03: ni la guía del administrador ni la pantalla de Módulos prometen que «todo vuelve» al encender: dicen que lo guardado se conserva y que lo de ese tiempo no se recupera", () => {
+  const textos: Record<string, string> = {
+    "docs/guias/administrador.md": readFileSync(join(CARPETA, "administrador.md"), "utf8"),
+    "web/src/pantallas/admin/Modulos.tsx": readFileSync(join(RAIZ, "web", "src", "pantallas", "admin", "Modulos.tsx"), "utf8"),
+  };
+  for (const [archivo, t] of Object.entries(textos)) {
+    assert.ok(!/todo vuelve|vuelven al encenderlo|vuelven en cuanto lo enciendas|vuelven en cuanto/i.test(t), `${archivo}: promete que todo vuelve al encenderlo`);
+    assert.ok(/no se recupera/.test(t), `${archivo}: debe decir que lo de ese tiempo no se recupera`);
+    assert.ok(/se conserva/.test(t), `${archivo}: debe decir que lo guardado se conserva`);
+  }
+});

@@ -12,7 +12,8 @@
 // tiene que tener lugar (cupo − ocupados − clases muestra de esa fecha). Alcance: el asesor, por la sucursal del grupo (y su lead
 // tiene que ser suyo); el maestro, los grupos de su instructor. Lo ajeno responde 404.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { marcarAsistencia, type MotivoDeRechazoDeAsistencia } from "../../clases-muestra/asistencia.ts";
 import { agendarClaseMuestra, cancelarClaseMuestra, proximasSesionesConLugar, reprogramarClaseMuestra, type MotivoDeRechazo } from "../../clases-muestra/agenda.ts";
@@ -162,7 +163,7 @@ export function errorDeRechazo(motivo: MotivoDeRechazo): never {
 }
 
 export function rutasDeClasesMuestra(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   async function visible(ctx: ContextoApi, id: string) {

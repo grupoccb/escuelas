@@ -12,7 +12,8 @@
 // El número se normaliza con `normalizarNumeroWhatsapp` (invariante 7) a «whatsapp:+52…» y es único en TODO el sistema entre los canales vivos: el mensaje entrante llega por
 // número antes de saber la organización, así que un número repetido en otra organización responde 409 sin decir de quién es.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
@@ -83,7 +84,7 @@ function numeroNormalizado(n: string | null | undefined): string | null | undefi
 }
 
 export function rutasDeCanales(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/canales-whatsapp", requierePermiso("catalogo:escribir"), async (req, res) => {

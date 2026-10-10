@@ -16,7 +16,8 @@
 //   GET  /api/inscripciones/:id/movimientos                    historial (de solo anexar): cambios de grupo, congelaciones, reactivaciones, baja
 // Soltar un lugar activo (cambio de grupo, congelar, baja) avisa a la lista de espera del grupo con `ofrecerLugarLiberado` (tarea para el asesor).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { cerrarEntradaDe, ofrecerLugarLiberado } from "../../lista-espera/lista-espera.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
@@ -66,7 +67,7 @@ function errorDeCambio(r: Extract<ResultadoDeCambio, { ok: false }>): never {
 const delCambio = (a: { estatus: string; grupoId: string; fechaBaja: string | null; motivoBajaId: string | null }): Instantanea => ({ estatus: a.estatus, grupo_id: a.grupoId, fecha_baja: a.fechaBaja, motivo_baja_id: a.motivoBajaId });
 
 export function rutasDeInscripciones(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   async function leer(ctx: ContextoApi, id: string): Promise<FilaDeInscripcion> {

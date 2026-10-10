@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { AvisoDeBusquedaIncompleta, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
@@ -82,6 +82,7 @@ export default function AlumnosLista() {
           </li>
         ))}
       </ul>
+      <AvisoDeBusquedaIncompleta paginacion={lista.datos?.paginacion} />
       {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
     </Pagina>
   );

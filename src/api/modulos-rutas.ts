@@ -66,16 +66,31 @@ function compilar(patron: string): RegExp {
 
 const COMPILADAS: readonly ReglaCompilada[] = REGLAS.flatMap(([modulo, patrones]) => patrones.map((patron) => ({ modulo, patron, re: compilar(patron) })));
 
+/**
+ * Una sola forma de escribir la ruta antes de clasificarla (V13-fix, EV-01): una decodificación (`%63argos` → `cargos`; si la codificación está rota se deja tal cual), minúsculas
+ * (la consulta y el fragmento no son parte de la ruta; la tabla está en minúsculas y la guarda NO debe depender de que el router distinga o no las mayúsculas), sin barras repetidas y sin barra final.
+ */
+export function normalizarRuta(ruta: string): string {
+  let r = ruta.replace(/[?#].*$/s, "");
+  try {
+    r = decodeURIComponent(r);
+  } catch {
+    // codificación rota: se clasifica la ruta tal cual llegó
+  }
+  r = r.toLowerCase().replace(/\/{2,}/g, "/");
+  return r.length > 1 && r.endsWith("/") ? r.replace(/\/+$/, "") || "/" : r;
+}
+
 /** El módulo de una ruta concreta (`/api/leads/…`), o null si ninguna fila la reclama. */
 export function moduloDeRuta(ruta: string): Modulo | null {
-  const limpia = ruta.length > 1 && ruta.endsWith("/") ? ruta.slice(0, -1) : ruta;
+  const limpia = normalizarRuta(ruta);
   for (const r of COMPILADAS) if (r.re.test(limpia)) return r.modulo;
   return null;
 }
 
 /** La fila (patrón) que reclama una ruta concreta, o null (para el test de filas muertas). */
 export function patronDeRuta(ruta: string): string | null {
-  const limpia = ruta.length > 1 && ruta.endsWith("/") ? ruta.slice(0, -1) : ruta;
+  const limpia = normalizarRuta(ruta);
   return COMPILADAS.find((r) => r.re.test(limpia))?.patron ?? null;
 }
 

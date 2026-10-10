@@ -78,10 +78,18 @@ export function aFilaDeModulos(m: ModulosEncendidos): FilaDeModulos {
   return { modulo_cotizador: m.cotizador, modulo_clase_muestra: m.clase_muestra, modulo_inscripcion: m.inscripcion, modulo_operacion: m.operacion, modulo_finanzas: m.finanzas, modulo_tableros: m.tableros };
 }
 
-/** Los módulos de la organización del scope; todos encendidos si no hay fila. Siempre lee de la base (nada se guarda entre peticiones). */
+/**
+ * Los módulos de la organización del scope. Siempre lee de la base (nada se guarda entre peticiones).
+ *   · fila viva: sus interruptores;
+ *   · NUNCA hubo fila (las organizaciones anteriores a V1, o una nueva sin seed): todos encendidos;
+ *   · V13-fix (EV-23) hubo fila pero se dio de baja y no hay otra viva (alguien la borró por SQL): FALLA CERRADO, solo la captación. Antes quedaban encendidos los seis módulos, que es
+ *     justo lo contrario de lo que la escuela había decidido. El administrador los vuelve a encender en Administración → Módulos (eso crea la fila nueva).
+ */
 export async function leerModulos(db: Consultas): Promise<ModulosEncendidos> {
   const fila = await db.configuracion_organizacion.findFirst({ select: SELECCION_DE_MODULOS });
-  return fila ? desdeFilaDeModulos(fila) : { ...TODOS_ENCENDIDOS };
+  if (fila) return desdeFilaDeModulos(fila);
+  if (await db.configuracion_organizacion.findFirst({ where: { eliminado_en: { not: null } }, select: { id: true } })) return { ...SOLO_CAPTACION };
+  return { ...TODOS_ENCENDIDOS };
 }
 
 export interface ProblemaDeDependencia {

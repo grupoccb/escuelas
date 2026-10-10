@@ -10,7 +10,8 @@
 // tiene un lugar ofrecido). Las altas las hace el bot (C9) y `ofrecerLugarLiberado` (F5) marca al siguiente; todo
 // cambio de posiciones corre bajo un candado por grupo. Alcance: por la sucursal del programa del grupo (404 si no).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConCandado, cerrarEntrada, moverEnListaEspera, type AlCambiar, type EntradaDeLista, type ResultadoDeCambio } from "../../lista-espera/lista-espera.ts";
 import { condicionDeLead, filtroDeSucursal } from "../alcance.ts";
@@ -79,7 +80,7 @@ const esquemaMover = objeto({ posicion: entero({ min: 1, max: 10_000 }) });
 const esquemaAlta = objeto({ grupo_id: uuid(), prospecto_id: uuid() });
 
 export function rutasDeListaEspera(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** La entrada, si es de un grupo de una sucursal que ve quien pregunta. */

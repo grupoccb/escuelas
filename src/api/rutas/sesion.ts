@@ -5,7 +5,8 @@
 //   GET    /api/yo                                                      → el usuario de la sesión, sus permisos y los módulos encendidos de su organización
 //   POST   /api/yo/contrasena   { actual, nueva }                       → 204; cierra las demás sesiones
 
-import { Router, type Request, type Response } from "express";
+import { type Router, type Request, type Response } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { ErrorBloqueado, ErrorContrasenaDebil, ErrorCredenciales, cambiarContrasena, iniciarSesion } from "../../auth/acceso.ts";
 import { revocarSesion, validarSesion } from "../../auth/sesiones.ts";
@@ -20,7 +21,7 @@ import { permisosEfectivos } from "../modulos-rutas.ts";
 import { registrarCambio } from "../registro.ts";
 import { LIMITE_CUERPO_LOGIN } from "../cuerpos.ts";
 import { leerConfiguracion } from "../../configuracion/index.ts";
-import { leerModulos } from "../../modulos/index.ts";
+import { leerModulos, tiposDeTareaApagados } from "../../modulos/index.ts";
 
 const esquemaLogin = objeto({
   organizacion: opcional(texto({ max: 63, minusculas: true })),
@@ -35,7 +36,7 @@ const esquemaCambio = objeto({
 
 /** Rutas públicas (sin sesión): iniciar y cerrar. */
 export function rutasPublicasDeSesion(deps: DepsApi, antesDeLogin: express.RequestHandler[] = []): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.post("/sesion", ...antesDeLogin, express.json({ limit: LIMITE_CUERPO_LOGIN }), async (req: Request, res: Response) => {
     const entrada = parsear(esquemaLogin, req.body);
@@ -73,7 +74,7 @@ export function rutasPublicasDeSesion(deps: DepsApi, antesDeLogin: express.Reque
 
 /** Rutas del usuario en sesión. */
 export function rutasDeSesionPropia(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const dentro = soloSesion();
 
   r.get("/yo", dentro, async (_req, res) => {
@@ -96,6 +97,8 @@ export function rutasDeSesionPropia(deps: DepsApi): Router {
       configuracion: { modo_cierre: (await leerConfiguracion(ctx.db)).modoCierre, chatwoot_url_publica: deps.chatwootUrlPublica },
       // V1: los módulos encendidos de la organización. La interfaz oculta lo apagado y no pide nada de ello.
       modulos,
+      // V13-fix (EV-15): los tipos de tarea cuyo módulo está apagado (la interfaz no los ofrece en el filtro de tareas).
+      tipos_de_tarea_apagados: tiposDeTareaApagados(modulos),
     });
   });
 

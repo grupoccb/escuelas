@@ -11,7 +11,8 @@
 // (un script y un estilo con nonce por respuesta). Los errores no llevan nada interno.
 
 import { randomBytes } from "node:crypto";
-import express, { type NextFunction, type Request, type Response, Router } from "express";
+import express, { type NextFunction, type Request, type Response, type Router } from "express";
+import { crearRouter } from "./enrutador.ts";
 import { origenAceptado, type PoliticaDeOrigenes } from "../api/csrf.ts";
 import { LIMITE_CUERPO_LANDING } from "../api/cuerpos.ts";
 import { cargarLanding, enlaceSimulado, leerParametros, registrarEnvioDeLanding, validarEnvio, type Landing } from "../captacion/landing.ts";
@@ -66,7 +67,7 @@ function politica(res: Response, nonce: string): void {
 }
 
 export function rutasDeLanding(deps: DepsLanding): Router {
-  const r = Router();
+  const r = crearRouter();
   const ahora = (): Date => deps.reloj?.() ?? new Date();
 
   /** Una página de error, igual para «no existe» y «es ambigua». */

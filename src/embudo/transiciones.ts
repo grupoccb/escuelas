@@ -22,7 +22,7 @@ export type ReglaDeMatriz = "permitida" | "solo_administrador" | "prohibida";
 /** Qué clase de movimiento es. `lateral`: a una etapa del mismo orden. */
 export type TipoDeMovimiento = "avance" | "retroceso" | "lateral" | "perdida" | "recuperacion" | "inscripcion_a_mano" | "correccion_de_inscrito_a_mano";
 
-/** Largo mínimo (sin espacios de los lados) de la nota al marcar a un lead como inscrito a mano o al corregirlo: una frase, no un «ok». */
+/** Largo mínimo (en letras y dígitos: ni espacios, ni signos, ni caracteres invisibles, ver `nota.ts`) de la nota al marcar a un lead como inscrito a mano o al corregirlo: una frase, no un «ok». */
 export const LARGO_MINIMO_NOTA_A_MANO = 10;
 
 export type MotivoDeRechazoDeTransicion =
@@ -107,9 +107,9 @@ export const MENSAJE_DE_RECHAZO: Record<MotivoDeRechazoDeTransicion, string> = {
   falta_nota_recuperacion: "Para recuperar un lead perdido hace falta una nota que diga cómo se recuperó",
   perdido_a_inscrito: "Esta familia está marcada como perdida: primero recupérala y después márcala como inscrita",
   falta_nota_inscrito_a_mano: "Para marcar a la familia como inscrita hace falta una nota que diga cómo se inscribió",
-  nota_inscrito_a_mano_corta: `La nota es muy corta: cuenta cómo se inscribió (al menos ${LARGO_MINIMO_NOTA_A_MANO} caracteres)`,
+  nota_inscrito_a_mano_corta: `La nota es muy corta: cuenta cómo se inscribió (al menos ${LARGO_MINIMO_NOTA_A_MANO} caracteres, con letras o números)`,
   falta_nota_correccion: "Para corregir una inscripción marcada a mano hace falta una nota que diga por qué se corrige",
-  nota_correccion_corta: `La nota es muy corta: cuenta por qué se corrige (al menos ${LARGO_MINIMO_NOTA_A_MANO} caracteres)`,
+  nota_correccion_corta: `La nota es muy corta: cuenta por qué se corrige (al menos ${LARGO_MINIMO_NOTA_A_MANO} caracteres, con letras o números)`,
 };
 
 // ── Tiempo en cada etapa ───────────────────────────────────────────────────────────────────────────────

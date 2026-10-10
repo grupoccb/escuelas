@@ -7,7 +7,9 @@
 // Los reportes de I1 a I3 se descargan con `?formato=csv` en su propia ruta. Las listas grandes (leads, uniformes) se escriben por lotes con cursor, sin cargarlas enteras en memoria. Descarga con `Content-Disposition`, BOM UTF-8, escape correcto y protección
 // contra inyección de fórmulas (`src/exportacion/csv.ts`); el dinero sale como texto decimal exacto.
 
-import { Router } from "express";
+import { leerModulos } from "../../modulos/index.ts";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { dondeTutorVisible } from "../../familias/alcance.ts";
 import { estadoDeCuentaDeFamilia } from "../../finanzas/estado-cuenta.ts";
 import { dondePorEntregar, presentarPorEntregar, SELECCION_POR_ENTREGAR } from "../../finanzas/por-entregar.ts";
@@ -56,7 +58,7 @@ const COLUMNAS_CUENTA: Columna<FilaDeCuenta>[] = [
 ];
 
 export function rutasDeExportaciones(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/exportaciones/estado-cuenta", requierePermiso("estado_cuenta:leer"), async (req, res) => {
     const ctx = contextoDe(res);
@@ -112,6 +114,8 @@ export function rutasDeExportaciones(_deps: DepsApi): Router {
       const manos = await inscritosAMano(ctx.db, { leadIds: lote.map((l) => l.id) });
       return lote.map((l) => ({ ...l, inscrito: l.etapa.es_ganado || l.etapa.tipo_sistema === "inscrito", a_mano: manos.has(l.id) }));
     };
+    // V13-fix (EV-21): con la inscripción apagada la escuela no tiene inscripciones: «Cómo se inscribió» solo dice «A mano» (lo que SÍ pasa con el módulo apagado, V10b) y nunca «Por inscripción».
+    const conInscripcion = (await leerModulos(ctx.db)).inscripcion;
     const columnas: Columna<Awaited<ReturnType<typeof pedir>>[number]>[] = [
       { titulo: "Fecha", valor: (l) => fechaLocal(l.creado_en, l.sucursal_interes?.zona_horaria ?? "UTC") },
       { titulo: "Contacto", valor: (l) => l.nombre_contacto },
@@ -121,7 +125,7 @@ export function rutasDeExportaciones(_deps: DepsApi): Router {
       { titulo: "Etapa", valor: (l) => l.etapa.nombre },
       { titulo: "Campaña", valor: (l) => l.campana?.nombre },
       { titulo: "Fuente", valor: (l) => fuenteDe(l) },
-      { titulo: "Cómo se inscribió", valor: (l) => (!l.inscrito ? null : l.a_mano ? "A mano" : "Por inscripción") },
+      { titulo: "Cómo se inscribió", valor: (l) => (!l.inscrito ? null : l.a_mano ? "A mano" : conInscripcion ? "Por inscripción" : null) },
     ];
     await enviarCsvPorLotes(res, "leads", columnas, pedir, { alFallar: (e) => log.error("exportacion_fallida", { ruta: "leads", error: e instanceof Error ? e.message : "desconocido" }) });
   });

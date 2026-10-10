@@ -8,6 +8,7 @@
 // Al terminar corre la cuadratura del dinero y sale con 1 si no cuadra.
 
 import { parseArgs } from "node:util";
+import { revisarGuardasDeScript } from "./lib/demo-todo.ts";
 import { crearPrisma } from "../src/datos/prisma.ts";
 import { listarOrganizaciones } from "../src/datos/sistema.ts";
 import { generarDatosDeDemo } from "../src/demo/generador.ts";
@@ -35,6 +36,15 @@ if (!esDePruebas && !o["confirmar-base-de-demo"]) {
   console.error(`La base «${base}» no es una base de pruebas. Los datos de demo escriben miles de filas: si de verdad quieres cargarlos en ella, repite el comando con --confirmar-base-de-demo.`);
   process.exit(2);
 }
+// V13-fix (EV-09): además de la bandera, las guardas de `demo:todo`: nunca con NODE_ENV=production, solo con una base local y, fuera de una base de pruebas, solo en la organización de la demo.
+function negarSi(h: ReturnType<typeof revisarGuardasDeScript>): void {
+  if (h.length === 0) return;
+  for (const x of h) console.error(`demo:datos se niega: ${x.mensaje}`);
+  process.exit(2);
+}
+const QUE = "este guion escribe miles de filas de ejemplo";
+negarSi(revisarGuardasDeScript(process.env, { que: QUE }));
+process.env["NODE_ENV"] ??= "development";
 const entero = (v: string | undefined, nombre: string, min: number, max: number): number | undefined => {
   if (v === undefined) return undefined;
   const n = Number(v);
@@ -50,6 +60,7 @@ try {
   const todas = await listarOrganizaciones(prisma);
   const elegida = o.organizacion ? todas.find((x) => x.id === o.organizacion || x.nombre === o.organizacion) : todas.length === 1 ? todas[0] : undefined;
   if (!elegida) throw new Error(o.organizacion ? `No hay una organización «${o.organizacion}»` : "Hay varias organizaciones: indica cuál con --organizacion");
+  negarSi(revisarGuardasDeScript(process.env, { organizacion: { slug: elegida.slug ?? "", nombre: elegida.nombre }, que: QUE }));
   const semilla = entero(o.semilla, "semilla", 1, 2_147_483_647);
   const alumnos = entero(o.alumnos, "alumnos", 1, 5000);
   const meses = entero(o.meses, "meses", 1, 24);

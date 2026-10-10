@@ -14,7 +14,8 @@
 // `src/promociones/condicion.ts` y en un CHECK de la base. `cupo_usado` solo lo mueve el consumo atómico; no se edita.
 // El código se guarda en MAYÚSCULAS y es único entre las promociones vivas.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { aFecha, deFecha } from "../../catalogo/precios.ts";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
@@ -253,7 +254,7 @@ function beneficioValidado(b: { tipo: (typeof TIPOS_DE_BENEFICIO)[number]; modo:
 }
 
 export function rutasDePromociones(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/promociones", requierePermiso("catalogo:leer"), async (req, res) => {

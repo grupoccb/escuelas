@@ -7,6 +7,7 @@
 // con ese nombre. Sin cookie segura (demo en http) no se puede usar el prefijo y el nombre es `sesion`.
 
 import type { Request, Response } from "express";
+import { esProduccion } from "../seguridad/entorno.ts";
 
 export const NOMBRE_COOKIE_SESION = "sesion";
 export const NOMBRE_COOKIE_SESION_SEGURA = "__Host-sesion";
@@ -44,5 +45,5 @@ export function cookieSeguraDesdeEntorno(env: NodeJS.ProcessEnv = process.env): 
   const forzada = env["COOKIE_SEGURA"];
   if (forzada === "true") return true;
   if (forzada === "false") return false;
-  return env["NODE_ENV"] === "production";
+  return esProduccion(env);
 }

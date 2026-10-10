@@ -9,7 +9,8 @@
 // `orden` y `nombre` no se repiten entre los peldaños vivos de una vertical (índice único parcial): 409. `clases_minimas` son las asistencias `presente` que
 // hacen falta desde el peldaño anterior para ser elegible a ESTE peldaño (G4).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
@@ -46,7 +47,7 @@ const instantanea = (n: { vertical_id: string; nombre: string; orden: number; co
 });
 
 export function rutasDeNiveles(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/niveles", requierePermiso("catalogo:leer"), async (req, res) => {

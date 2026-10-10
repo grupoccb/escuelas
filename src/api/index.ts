@@ -9,7 +9,8 @@
 //      por omisión, EB-09). `rutas.test.ts` recorre el router real y compara con una tabla escrita a mano;
 //   4. 404 en JSON para rutas desconocidas, y el manejador de errores de la convención.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../http/enrutador.ts";
 import { BLOQUEO_POR_DEFECTO, type ConfigBloqueo } from "../auth/acceso.ts";
 import { PARAMETROS_POR_DEFECTO, type ParametrosScrypt } from "../auth/contrasena.ts";
 import { configSesionDesdeEntorno, type ConfigSesion } from "../auth/sesiones.ts";
@@ -23,7 +24,7 @@ import type { DepsApi } from "./contexto.ts";
 import { cookieSeguraDesdeEntorno } from "./cookies.ts";
 import { origenesPermitidosDesdeEntorno, proteccionCsrf } from "./csrf.ts";
 import { noEncontrado } from "./errores.ts";
-import { esEntornoLocal } from "../seguridad/entorno.ts";
+import { esEntornoDeDemo, esEntornoLocal, esProduccion } from "../seguridad/entorno.ts";
 import { guardaDeModulos } from "./modulos-rutas.ts";
 import { manejadorDeErroresApi } from "./errores-http.ts";
 import { rutasDeAdministracion } from "./rutas/administracion.ts";
@@ -111,6 +112,8 @@ export interface ApiDepsEntrada {
   fuenteOcupacion?: FuenteOcupacion;
   /** Estado de cuenta y productos del expediente (G5). Por omisión nulos hasta que la etapa H los enchufe. */
   expediente?: Partial<ProveedoresDelExpediente>;
+  /** V13-fix (EV-36): tope de filas que revisa una búsqueda por nombre de familias o alumnos (por omisión 20 000). Los tests lo bajan para probar el aviso de «hay más». */
+  topeDeBusquedaPorNombre?: number;
 }
 
 export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
@@ -119,7 +122,7 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
   return {
     prisma: e.prisma,
     reloj,
-    acceso: { prisma: e.prisma, reloj, sesion, bloqueo: e.bloqueo ?? BLOQUEO_POR_DEFECTO, parametrosHash: e.parametrosHash ?? PARAMETROS_POR_DEFECTO },
+    acceso: { prisma: e.prisma, reloj, sesion, bloqueo: e.bloqueo ?? BLOQUEO_POR_DEFECTO, parametrosHash: e.parametrosHash ?? PARAMETROS_POR_DEFECTO, negarContrasenasPublicas: esProduccion(e.entorno ?? process.env) && !esEntornoDeDemo(e.entorno ?? process.env) },
     cookieSegura: e.cookieSegura ?? cookieSeguraDesdeEntorno(e.entorno),
     origenesPermitidos: e.origenesPermitidos ?? origenesPermitidosDesdeEntorno(e.entorno),
     origenesLocales: e.origenesLocales ?? esEntornoLocal(e.entorno ?? process.env),
@@ -128,12 +131,13 @@ export function resolverDepsApi(e: ApiDepsEntrada): DepsApi {
     fuenteOcupacion: e.fuenteOcupacion ?? new InscripcionesActivas(),
     expediente: { ...PROVEEDORES_NULOS, ...e.expediente },
     chatwootUrlPublica: urlPublicaDeChatwoot(e.entorno ?? process.env),
+    topeDeBusquedaPorNombre: e.topeDeBusquedaPorNombre ?? 20_000,
   };
 }
 
 export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   const deps = resolverDepsApi(entrada);
-  const api = Router();
+  const api = crearRouter();
 
   api.use(cabecerasDeApi);
   const { limites, limitador } = entrada;

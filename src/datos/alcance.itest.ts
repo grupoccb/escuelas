@@ -115,3 +115,23 @@ test("el cliente con alcance no ofrece SQL crudo, ni fuera ni dentro de una tran
     assert.throws(() => dentro["$queryRaw"]!("SELECT count(*) FROM lead"), ErrorAlcance);
   });
 });
+
+// V13-fix EV-23: la ÚNICA excepción a «lo borrado no se ve» es preguntar si la organización tuvo una fila de configuración dada de baja (`findFirst` sobre `configuracion_organizacion` con
+// `eliminado_en: { not: null }`). No vale para otra tabla ni para otra operación, y nunca cruza organizaciones.
+test("EV-23: ver las filas de configuración dadas de baja es posible SOLO con findFirst sobre esa tabla y solo de la propia organización; en cualquier otra tabla u operación lo borrado sigue oculto", async () => {
+  const org = await sembrarOrganizacion(prisma, "Baja de configuración");
+  const otra = await sembrarOrganizacion(prisma, "Baja de configuración ajena");
+  const fila = await prisma.configuracion_organizacion.create({ data: { organizacion_id: org.organizacionId, eliminado_en: new Date() } });
+  await prisma.configuracion_organizacion.create({ data: { organizacion_id: otra.organizacionId, eliminado_en: new Date() } });
+  const db = conAlcance(prisma, org.organizacionId);
+  const bajas = await db.configuracion_organizacion.findFirst({ where: { eliminado_en: { not: null } }, select: { id: true, organizacion_id: true } });
+  assert.equal(bajas?.id, fila.id);
+  assert.equal(bajas?.organizacion_id, org.organizacionId);
+  assert.equal(await db.configuracion_organizacion.findFirst({ select: { id: true } }), null, "sin pedirlo, lo borrado no se ve");
+  assert.equal(await db.configuracion_organizacion.count({ where: { eliminado_en: { not: null } } }), 0, "count no tiene la excepción");
+  assert.equal((await db.configuracion_organizacion.findMany({ where: { eliminado_en: { not: null } } })).length, 0, "findMany no tiene la excepción");
+  assert.equal(await db.lead.findFirst({ where: { eliminado_en: { not: null } } }), null, "otra tabla no tiene la excepción");
+  // Otra organización que no tuvo una baja no la ve en la de al lado.
+  const sinBaja = await sembrarOrganizacion(prisma, "Sin baja de configuración");
+  assert.equal(await conAlcance(prisma, sinBaja.organizacionId).configuracion_organizacion.findFirst({ where: { eliminado_en: { not: null } } }), null);
+});

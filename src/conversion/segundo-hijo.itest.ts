@@ -260,6 +260,25 @@ test("SALIDA 2: dejar fuera a ese niño — convertir solo a los marcados deja a
   assert.deepEqual(ficha.cuerpo.prospectos.map((p) => p.alumno_id !== null), [true, false]);
 });
 
+// V13-fix EV-29: `prospectos: []` respondía «ya convertido» con 200 sin convertir a nadie.
+test("EV-29: convertir con una lista de niños VACÍA es un 400 claro y no cambia nada; con una lista de un niño convierte solo a ese", async () => {
+  const m = await mundo();
+  const f = await familiaConHermanos(m, [{ nombre: "Segunda", apellidos: "Mena Ruiz", fecha: "2020-09-09" }]);
+  const alumnosAntes = await prisma.alumno.count({ where: { organizacion_id: m.org.organizacionId } });
+  for (const cliente of [m.asesor, m.admin]) {
+    const vacia = await cliente.post<Errores>(`/api/leads/${f.leadId}/convertir`, { tutor: { parentesco: "madre" }, prospectos: [] });
+    assert.equal(vacia.estado, 400, JSON.stringify(vacia.cuerpo));
+    assert.equal(vacia.cuerpo.error.codigo, "validacion");
+    const detalle = vacia.cuerpo.error.detalles!.find((d) => d.campo === "prospectos")!;
+    assert.match(detalle.mensaje, /al menos un niño/);
+  }
+  assert.equal(await prisma.alumno.count({ where: { organizacion_id: m.org.organizacionId } }), alumnosAntes);
+  // Con la lista de verdad (un niño), convierte solo a ese.
+  const uno = await m.asesor.post<Conv>(`/api/leads/${f.leadId}/convertir`, { tutor: { parentesco: "madre" }, prospectos: [{ prospecto_id: f.ids[0], inscripcion: { grupo_id: m.grupos[0]! } }] });
+  assert.equal(uno.estado, 201, JSON.stringify(uno.cuerpo));
+  assert.equal(uno.cuerpo.alumnos.length, 1);
+});
+
 test("HERMANO TARDÍO: un lead ya inscrito recibe a otro niño; se convierte sin pedir nada del adulto, a la misma familia y con la promoción por hermanos", async () => {
   const m = await mundo();
   await m.promoHermanos("Hermanos", 2, { mensualidad: "10.00" });

@@ -7,6 +7,7 @@ import { TransporteChatwoot } from "./chatwoot/transporte.ts";
 import { DirectorioAgentesFalso, type DirectorioAgentes } from "./directorio.ts";
 import { TransporteFalso } from "./fake.ts";
 import { MessagingProvider } from "./provider.ts";
+import { esProduccion } from "../seguridad/entorno.ts";
 
 export {
   MessagingProvider,
@@ -97,7 +98,7 @@ export function mensajeriaDesdeEntorno(env: NodeJS.ProcessEnv = process.env): Me
   }
   // En producción un secreto mal puesto no puede dar un backend "sano" que registra mensajes como
   // enviados sin entregar nada (F1-11): mejor que no arranque.
-  if (env["NODE_ENV"] === "production") {
+  if (esProduccion(env)) {
     throw new Error(
       "Faltan CHATWOOT_URL o CHATWOOT_BOT_TOKEN: con NODE_ENV=production no se usa el transporte falso, porque marcaría mensajes como enviados sin entregarlos.",
     );
@@ -138,7 +139,7 @@ export function directorioAgentesDesdeEntorno(env: NodeJS.ProcessEnv = process.e
   const url = env["CHATWOOT_URL"];
   const tokenAdmin = env["CHATWOOT_ADMIN_TOKEN"];
   if (url && tokenAdmin) return new DirectorioAgentesChatwoot({ url, tokenAdmin });
-  if (env["NODE_ENV"] === "production") {
+  if (esProduccion(env)) {
     log.warn("directorio_agentes_sin_configurar", { motivo: "faltan CHATWOOT_URL o CHATWOOT_ADMIN_TOKEN" });
     return null;
   }

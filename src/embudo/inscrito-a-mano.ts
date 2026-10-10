@@ -1,7 +1,7 @@
 // Leads «inscritos a mano» (V10b): con el módulo de inscripción apagado, una persona mueve al lead a la etapa de inscrito con una nota (`lead_etapa_historial.a_mano`).
 // UNA sola definición para la regla de corrección, la ficha y los reportes (leads, costo por campaña y clases muestra):
 //
-//   un lead está INSCRITO A MANO si hoy está en una etapa ganada, la última vez que entró a ella fue por una marca a mano y NO tiene ninguna inscripción real.
+//   un lead está INSCRITO A MANO si hoy está en una etapa ganada, la última vez que entró a ella fue por una marca a mano y NO tiene ninguna inscripción real (activa).
 //
 // En cuanto la escuela enciende la inscripción y la familia se inscribe de verdad, el lead tiene una inscripción: deja de ser «a mano» y cuenta una sola vez, por la
 // inscripción (el historial conserva las dos cosas). Todo va por el scope de organización (invariante 1) y no cuenta lo borrado (invariante 3).
@@ -26,7 +26,9 @@ export async function inscritosAMano(db: Consultas, opciones: { leadIds?: readon
   const [leads, filas, conInscripcion] = await Promise.all([
     db.lead.findMany({ where: { id: { in: candidatos } }, select: { id: true, etapa_id: true } }),
     db.lead_etapa_historial.findMany({ where: { lead_id: { in: candidatos } }, orderBy: [{ secuencia: "asc" }], select: { id: true, lead_id: true, etapa_nueva_id: true, a_mano: true, usuario_id: true, creado_en: true } }),
-    db.inscripcion.findMany({ where: { lead_id: { in: candidatos } }, select: { lead_id: true } }),
+    // V13-fix (EV-31): una inscripción REAL es una ACTIVA (el mismo criterio con que el costo por campaña cuenta las inscripciones). Una dada de baja no cuenta: antes un lead que se inscribió, se dio de baja
+    // y se volvía a marcar a mano no era «a mano» ni tenía inscripción activa, y no aparecía en ningún conteo.
+    db.inscripcion.findMany({ where: { lead_id: { in: candidatos }, estatus: "activa" }, select: { lead_id: true } }),
   ]);
   const inscritos = new Set(conInscripcion.map((i) => i.lead_id));
   const etapaActual = new Map(leads.map((l) => [l.id, l.etapa_id]));

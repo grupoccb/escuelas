@@ -104,7 +104,7 @@ export async function correrAutomatizaciones(deps: DepsMotor): Promise<ResumenMo
     await aislado(resumen, { organizacionId: org.id, fase: "programar" }, async () => {
       resumen.programadas += await programarReenganches(db, ahora, resumen, modulos);
     });
-    await aislado(resumen, { organizacionId: org.id, fase: "ejecutar" }, () => ejecutarVencidas(deps, db, ahora, resumen, modulos));
+    await aislado(resumen, { organizacionId: org.id, fase: "ejecutar" }, () => ejecutarVencidas(deps, db, ahora, resumen));
   }
   return resumen;
 }
@@ -232,7 +232,7 @@ interface Progreso {
   mensajeId?: string;
 }
 
-async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor, modulos: ModulosEncendidos): Promise<void> {
+async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, resumen: ResumenMotor): Promise<void> {
   for (const e of await leerVencidas(db, ahora)) {
     // Reclamar antes de actuar: solo quien gana el reclamo manda (invariante 8). Se guarda la hora
     // REAL del reclamo, no la del inicio de la corrida: con una corrida larga o con réplicas, un
@@ -244,7 +244,9 @@ async function ejecutarVencidas(deps: DepsMotor, db: BaseDatos, ahora: Date, res
     if (reclamo.count !== 1) continue;
     const progreso: Progreso = {};
     try {
-      await ejecutarUna(deps, db, e, ahora, resumen, progreso, modulos);
+      // V13-fix (EV-11): los módulos se vuelven a leer ANTES DE CADA ejecución, no solo al empezar la corrida (que puede durar hasta 200 envíos): si el administrador apaga un módulo a
+      // mitad, lo que falta por salir de ese módulo se omite en lugar de mandarse. (`modulos`, el de inicio de corrida, sigue gobernando qué se PROGRAMA.)
+      await ejecutarUna(deps, db, e, ahora, resumen, progreso, await leerModulos(db));
     } catch (err) {
       log.error("automatizacion_error", { ejecucionId: e.id, error: (err as Error).message });
       try {
@@ -502,6 +504,11 @@ async function ejecutarUna(deps: DepsMotor, db: BaseDatos, e: Vencida, ahora: Da
   if (r?.resultado === "enviado") {
     await db.automatizacion_ejecucion.update({ where: { id: e.id }, data: { estatus: "enviado", mensaje_id: mensajeId ?? null } });
     if (clase && evento === "clase_muestra_proxima") await db.clase_muestra.updateMany({ where: { id: clase.id }, data: { ultimo_recordatorio_en: ahora } });
+    // V13-fix (EV-27): salió el aviso bueno del cambio de clase: la tarea «avísale a mano» de un cambio ANTERIOR (o de este mismo) de la clase de ese niño ya no tiene nada que hacer. Antes se quedaba
+    // pendiente con una fecha vieja aunque la familia ya sabía la nueva. Solo las de clases creadas hasta esta: la de un cambio posterior sigue pendiente (este aviso ya no le sirve).
+    if (clase && esEventoDeCambioDeClase(evento)) {
+      await db.tarea_asesor.updateMany({ where: { tipo: "avisar_cambio_de_clase", estado: "pendiente", clase_muestra: { prospecto_id: clase.prospecto_id, creado_en: { lte: clase.creado_en } } }, data: { estado: "hecha", resuelta_en: ahora } });
+    }
     resumen.enviadas++;
     return;
   }
@@ -712,6 +719,7 @@ const SELECCION_CLASE = {
   prospecto_id: true,
   estatus: true,
   fecha_hora: true,
+  creado_en: true,
   prospecto: { select: { nombre: true } },
   grupo: { select: { nombre: true, programa: { select: { sucursal: { select: { nombre: true, zona_horaria: true } } } } } },
   reprogramada_de: { select: { fecha_hora: true, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } } },

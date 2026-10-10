@@ -141,16 +141,46 @@ test("vencido: el domingo no se cobra (pasa al lunes 09:00), el segundo recordat
     // Aún no pasan los 7 días (6 días después, el sábado 28): ni se programa el segundo.
     assert.equal((await c.corre("2026-11-28T16:00:00Z")).enviadas, 0);
     assert.equal((await c.ejecuciones(f.mens.id)).length, 1);
-    // El segundo toca el domingo 29: se programa para el lunes 30 a las 09:00 y no sale antes.
+    // V13-fix (EV-05): el espaciado cuenta desde el ENVÍO del primero (lunes 23 a las 09:00), así que el domingo 29 todavía no toca: se programa el lunes 30 a las 09:00 y sale en ese momento.
     assert.equal((await c.corre("2026-11-29T16:00:00Z")).enviadas, 0);
-    assert.deepEqual((await c.ejecuciones(f.mens.id)).map((x) => [x.ocurrencia, x.programado_para.toISOString()]), [[1, "2026-11-23T15:00:00.000Z"], [2, "2026-11-30T15:00:00.000Z"]]);
+    assert.deepEqual((await c.ejecuciones(f.mens.id)).map((x) => [x.ocurrencia, x.programado_para.toISOString()]), [[1, "2026-11-23T15:00:00.000Z"]]);
     assert.equal((await c.corre("2026-11-30T14:00:00Z")).enviadas, 0);
     assert.equal((await c.corre("2026-11-30T15:00:00Z")).enviadas, 1);
+    assert.deepEqual((await c.ejecuciones(f.mens.id)).map((x) => [x.ocurrencia, x.programado_para.toISOString()]), [[1, "2026-11-23T15:00:00.000Z"], [2, "2026-11-30T15:00:00.000Z"]]);
     assert.deepEqual(c.envios().map((e) => e.codigo), [c.plantillaVencido, c.plantillaVencido]);
     // Ya no hay un tercero, por más que pase el tiempo.
     assert.equal((await c.corre("2026-12-14T16:00:00Z")).enviadas, 0);
     assert.equal((await c.ejecuciones(f.mens.id)).length, 2);
     assert.match(c.envios()[1]!.texto, /venció el viernes 20 de noviembre/);
+  } finally {
+    await c.apagar();
+  }
+});
+
+// V13-fix EV-05: el espaciado cuenta desde el ENVÍO anterior. Si el primer recordatorio sale semanas tarde (finanzas o la automatización estuvieron apagadas), el segundo no sale al día
+// siguiente porque «su fecha» —contada desde el vencimiento— ya quedó en el pasado.
+test("EV-05: si el primer recordatorio de un cargo vencido sale 31 días tarde, el segundo espera los 7 días del espaciado DESDE ese envío (antes salía al día siguiente)", async () => {
+  const c = await cobranza({ porVencer: false, maxIntentos: 2 });
+  try {
+    const f = await familia();
+    // El cargo venció el 20 de nov y el motor corre por primera vez el 11 de dic (jueves, 10:00 locales).
+    assert.equal((await c.corre("2026-12-11T16:00:00Z")).enviadas, 1);
+    assert.equal(c.envios().length, 1);
+    const primero = (await c.ejecuciones(f.mens.id))[0]!;
+    assert.equal(primero.estatus, "enviado");
+    // Al día siguiente, y a los 6 días, NO sale el segundo ni se programa.
+    for (const iso of ["2026-12-12T16:00:00Z", "2026-12-14T16:00:00Z", "2026-12-17T16:00:00Z"]) {
+      assert.equal((await c.corre(iso)).enviadas, 0, iso);
+      assert.equal(c.envios().length, 1, iso);
+      assert.equal((await c.ejecuciones(f.mens.id)).length, 1, `${iso}: no se programó el segundo`);
+    }
+    // A los 7 días del envío (jueves 18 de dic), sí.
+    assert.equal((await c.corre("2026-12-18T16:00:00Z")).enviadas, 1);
+    assert.equal(c.envios().length, 2);
+    const ejecuciones = await c.ejecuciones(f.mens.id);
+    assert.deepEqual(ejecuciones.map((x) => [x.ocurrencia, x.estatus]), [[1, "enviado"], [2, "enviado"]]);
+    // Y el segundo no salió antes de 7 días después del primero.
+    assert.ok(ejecuciones[1]!.programado_para.getTime() - (primero.programado_para.getTime()) >= 7 * 24 * 3600_000 - 24 * 3600_000);
   } finally {
     await c.apagar();
   }

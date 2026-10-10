@@ -11,7 +11,8 @@
 // de quien pregunta responde 404, igual que una inexistente o de otra organización. `fecha` (AAAA-MM-DD)
 // permite cotizar «como si fuera ese día»; por omisión, hoy en la zona horaria de la sucursal.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { cargarCatalogoCotizable } from "../../cotizador/cargar.ts";
 import { cotizar } from "../../cotizador/cotizar.ts";
 import { cotizacionAJson } from "../../cotizador/json.ts";
@@ -33,7 +34,7 @@ const esquemaConsulta = objeto({
 });
 
 export function rutasDeCotizador(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/cotizador", requierePermiso("cotizador:leer"), async (req, res) => {
     const ctx = contextoDe(res);

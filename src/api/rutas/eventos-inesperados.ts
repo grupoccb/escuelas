@@ -5,7 +5,8 @@
 //
 // Solo los de esta organización. Los que no se pudieron atar a ninguna (JSON roto, receptor desconocido) no pertenecen a nadie y no aparecen aquí: están en los logs.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
@@ -16,7 +17,7 @@ const CAUSAS = ["json_invalido", "forma_inesperada", "sin_identificador", "dato_
 const esquemaListado = objeto({ ...esquemaPaginacion, origen: opcional(enumerado(ORIGENES)), causa: opcional(enumerado(CAUSAS)), pendientes: opcional(booleanoDeTexto()) });
 
 export function rutasDeEventosInesperados(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   r.get("/eventos-inesperados", requierePermiso("registro_cambios:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaListado, req.query);

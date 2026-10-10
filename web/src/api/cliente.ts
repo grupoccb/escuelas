@@ -128,7 +128,7 @@ export const api = {
 
 export interface Pagina<T> {
   datos: T[];
-  paginacion: { pagina: number; limite: number; total: number };
+  paginacion: { pagina: number; limite: number; total: number; busqueda_incompleta?: boolean };
 }
 
 /** Todas las páginas de una lista (hasta `maximo` filas), de 100 en 100. `truncado`: hubo más de las que se trajeron. */

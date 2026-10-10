@@ -6,7 +6,7 @@ import { request, type APIRequestContext, type BrowserContext, type Page } from 
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, mundo, test, VISTA_CELULAR, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { CONTRASENA_DE_PRUEBA, sembrarUsuario } from "../../src/testutil/api.ts";
 import { fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, type OrganizacionDePrueba } from "../../src/testutil/semilla.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
@@ -14,7 +14,7 @@ import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/pri
 test.describe.configure({ mode: "serial" });
 test.setTimeout(45_000);
 
-const CARPETA = resolve(RAIZ, "docs/capturas/v1");
+const CARPETA = carpetaDeCapturas("v1");
 const SOLO_CAPTACION = { modulo_cotizador: false, modulo_clase_muestra: false, modulo_inscripcion: false, modulo_operacion: false, modulo_finanzas: false, modulo_tableros: false };
 const TODO_ENCENDIDO = { modulo_cotizador: true, modulo_clase_muestra: true, modulo_inscripcion: true, modulo_operacion: true, modulo_finanzas: true, modulo_tableros: true };
 const NOTA = "Se inscribió en persona con la maestra y pagó en efectivo";

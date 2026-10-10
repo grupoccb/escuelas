@@ -22,11 +22,20 @@ export function sePuedeMarcarComoInscrito(o: { inscripcionEncendida: boolean; pu
   return !esEtapaDeInscrito(o.etapaActual) && !esEtapaPerdida(o.etapaActual);
 }
 
+/** Caracteres de formato, de control y «rellenos» que se ven como nada: los mismos que quita el servidor (`src/embudo/nota.ts`). */
+// (Armada con `new RegExp`: el linter protesta de los caracteres combinantes dentro de una clase escrita como literal.)
+const INVISIBLES = new RegExp("[\\p{Cf}\\p{Cc}\\p{Zl}\\p{Zp}\\u2800\\u3164\\uFFA0\\u115F\\u1160\\u180E]", "gu");
+/** La nota sin invisibles ni espacios de los lados, y cuántas letras y dígitos trae (lo que cuenta para el mínimo). */
+export function notaNormalizada(nota: string): { texto: string; utiles: number } {
+  const texto = nota.replace(/[\t\n\r]/g, " ").replace(INVISIBLES, "").trim();
+  return { texto, utiles: texto.match(/[\p{L}\p{N}]/gu)?.length ?? 0 };
+}
+
 /** Qué falta en la nota (null si está bien): el mismo criterio que el servidor, con el mismo texto. */
 export function problemaDeNota(nota: string): string | null {
-  const t = nota.trim();
-  if (t === "") return "Escribe cómo se inscribió";
-  if (t.length < LARGO_MINIMO_NOTA) return `Cuenta un poco más: la nota necesita al menos ${LARGO_MINIMO_NOTA} caracteres`;
+  const { texto: t, utiles } = notaNormalizada(nota);
+  if (t === "" || utiles === 0) return "Escribe cómo se inscribió";
+  if (utiles < LARGO_MINIMO_NOTA) return `Cuenta un poco más: la nota necesita al menos ${LARGO_MINIMO_NOTA} caracteres, con letras o números`;
   if (t.length > LARGO_MAXIMO_NOTA) return `La nota es muy larga: máximo ${LARGO_MAXIMO_NOTA} caracteres`;
   return null;
 }

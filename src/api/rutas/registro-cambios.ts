@@ -4,7 +4,8 @@
 //
 // Orden: lo más reciente primero (`creado_en` desc, `id` desc: estable entre páginas).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
@@ -15,7 +16,7 @@ const ENTIDADES = Object.keys(CAMPOS_AUDITABLES) as [keyof typeof CAMPOS_AUDITAB
 const esquemaListado = objeto({ ...esquemaPaginacion, entidad_tipo: opcional(enumerado(ENTIDADES)), entidad_id: opcional(uuid()), usuario_id: opcional(uuid()) });
 
 export function rutasDeRegistroCambios(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/registro-cambios", requierePermiso("registro_cambios:leer"), async (req, res) => {
     const ctx = contextoDe(res);

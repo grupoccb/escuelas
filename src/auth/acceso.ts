@@ -18,7 +18,7 @@ import type { PrismaRaiz } from "../datos/prisma.ts";
 import { resolverOrganizacionPorSlug, unicaOrganizacion } from "../datos/sistema.ts";
 import { llaveDeIp } from "../http/ip.ts";
 import { log } from "../lib/log.ts";
-import { hashContrasena, problemasDeContrasena, verificarContrasena, verificarContrasenaFicticia, PARAMETROS_POR_DEFECTO, type ParametrosScrypt } from "./contrasena.ts";
+import { esContrasenaPublicaDeDemo, hashContrasena, problemasDeContrasena, verificarContrasena, verificarContrasenaFicticia, PARAMETROS_POR_DEFECTO, type ParametrosScrypt } from "./contrasena.ts";
 import { crearSesion, revocarSesionesDeUsuario, type ConfigSesion } from "./sesiones.ts";
 import type { Rol } from "./roles.ts";
 
@@ -59,6 +59,11 @@ export interface DepsAcceso {
   bloqueo: ConfigBloqueo;
   /** Parámetros de scrypt para los hashes NUEVOS (los tests usan los baratos). */
   parametrosHash: ParametrosScrypt;
+  /**
+   * V13-fix (EV-44): en una instalación real (producción sin la marca de demo) el inicio de sesión NIEGA las contraseñas públicas de la demo aunque el hash coincida: responde lo mismo que una
+   * contraseña mala. Por omisión no (los tests y la demo local entran con ellas); `resolverDepsApi` lo activa según el entorno.
+   */
+  negarContrasenasPublicas?: boolean;
 }
 
 export function depsAccesoPorDefecto(prisma: PrismaRaiz, sesion: ConfigSesion): DepsAcceso {
@@ -143,6 +148,11 @@ export async function iniciarSesion(deps: DepsAcceso, entrada: EntradaLogin): Pr
     select: { id: true, correo: true, nombre: true, rol: true, contrasena_hash: true, activo: true },
   });
   const acierta = usuario ? await verificarContrasena(entrada.contrasena, usuario.contrasena_hash) : await verificarContrasenaFicticia(entrada.contrasena);
+  if (usuario && usuario.activo && acierta && deps.negarContrasenasPublicas && esContrasenaPublicaDeDemo(entrada.contrasena)) {
+    // La contraseña es correcta pero es pública: cualquiera que lea el repositorio la sabe. Se niega con la respuesta de siempre (no se revela que la cuenta existe) y queda constancia.
+    log.warn("login_negado_contrasena_publica", { organizacion: organizacion.id, usuario_id: usuario.id, ip: entrada.ip });
+    throw new ErrorCredenciales();
+  }
   if (!usuario || !usuario.activo || !acierta) {
     log.warn("login_fallido", { organizacion: organizacion.id, ip: entrada.ip });
     throw new ErrorCredenciales();

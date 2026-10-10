@@ -11,7 +11,8 @@
 // Alcance: el lead tiene que ser de una sucursal tuya (404 si no) y el programa, de una sucursal tuya. Los importes
 // del snapshot son texto decimal.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { deFecha } from "../../catalogo/precios.ts";
 import { leerConfiguracion } from "../../configuracion/index.ts";
@@ -100,7 +101,7 @@ const esquemaAlta = objeto({
 });
 
 export function rutasDeCotizaciones(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** El lead, si es de una sucursal que ve quien pregunta. */

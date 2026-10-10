@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { conAlcance, altaConAlcance } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { sembrarEmbudo, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
+import { sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { levantarApi, sembrarUsuario, type ApiLevantada, type ClienteApi } from "../testutil/api.ts";
 import { etapaDeSistema } from "../embudo/etapas.ts";
 
@@ -222,4 +222,41 @@ test("EFECTO días de aviso: cambiar los días de una etapa cambia al instante q
   const propia = (await c.post<Etapa>("/api/etapas", { nombre: "Visita", dias_alerta_sin_movimiento: 2 })).cuerpo;
   const enPropia = await db.lead.create({ data: altaConAlcance({ vertical_interes_id: o.verticalId, sucursal_interes_id: o.sucursales[0]!.id, etapa_id: propia.id, telefono: "+5255222222222", ultima_interaccion_en: hace(3) }) });
   assert.deepEqual(await ids(), [enPropia.id]);
+});
+
+// V13-fix EV-24: quitar una etapa y mover un lead hacia ella a la vez. Contar los leads y dar de baja la etapa no estaba protegido contra un movimiento que llegaba en medio: el lead quedaba en
+// una etapa dada de baja (en 54 de 60 vueltas de la auditoría). Ahora cada vuelta tiene que terminar bien: o la etapa se quitó y el lead sigue donde estaba, o el lead se movió y la etapa
+// sigue viva (409 «hay leads en esta etapa»).
+test("EV-24 carrera: DELETE /etapas/:id contra PATCH /leads/:id/etapa hacia esa etapa, 60 vueltas, 0 leads en una etapa dada de baja", async () => {
+  const { o, etapas, c } = await organizacionConEmbudo("Carrera quitar etapa");
+  const asesor = await sembrarUsuario(prisma, o.organizacionId, { rol: "asesor", sucursales: o.sucursales.map((s) => s.id) });
+  const cAsesor = api.cliente();
+  assert.equal((await cAsesor.login(o.slug, asesor.correo, asesor.contrasena)).estado, 201);
+  const db = conAlcance(prisma, o.organizacionId);
+  let quitadas = 0;
+  let movidos = 0;
+  const malas: string[] = [];
+  for (let i = 0; i < 60; i++) {
+    const nueva = await c.post<Etapa & Err>("/api/etapas", { nombre: `Propia ${i}` });
+    assert.equal(nueva.estado, 201, JSON.stringify(nueva.cuerpo));
+    const f = await sembrarFamilia(prisma, o, { sucursalId: o.sucursales[0]!.id, etapaId: etapas["nuevo"] });
+    const [borrar, mover] = await Promise.all([c.delete<Err>(`/api/etapas/${nueva.cuerpo.id}`), cAsesor.patch<Err>(`/api/leads/${f.leadId}/etapa`, { etapa_id: nueva.cuerpo.id })]);
+    const etapa = await prisma.etapa_pipeline.findFirstOrThrow({ where: { id: nueva.cuerpo.id } });
+    const lead = await db.lead.findFirstOrThrow({ where: { id: f.leadId }, select: { etapa_id: true } });
+    const leadEnLaEtapa = lead.etapa_id === nueva.cuerpo.id;
+    if (leadEnLaEtapa && etapa.eliminado_en !== null) malas.push(`vuelta ${i}: lead en una etapa dada de baja (delete=${borrar.estado}, patch=${mover.estado})`);
+    // Una de las dos gana, la otra recibe el rechazo que corresponde (nunca un 500).
+    assert.ok([204, 409, 404].includes(borrar.estado), `delete ${borrar.estado}`);
+    assert.ok([200, 400].includes(mover.estado), `patch ${mover.estado} ${JSON.stringify(mover.cuerpo)}`);
+    if (borrar.estado === 204) {
+      quitadas++;
+      assert.ok(!leadEnLaEtapa && mover.estado === 400, `vuelta ${i}: se quitó la etapa pero el movimiento dijo ${mover.estado}`);
+    } else {
+      movidos++;
+      assert.equal(mover.estado, 200);
+      assert.ok(leadEnLaEtapa && etapa.eliminado_en === null);
+    }
+  }
+  assert.deepEqual(malas, []);
+  assert.equal(quitadas + movidos, 60);
 });

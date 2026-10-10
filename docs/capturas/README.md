@@ -4,6 +4,9 @@ Todo es **ficticio** (datos de prueba) y sale de `npm run test:navegador`: Chrom
 **celular (390×844)** y en **escritorio (1366×768)** y el nombre termina en `-celular.png` o `-escritorio.png`. Las capturas se regeneran en cada corrida y sus bytes cambian aunque nada
 visible cambie (fechas del día, ids): lo que vale es lo que se ve.
 
+**`npm run test:navegador` ya no toca esta carpeta** (V13-fix, EV-45): las pruebas dejan sus capturas en `.tmp/navegador/capturas` y el árbol de git queda limpio tras una corrida completa. Para
+regenerar las que se versionan aquí: `npm run capturas:escribir` (es `test:navegador` con `CAPTURAS_ESCRIBIR=1`). Las guías tienen su propia orden (`npm run guias:capturas`) y la demo viva, la suya (`npm run demo:capturas`).
+
 El navegador de pruebas **nunca sale a un servicio externo** (ni WhatsApp, ni Meta, ni Twilio, ni AWS, ni Chatwoot): el salto a WhatsApp de la página de captación se atiende con una
 página simulada y la prueba comprueba a dónde habría llevado; si algo intentara salir, la prueba falla.
 

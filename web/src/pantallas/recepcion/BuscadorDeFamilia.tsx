@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeCarga, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, AvisoDeBusquedaIncompleta, Boton, Cargando, ErrorDeCarga, Vacio } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
 import { useCarga } from "../../ui/hooks.ts";
 import { pareceTelefono, soloTelefono } from "./telefono.ts";
@@ -55,6 +55,7 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
         <ErrorDeCarga error={resultados.error} alReintentar={resultados.recargar} />
       ) : null}
       {busqueda !== null && !telefonoIncompleto && datos && datos.datos.length === 0 ? <Vacio titulo="No encontré a esa familia">Revisa el teléfono o prueba con otro nombre.</Vacio> : null}
+      <AvisoDeBusquedaIncompleta paginacion={datos?.paginacion} />
       <ul className="lista-tarjetas">
         {(datos?.datos ?? []).map((t) => (
           <li key={t.id} className="tarjeta fila fila-entre" data-prueba={`familia-${t.id}`}>

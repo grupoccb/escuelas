@@ -5,7 +5,8 @@
 //
 // Las definiciones de cada número viven en el encabezado de `src/reportes/ejecutivo.ts`; la ocupación sale de la FUENTE REAL (`FuenteOcupacion`: las inscripciones activas del grupo).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { aCsv } from "../../exportacion/csv.ts";
 import { enviarCsv } from "../../exportacion/http.ts";
 import { dondeGrupoVisible } from "../../asistencia/alcance.ts";
@@ -22,7 +23,7 @@ const esquemaEjecutivo = objeto({ mes: opcional(texto({ patron: /^\d{4}-(0[1-9]|
 const esquemaOcupacion = objeto({});
 
 export function rutasDeReporteEjecutivo(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   r.get("/reportes/ejecutivo", requierePermiso("reportes:ejecutivo"), async (req, res) => {
     const ctx = contextoDe(res);
     const q = parsearQuery(esquemaEjecutivo, req.query);

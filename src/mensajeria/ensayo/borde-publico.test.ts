@@ -85,6 +85,19 @@ test("reenvía el POST de Twilio SIN tocar el cuerpo ni la query, con las cabece
   });
 });
 
+test("EV-41: el X-Forwarded-For que manda el cliente NO llega al backend: llega la dirección de quien le habló al borde", async () => {
+  await conBorde(async (borde, vistos) => {
+    await (await fetch(`${borde}/salud`, { headers: { "x-forwarded-for": "6.6.6.6, 7.7.7.7" } })).text();
+    await (await fetch(`${borde}/webhooks/twilio/entrantes`, { method: "POST", headers: { "x-forwarded-for": "198.51.100.7" }, body: "a=b" })).text();
+    await (await fetch(`${borde}/salud`)).text();
+    assert.equal(vistos.length, 3);
+    for (const v of vistos) {
+      assert.equal(v.cabeceras["x-forwarded-for"], "127.0.0.1", "la dirección del que le habló al borde, nunca la que el cliente escribió");
+      assert.ok(!/6\.6\.6\.6|7\.7\.7\.7|198\.51\.100\.7/.test(String(v.cabeceras["x-forwarded-for"])));
+    }
+  });
+});
+
 test("respeta el X-Forwarded-Proto que mande el túnel", async () => {
   await conBorde(async (borde, vistos) => {
     await (await fetch(`${borde}/salud`, { headers: { "x-forwarded-proto": "http" } })).text();

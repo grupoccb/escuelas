@@ -6,7 +6,8 @@
 // - `index.html` va sin caché y con su propia CSP: solo scripts y estilos propios (sin inline), conexiones al propio origen y nada incrustable.
 //   La interfaz no llama a ningún dominio externo (ni fuentes, ni CDN, ni analítica): todo se sirve desde aquí.
 
-import express, { Router } from "express";
+import express, { type Router } from "express";
+import { crearRouter } from "./enrutador.ts";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 
@@ -33,9 +34,11 @@ export function rutasDeWeb(directorio: string): Router | null {
   const indice = join(raiz, "index.html");
   if (!existsSync(indice)) return null;
 
-  const r = Router();
+  const r = crearRouter();
   r.use((req, _res, next) => {
-    const esDelBackend = PREFIJOS_DEL_BACKEND.some((p) => req.path === p || req.path.startsWith(`${p}/`));
+    // Sin distinguir mayúsculas: `/API/x` no es una pantalla de la interfaz (el backend lo contesta como ruta inexistente), aunque el router de la API sí distinga.
+    const ruta = req.path.toLowerCase();
+    const esDelBackend = PREFIJOS_DEL_BACKEND.some((p) => ruta === p || ruta.startsWith(`${p}/`));
     if (esDelBackend) next("router");
     else next();
   });

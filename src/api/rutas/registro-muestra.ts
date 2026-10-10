@@ -16,7 +16,8 @@
 // Alcance: el maestro, las clases de SUS grupos; el asesor, las de sus sucursales; el administrador, todas. Lo ajeno, 404. Los
 // datos de salud NO se leen aquí: `GET /api/salud/prospecto/:id` (permiso, motivo y constancia de cada acceso).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { completarRegistro, cerrarRegistro, guardarRegistro, leerRegistro, reabrirRegistro, INTERESES, MOTIVOS_DE_CLASE, SEXOS, TURNOS_ESCOLARES, type EntradaDelRegistro } from "../../clases-muestra/registro.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -75,7 +76,7 @@ const esquemaPatch = objeto({
 });
 
 export function rutasDeRegistroMuestra(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
   const ruta = (metodo: string, id: string, sufijo = ""): string => `${metodo} /api/clases-muestra/${id}/registro${sufijo}`;
 

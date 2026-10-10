@@ -9,7 +9,8 @@
 // El `slug` va en la URL de la landing (`/l/<slug>`) y en los QR impresos: se genera del nombre si no se da y NO cambia después. Si usa progresión necesita su
 // etiqueta (el CHECK de la base lo repite); la clase muestra por WhatsApp solo tiene sentido con el cotizador encendido.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { PATRON_DE_COLOR, PATRON_DE_SLUG, esUrlHttpsPublica, slugDe } from "../../catalogo/organizacion.ts";
 import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
@@ -80,7 +81,7 @@ function reglas(v: Pick<Fila, "usa_progresion" | "etiqueta_progresion" | "cotiza
 const slugRepetido = () => conflicto("Ya existe una vertical con ese identificador", [{ campo: "slug", mensaje: "Ya está en uso" }]);
 
 export function rutasDeVerticales(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/verticales", requierePermiso("catalogo:leer"), async (req, res) => {

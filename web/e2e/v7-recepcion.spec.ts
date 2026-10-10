@@ -10,7 +10,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { apiComo, haceDiasEnMexico, json } from "./ayudas.ts";
 import { comoRol, contextoNuevo, expect, mundo, test, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { sembrarAlumno, sembrarFamilia, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../../src/testutil/semilla.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 
@@ -19,7 +19,7 @@ test.describe.configure({ mode: "serial" });
 test.setTimeout(45_000);
 
 const FASE = process.env["FASE"] === "antes" ? "antes" : "despues";
-const CARPETA = resolve(RAIZ, "docs/capturas/v1/v7-recepcion");
+const CARPETA = carpetaDeCapturas("v1/v7-recepcion");
 // `FOTO_DESDE` permite correr solo una parte del recorrido sin pisar las capturas de las pruebas anteriores.
 let numeroDeCaptura = Number.parseInt(process.env["FOTO_DESDE"] ?? "0", 10);
 

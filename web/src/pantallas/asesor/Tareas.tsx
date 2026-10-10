@@ -4,9 +4,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tarea } from "../../api/tipos.ts";
-import { TIPOS_DE_TAREA, tipoDeTarea } from "../../lib/etiquetas.ts";
+import { tipoDeTarea, tiposDeTareaVisibles } from "../../lib/etiquetas.ts";
 import { formatearInstante } from "../../lib/fechas.ts";
-import { useSesion } from "../../sesion/SesionContext.tsx";
+import { useSesion, useYo } from "../../sesion/SesionContext.tsx";
 import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect } from "../../ui/campos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
@@ -70,6 +70,7 @@ export default function Tareas() {
   useTitulo("Tareas");
   const [estado, setEstado] = useState<"pendiente" | "resueltas">("pendiente");
   const [tipo, setTipo] = useState("");
+  const { tipos_de_tarea_apagados: apagados } = useYo();
   const carga = useCarga(
     async (senal) => {
       // «Resueltas» junta hechas y descartadas (la API filtra por un estado a la vez).
@@ -85,7 +86,7 @@ export default function Tareas() {
     <Marco titulo="Tareas" subtitulo="Lo que el sistema dejó para una persona">
       <Pestanas nombre="tareas" etiqueta="Estado de las tareas" pestanas={[{ id: "pendiente", texto: "Pendientes" }, { id: "resueltas", texto: "Resueltas" }] as const} activa={estado} alCambiar={setEstado} />
       <div {...propsDePanel("tareas", estado)} className="pila">
-      <CampoSelect etiqueta="Tipo de tarea" vacio="Todos los tipos" value={tipo} onChange={(e) => setTipo(e.target.value)} opciones={Object.entries(TIPOS_DE_TAREA).map(([valor, t]) => ({ valor, texto: t.titulo }))} />
+      <CampoSelect etiqueta="Tipo de tarea" vacio="Todos los tipos" value={tipo} onChange={(e) => setTipo(e.target.value)} opciones={tiposDeTareaVisibles(apagados).map(([valor, t]) => ({ valor, texto: t.titulo }))} />
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
       {carga.datos && carga.datos.length === 0 ? <Vacio titulo={estado === "pendiente" ? "No hay tareas pendientes" : "Todavía no hay tareas resueltas"}>{estado === "pendiente" ? "Cuando el sistema deje algo para una persona, aparecerá aquí." : undefined}</Vacio> : null}

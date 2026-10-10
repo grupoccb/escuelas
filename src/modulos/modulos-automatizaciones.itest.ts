@@ -3,13 +3,15 @@
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { correrAutomatizaciones } from "../automatizaciones/motor.ts";
+import { conAlcance } from "../datos/alcance.ts";
+import { agendarClaseMuestra } from "../clases-muestra/agenda.ts";
 import { barrerAvisosMaestro } from "../clases-muestra/avisos.ts";
 import { barrerFinanzas } from "../finanzas/barrido.ts";
 import { MessagingProvider, TransporteFalso } from "../mensajeria/index.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { fijarConfiguracion, sembrarOrganizacion } from "../testutil/semilla.ts";
+import { OcupacionFija, fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, sembrarPrograma } from "../testutil/semilla.ts";
 import { mundoDeFinanzas } from "../testutil/finanzas.ts";
 import { DEFINICION_DE_MODULOS, MODULOS_APAGABLES, MODULO_DE_EVENTO, TODOS_ENCENDIDOS, aFilaDeModulos, type EventoDeAutomatizacion, type ModuloApagable, type ModulosEncendidos } from "./index.ts";
 
@@ -155,4 +157,52 @@ test("clase muestra: apagada, el barrido de avisos al maestro no toca nada (ni m
   await fijar(org.organizacionId, TODOS_ENCENDIDOS);
   await barrerAvisosMaestro({ prisma, mensajeria: espia, organizacionId: org.organizacionId, reloj: () => new Date("2026-11-10T16:00:00Z") });
   assert.deepEqual(llamadas, ["recuperar"]);
+});
+
+// V13-fix EV-11: el motor leía los módulos UNA vez por organización al empezar la corrida (hasta 200 ejecuciones). Si el administrador apagaba un módulo a mitad de la corrida,
+// salían todos los recordatorios que faltaban. Ahora se vuelven a leer antes de cada ejecución.
+test("EV-11: si apagan el módulo A MITAD de la corrida del motor, lo que falta por salir se omite como «modulo_apagado» (solo sale lo que ya había salido)", async () => {
+  const org = await sembrarOrganizacion(prisma, "Módulos motor a mitad");
+  await sembrarEmbudo(prisma, org);
+  const sucursalId = org.sucursales[0]!.id;
+  const p = await sembrarPrograma(prisma, org, { sucursalId, nombre: "P", edadMin: 3, edadMax: 12, grupos: [{ nombre: "G", cupoMaximo: 20, horarios: [[4, 600, 660]] }] });
+  const pl = await prisma.plantilla_mensaje.create({ data: { organizacion_id: org.organizacionId, codigo: "v13_rec", content_sid: "HX0000000000000000000000000000CCCC", categoria: "utility", clase_mensaje: "servicio", estado_aprobacion: "aprobada", cuerpo_referencia: "Clase de {{1}}", variables: [{ pos: 1, nombre: "nombre_prospecto" }] as never } });
+  await prisma.automatizacion.create({ data: { organizacion_id: org.organizacionId, nombre: "rec", evento_disparador: "clase_muestra_proxima", offset_minutos: -1440, plantilla_id: pl.id } });
+  const usuario = await prisma.usuario.create({ data: { organizacion_id: org.organizacionId, correo: `c-${randomUUID().slice(0, 8)}@prueba.test`, nombre: "A", rol: "asesor", contrasena_hash: "x" } });
+  const fuente = new OcupacionFija();
+  const T0 = new Date("2026-11-10T16:00:00Z");
+  for (let i = 0; i < 6; i++) {
+    const f = await sembrarFamilia(prisma, org, { sucursalId, nombre: `Niño${i}` });
+    await prisma.conversacion.create({ data: { organizacion_id: org.organizacionId, bandeja_chatwoot_id: org.bandejaId, lead_id: f.leadId, chatwoot_conversacion_id: randomInt(1, 2_000_000_000) } });
+    await conAlcance(prisma, org.organizacionId).$transaction(async (tx) => {
+      const r = await agendarClaseMuestra(tx, { ahora: T0, fuente, origen: { tipo: "usuario", usuarioId: usuario.id } }, { prospectoId: f.prospectoId, grupoId: p.grupos[0]!.id, fechaHora: new Date("2026-11-12T16:00:00Z") });
+      assert.ok(r.ok);
+    });
+  }
+  const transporte = new TransporteFalso();
+  const ahora = new Date("2026-11-11T17:00:00Z"); // los 6 recordatorios de 24 h ya tocan
+  const real = new MessagingProvider({ transporte, reloj: () => ahora });
+  let despachos = 0;
+  const espia = new Proxy(real, {
+    get(obj, prop, rcv) {
+      if (prop === "despachar") {
+        return async (...a: unknown[]) => {
+          const r = await (obj.despachar as (...x: unknown[]) => Promise<unknown>).apply(obj, a);
+          if (++despachos === 1) await fijar(org.organizacionId, apagadoCon("clase_muestra")); // el administrador apaga el módulo a mitad de la corrida
+          return r;
+        };
+      }
+      return Reflect.get(obj, prop, rcv);
+    },
+  }) as MessagingProvider;
+  await fijar(org.organizacionId, TODOS_ENCENDIDOS);
+  const resumen = await correrAutomatizaciones({ prisma, mensajeria: espia, reloj: () => ahora, organizacionId: org.organizacionId });
+  const enviados = transporte.envios.filter((e) => e.tipo === "plantilla").length;
+  assert.equal(enviados, 1, `se esperaba 1 envío (el módulo se apagó tras el primero) y salieron ${enviados}`);
+  assert.equal(resumen.enviadas, 1);
+  assert.equal(resumen.omitidas, 5);
+  const ejecuciones = await prisma.automatizacion_ejecucion.findMany({ where: { organizacion_id: org.organizacionId }, select: { estatus: true, motivo_omision: true } });
+  assert.equal(ejecuciones.filter((x) => x.estatus === "enviado").length, 1);
+  assert.deepEqual(ejecuciones.filter((x) => x.estatus === "omitido").map((x) => x.motivo_omision), Array(5).fill("modulo_apagado"));
+  await fijar(org.organizacionId, TODOS_ENCENDIDOS);
 });

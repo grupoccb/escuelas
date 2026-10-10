@@ -172,3 +172,11 @@ test("zonas horarias: nombres de la gente o el nombre técnico", () => {
   esperarError(leerZonaHoraria("CST"), /no es una zona horaria/);
   esperarError(leerZonaHoraria("la de aquí"), /no es una zona horaria/);
 });
+
+test("EV-32: un importe de 16 dígitos o más es «demasiado grande» (error de celda), no una excepción; con ceros a la izquierda se evalúa su valor", () => {
+  for (const t of ["9999999999999999", "99999999999999999999", "10000000000", "10000000000.50", "1,000,000,000,000,000", "$99999999999999999.99"]) esperarError(leerImporte(t), /demasiado grande/);
+  assert.equal(valorDe(leerImporte("9999999999")), 999_999_999_900n);
+  assert.equal(valorDe(leerImporte("9999999999.99")), 999_999_999_999n);
+  assert.equal(valorDe(leerImporte("00000000000000000500.5")), 50_050n, "ceros a la izquierda de más de 15 dígitos no lanzan");
+  assert.equal(valorDe(leerImporte("0000000500")), 50_000n);
+});

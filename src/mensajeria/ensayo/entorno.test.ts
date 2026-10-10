@@ -72,3 +72,34 @@ test("las direcciones del ensayo salen de la URL pública", () => {
   });
   assert.ok("origen" in validarOrigenPublico("https://a.example.test"));
 });
+
+// ── V13-fix EV-40: ORIGEN_PUBLICO con caracteres de shell o saltos de línea se RECHAZA (antes se aceptaba o se limpiaba en silencio) ──────────────
+
+test("EV-40: validarOrigenPublico rechaza `$()`, comillas invertidas, comillas, punto y coma y saltos de línea, con un mensaje, y no los borra en silencio", () => {
+  const malos = [
+    "https://a.example$(id)",
+    "https://a.example`id`",
+    "https://a.example\nTWILIO_AUTH_TOKEN=x",
+    "https://a.example\r\nX=1",
+    "https://a.exa\tmple",
+    'https://a.example"; rm -rf /',
+    "https://a.example';id",
+    "https://a.example;id",
+    "https://a b.example",
+    "https://a.example|id",
+    "https://a.example&x",
+    "https://a_b.example",
+    "https://-a.example",
+  ];
+  for (const m of malos) {
+    const r = validarOrigenPublico(m);
+    assert.ok("problema" in r, `se aceptó ${JSON.stringify(m)} → ${JSON.stringify(r)}`);
+    assert.ok(r.problema.startsWith("ORIGEN_PUBLICO"), r.problema);
+  }
+  assert.match((validarOrigenPublico("https://a.example\nX=1") as { problema: string }).problema, /espacios o saltos de línea/);
+  assert.match((validarOrigenPublico("https://a.example$(id)") as { problema: string }).problema, /caracteres que no son de una dirección/);
+  // Lo normal sigue valiendo.
+  for (const bueno of ["https://algo.trycloudflare.com", "https://a-b.c-d.example.com", "  https://algo.trycloudflare.com  ", "https://xn--espaa-rta.example", "HTTPS://ALGO.EXAMPLE/"]) {
+    assert.ok("origen" in validarOrigenPublico(bueno), bueno);
+  }
+});

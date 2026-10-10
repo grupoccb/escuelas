@@ -7,7 +7,8 @@
 // `de_61_a_90` y `mas_de_90` (91 o más). Los cargos cancelados se listan pero no cuentan. Todo el dinero sale como texto con dos decimales.
 // Permisos: administrador, asesor y recepción (de SUS sucursales); el maestro no ve importes (403). La familia ajena es 404.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { dondeTutorVisible } from "../../familias/alcance.ts";
 import { estadoDeCuentaDeFamilia } from "../../finanzas/estado-cuenta.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -18,7 +19,7 @@ import { objeto, parsear, uuid } from "../validar.ts";
 const esquemaId = objeto({ id: uuid() });
 
 export function rutasDeEstadoDeCuenta(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   r.get("/tutores/:id/estado-cuenta", requierePermiso("estado_cuenta:leer"), async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);

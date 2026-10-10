@@ -8,7 +8,8 @@
 // stock (H5): el producto sale del beneficio o, si éste solo dice «Uniforme», de `producto_id` (una talla concreta). Cancelar el pago que lo liberó regresa a `pendiente` lo que no se
 // había entregado; lo ya entregado queda en revisión (tarea `beneficio_en_revision`). Permisos: administrador y recepción entregan; el asesor lee; el maestro no. Alcance por sucursal.
 
-import express, { Router } from "express";
+import express from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { dondeInscripcionVisible } from "../../inscripciones/alcance.ts";
 import { entregarBeneficio, type ResultadoDeEntregaDeBeneficio } from "../../finanzas/entrega.ts";
 import { dondePorEntregar, presentarPorEntregar, SELECCION_POR_ENTREGAR } from "../../finanzas/por-entregar.ts";
@@ -32,9 +33,8 @@ const esquemaId = objeto({ id: uuid() });
 const esquemaListado = objeto({ ...esquemaPaginacion, sucursal_id: opcional(uuid()) });
 const esquemaEntregar = objeto({ producto_id: opcional(uuid()), cantidad: opcional(entero({ min: 1, max: 1 })) });
 
-
 export function rutasDeBeneficios(_deps: DepsApi): express.Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/beneficios/por-entregar", requierePermiso("beneficios:leer"), async (req, res) => {

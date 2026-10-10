@@ -7,7 +7,8 @@
 // que no existe, es de otra organización o cae fuera de tu alcance da 404, nunca 403. Resolver es
 // atómico: dos personas que resuelven a la vez → una gana y la otra recibe 409.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { ESTADOS_DE_TAREA, TIPOS_DE_TAREA } from "../../datos/tipos.ts";
 import { leerModulos, tiposDeTareaApagados } from "../../modulos/index.ts";
@@ -42,7 +43,7 @@ const esquemaId = objeto({ id: uuid() });
 const esquemaResolver = objeto({ estado: enumerado(["hecha", "descartada"] as const) });
 
 export function rutasDeTareas(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/tareas", requierePermiso("tareas:leer"), async (req, res) => {

@@ -11,7 +11,7 @@
 //   (d) se niega a correr con NODE_ENV=production o si la URL de la base no es local.
 
 import { FAMILIA_CON_COBRO } from "../../src/demo/constantes.ts";
-import { CLAVE_DE_DEMO_PUBLICADA } from "../../src/seguridad/entorno.ts";
+import { CLAVE_DE_DEMO_PUBLICADA, esProduccion } from "../../src/seguridad/entorno.ts";
 
 // ── Constantes de la demo ───────────────────────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ export const VOLUMENES_DE_CHATWOOT = ["chatwoot-postgres-data", "chatwoot-redis-
 // ── Guardas ────────────────────────────────────────────────────────────────────────────────────────────────
 
 export interface Hallazgo {
-  codigo: "produccion" | "proyecto_invalido" | "base_no_local" | "base_protegida" | "puertos_repetidos";
+  codigo: "produccion" | "proyecto_invalido" | "base_no_local" | "base_protegida" | "puertos_repetidos" | "organizacion_no_demo" | "falta_confirmacion";
   mensaje: string;
 }
 
@@ -130,18 +130,50 @@ export function esUrlLocal(url: string): boolean {
 }
 export const esBaseProtegida = (nombre: string): boolean => /(?:_pruebas|_test)$/.test(nombre);
 
+/** V13-fix (EV-09): producción se lee como en el arranque del servidor (`esProduccion`: sin distinguir mayúsculas y con los valores desconocidos como producción). */
+function hallazgoDeProduccion(env: Record<string, string | undefined>, que: string): Hallazgo[] {
+  return esProduccion(env) ? [{ codigo: "produccion", mensaje: `NODE_ENV=${env["NODE_ENV"]}: ${que}. Solo corre en la máquina de quien prueba, nunca en producción.` }] : [];
+}
+/** Una base que no es local (la del comando o la que el entorno trae a la vista). */
+function hallazgoDeBaseNoLocal(url: string | undefined, mensaje: string): Hallazgo[] {
+  return url && !esUrlLocal(url) ? [{ codigo: "base_no_local", mensaje }] : [];
+}
+
 /** Las razones por las que el comando se NIEGA a correr (vacío = puede). No toca nada. */
 export function revisarGuardas(o: OpcionesDemo, env: Record<string, string | undefined>): Hallazgo[] {
-  const h: Hallazgo[] = [];
-  if ((env["NODE_ENV"] ?? "").trim().toLowerCase() === "production") h.push({ codigo: "produccion", mensaje: "NODE_ENV=production: este comando borra y recrea una base entera, y trae contraseñas públicas de demostración. Solo corre en la máquina de quien prueba, nunca en producción." });
+  const h: Hallazgo[] = [...hallazgoDeProduccion(env, "este comando borra y recrea una base entera, y trae contraseñas públicas de demostración")];
   if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(o.proyecto)) h.push({ codigo: "proyecto_invalido", mensaje: `El nombre de proyecto «${o.proyecto}» no sirve: minúsculas, números, guion y guion bajo (2 a 40 caracteres).` });
   const url = urlBaseDeLaDemo(o);
-  if (!esUrlLocal(url)) h.push({ codigo: "base_no_local", mensaje: `La base de la demo (${url}) no es local.` });
+  h.push(...hallazgoDeBaseNoLocal(url, `La base de la demo (${url}) no es local.`));
   // Si el entorno ya trae una base remota (un .env de otro ambiente), no se corre aunque el comando use la suya: un descuido así ya costó datos.
-  if (env["DATABASE_URL"] && !esUrlLocal(env["DATABASE_URL"])) h.push({ codigo: "base_no_local", mensaje: "DATABASE_URL del entorno apunta a un servidor que no es local: este comando se niega a correr con ella a la vista." });
+  h.push(...hallazgoDeBaseNoLocal(env["DATABASE_URL"], "DATABASE_URL del entorno apunta a un servidor que no es local: este comando se niega a correr con ella a la vista."));
   const nombreDeBase = decodeURIComponent(new URL(url).pathname.slice(1));
   if (esBaseProtegida(nombreDeBase)) h.push({ codigo: "base_protegida", mensaje: `La base «${nombreDeBase}» es de pruebas: nunca se toca.` });
   if (new Set([o.puertoBackend, o.puertoChatwoot, o.puertoPostgres]).size !== 3) h.push({ codigo: "puertos_repetidos", mensaje: "Los tres puertos (interfaz, Chatwoot y Postgres) deben ser distintos." });
+  return h;
+}
+
+/**
+ * V13-fix (EV-09, EV-37): las guardas de los guiones que ESCRIBEN datos de demostración o cargan un catálogo en la base de `DATABASE_URL` (`demo:vivo`, `demo:datos`,
+ * `catalogo:importar --aplicar`). Antes solo las frenaba una bandera: con `NODE_ENV=production` y una base remota la bandera bastaba y llegaban a escribir (y `demo:vivo` da de baja
+ * alumnos). Comparten con `revisarGuardas` las mismas piezas: no producción y base local. Además:
+ *   · una base que NO es de pruebas solo se toca si la organización es la de la demo (`escuela-demo`): con una sola organización el guion la tomaba sin mirar cuál era;
+ *   · `exigirConfirmacion` (el guion que carga catálogo): hace falta `--confirmar-base <nombre de la base>` y debe coincidir con la base a la que va a escribir.
+ */
+export function revisarGuardasDeScript(
+  env: Record<string, string | undefined>,
+  o: { organizacion?: { slug: string; nombre: string } | null; confirmarBase?: string | undefined; exigirConfirmacion?: boolean; que: string },
+): Hallazgo[] {
+  const url = env["DATABASE_URL"];
+  const h: Hallazgo[] = [...hallazgoDeProduccion(env, o.que)];
+  h.push(...hallazgoDeBaseNoLocal(url, `DATABASE_URL apunta a un servidor que no es local: ${o.que}. Solo corre contra la base de la máquina de quien prueba.`));
+  const base = url ? decodeURIComponent((() => { try { return new URL(url).pathname.slice(1); } catch { return ""; } })()) : "";
+  if (o.organizacion && !esBaseProtegida(base) && o.organizacion.slug !== ORGANIZACION_DE_DEMO) {
+    h.push({ codigo: "organizacion_no_demo", mensaje: `La organización «${o.organizacion.nombre}» no es la de la demo («${ORGANIZACION_DE_DEMO}»): ${o.que}. Elige la de la demo con --organizacion, o usa una base de pruebas.` });
+  }
+  if (o.exigirConfirmacion && o.confirmarBase !== base) {
+    h.push({ codigo: "falta_confirmacion", mensaje: `Para escribir en la base «${base}» confirma con --confirmar-base ${base}${o.confirmarBase ? ` (recibí «${o.confirmarBase}»)` : ""}.` });
+  }
   return h;
 }
 

@@ -10,6 +10,7 @@
 import { parseArgs } from "node:util";
 import { existsSync } from "node:fs";
 import { respaldar, verificarRespaldo } from "./lib/respaldo.ts";
+import { esProduccion } from "../src/seguridad/entorno.ts";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
@@ -23,7 +24,7 @@ try {
   } else {
     const url = process.env["DATABASE_URL"];
     if (!url) throw new Error("Falta DATABASE_URL");
-    if (!frase && !o["sin-cifrar"] && process.env["NODE_ENV"] === "production") throw new Error("En producción el respaldo va cifrado: define RESPALDO_CLAVE (o --sin-cifrar si de verdad lo quieres)");
+    if (!frase && !o["sin-cifrar"] && esProduccion(process.env)) throw new Error("En producción el respaldo va cifrado: define RESPALDO_CLAVE (o --sin-cifrar si de verdad lo quieres)");
     if (frase && frase.length < 16) throw new Error("RESPALDO_CLAVE debe tener al menos 16 caracteres");
     const r = await respaldar({ url, directorio: o.destino!, ...(frase && !o["sin-cifrar"] ? { frase } : {}), ...(o.retener !== undefined ? { retener: Number(o.retener) } : {}) });
     const total = Object.values(r.metadatos.filasPorTabla).reduce((a, b) => a + b, 0);

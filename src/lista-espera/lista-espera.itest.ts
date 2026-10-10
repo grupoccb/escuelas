@@ -296,3 +296,19 @@ test("V10 / EC-11: el alta del bot (dentro de la transacción del mensaje) y un 
   assert.deepEqual((await posiciones(m)).map((p) => p.posicion), [1, 2, 3], "sin huecos ni repetidos");
   assert.equal(barrera.completa, false, "se pusieron en fila: nunca coincidieron (si coincidieran, no hay exclusión)");
 });
+
+// V13-fix EV-42: la prueba de EC-11 de arriba "fallaba sin el arreglo" también porque el archivo no compilaba sin `altaListaEsperaBajoCandado`. Probado quitando cada uno de los dos candados
+// (el del alta y el de quitar/mover/ofrecer), ESA prueba falla por aserción. Esta se agrega como segunda red, sin ganchos ni barreras: el mismo choque real, muchas veces seguidas.
+test("EV-42 EC-11: 25 vueltas del alta del bot contra un «quitar» a la vez, sin ganchos: las posiciones siempre quedan 1, 2, 3 (sin hueco ni repetido)", async () => {
+  for (let vuelta = 0; vuelta < 25; vuelta++) {
+    const m = await mundo();
+    const [a, b, c, nueva] = [await m.familia(), await m.familia(), await m.familia(), await m.familia()];
+    await altaConCandado(m.db, { grupoId: m.grupoId, ...a });
+    const rb = await altaConCandado(m.db, { grupoId: m.grupoId, ...b });
+    await altaConCandado(m.db, { grupoId: m.grupoId, ...c });
+    assert.ok(rb.ok);
+    const [alta, quitado] = await Promise.all([m.db.$transaction((tx) => altaListaEsperaBajoCandado(tx, { grupoId: m.grupoId, ...nueva })), cerrarEntrada(m.db, rb.entrada.id)]);
+    assert.ok(alta.ok && alta.creada && quitado.ok, `vuelta ${vuelta}`);
+    assert.deepEqual((await posiciones(m)).map((p) => p.posicion), [1, 2, 3], `vuelta ${vuelta}: sin huecos ni repetidos`);
+  }
+});

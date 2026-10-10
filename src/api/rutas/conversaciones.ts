@@ -5,7 +5,8 @@
 // `asignada_a=yo` son las conversaciones que Chatwoot tiene asignadas al agente vinculado a tu
 // usuario (ver POST /api/usuarios/:id/vincular-chatwoot). Alcance por sucursal de interés del lead.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
@@ -18,7 +19,7 @@ const esquemaListado = objeto({ ...esquemaPaginacion, asignada_a: opcional(texto
 const esUuid = uuid();
 
 export function rutasDeConversaciones(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
 
   r.get("/conversaciones", requierePermiso("conversaciones:leer"), async (req, res) => {
     const ctx = contextoDe(res);

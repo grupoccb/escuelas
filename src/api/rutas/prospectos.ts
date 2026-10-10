@@ -15,7 +15,8 @@
 //          por su hermano (mismo adulto, mismo canal, solo la versión VIGENTE); queda como una aceptación nueva del niño, con la evidencia de que se extendió del hermano.
 // Datos de salud: esta API NO los recibe (el esquema es cerrado: cualquier campo que no sea de la lista responde 400 y no se guarda nada). Los captura el maestro en su registro.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { hoyDelLead, agregarNino, corregirNino, presentarNino, quitarNino, SELECCION_DE_NINO, type FilaDeNino, type ResultadoDeNino, type RechazoDeNino } from "../../captacion/prospectos.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
@@ -52,7 +53,7 @@ const esquemaCambio = objeto({
 const instantanea = (f: FilaDeNino, campos: string[]) => ({ lead_id: f.lead_id, vertical_interes_id: f.vertical_interes_id, origen: f.origen, campos });
 
 export function rutasDeProspectos(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** El lead, si lo ve quien pregunta. */

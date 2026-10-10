@@ -9,7 +9,8 @@
 // (`src/progresion/progresion.ts`): rechazos de negocio → 409 con `detalles: [{ campo: "motivo", mensaje: <código> }]`. El instructor sale del maestro que
 // lo registra; el administrador puede indicarlo. Las `observaciones` son texto libre y solo las ven el administrador y el maestro (pueden mencionar salud).
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
 import { historialDeVertical, nivelesDeVertical, otorgarNivel, siguienteNivel, type NivelDeVertical } from "../../progresion/progresion.ts";
@@ -28,7 +29,7 @@ const presentarNivel = (n: NivelDeVertical) => ({ id: n.id, nombre: n.nombre, or
 const veObservaciones = (ctx: ContextoApi): boolean => ctx.usuario.rol === "administrador" || ctx.usuario.rol === "maestro";
 
 export function rutasDeProgresion(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   const alumnoVisible = async (ctx: ContextoApi, id: string) => {

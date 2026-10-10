@@ -19,6 +19,19 @@ const MARCAS_DE_DEMO = ["demo-local", "Demo-local", "solo-desarrollo", "solo des
 
 const LARGO_MINIMO_SECRETO = 24;
 
+/**
+ * V13-fix (EV-28): ¿es PRODUCCIÓN? Falla cerrado. `NODE_ENV` se lee sin distinguir mayúsculas ni espacios (`Production` es producción) y solo `development` y `test` (y nada,
+ * que es un equipo de desarrollo sin configurar) cuentan como no producción: cualquier otro valor (`prod`, `staging`, un error de dedo) se trata como producción, con todas
+ * sus negativas de arranque, en lugar de dejar pasar una instalación real sin revisar.
+ */
+export function esProduccion(env: NodeJS.ProcessEnv): boolean {
+  const modo = (env["NODE_ENV"] ?? "").trim().toLowerCase();
+  return modo !== "" && modo !== "development" && modo !== "test";
+}
+
+/** Dónde puede vivir la base de la demo: la propia máquina o el servicio de Postgres del compose. */
+const ANFITRIONES_DE_LA_DEMO = new Set(["localhost", "127.0.0.1", "::1", "postgres", "host.docker.internal"]);
+
 export function esEntornoDeDemo(env: NodeJS.ProcessEnv): boolean {
   return (env["ENTORNO_DEMO"] ?? "").trim().toLowerCase() === "si";
 }
@@ -29,7 +42,7 @@ export function esEntornoDeDemo(env: NodeJS.ProcessEnv): boolean {
  * Una instalación real (AWS) no define `ENTORNO_DEMO` y, con `NODE_ENV=production`, solo acepta `ORIGEN_PUBLICO`.
  */
 export function esEntornoLocal(env: NodeJS.ProcessEnv): boolean {
-  return env["NODE_ENV"] !== "production" || esEntornoDeDemo(env);
+  return !esProduccion(env) || esEntornoDeDemo(env);
 }
 
 /**
@@ -41,7 +54,7 @@ export function esEnsayoLocal(env: NodeJS.ProcessEnv): boolean {
 }
 
 export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDeEntorno[] {
-  if (env["NODE_ENV"] !== "production") return [];
+  if (!esProduccion(env)) return [];
   const hallazgos: HallazgoDeEntorno[] = [];
   const grave = (codigo: string, mensaje: string): void => void hallazgos.push({ codigo, mensaje, grave: true });
   const aviso = (codigo: string, mensaje: string): void => void hallazgos.push({ codigo, mensaje, grave: false });
@@ -67,6 +80,8 @@ export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDe
   if (bd) {
     try {
       const u = new URL(bd);
+      // V13-fix (EV-28): la marca de demo no puede salvar a una instalación real que la traiga por error: la demo vive en la máquina de quien prueba, con la base del propio compose.
+      if (esEntornoDeDemo(env) && !ANFITRIONES_DE_LA_DEMO.has(u.hostname.replace(/^\[|\]$/g, ""))) grave("demo_con_base_remota", `ENTORNO_DEMO=si pero DATABASE_URL apunta a «${u.hostname}»: la demo solo corre contra una base local (localhost, el servicio «postgres» del compose…). Quita ENTORNO_DEMO o usa la base de la demo.`);
       if (u.username === "inscripciones" && decodeURIComponent(u.password) === "inscripciones") grave("base_de_demo", "DATABASE_URL usa el usuario y la contraseña de la demo (inscripciones/inscripciones).");
       if (u.username === "postgres") aviso("base_superusuario", "DATABASE_URL usa el usuario «postgres»: la aplicación debe usar una cuenta sin dueño ni privilegios (docs/INFRA-AWS.md, scripts/preparar-roles.ts).");
     } catch {
@@ -93,8 +108,11 @@ export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDe
   return hallazgos;
 }
 
-/** Lo que `server.ts` hace con la revisión: devuelve los graves que impiden arrancar (vacío si todo bien o si es la demo). */
+/** Los graves que ni la marca de demo perdona (V13-fix, EV-28). */
+const NO_PERDONA_LA_DEMO = new Set(["demo_con_base_remota"]);
+
+/** Lo que `server.ts` hace con la revisión: devuelve los graves que impiden arrancar. La demo local declarada (`ENTORNO_DEMO=si`) arranca con sus valores públicos, salvo lo que la marca no perdona. */
 export function impedimentosParaArrancar(env: NodeJS.ProcessEnv = process.env): HallazgoDeEntorno[] {
-  if (esEntornoDeDemo(env)) return [];
-  return revisarEntorno(env).filter((h) => h.grave);
+  const graves = revisarEntorno(env).filter((h) => h.grave);
+  return esEntornoDeDemo(env) ? graves.filter((h) => NO_PERDONA_LA_DEMO.has(h.codigo)) : graves;
 }

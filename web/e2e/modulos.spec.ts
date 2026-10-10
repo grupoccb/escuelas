@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { CONTRASENA_DE_PRUEBA, sembrarUsuario } from "../../src/testutil/api.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 import { sembrarEmbudo, sembrarFamilia, sembrarOrganizacion } from "../../src/testutil/semilla.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 import { expect, mundo, test, VISTA_CELULAR, VISTA_ESCRITORIO, type Rol, contextoConReloj } from "./fixtura.ts";
 
 // La organización de módulos NO vive en el mundo compartido: con una segunda escuela viva, «la escuela es opcional» (el inicio de sesión sin escribirla) y la landing de la
@@ -143,6 +143,41 @@ for (const c of CASOS) {
     });
   });
 }
+
+// V13-fix EV-15: el filtro «Tipo de tarea» ofrecía los 20 tipos aunque su módulo estuviera apagado (la lista sí venía filtrada del servidor).
+test.describe("tareas: el filtro «Tipo de tarea» no ofrece los tipos de un módulo apagado", () => {
+  const POR_MODULO: { modulo: Modulo; tipos: string[] }[] = [
+    { modulo: "finanzas", tipos: ["Deuda vencida", "Beneficio en revisión", "Cobranza sin canal"] },
+    { modulo: "cotizador", tipos: ["Nuevo en lista de espera"] },
+    { modulo: "clase_muestra", tipos: ["Listo para cerrar"] },
+    { modulo: "operacion", tipos: ["Faltas seguidas"] },
+  ];
+  for (const { modulo, tipos } of POR_MODULO) {
+    test(`${modulo} apagado: no aparecen ${tipos.join(", ")}; encendido, sí`, async ({ browser }) => {
+      test.setTimeout(90_000);
+      await fijar([]);
+      const { context, page } = await paginaDe(browser, "asesor");
+      try {
+        const opciones = async () => (await page.getByLabel("Tipo de tarea").locator("option").allTextContents()).map((t) => t.trim());
+        await page.goto("/tareas");
+        await expect(page.getByLabel("Tipo de tarea")).toBeVisible();
+        const todas = await opciones();
+        for (const t of tipos) expect(todas, `encendido: ${t}`).toContain(t);
+        await fijar(conDependientes(modulo));
+        await page.goto("/tareas");
+        await expect(page.getByLabel("Tipo de tarea")).toBeVisible();
+        const sin = await opciones();
+        for (const t of tipos) expect(sin, `apagado: ${t}`).not.toContain(t);
+        expect(sin).toContain("Todos los tipos");
+        expect(sin.length).toBeLessThan(todas.length);
+        expect(sin).toContain("Sin plantilla apta"); // lo de la captación sigue
+      } finally {
+        await context.close();
+        await fijar([]);
+      }
+    });
+  }
+});
 
 test.describe("cotizador y clase muestra apagados: la ficha del lead no los muestra ni los pide", () => {
   for (const modulo of ["cotizador", "clase_muestra"] as const) {
@@ -284,7 +319,7 @@ test.describe("capturas: la barra con módulos apagados", () => {
 });
 
 function capturaDe(nombre: string): string {
-  const carpeta = resolve(RAIZ, "docs/capturas/v1");
+  const carpeta = carpetaDeCapturas("v1");
   mkdirSync(carpeta, { recursive: true });
   return resolve(carpeta, `${nombre}.png`);
 }

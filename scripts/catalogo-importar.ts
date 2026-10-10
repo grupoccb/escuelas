@@ -1,7 +1,7 @@
 // Carga el catálogo de una escuela desde una carpeta con las plantillas llenas (V6): el mismo importador de Administración → «Cargar catálogo», desde la línea de comandos.
 //
 //   npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta con los .csv>
-//   npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta> --aplicar --administrador <correo>
+//   npm run catalogo:importar -- --organizacion <identificador> --carpeta <carpeta> --aplicar --administrador <correo> --confirmar-base <nombre de la base>
 //
 // Sin `--aplicar` SOLO SIMULA: valida todo, imprime los errores por archivo, fila y columna y no escribe nada. Con `--aplicar` simula primero y, si no hay errores, escribe todo o nada
 // (idempotente: volver a correrlo no duplica ni cambia nada). `--administrador` es el correo de un administrador de la organización: a su nombre queda el registro de cambios.
@@ -12,6 +12,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { revisarGuardasDeScript } from "./lib/demo-todo.ts";
 import { conAlcance } from "../src/datos/alcance.ts";
 import { crearPrisma } from "../src/datos/prisma.ts";
 import { resolverOrganizacionPorSlug } from "../src/datos/sistema.ts";
@@ -24,6 +25,7 @@ const { values: o } = parseArgs({
     aplicar: { type: "boolean", default: false },
     administrador: { type: "string" },
     json: { type: "boolean", default: false },
+    "confirmar-base": { type: "string" },
   },
 });
 
@@ -59,6 +61,15 @@ function imprimir(informe: Informe): void {
   }
 }
 
+// V13-fix (EV-37): `--aplicar` escribe en la base de DATABASE_URL (y a nombre de un administrador): se niega con NODE_ENV=production o con una base que no es local, y exige confirmar el
+// nombre de la base (`--confirmar-base <nombre>`). Para cargar un catálogo en una instalación real se usa Administración → «Cargar catálogo», con una sesión de administrador.
+if (o.aplicar) {
+  const h = revisarGuardasDeScript(process.env, { que: "esto escribe el catálogo en esa base", exigirConfirmacion: true, confirmarBase: o["confirmar-base"] });
+  if (h.length > 0) {
+    for (const x of h) console.error(`catalogo:importar --aplicar se niega: ${x.mensaje}`);
+    process.exit(2);
+  }
+}
 const prisma = crearPrisma();
 try {
   if (!o.organizacion || !o.carpeta) throw new Error("Faltan --organizacion <identificador> y --carpeta <carpeta con los .csv>.");
@@ -88,7 +99,7 @@ try {
     if (!informe.limpia) console.log("\nNo se guardó nada: corrige los errores y vuelve a intentar.");
     else if (informe.sin_cambios) console.log("\nSin cambios: todo lo del archivo ya estaba en el sistema.");
     else if (informe.aplicado) console.log("\nListo: el catálogo se cargó.");
-    else console.log("\nSimulación limpia: no se escribió nada. Para cargarlo de verdad agrega --aplicar --administrador <correo>.");
+    else console.log("\nSimulación limpia: no se escribió nada. Para cargarlo de verdad agrega --aplicar --administrador <correo> --confirmar-base <nombre de la base>.");
   }
   if (!informe.limpia) process.exitCode = 1;
 } catch (e) {

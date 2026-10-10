@@ -9,7 +9,8 @@
 // por WhatsApp, si tiene teléfono y las reglas lo permiten): alumno, grupo, fecha y hora, NUNCA datos de salud. Marcar visto es
 // idempotente y queda en el registro de cambios. Un aviso de otro maestro responde 404.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe } from "../contexto.ts";
@@ -22,6 +23,8 @@ import { booleano, booleanoDeTexto, enumerado, instanteISO, objeto, opcional, pa
 import { SELECCION_CLASE, alcanceDeClases, presentarClase, type FilaClase } from "./clases-muestra.ts";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
+/** Cuántos días hacia adelante ve el maestro por omisión (lo dice su guía: `npm run guias:validar` compara la cifra). */
+export const DIAS_ADELANTE_DEL_MAESTRO = 14;
 const ESTATUS = ["agendada", "asistio", "no_asistio", "reagendada", "cancelada"] as const;
 
 const esquemaClases = objeto({ ...esquemaPaginacion, desde: opcional(instanteISO()), hasta: opcional(instanteISO()), estatus: opcional(enumerado(ESTATUS)) });
@@ -66,7 +69,7 @@ const presentarAviso = (a: FilaAviso) => ({
 });
 
 export function rutasDelMaestro(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/maestro/clases-muestra", requierePermiso("clases_muestra:leer"), async (req, res) => {
@@ -75,7 +78,7 @@ export function rutasDelMaestro(_deps: DepsApi): Router {
     const pag = leerPaginacion(q);
     const ahora = ctx.ahora();
     const desde = q.desde ?? new Date(ahora.getTime() - DIA_MS);
-    const hasta = q.hasta ?? new Date(ahora.getTime() + 14 * DIA_MS);
+    const hasta = q.hasta ?? new Date(ahora.getTime() + DIAS_ADELANTE_DEL_MAESTRO * DIA_MS);
     const donde = {
       AND: [await alcanceDeClases(ctx), { fecha_hora: { gte: desde, lte: hasta } }, q.estatus ? { estatus: q.estatus } : { estatus: { in: ["agendada", "asistio", "no_asistio"] as ("agendada" | "asistio" | "no_asistio")[] } }],
     };

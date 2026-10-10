@@ -15,7 +15,8 @@
 // La base impide el traslape (restricción de exclusión): dos altas simultáneas, una gana. Cada cambio
 // (incluido el cierre de la anterior) queda en el registro de cambios.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { aFecha, deFecha, planDeAlta } from "../../catalogo/precios.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
@@ -94,7 +95,7 @@ async function cambiar(ctx: ContextoApi, id: string, hacer: (antes: FilaPrecio, 
 }
 
 export function rutasDePrecios(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/precios", requierePermiso("catalogo:leer"), async (req, res) => {

@@ -8,10 +8,12 @@
 //   PUT    /api/etapas/orden   { ids: [...] }   (catalogo:escribir) — el orden nuevo, con todas las etapas vivas. Las de sistema conservan su orden relativo y las de cierre van al final
 //   DELETE /api/etapas/:id   (catalogo:escribir) — baja lógica de una etapa propia. 409 si tiene leads o si es de sistema
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance, type Consultas } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
+import { claveDeCandadoDeEtapa } from "../../embudo/historial.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -45,7 +47,7 @@ const normal = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").
 const vivas = (db: Consultas): Promise<Etapa[]> => db.etapa_pipeline.findMany({ select: SELECCION, orderBy: [{ orden: "asc" }, { id: "asc" }] });
 
 export function rutasDeEtapas(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.post("/etapas", requierePermiso("catalogo:escribir"), json, async (req, res) => {
@@ -119,6 +121,8 @@ export function rutasDeEtapas(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
     await transaccionConBloqueo(ctx.db, ctx.organizacionId, "etapas", async (tx) => {
+      // V13-fix (EV-24): el candado de ESTA etapa, el mismo que toma quien mueve un lead hacia ella: contar los leads y darla de baja ya no se puede intercalar con un movimiento.
+      await tx.$tomarCandado(claveDeCandadoDeEtapa(id));
       const actual = await tx.etapa_pipeline.findFirst({ where: { id }, select: SELECCION });
       if (!actual) throw noEncontrado();
       if (actual.tipo_sistema !== null || esDeCierre(actual)) throw conflicto("Esta etapa la usa el sistema (el bot y la conversión la buscan por su papel) y no se puede quitar. Puedes cambiarle el nombre.");

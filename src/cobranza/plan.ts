@@ -4,7 +4,7 @@
 //   · `cargo_por_vencer`: ANTES del vencimiento. `offset_minutos` es NEGATIVO y se mide desde el INICIO del día de vencimiento (calendario local de la sucursal que cobra):
 //     -4320 = 3 días antes (a esa medianoche, recorrido al horario de envío). Sale a lo más hasta el final del día de vencimiento; después de eso se descarta (invariante 14).
 //   · `cargo_vencido`: DESPUÉS de vencer. La referencia es el inicio del día siguiente al vencimiento (cuando el cargo ya está vencido) y `offset_minutos` los minutos
-//     después (1440 = un día después). `max_intentos` es el tope de recordatorios; el intento n sale `espaciado_minutos` (7 días por omisión) después del n−1, y solo si el
+//     después (1440 = un día después). `max_intentos` es el tope de recordatorios; el intento n sale `espaciado_minutos` (7 días por omisión) después del ENVÍO del n−1 (nunca antes de lo que marca el calendario del vencimiento), y solo si el
 //     anterior salió y la familia no ha pagado.
 // Todo lo que cae fuera de 09:00–20:00 de la sucursal se recorre al siguiente horario válido (nada de cobranza a las 6 a. m.): eso lo hace quien programa y lo vuelve a
 // exigir MessagingProvider al enviar.
@@ -40,11 +40,18 @@ function diaSiguiente(f: FechaISO): FechaISO {
   return d.toISOString().slice(0, 10);
 }
 
-/** Cuándo toca el recordatorio número `ocurrencia` (1 en adelante), sin recorrer al horario de envío. */
-export function nominalDeRecordatorio(evento: EventoDeCobranza, vencimiento: FechaISO, zona: string, a: { offsetMinutos: number; espaciadoMinutos: number | null }, ocurrencia: number): Date {
+/**
+ * Cuándo toca el recordatorio número `ocurrencia` (1 en adelante), sin recorrer al horario de envío.
+ * V13-fix (EV-05): el espaciado cuenta desde el ENVÍO del anterior (`anteriorEnviadoEn`), no solo desde el vencimiento: si el primer recordatorio salió tarde (la automatización o
+ * el módulo de finanzas estuvieron apagados y se encendieron semanas después) el segundo ya no sale al día siguiente porque «su fecha» quedó en el pasado. Nunca sale antes de lo que
+ * decía el calendario del vencimiento.
+ */
+export function nominalDeRecordatorio(evento: EventoDeCobranza, vencimiento: FechaISO, zona: string, a: { offsetMinutos: number; espaciadoMinutos: number | null }, ocurrencia: number, anteriorEnviadoEn: Date | null = null): Date {
   const ref = referenciaDeCobranza(evento, vencimiento, zona).getTime();
   const espaciado = a.espaciadoMinutos ?? ESPACIADO_POR_OMISION_MIN;
-  return new Date(ref + (a.offsetMinutos + (ocurrencia - 1) * espaciado) * MINUTO_MS);
+  const delCalendario = ref + (a.offsetMinutos + (ocurrencia - 1) * espaciado) * MINUTO_MS;
+  if (ocurrencia <= 1 || anteriorEnviadoEn === null) return new Date(delCalendario);
+  return new Date(Math.max(delCalendario, anteriorEnviadoEn.getTime() + espaciado * MINUTO_MS));
 }
 
 /** Hasta cuándo sirve un recordatorio de «por vencer»: el final del día de vencimiento (exclusivo). Pasado eso, ya no es «por vencer». */
@@ -58,13 +65,13 @@ export function limiteDeRecordatorioPorVencer(vencimiento: FechaISO, zona: strin
  */
 export function ocurrenciaPorProgramar(
   evento: EventoDeCobranza,
-  p: { vencimiento: FechaISO; zona: string; ahora: Date; maxIntentos: number; offsetMinutos: number; espaciadoMinutos: number | null; atrasoMaximoDias: number; previa: { ocurrencia: number; salio: boolean } | null },
+  p: { vencimiento: FechaISO; zona: string; ahora: Date; maxIntentos: number; offsetMinutos: number; espaciadoMinutos: number | null; atrasoMaximoDias: number; previa: { ocurrencia: number; salio: boolean; enviadoEn?: Date | null } | null },
 ): number | null {
   const n = p.previa ? p.previa.ocurrencia + 1 : 1;
   if (n > p.maxIntentos) return null;
   if (p.previa && !p.previa.salio) return null;
   if (p.ahora.getTime() - referenciaDeCobranza(evento, p.vencimiento, p.zona).getTime() > p.atrasoMaximoDias * DIA_MS) return null;
-  const nominal = nominalDeRecordatorio(evento, p.vencimiento, p.zona, { offsetMinutos: p.offsetMinutos, espaciadoMinutos: p.espaciadoMinutos }, n);
+  const nominal = nominalDeRecordatorio(evento, p.vencimiento, p.zona, { offsetMinutos: p.offsetMinutos, espaciadoMinutos: p.espaciadoMinutos }, n, p.previa?.enviadoEn ?? null);
   if (nominal.getTime() > p.ahora.getTime()) return null;
   if (evento === "cargo_por_vencer" && p.ahora.getTime() >= limiteDeRecordatorioPorVencer(p.vencimiento, p.zona).getTime()) return null;
   return n;

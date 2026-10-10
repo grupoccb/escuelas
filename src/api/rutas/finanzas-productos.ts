@@ -16,7 +16,8 @@
 // pagos: primero se cancela el pago). La entrega de un beneficio de producto (H4) es una venta promocional de precio 0 que no se anula. Permisos: el catálogo lo escribe el
 // administrador, el stock también recepción, las ventas las registra y anula recepción (y el administrador); el asesor lee; el maestro no ve precios (403).
 
-import express, { Router } from "express";
+import express from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
@@ -112,7 +113,7 @@ function errorDeVenta(e: RechazoDeVenta): never {
 }
 
 export function rutasDeProductos(_deps: DepsApi): express.Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   async function dondeVentaVisible(ctx: ContextoApi): Promise<Record<string, unknown>> {

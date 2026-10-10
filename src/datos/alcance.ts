@@ -73,7 +73,11 @@ function aplicarAlcance(model: string, operation: string, argumentos: unknown, o
   }
 
   if (CON_WHERE.has(operation)) {
-    a["where"] = { ...(a["where"] as Datos | undefined), [llave]: organizacionId, eliminado_en: null };
+    const donde = (a["where"] as Datos | undefined) ?? {};
+    // V13-fix (EV-23): UNA excepción explícita y mínima a «lo borrado no se ve»: preguntar si la organización tuvo una fila de configuración dada de baja (`eliminado_en: { not: null }`, solo
+    // `findFirst` sobre `configuracion_organizacion`). `leerModulos` la usa para fallar cerrado cuando la única fila viva se dio de baja. Siempre con `organizacion_id` del alcance.
+    const pideBajas = model === "configuracion_organizacion" && operation === "findFirst" && typeof donde["eliminado_en"] === "object" && donde["eliminado_en"] !== null && JSON.stringify(donde["eliminado_en"]) === '{"not":null}';
+    a["where"] = pideBajas ? { ...donde, [llave]: organizacionId } : { ...donde, [llave]: organizacionId, eliminado_en: null };
   } else if (DE_ALTA.has(operation)) {
     if (model === "organizacion") {
       throw new ErrorAlcance("Las organizaciones solo se crean por seed (invariante 1)");
@@ -106,6 +110,8 @@ function alcanceSobreTransaccion(tx: TransaccionCruda, organizacionId: string): 
   const delegados = new Map<string, unknown>();
   return new Proxy(tx as object, {
     get(destino, propiedad) {
+      // V13-fix (EV-24): un segundo candado (organización, clave) dentro de una transacción que ya tomó el suyo.
+      if (propiedad === "$tomarCandado") return async (clave: string): Promise<void> => void (await bloquearClave(tx, organizacionId, clave));
       if (typeof propiedad === "string" && (SQL_CRUDO as readonly string[]).includes(propiedad)) return sqlCrudoProhibido(propiedad);
       const valor = Reflect.get(destino, propiedad, destino) as unknown;
       if (typeof propiedad !== "string" || propiedad.startsWith("$") || typeof valor !== "object" || valor === null) return valor;
@@ -140,6 +146,10 @@ function crearCliente(prisma: PrismaClient, organizacionId: string) {
       $queryRawUnsafe: sqlCrudoProhibido("$queryRawUnsafe"),
       $executeRaw: sqlCrudoProhibido("$executeRaw"),
       $executeRawUnsafe: sqlCrudoProhibido("$executeRawUnsafe"),
+      /** V13-fix (EV-24): solo existe dentro de una transacción con bloqueo (`transaccionConBloqueo`); aquí no tiene sentido (el candado de transacción se suelta al terminar la consulta). */
+      async $tomarCandado(_clave: string): Promise<void> {
+        throw new ErrorAlcance("$tomarCandado solo se usa dentro de transaccionConBloqueo");
+      },
       /**
        * Transacción que, antes de nada, toma un candado consultivo por (organización, clave): las
        * demás transacciones que pidan el mismo se esperan hasta que ésta termine (EA-11). Dentro de

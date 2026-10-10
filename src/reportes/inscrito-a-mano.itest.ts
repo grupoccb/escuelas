@@ -12,7 +12,8 @@ import { spawnSync } from "node:child_process";
 import { conAlcance } from "../datos/alcance.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { mundoDeFinanzas, type MundoDeFinanzas } from "../testutil/finanzas.ts";
-import { sembrarFamilia } from "../testutil/semilla.ts";
+import { fijarConfiguracion, sembrarFamilia } from "../testutil/semilla.ts";
+import { SOLO_CAPTACION, TODOS_ENCENDIDOS, aFilaDeModulos } from "../modulos/index.ts";
 import { reporteLeads } from "./leads.ts";
 import { reporteDeCostoPorCampana } from "./costo-campana.ts";
 import { reporteDeClasesMuestra } from "./clases-muestra.ts";
@@ -156,6 +157,32 @@ test("lista de leads en CSV — una columna «Cómo se inscribió»: a mano, por
   assert.equal(await celda(w.l3.leadId), "Por inscripción", "marcado a mano y después inscrito: cuenta por la inscripción");
   assert.equal(await celda(w.l5.leadId), "", "un lead abierto no tiene esa columna");
   assert.equal(await celda(w.l4.leadId), "", "uno corregido ya no es inscrito");
+});
+
+// V13-fix EV-21: con la inscripción apagada la lista de leads no dice «Por inscripción» (la escuela no tiene inscripciones); sí dice «A mano», que es lo que pasa con el módulo apagado.
+test("EV-21: con la inscripción apagada, la lista de leads en CSV conserva «Cómo se inscribió» pero solo con «A mano»: nunca «Por inscripción»; al encenderla vuelve a decir los dos", async () => {
+  const descargar = async () => {
+    const csv = await m.admin.get<string>("/api/exportaciones/leads");
+    assert.equal(csv.estado, 200);
+    const [encabezado, ...filas] = String(csv.cuerpo).replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l !== "");
+    const telefonos = new Map<string, string>();
+    for (const f of filas) telefonos.set(f.split(",")[2]!.replace(/"/g, "").replace(/^'/, ""), f.split(",").at(-1)!.replace(/"/g, ""));
+    return { encabezado: encabezado!, filas, celda: async (leadId: string) => telefonos.get((await prisma.lead.findFirstOrThrow({ where: { id: leadId } })).telefono!) };
+  };
+  try {
+    await fijarConfiguracion(prisma, m.org.organizacionId, aFilaDeModulos(SOLO_CAPTACION));
+    const apagada = await descargar();
+    assert.match(apagada.encabezado, /Cómo se inscribió$/);
+    assert.ok(!apagada.filas.some((f) => /Por inscripción/.test(f)), "ninguna fila dice «Por inscripción»");
+    assert.equal(await apagada.celda(w.l2.leadId), "A mano");
+    assert.equal(await apagada.celda(w.l1.leadId), "", "inscrito por una inscripción de antes: en blanco, no «Por inscripción»");
+    assert.equal(await apagada.celda(w.l5.leadId), "");
+  } finally {
+    await fijarConfiguracion(prisma, m.org.organizacionId, aFilaDeModulos(TODOS_ENCENDIDOS));
+  }
+  const encendida = await descargar();
+  assert.equal(await encendida.celda(w.l1.leadId), "Por inscripción");
+  assert.equal(await encendida.celda(w.l2.leadId), "A mano");
 });
 
 test("costo por campaña — el inscrito a mano es un alumno inscrito más en el divisor; centavos exactos; el desglose lo dice; ninguno cuenta doble", async () => {

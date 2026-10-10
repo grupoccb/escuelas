@@ -13,6 +13,7 @@
 // X-Forwarded-For. `true` confía en TODA la cadena y cualquiera puede falsificar su IP: no lo uses.
 
 import { perfilPorMinuto, type PerfilLimite } from "./limite.ts";
+import { esProduccion } from "../seguridad/entorno.ts";
 
 export interface ConfigLimites {
   login: PerfilLimite;
@@ -51,7 +52,7 @@ export function limitesDesdeEntorno(env: NodeJS.ProcessEnv = process.env): Confi
  * balanceador; `false` si el puerto está expuesto directamente) lo silencia. null = nada que avisar.
  */
 export function avisoDeTrustProxy(env: NodeJS.ProcessEnv = process.env): string | null {
-  if (env["NODE_ENV"] !== "production") return null;
+  if (!esProduccion(env)) return null;
   if ((env["TRUST_PROXY"] ?? "").trim() !== "") return null;
   return "TRUST_PROXY no está definido en producción: sin él X-Forwarded-For se ignora y, detrás de un balanceador, todos los clientes comparten una IP (el bloqueo de login y los límites de IP caen sobre todos). Defínelo: 1 con un balanceador, false si el puerto está expuesto directamente.";
 }

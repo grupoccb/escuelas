@@ -9,7 +9,8 @@
 // Las definiciones (qué cuenta como lead, clase muestra e inscripción activa de una campaña, cómo se redondea cada cociente y por qué «—») viven en `src/reportes/costo-campana.ts`.
 // Dinero siempre como texto con dos decimales. Sin divisor no hay división por cero: el valor es null y su `_texto` es «—».
 
-import express, { Router } from "express";
+import express from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { aFecha, deFecha } from "../../catalogo/precios.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
@@ -38,7 +39,7 @@ function validarRango(q: { desde?: string | undefined; hasta?: string | undefine
 }
 
 export function rutasDeCostoPorCampana(_deps: DepsApi): express.Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/reportes/costo-por-alumno", requierePermiso("reportes:costos"), async (req, res) => {

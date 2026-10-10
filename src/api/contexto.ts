@@ -36,6 +36,8 @@ export interface DepsApi {
   expediente: ProveedoresDelExpediente;
   /** URL pública de Chatwoot (sin barra final) para armar el enlace a una conversación desde la interfaz (J3). Nulo = no configurada. */
   chatwootUrlPublica: string | null;
+  /** V13-fix (EV-36): cuántas filas como máximo se revisan en una búsqueda por nombre de familias o alumnos. Más allá, la respuesta dice que la búsqueda quedó incompleta. */
+  topeDeBusquedaPorNombre: number;
 }
 
 export interface ContextoApi {

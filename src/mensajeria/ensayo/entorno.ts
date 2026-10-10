@@ -51,14 +51,20 @@ export function validarOrigenPublico(crudo: string | undefined, { permitirNoHttp
   if (vacio(crudo)) {
     return { problema: "Falta ORIGEN_PUBLICO: es la URL https que te dio el túnel (por ejemplo https://algo.trycloudflare.com). Ábrelo primero (docs/ENSAYO-WHATSAPP-REAL.md, paso 3) y vuelve a correr el comando con `--url <esa dirección>`." };
   }
+  const texto = crudo!.trim();
+  // V13-fix (EV-40): `new URL` borra en silencio los saltos de línea y tabuladores («https://a.example\nX=1» se volvía «https://a.exampleX=1») y acepta `$(…)` y comillas invertidas dentro del
+  // nombre. Esta dirección acaba en un archivo `.env` que otras herramientas leen como texto de shell: lo raro se RECHAZA con un mensaje, no se limpia.
+  if (/\s/.test(texto) || [...texto].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) return { problema: "ORIGEN_PUBLICO tiene espacios o saltos de línea. Debe ser una sola dirección, por ejemplo https://algo.trycloudflare.com" };
+  if (/[`$"'\\;|&<>(){}*!]/.test(texto)) return { problema: `ORIGEN_PUBLICO trae caracteres que no son de una dirección (comillas, «$», paréntesis, «;»…). Copia solo la dirección que te dio el túnel, por ejemplo https://algo.trycloudflare.com` };
   let u: URL;
   try {
-    u = new URL(crudo!.trim());
+    u = new URL(texto);
   } catch {
     return { problema: `ORIGEN_PUBLICO no es una dirección válida («${crudo}»). Debe verse como https://algo.trycloudflare.com` };
   }
   if (u.protocol !== "https:" && !permitirNoHttps) return { problema: `ORIGEN_PUBLICO debe empezar con https:// (recibí «${u.protocol}//»): Twilio solo llama a direcciones https.` };
   if (/^(?:localhost|127\.|0\.0\.0\.0|\[?::1)/i.test(u.hostname) && !permitirNoHttps) return { problema: "ORIGEN_PUBLICO apunta a esta misma máquina (localhost): Twilio no puede llamarla. Usa la dirección pública del túnel." };
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/i.test(u.hostname)) return { problema: `ORIGEN_PUBLICO no tiene un nombre de dirección válido («${u.hostname}»): solo letras, números, guiones y puntos.` };
   if (u.port) return { problema: `ORIGEN_PUBLICO no debe llevar puerto (recibí :${u.port}): Twilio firma con la dirección del túnel, que no lleva el puerto local.` };
   if (u.username || u.password) return { problema: "ORIGEN_PUBLICO no debe llevar usuario ni contraseña." };
   if ((u.pathname !== "/" && u.pathname !== "") || u.search || u.hash) return { problema: `ORIGEN_PUBLICO debe ser solo la dirección, sin ruta (recibí «${u.pathname}${u.search}»): las rutas las agrega el sistema.` };

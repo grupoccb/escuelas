@@ -42,7 +42,7 @@ export default function Modulos() {
       <ErrorDeAccion error={cambio.error} />
       {carga.datos ? (
         <>
-          <Aviso>Puedes encender y apagar cuando quieras. Al apagar un módulo no se borra nada: sus datos se quedan guardados y vuelven al encenderlo.</Aviso>
+          <Aviso>Puedes encender y apagar cuando quieras. Al apagar un módulo no se borra nada: lo que ya estaba guardado se conserva. Pero mientras esté apagado el sistema no hace nada de esa parte (por ejemplo, no genera cobros ni manda avisos), y lo que pasó en ese tiempo no se pone al corriente solo al encenderlo.</Aviso>
           <ul className="lista-tarjetas" data-prueba="modulos">
             {modulos.map((m) => {
               const bloqueo = explicarCambioDeModulo(m, modulos);
@@ -89,7 +89,7 @@ export default function Modulos() {
         }}
       >
         <p>{porApagar ? queCambia(porApagar.id, false) : ""}</p>
-        <Aviso>Los datos se quedan guardados: vuelven en cuanto lo enciendas otra vez. Surte efecto enseguida, para todas las personas de la escuela.</Aviso>
+        <Aviso>Lo que ya estaba guardado se conserva y vuelve a verse cuando lo enciendas. Pero mientras esté apagado no se genera nada nuevo de esa parte (cobros del mes, avisos, recordatorios) y al encenderlo no se recupera lo que pasó en ese tiempo. Surte efecto enseguida, para todas las personas de la escuela.</Aviso>
       </ConfirmarAccion>
     </Pagina>
   );

@@ -8,7 +8,8 @@
 // Un lead que aún no eligió sucursal solo lo ve el administrador. `telefono` pasa por
 // `normalizarTelefono()` (invariante 7): se busca igual que se guarda.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { hoyDelLead, presentarNino, SELECCION_DE_NINO, type FilaDeNino } from "../../captacion/prospectos.ts";
 import { normalizarTelefono } from "../../lib/telefono.ts";
@@ -64,7 +65,7 @@ const esquemaId = objeto({ id: uuid() });
 const esquemaSucursal = objeto({ sucursal_interes_id: uuid() });
 
 export function rutasDeLeads(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const dentro = [requierePermiso("leads:leer")];
 
   r.get("/leads", ...dentro, async (req, res) => {

@@ -21,7 +21,8 @@
 // (por omisión; `mm` = lado impreso, 20 a 300, 60 por omisión) o `png` (`escala` = píxeles por módulo, 1 a 40, 16 por omisión) se pueden descargar con `descargar=true`;
 // `formato=url` devuelve el JSON con la URL y el código. El asesor solo pide sucursales de su alcance. La base pública sale de `ORIGEN_PUBLICO`/`PUBLIC_BASE_URL`.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
@@ -39,6 +40,7 @@ import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, entero, enteroDeTexto, enumerado, fechaISO, instanteISO, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
+import { esProduccion } from "../../seguridad/entorno.ts";
 
 const ORIGENES = ["facebook", "instagram", "tiktok", "google", "referido", "presencial", "otro"] as const;
 const TIPOS = ["campana", "lead"] as const;
@@ -99,7 +101,7 @@ const esquemaQr = objeto({
 });
 
 export function rutasDeCampanas(deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   /** Las referencias de una campaña tienen que existir en la organización (el scope hace el resto). */
@@ -236,7 +238,7 @@ export function rutasDeCampanas(deps: DepsApi): Router {
     });
 
     // La URL: la base pública, el slug de la vertical (con el de la organización si el de la vertical se repite), el código y la sucursal.
-    const base = resolverBaseUrl({ origenesPermitidos: deps.origenesPermitidos, publicBaseUrl: process.env["PUBLIC_BASE_URL"], protocolo: req.protocol, host: req.get("host"), produccion: process.env["NODE_ENV"] === "production" });
+    const base = resolverBaseUrl({ origenesPermitidos: deps.origenesPermitidos, publicBaseUrl: process.env["PUBLIC_BASE_URL"], protocolo: req.protocol, host: req.get("host"), produccion: esProduccion(process.env) });
     if (!base) throw conflicto("Falta configurar el origen público del sistema (ORIGEN_PUBLICO) para armar el QR");
     let orgSlug: string | null = null;
     if (!(await resolverVerticalPublica(deps.prisma, vertical.slug, null))) {

@@ -14,7 +14,8 @@
 // Cancelar NO borra: el pago pasa a `cancelado`, sus aplicaciones a `revertida` y los cargos recalculan su saldo.
 // Permisos: recepción y administrador escriben; el asesor lee; el maestro no ve importes (403). Alcance: la familia debe estar a la vista (por sucursal); lo ajeno es 404.
 
-import express, { Router } from "express";
+import express from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { aFecha } from "../../catalogo/precios.ts";
 import { dondeTutorVisible } from "../../familias/alcance.ts";
 import { proponerDistribucion } from "../../finanzas/distribucion.ts";
@@ -62,7 +63,7 @@ function errorDePago(e: RechazoDePago): never {
 }
 
 export function rutasDePagos(_deps: DepsApi): express.Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   async function familiaVisible(ctx: ContextoApi, tutorId: string): Promise<void> {

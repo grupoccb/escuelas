@@ -22,6 +22,7 @@ import { escenarioBot } from "../testutil/bot.ts";
 import { mundoDeFinanzas, type MundoDeFinanzas } from "../testutil/finanzas.ts";
 import { fijarConfiguracion, sembrarFamilia, type TipoDeEtapa } from "../testutil/semilla.ts";
 import { sembrarUsuario, type ClienteApi } from "../testutil/api.ts";
+import { reporteDeCostoPorCampana } from "../reportes/costo-campana.ts";
 import { claveDeCandadoDeLead, moverEtapaDeLead } from "./historial.ts";
 import { estaInscritoAMano, inscritosAMano } from "./inscrito-a-mano.ts";
 import { LARGO_MINIMO_NOTA_A_MANO, MENSAJE_DE_RECHAZO } from "./transiciones.ts";
@@ -138,6 +139,100 @@ test("la nota es obligatoria: vacía, de espacios, ausente, nula, corta y larga 
   assert.match(corta.cuerpo.error.detalles!.find((d) => d.campo === "nota")!.mensaje, /muy corta.*al menos 10 caracteres/);
   const sin = await marcar(m.asesorNorte, (await lead()).leadId, null);
   assert.match(sin.cuerpo.error.detalles!.find((d) => d.campo === "nota")!.mensaje, /hace falta una nota que diga cómo se inscribió/);
+});
+
+// V13-fix EV-26: 10 caracteres invisibles o «..........» NO cumplen la nota obligatoria.
+test("EV-26: la nota con caracteres invisibles o de relleno (espacio de ancho cero, blanco braille, relleno hangul, puntos, signos) se rechaza como si estuviera vacía o corta; nada cambia", async () => {
+  await apagar();
+  const relleno: [string, string][] = [
+    ["10 espacios de ancho cero", "\u200B".repeat(10)],
+    ["10 blancos braille", "\u2800".repeat(10)],
+    ["10 rellenos hangul", "\u3164".repeat(10)],
+    ["10 puntos", ".".repeat(10)],
+    ["signos y espacios", "¡!¿?-_-_ ... ¡!"],
+    ["9 letras entre invisibles", "a\u200Bb\u200Bc\u200Bd\u200Be\u200Bf\u200Bg\u200Bh\u200Bi\u200B"],
+  ];
+  for (const [nombre, nota] of relleno) {
+    const f = await lead("negociacion");
+    const r = await marcar(m.asesorNorte, f.leadId, nota);
+    assert.equal(r.estado, 400, `${nombre}: ${JSON.stringify(r.cuerpo)}`);
+    assert.ok(r.cuerpo.error.detalles?.some((d) => d.campo === "nota"), nombre);
+    assert.equal(await etapaDe(f.leadId), etapas.negociacion, nombre);
+    assert.equal((await filasDe(f.leadId)).length, 0, nombre);
+  }
+  // Con 10 letras de verdad (aunque lleven invisibles intercalados) vale, y se guarda sin los invisibles.
+  const f = await lead("negociacion");
+  const ok = await marcar(m.asesorNorte, f.leadId, "P\u200Ba\u200Bg\u200Bó en efectivo ");
+  assert.equal(ok.estado, 200, JSON.stringify(ok.cuerpo));
+  assert.equal((await filasDe(f.leadId)).at(-1)!.nota, "Pagó en efectivo");
+  // Corregir y recuperar pasan por el mismo filtro.
+  const perdido = await lead("perdido");
+  const sinContenido = await m.asesorNorte.patch<Errores>(`/api/leads/${perdido.leadId}/etapa`, { etapa_id: etapas.negociacion, nota: "\u200B\u200B..." });
+  assert.equal(sinContenido.estado, 400, "recuperar con una nota sin contenido");
+});
+
+// V13-fix EV-06: la nota de inscrito a mano y la de recuperar un lead la leen todos los asesores; no es para datos de salud.
+test("EV-06: la nota de inscrito a mano, de corrección y de recuperación no admite datos de salud (mismo freno que las notas de clase muestra); mensaje claro y nada cambia", async () => {
+  await apagar();
+  const CON_SALUD = "El niño tiene asma y toma salbutamol, pagó en efectivo";
+  const a = await lead("negociacion");
+  const r = await marcar(m.asesorNorte, a.leadId, CON_SALUD);
+  assert.equal(r.estado, 400, JSON.stringify(r.cuerpo));
+  const detalle = r.cuerpo.error.detalles!.find((d) => d.campo === "nota")!;
+  assert.match(detalle.mensaje, /no son para datos de salud/);
+  assert.match(detalle.mensaje, /sección de salud/);
+  assert.equal(await etapaDe(a.leadId), etapas.negociacion);
+  assert.equal((await filasDe(a.leadId)).length, 0, "no quedó la nota en el historial");
+  // Recuperar un lead perdido.
+  const p = await lead("perdido");
+  const rec = await m.asesorNorte.patch<Errores>(`/api/leads/${p.leadId}/etapa`, { etapa_id: etapas.negociacion, nota: "Tiene diabetes y volvió a escribir" });
+  assert.equal(rec.estado, 400, JSON.stringify(rec.cuerpo));
+  assert.equal(await etapaDe(p.leadId), etapas.perdido);
+  assert.equal((await filasDe(p.leadId)).length, 0);
+  // Corrección (administrador) de una marca a mano.
+  const c = await lead("negociacion");
+  assert.equal((await marcar(m.asesorNorte, c.leadId)).estado, 200);
+  const corr = await m.admin.patch<Errores>(`/api/leads/${c.leadId}/etapa`, { etapa_id: etapas.negociacion, nota: "Se corrige: el niño tiene alergia a los cacahuates" });
+  assert.equal(corr.estado, 400, JSON.stringify(corr.cuerpo));
+  assert.equal(await etapaDe(c.leadId), etapas.inscrito);
+  // La misma nota sin salud, sí.
+  assert.equal((await m.admin.patch<Errores>(`/api/leads/${c.leadId}/etapa`, { etapa_id: etapas.negociacion, nota: "Se corrige: se marcó por error" })).estado, 200);
+  // Y con salud disfrazada (letras sueltas / invisibles) también se detecta, como en las demás notas.
+  const d = await lead("negociacion");
+  assert.equal((await marcar(m.asesorNorte, d.leadId, "ti\u200Bene as\u200Bma y pagó en efectivo")).estado, 400);
+});
+
+// V13-fix EV-31 (la sospecha del auditor, confirmada): `inscritosAMano` descartaba al lead si tenía CUALQUIER inscripción, también una dada de baja, y el costo por campaña cuenta solo las
+// ACTIVAS: un lead que se inscribió, se dio de baja y la escuela volvió a marcar a mano (con la inscripción apagada) no se contaba en ningún lado.
+test("EV-31: un lead con una inscripción dada de baja que se marca a mano después SÍ cuenta como inscrito a mano (en el costo por campaña también); con una inscripción activa, no", async () => {
+  await apagar();
+  const campana = (await prisma.campana.create({ data: { organizacion_id: ORG(), nombre: `Campaña EV-31 ${Math.random()}`, origen: "facebook" } })).id;
+  const { grupoId } = await m.programa();
+  const g = await prisma.grupo.findUniqueOrThrow({ where: { id: grupoId }, select: { programa_id: true } });
+  const inscripcionDe = async (f: { leadId: string; prospectoId: string }, estatus: "activa" | "baja") => {
+    const alumno = await prisma.alumno.create({ data: { organizacion_id: ORG(), nombre: "Alumno EV31", apellidos: "Prueba", fecha_nacimiento: new Date("2018-01-01") } });
+    const hoy = new Date();
+    const base = { organizacion_id: ORG(), alumno_id: alumno.id, grupo_id: grupoId, programa_id: g.programa_id, lead_id: f.leadId, prospecto_id: f.prospectoId, fecha_inscripcion: hoy, fecha_inicio: hoy, precio_inscripcion_aplicado: "100.00", precio_mensualidad_aplicado: "200.00", dia_corte_pago: 5 };
+    await prisma.inscripcion.create({ data: estatus === "baja" ? { ...base, estatus: "baja", fecha_baja: hoy, motivo_baja_id: m.motivoBaja } : base });
+  };
+  // A: se inscribió y se dio de baja; luego (inscripción apagada) la marcan a mano.
+  const a = await lead("negociacion");
+  await prisma.lead.update({ where: { id: a.leadId }, data: { campana_id: campana } });
+  await inscripcionDe(a, "baja");
+  assert.equal((await marcar(m.asesorNorte, a.leadId)).estado, 200);
+  // B: tiene una inscripción ACTIVA y además una marca a mano antigua: cuenta por la inscripción, no a mano.
+  const b = await lead("negociacion");
+  await prisma.lead.update({ where: { id: b.leadId }, data: { campana_id: campana } });
+  assert.equal((await marcar(m.asesorNorte, b.leadId)).estado, 200);
+  await inscripcionDe(b, "activa");
+  const manos = await inscritosAMano(db(), { leadIds: [a.leadId, b.leadId] });
+  assert.ok(manos.has(a.leadId), "con solo una inscripción en baja, la marca a mano cuenta");
+  assert.ok(!manos.has(b.leadId), "con una inscripción activa cuenta por la inscripción");
+  const fila = (await reporteDeCostoPorCampana(db(), { campanaId: campana })).filas[0]!;
+  assert.deepEqual([fila.inscritos_a_mano, fila.inscripciones_activas, fila.alumnos_inscritos], [1, 1, 2], "cada lead cuenta una vez: A a mano, B por su inscripción");
+  // La corrección de A también pide nota (es una marca a mano de verdad).
+  const corregir = await m.admin.patch<Errores>(`/api/leads/${a.leadId}/etapa`, { etapa_id: etapas.negociacion });
+  assert.equal(corregir.estado, 400, JSON.stringify(corregir.cuerpo));
 });
 
 test("la base también lo impide: una marca a mano sin nota suficiente, o del sistema, no entra al historial", async () => {

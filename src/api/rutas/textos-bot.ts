@@ -7,7 +7,8 @@
 //
 // Surte efecto en el siguiente mensaje que llegue (el bot lee la tabla en cada mensaje; sin reiniciar). Un texto de un módulo apagado se puede editar, pero el bot no lo dice hasta que el módulo se encienda.
 
-import { Router } from "express";
+import { type Router } from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import express from "express";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
@@ -28,7 +29,7 @@ function claveDe(valor: string | string[] | undefined): ClaveDeTexto {
 }
 
 export function rutasDeTextosBot(_deps: DepsApi): Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   const listar = async (ctx: ReturnType<typeof contextoDe>) => {

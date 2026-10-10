@@ -5,7 +5,7 @@ import { Link, NavLink } from "react-router-dom";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, AvisoDeBusquedaIncompleta, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
@@ -61,6 +61,7 @@ function ListaDeFamilias() {
           </li>
         ))}
       </ul>
+      <AvisoDeBusquedaIncompleta paginacion={lista.datos?.paginacion} />
       {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
     </div>
   );

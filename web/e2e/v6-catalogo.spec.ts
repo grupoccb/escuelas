@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
 import { comoRol, expect, test } from "./fixtura.ts";
-import { RAIZ } from "./mundo.ts";
+import { carpetaDeCapturas } from "./mundo.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -23,7 +23,7 @@ const CELULAR = { width: 390, height: 844 } as const;
 const TERMINOS_TECNICOS = /_id\b|_min\b|uuid|undefined|null|\[object|NaN|\bJSON\b|\bAPI\b|\bslug\b|base64/;
 
 async function captura(page: Page, nombre: string, opciones: { completa?: boolean } = {}): Promise<void> {
-  const carpeta = resolve(RAIZ, "docs/capturas/v1");
+  const carpeta = carpetaDeCapturas("v1");
   mkdirSync(carpeta, { recursive: true });
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: resolve(carpeta, `${nombre}.png`), animations: "disabled", fullPage: opciones.completa ?? false });

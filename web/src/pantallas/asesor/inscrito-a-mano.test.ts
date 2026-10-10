@@ -34,3 +34,13 @@ test("la nota: vacía, de espacios, muy corta y muy larga se rechazan con un tex
   assert.equal(problemaDeNota("x".repeat(1000)), null);
   assert.match(problemaDeNota("x".repeat(1001))!, /máximo 1000/);
 });
+
+test("EV-26: la nota de relleno (invisibles, puntos, signos) se trata como vacía o corta, igual que el servidor", () => {
+  assert.match(problemaDeNota("\u200B".repeat(10))!, /Escribe cómo se inscribió/);
+  assert.match(problemaDeNota("\u2800".repeat(12))!, /Escribe cómo se inscribió/);
+  assert.match(problemaDeNota("\u3164".repeat(12))!, /Escribe cómo se inscribió/);
+  assert.match(problemaDeNota("..........")!, /Escribe cómo se inscribió/);
+  assert.match(problemaDeNota("¡! ... ¿? -- --")!, /Escribe cómo se inscribió/);
+  assert.match(problemaDeNota("a.b.c.d.e.f.g.h.")!, /al menos 10 caracteres, con letras o números/);
+  assert.equal(problemaDeNota("P\u200Bagó en efectivo"), null);
+});

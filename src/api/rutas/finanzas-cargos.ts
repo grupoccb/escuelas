@@ -9,7 +9,8 @@
 // Los cargos de inscripción y mensualidad los genera el sistema (al inscribir y con el barrido mensual); un cargo de producto nace de una venta (H5).
 // «estatus» es el guardado; «estatus_efectivo» deriva `vencido` de la fecha aunque el barrido no haya corrido; `?estatus=vencido` filtra por el efectivo.
 
-import express, { Router } from "express";
+import express from "express";
+import { crearRouter } from "../../http/enrutador.ts";
 import { aFecha } from "../../catalogo/precios.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { dondeAlumnoVisible } from "../../familias/alcance.ts";
@@ -51,7 +52,7 @@ const esquemaSuelto = objeto({
 const esquemaCancelar = objeto({ motivo: texto({ min: 3, max: 300 }) });
 
 export function rutasDeCargos(_deps: DepsApi): express.Router {
-  const r = Router();
+  const r = crearRouter();
   const json = express.json({ limit: LIMITE_CUERPO_API });
 
   r.get("/cargos", requierePermiso("cargos:leer"), async (req, res) => {

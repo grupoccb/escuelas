@@ -82,12 +82,19 @@ export function leerArchivos(entradas: readonly ArchivoDeEntrada[]): Lectura {
       continue;
     }
     for (const x of hoja.mapa.desconocidos) lectura.avisos.push({ archivo: nombre, tipo, fila: encabezados.numero, columna: x, mensaje: "esta columna no es de la plantilla y se ignoró" });
+    // V13-fix (EV-33): una columna que aparece dos veces se usa la primera vez; la repetida no se lee y la persona se entera.
+    for (const x of hoja.mapa.repetidos) lectura.avisos.push({ archivo: nombre, tipo, fila: encabezados.numero, columna: x.encabezado, mensaje: "esta columna está repetida: se usó la primera y esta se ignoró" });
+    const columnasDelArchivo = encabezados.celdas.length;
     const filas: FilaLeida[] = [];
     for (const f of datos) {
       if (esFilaDeEjemplo(f.celdas)) {
-        lectura.avisos.push({ archivo: nombre, tipo, fila: f.numero, columna: null, mensaje: "es la fila de ejemplo de la plantilla y se ignoró" });
+        const primera = f.celdas.find((x) => x.trim() !== "")?.trim() ?? "";
+        lectura.avisos.push({ archivo: nombre, tipo, fila: f.numero, columna: null, mensaje: `es la fila de ejemplo de la plantilla («${primera.slice(0, 40)}») y se ignoró; si es una fila de verdad, cambia lo primero que dice para que no empiece con «Ejemplo»` });
         continue;
       }
+      // V13-fix (EV-33): celdas con datos después de la última columna del encabezado (una coma de más, un dato corrido): no se leen, y se avisa de la fila.
+      const sobrantes = f.celdas.slice(columnasDelArchivo).filter((x) => x.trim() !== "").length;
+      if (sobrantes > 0) lectura.avisos.push({ archivo: nombre, tipo, fila: f.numero, columna: null, mensaje: `trae ${sobrantes} ${sobrantes === 1 ? "celda" : "celdas"} con datos de más, después de la última columna de la plantilla; se ignoraron. Revisa que no haya una coma de más y que cada dato esté en su columna` });
       const v: Record<string, string> = {};
       for (const col of ESQUEMAS[tipo].columnas) {
         const pos = hoja.mapa.posiciones[col.clave];

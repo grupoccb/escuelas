@@ -5,6 +5,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { cabecerasDeSeguridad, hstsActivo } from "../api/cabeceras.ts";
 import { crearApiRouter, resolverDepsApi, type ApiDepsEntrada } from "../api/index.ts";
 import { LIMITE_CUERPO_CHATWOOT, LIMITE_CUERPO_TWILIO } from "../api/cuerpos.ts";
+import { noEncontrado } from "../api/errores.ts";
 import { log } from "../lib/log.ts";
 import { contarRespuesta, contarWebhook } from "../observabilidad/proceso.ts";
 import { revisarListo, type DepsDeSalud } from "../observabilidad/salud.ts";
@@ -100,6 +101,10 @@ export interface AppDeps {
 export function crearApp(deps: AppDeps): Express {
   const app = express();
   app.disable("x-powered-by");
+  // V13-fix (EV-01): una ruta es EXACTAMENTE la que se declaró. Sin esto `/API/cargos` llegaba al mismo manejador que `/api/cargos` sin pasar por la guarda de módulos. Los routers de
+  // /api, /l y la interfaz hacen lo mismo (`crearRouter`, src/http/enrutador.ts).
+  app.set("case sensitive routing", true);
+  app.set("strict routing", true);
   // La IP del cliente (req.ip) sale de la conexión, salvo que se configure confiar en un proxy.
   app.set("trust proxy", deps.confiarEnProxy ?? false);
   const { limites, limitador } = deps;
@@ -115,6 +120,16 @@ export function crearApp(deps: AppDeps): Express {
 
   // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
+
+  // `/API/…`, `/Api/…`: no son la API (el router distingue mayúsculas) ni la interfaz. Responden lo mismo que una ruta que no existe, en JSON y para cualquier método.
+  app.use((req, res, next) => {
+    if (!/^\/api(?:\/|$)/i.test(req.path)) {
+      next();
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.status(404).json(noEncontrado("Ruta no encontrada").cuerpo());
+  });
 
   // Landing pública (E1): sin sesión; su propia protección contra abuso (límite por IP, honeypot, tope de cuerpo) vive en src/http/landing.ts.
   if (deps.landing) app.use("/l", rutasDeLanding({ prisma: deps.landing.prisma, ...(deps.inesperados ? { inesperados: deps.inesperados } : {}), ...(deps.landing.origenesPermitidos ? { origenesPermitidos: deps.landing.origenesPermitidos } : {}), ...(deps.landing.origenesLocales !== undefined ? { origenesLocales: deps.landing.origenesLocales } : {}), ...(deps.reloj ? { reloj: deps.reloj } : {}), ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}) }));

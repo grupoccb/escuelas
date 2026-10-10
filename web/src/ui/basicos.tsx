@@ -54,6 +54,16 @@ export function Aviso({ children, tono = "info", titulo }: { children: ReactNode
   );
 }
 
+/** V13-fix (EV-36): una búsqueda por nombre que no pudo revisar a todos (el servidor lo dice con `busqueda_incompleta`): la persona debe saber que lo que no sale quizá sí existe. */
+export function AvisoDeBusquedaIncompleta({ paginacion }: { paginacion: { busqueda_incompleta?: boolean } | undefined }) {
+  if (!paginacion?.busqueda_incompleta) return null;
+  return (
+    <Aviso tono="alerta" titulo="Hay más resultados de los que se pudieron revisar">
+      <p>La escuela tiene muchísimos registros y esta búsqueda por nombre revisó solo los primeros. Escribe más del nombre o el apellido completo, o busca por teléfono.</p>
+    </Aviso>
+  );
+}
+
 export function Cargando({ texto = "Cargando…" }: { texto?: string }) {
   return (
     <p className="cargando" role="status">
