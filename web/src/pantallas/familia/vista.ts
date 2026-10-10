@@ -47,3 +47,16 @@ export const TIPOS_DE_MOVIMIENTO: Record<string, string> = {
   reactivacion: "Reactivada",
   baja: "Baja",
 };
+
+/** «no_asistio» → «No asistió»: lo que la API manda como código, en palabras (con tilde y sin guion bajo). */
+export function textoLegible(codigo: string): string {
+  const palabras = codigo.replace(/_/g, " ").trim();
+  const conTilde = palabras.replace(/\basistio\b/g, "asistió");
+  return conTilde.charAt(0).toUpperCase() + conTilde.slice(1);
+}
+
+export const ESTATUS_DE_EVENTO: Record<string, { texto: string; tono: "exito" | "info" | "alerta" | "neutro" }> = {
+  inscrito: { texto: "Inscrito", tono: "info" },
+  asistio: { texto: "Asistió", tono: "exito" },
+  no_asistio: { texto: "No asistió", tono: "alerta" },
+};

@@ -1,12 +1,14 @@
 // Ficha de la familia: el adulto (contacto), sus hijos con las banderas de cada relación, el saldo y los accesos al expediente de cada hijo y a sus pagos.
 
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/cliente.ts";
 import { formatear } from "../../lib/dinero.ts";
 import { formatearInstante } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Cargando, EnlaceBoton, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
+import { FamiliaElegida, iniciales } from "../recepcion/FamiliaElegida.tsx";
 import type { EstadoDeCuenta } from "../recepcion/tipos.ts";
 import { ESTATUS_DE_ALUMNO, banderasDe, nombreCompleto } from "./vista.ts";
 
@@ -21,6 +23,9 @@ interface TutorCompleto {
   creado_en: string;
   alumnos: { alumno_id: string; nombre: string; apellidos: string; estatus: string; fecha_nacimiento: string; parentesco: string; es_responsable_pago: boolean; es_contacto_urgencia: boolean; puede_recoger: boolean; lo_lleva: boolean }[];
 }
+
+/** «0.00» → false: el importe viene como texto del servidor, sin números flotantes. */
+const haVencido = (importe: string): boolean => !/^0+(\.0+)?$/.test(importe.trim());
 
 export default function FichaFamilia() {
   const { tutorId = "" } = useParams();
@@ -37,77 +42,99 @@ export default function FichaFamilia() {
   return (
     <Pagina
       titulo={`Familia ${nombreCompleto(t)}`}
-      subtitulo={t.telefono}
+      subtitulo={
+        <FamiliaElegida tutor={t} />
+      }
       acciones={
         <>
           {verCuenta ? <EnlaceBoton to={`/cuenta/${t.id}`}>Estado de cuenta</EnlaceBoton> : null}
-          {puede("pagos:registrar") ? <EnlaceBoton to={`/pagos?tutor=${t.id}`} variante="primario">Registrar pago</EnlaceBoton> : null}
+          {puede("pagos:registrar") ? <EnlaceBoton to={`/pagos?tutor=${t.id}`} variante="primario" className="boton-accion-celular">Registrar pago</EnlaceBoton> : null}
         </>
       }
     >
-      <Tarjeta titulo="Adulto">
-        <dl className="datos" data-prueba="datos-del-tutor">
-          <dt>Nombre</dt>
-          <dd>{nombreCompleto(t)}</dd>
-          <dt>Teléfono</dt>
-          <dd>{t.telefono}</dd>
-          <dt>Correo</dt>
-          <dd>{t.correo ?? "—"}</dd>
-          <dt>Dirección</dt>
-          <dd>{t.direccion ?? "—"}</dd>
-          <dt>Nos conoció por</dt>
-          <dd>{t.como_nos_conocio ?? "—"}</dd>
-          <dt>Alta</dt>
-          <dd>{formatearInstante(t.creado_en)}</dd>
-        </dl>
-      </Tarjeta>
+      <div className={`ficha-familia${verCuenta ? "" : " ficha-familia-sin-saldo"}`}>
+        {verCuenta ? (
+          <Tarjeta titulo="Saldo" className="ficha-familia-saldo">
+            {cuenta.error ? <ErrorDeCarga error={cuenta.error} alReintentar={cuenta.recargar} /> : null}
+            {cuenta.cargando && !cuenta.datos ? <Cargando /> : null}
+            {cuenta.datos ? (
+              <div className="pila" data-prueba="saldo-de-la-familia">
+                <div className="fila fila-entre">
+                  <p className="cifra-principal" data-prueba="saldo">
+                    {formatear(cuenta.datos.resumen.saldo)}
+                  </p>
+                  {haVencido(cuenta.datos.resumen.vencido) ? (
+                    <Insignia tono="peligro">
+                      <span className="insignia-con-icono">
+                        <Icono nombre="alerta" tamano={14} />
+                        Con pagos vencidos
+                      </span>
+                    </Insignia>
+                  ) : (
+                    <Insignia tono="exito">
+                      <span className="insignia-con-icono">
+                        <Icono nombre="exito" tamano={14} />
+                        Nada vencido
+                      </span>
+                    </Insignia>
+                  )}
+                </div>
+                <dl className="datos">
+                  <dt>Vencido</dt>
+                  <dd data-prueba="vencido">{formatear(cuenta.datos.resumen.vencido)}</dd>
+                  <dt>Pagado</dt>
+                  <dd>{formatear(cuenta.datos.resumen.total_pagado)}</dd>
+                </dl>
+              </div>
+            ) : null}
+          </Tarjeta>
+        ) : null}
 
-      {verCuenta ? (
-        <Tarjeta titulo="Saldo">
-          {cuenta.error ? <ErrorDeCarga error={cuenta.error} alReintentar={cuenta.recargar} /> : null}
-          {cuenta.cargando && !cuenta.datos ? <Cargando /> : null}
-          {cuenta.datos ? (
-            <dl className="datos" data-prueba="saldo-de-la-familia">
-              <dt>Saldo</dt>
-              <dd data-prueba="saldo">
-                <strong>{formatear(cuenta.datos.resumen.saldo)}</strong>
-              </dd>
-              <dt>Vencido</dt>
-              <dd data-prueba="vencido">
-                <strong>{formatear(cuenta.datos.resumen.vencido)}</strong>
-              </dd>
-              <dt>Pagado</dt>
-              <dd>{formatear(cuenta.datos.resumen.total_pagado)}</dd>
-            </dl>
-          ) : null}
+        <Tarjeta titulo={`Hijos (${t.alumnos.length})`} className="ficha-familia-hijos">
+          {t.alumnos.length === 0 ? <Aviso>Esta familia todavía no tiene alumnos.</Aviso> : null}
+          <ul className="lista-tarjetas" data-prueba="hijos">
+            {t.alumnos.map((a) => (
+              <li key={a.alumno_id} className="pila" data-prueba={`hijo-${a.alumno_id}`}>
+                <div className="alumno-fila">
+                  <span className="avatar-familia" aria-hidden="true">
+                    {iniciales(a.nombre, a.apellidos)}
+                  </span>
+                  <span className="alumno-fila-texto">
+                    <strong className="familia-nombre">{nombreCompleto(a)}</strong>
+                    <span className="muted">{a.parentesco}</span>
+                  </span>
+                  <Link className="boton boton-icono" to={`/alumnos/${a.alumno_id}`} aria-label={`Ver expediente de ${nombreCompleto(a)}`} title="Ver expediente">
+                    <Icono nombre="siguiente" tamano={20} />
+                  </Link>
+                </div>
+                <div className="fila">
+                  <Insignia tono={ESTATUS_DE_ALUMNO[a.estatus]?.tono ?? "neutro"}>{ESTATUS_DE_ALUMNO[a.estatus]?.texto ?? a.estatus}</Insignia>
+                  {banderasDe(a).map((b) => (
+                    <Insignia key={b}>{b}</Insignia>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
         </Tarjeta>
-      ) : null}
 
-      <Tarjeta titulo={`Hijos (${t.alumnos.length})`}>
-        {t.alumnos.length === 0 ? <Aviso>Esta familia todavía no tiene alumnos.</Aviso> : null}
-        <ul className="lista-tarjetas" data-prueba="hijos">
-          {t.alumnos.map((a) => (
-            <li key={a.alumno_id} className="pila" data-prueba={`hijo-${a.alumno_id}`}>
-              <div className="fila fila-entre">
-                <span>
-                  <strong>{nombreCompleto(a)}</strong> <span className="muted">· {a.parentesco}</span>
-                </span>
-                <Insignia tono={ESTATUS_DE_ALUMNO[a.estatus]?.tono ?? "neutro"}>{ESTATUS_DE_ALUMNO[a.estatus]?.texto ?? a.estatus}</Insignia>
-              </div>
-              <div className="fila">
-                {banderasDe(a).map((b) => (
-                  <Insignia key={b} tono="info">
-                    {b}
-                  </Insignia>
-                ))}
-              </div>
-              <div>
-                <EnlaceBoton to={`/alumnos/${a.alumno_id}`}>Ver expediente</EnlaceBoton>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Tarjeta>
+        <Tarjeta titulo="Adulto" className="ficha-familia-adulto">
+          <dl className="datos" data-prueba="datos-del-tutor">
+            <dt>Nombre</dt>
+            <dd>{nombreCompleto(t)}</dd>
+            <dt>Teléfono</dt>
+            <dd className="numero">{t.telefono}</dd>
+            <dt>Correo</dt>
+            <dd>{t.correo ?? "—"}</dd>
+            <dt>Dirección</dt>
+            <dd>{t.direccion ?? "—"}</dd>
+            <dt>Nos conoció por</dt>
+            <dd>{t.como_nos_conocio ?? "—"}</dd>
+            <dt>Alta</dt>
+            <dd>{formatearInstante(t.creado_en)}</dd>
+          </dl>
+        </Tarjeta>
+      </div>
     </Pagina>
   );
 }

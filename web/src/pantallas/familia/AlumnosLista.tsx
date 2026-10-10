@@ -4,11 +4,12 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { AvisoDeBusquedaIncompleta, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
-import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
+import { AvisoDeBusquedaIncompleta, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { CampoBusqueda, CampoSelect } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { pareceTelefono } from "../recepcion/BuscadorDeFamilia.tsx";
+import { iniciales } from "../recepcion/FamiliaElegida.tsx";
 import type { AlumnoDeLista } from "./tipos.ts";
 import { ESTATUS_DE_ALUMNO, nombreCompleto } from "./vista.ts";
 
@@ -38,9 +39,9 @@ export default function AlumnosLista() {
 
   return (
     <Pagina titulo="Alumnos" subtitulo={esMaestro ? "Tus alumnos (sin datos de contacto de la familia ni importes)." : "Busca por nombre del alumno o por teléfono de un adulto de la familia."}>
-      <form noValidate className="formulario" onSubmit={buscar} role="search">
-        <div className="rejilla rejilla-2">
-          <CampoTexto etiqueta={esMaestro ? "Nombre del alumno" : "Nombre o teléfono"} autoComplete="off" value={escrito} onChange={(e) => setEscrito(e.target.value)} />
+      <form noValidate className="tarjeta familia-buscador" onSubmit={buscar} role="search">
+        <div className="familia-filtros">
+          <CampoBusqueda etiqueta={esMaestro ? "Nombre del alumno" : "Nombre o teléfono"} placeholder={esMaestro ? "Nombre del alumno" : "Nombre o teléfono"} autoComplete="off" value={escrito} onChange={(e) => setEscrito(e.target.value)} />
           <CampoSelect
             etiqueta="Estatus"
             value={estatus}
@@ -55,24 +56,28 @@ export default function AlumnosLista() {
               setEstatus(e.target.value);
             }}
           />
-        </div>
-        <div>
-          <Boton type="submit" variante="primario">
+          <Boton type="submit" variante="primario" className="boton-accion-celular">
             Buscar
           </Boton>
         </div>
       </form>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay alumnos que coincidan">Cambia lo que escribiste o el estatus.</Vacio> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-alumnos">
+      {lista.datos && lista.datos.datos.length === 0 ? (
+        <Tarjeta>
+          <Vacio titulo="No hay alumnos que coincidan" icono="buscar">Cambia lo que escribiste o el estatus.</Vacio>
+        </Tarjeta>
+      ) : null}
+      <ul className="lista-tarjetas rejilla-tarjetas" data-prueba="lista-de-alumnos">
         {(lista.datos?.datos ?? []).map((a) => (
-          <li key={a.id} className="tarjeta fila fila-entre" data-prueba={`alumno-${a.id}`}>
-            <span>
-              <Link className="enlace-tactil" to={`/alumnos/${a.id}`}>
-                <strong>{nombreCompleto(a)}</strong>
+          <li key={a.id} className="alumno-fila" data-prueba={`alumno-${a.id}`}>
+            <span className="avatar-familia" aria-hidden="true">
+              {iniciales(a.nombre, a.apellidos)}
+            </span>
+            <span className="alumno-fila-texto">
+              <Link className="enlace-tactil alumno-fila-nombre" to={`/alumnos/${a.id}`}>
+                {nombreCompleto(a)}
               </Link>
-              <br />
               <span className="muted">
                 {a.edad === null ? "" : `${a.edad} años · `}
                 {a.tutores.length === 0 ? "sin adultos registrados" : a.tutores.map((t) => nombreCompleto(t)).join(", ")}

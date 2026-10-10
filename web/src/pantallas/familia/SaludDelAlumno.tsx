@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { api } from "../../api/cliente.ts";
 import { VistaDeSalud } from "../../salud/VistaDeSalud.tsx";
 import { Cargando, EnlaceBoton, ErrorDeCarga, Pagina } from "../../ui/basicos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
 import type { AlumnoDeLista } from "./tipos.ts";
 import { nombreCompleto } from "./vista.ts";
@@ -15,7 +16,12 @@ export default function SaludDelAlumno() {
   if (alumno.error) return <Pagina titulo="Salud"><ErrorDeCarga error={alumno.error} alReintentar={alumno.recargar} /></Pagina>;
   if (!alumno.datos) return <Pagina titulo="Salud"><Cargando /></Pagina>;
   return (
-    <Pagina titulo={`Salud de ${nombreCompleto(alumno.datos)}`} acciones={<EnlaceBoton to={`/alumnos/${id}`}>Volver al expediente</EnlaceBoton>}>
+    <Pagina titulo={`Salud de ${nombreCompleto(alumno.datos)}`} acciones={
+        <EnlaceBoton to={`/alumnos/${id}`}>
+          <Icono nombre="atras" tamano={18} />
+          Volver al expediente
+        </EnlaceBoton>
+      }>
       <VistaDeSalud key={id} alumnoId={id} />
     </Pagina>
   );

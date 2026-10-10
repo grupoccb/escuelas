@@ -7,6 +7,7 @@ import type { Grupo } from "../../api/tipos.ts";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga } from "../../ui/basicos.tsx";
 import { CampoSelect } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
 import type { FilaDeOcupacion, InscripcionDeExpediente } from "./tipos.ts";
 
@@ -35,9 +36,10 @@ function CambiarDeGrupo({ inscripcion, alTerminar, alCerrar }: { inscripcion: In
       {opciones.length === 0 ? <Aviso>Este programa no tiene otro grupo activo.</Aviso> : null}
       <CampoSelect etiqueta="Grupo nuevo" value={elegido} vacio="Elige un grupo" opciones={opciones} onChange={(e) => setElegido(e.target.value)} />
       <ErrorDeAccion error={cambio.error} />
-      <div className="formulario-acciones">
+      <div className="formulario-acciones dialogo-acciones-familia">
         <Boton
           variante="primario"
+          className="boton-accion-celular"
           disabled={elegido === ""}
           cargando={cambio.ocupado}
           onClick={() =>
@@ -64,13 +66,16 @@ function DarDeBaja({ inscripcion, alTerminar, alCerrar }: { inscripcion: Inscrip
   return (
     <div className="pila">
       <Aviso tono="alerta">
-        La baja libera el lugar en <strong>{inscripcion.grupo.nombre}</strong> y detiene los cobros futuros. Lo ya cobrado y el precio congelado se conservan.
+        <p>
+          La baja libera el lugar en <strong>{inscripcion.grupo.nombre}</strong> y detiene los cobros futuros. Lo ya cobrado y el precio congelado se conservan.
+        </p>
       </Aviso>
       <CampoSelect etiqueta="Motivo de la baja" requerido value={motivo} vacio="Elige un motivo" opciones={motivos.datos.datos.map((m) => ({ valor: m.id, texto: m.nombre }))} onChange={(e) => setMotivo(e.target.value)} />
       <ErrorDeAccion error={baja.error} />
-      <div className="formulario-acciones">
+      <div className="formulario-acciones dialogo-acciones-familia">
         <Boton
           variante="peligro"
+          className="boton-accion-celular"
           disabled={motivo === ""}
           cargando={baja.ocupado}
           onClick={() =>
@@ -99,9 +104,10 @@ function Confirmar({ inscripcion, que, alTerminar, alCerrar }: { inscripcion: In
           : `Se reactivará la inscripción en ${inscripcion.grupo.nombre}. Necesita un lugar libre: si el grupo se llenó mientras estaba congelada, el sistema no la reactiva.`}
       </p>
       <ErrorDeAccion error={accion.error} />
-      <div className="formulario-acciones">
+      <div className="formulario-acciones dialogo-acciones-familia">
         <Boton
           variante="primario"
+          className="boton-accion-celular"
           cargando={accion.ocupado}
           onClick={() =>
             void accion.ejecutar(async () => {
@@ -128,11 +134,21 @@ export function AccionesDeInscripcion({ inscripcion, alCambiar }: { inscripcion:
   };
   const titulos = { cambiar: "Cambiar de grupo", congelar: "Congelar la inscripción", reactivar: "Reactivar la inscripción", baja: "Dar de baja" } as const;
   return (
-    <div className="fila" data-prueba={`acciones-${inscripcion.id}`}>
-      <Boton onClick={() => setCuadro("cambiar")}>Cambiar de grupo</Boton>
-      {inscripcion.estatus === "activa" ? <Boton onClick={() => setCuadro("congelar")}>Congelar</Boton> : <Boton onClick={() => setCuadro("reactivar")}>Reactivar</Boton>}
-      <Boton variante="peligro" onClick={() => setCuadro("baja")}>
-        Dar de baja
+    <div className="inscripcion-acciones" data-prueba={`acciones-${inscripcion.id}`}>
+      <Boton className="boton-icono" aria-label="Cambiar de grupo" title="Cambiar de grupo" onClick={() => setCuadro("cambiar")}>
+        <Icono nombre="cambiar" tamano={20} />
+      </Boton>
+      {inscripcion.estatus === "activa" ? (
+        <Boton className="boton-icono" aria-label="Congelar" title="Congelar" onClick={() => setCuadro("congelar")}>
+          <Icono nombre="pausa" tamano={20} />
+        </Boton>
+      ) : (
+        <Boton className="boton-icono" aria-label="Reactivar" title="Reactivar" onClick={() => setCuadro("reactivar")}>
+          <Icono nombre="reanudar" tamano={20} />
+        </Boton>
+      )}
+      <Boton variante="peligro" className="boton-icono boton-icono-peligro" aria-label="Dar de baja" title="Dar de baja" onClick={() => setCuadro("baja")}>
+        <Icono nombre="papelera" tamano={20} />
       </Boton>
       <Dialogo abierto={cuadro !== null} titulo={cuadro ? titulos[cuadro] : ""} alCerrar={cerrar}>
         {cuadro === "cambiar" ? <CambiarDeGrupo inscripcion={inscripcion} alTerminar={terminar} alCerrar={cerrar} /> : null}

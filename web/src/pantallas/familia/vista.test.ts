@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { banderasDe, nombreCompleto, textoDeAntiguedad, textoDeElegibilidad } from "./vista.ts";
+import { banderasDe, nombreCompleto, textoDeAntiguedad, textoDeElegibilidad, textoLegible } from "./vista.ts";
 
 test("la antigüedad se dice en años y meses, o en días si es menos de un mes", () => {
   assert.equal(textoDeAntiguedad(null), "—");
@@ -26,4 +26,9 @@ test("la elegibilidad dice cuántas clases faltan, en singular y plural", () => 
   assert.equal(textoDeElegibilidad({ elegible: true, clases_cumplidas: 12, clases_requeridas: 10, faltan: 0 }), "Elegible (12 de 10 clases)");
   assert.equal(textoDeElegibilidad({ elegible: false, clases_cumplidas: 9, clases_requeridas: 10, faltan: 1 }), "Le faltan 1 clase (9 de 10)");
   assert.equal(textoDeElegibilidad({ elegible: false, clases_cumplidas: 3, clases_requeridas: 10, faltan: 7 }), "Le faltan 7 clases (3 de 10)");
+});
+
+test("un código de la API se dice en palabras", () => {
+  assert.equal(textoLegible("no_asistio"), "No asistió");
+  assert.equal(textoLegible("aprobado"), "Aprobado");
 });
