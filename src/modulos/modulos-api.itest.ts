@@ -139,6 +139,49 @@ test("EV-01: con todos los módulos apagados, ninguna variante de ninguna ruta d
   }
 });
 
+// V13-fix (verificación), EV-01: la guarda decodificaba la ruta antes de clasificarla y eso abrió dos huecos que las variantes de arriba no tocaban (`variantesDeRuta` no altera los identificadores):
+// (1) `%0a` (y `%0d`, `%E2%80%A8`) al final de una cola: `.` de la expresión no toma saltos de línea y `/api/clases-muestra/x%0a` llegaba a su manejador (400 en lugar de 404);
+// (2) `%2F` dentro de un identificador: decodificado son dos segmentos y la ruta de cotizaciones, conversión, asistencia… caía en el árbol de la captación. Con todo apagado ninguna responde.
+test("EV-01 (verificación): con todos los módulos apagados, un salto de línea codificado o un %2F dentro de un identificador no llegan a ningún manejador (404, sin escribir nada)", async () => {
+  await fijar(m, { ...TODOS_ENCENDIDOS, cotizador: false, clase_muestra: false, inscripcion: false, operacion: false, finanzas: false, tableros: false });
+  try {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    const contar = async () => ({
+      pagos: await prisma.pago.count({ where: { organizacion_id: m.org.organizacionId } }),
+      ventas: await prisma.venta.count({ where: { organizacion_id: m.org.organizacionId } }),
+      cargos: await prisma.cargo.count({ where: { organizacion_id: m.org.organizacionId } }),
+      alumnos: await prisma.alumno.count({ where: { organizacion_id: m.org.organizacionId } }),
+      inscripciones: await prisma.inscripcion.count({ where: { organizacion_id: m.org.organizacionId } }),
+      eventos: await prisma.evento.count({ where: { organizacion_id: m.org.organizacionId } }),
+    });
+    const antes = await contar();
+    const rutas: { metodo: string; ruta: string; tipo: string }[] = [];
+    for (const r of RUTAS.filter((x) => x.modulo !== "captacion")) {
+      const segmentos = r.ruta.split("/");
+      segmentos.forEach((seg, i) => {
+        if (!UUID_RE.test(seg)) return;
+        for (const falso of ["a%2Fb", "%2F", `${seg}%2Fx`, `${seg}%0a`, `${seg}%0d%0a`, `${seg}%E2%80%A8`]) rutas.push({ metodo: r.metodo, ruta: segmentos.map((x, j) => (j === i ? falso : x)).join("/"), tipo: `${falso.replace(seg, "<id>")} en el segmento ${i}` });
+      });
+    }
+    // Los árboles «y todo lo que cuelgue»: una cola con salto de línea. Se toman de la tabla de la guarda: cada una responde 404 sea cual sea el método.
+    for (const base of ["/api/clases-muestra", "/api/pagos", "/api/cargos", "/api/eventos", "/api/niveles", "/api/inscripciones", "/api/alumnos", "/api/tutores", "/api/productos", "/api/ventas", "/api/lista-espera", "/api/maestro", "/api/reportes"]) {
+      for (const cola of ["sesiones%0a", "corte%0a", "x%0d%0a", "x%E2%80%A8", "%0a"]) for (const metodo of ["GET", "POST", "PUT", "PATCH", "DELETE"]) rutas.push({ metodo, ruta: `${base}/${cola}`, tipo: "cola con salto de línea" });
+    }
+    assert.ok(rutas.length > 500, `deben probarse cientos de rutas (hubo ${rutas.length})`);
+    const fallas: string[] = [];
+    for (const r of rutas) {
+      for (const metodo of [r.metodo, "HEAD", "OPTIONS"]) {
+        const res = await m.admin.pedir<Err>(metodo, r.ruta, metodo === "GET" || metodo === "DELETE" || metodo === "HEAD" || metodo === "OPTIONS" ? undefined : {});
+        if (res.estado !== 404) fallas.push(`${metodo} ${r.ruta} (${r.tipo}) → ${res.estado}`);
+      }
+    }
+    assert.deepEqual(fallas.slice(0, 20), [], `${fallas.length} peticiones no dieron 404`);
+    assert.deepEqual(await contar(), antes, "ninguna escribió nada");
+  } finally {
+    await fijar(m, TODOS_ENCENDIDOS);
+  }
+});
+
 test("EV-01: con todo encendido las rutas son exactamente las declaradas: otra capitalización o la barra final son 404 (el router distingue mayúsculas y barra final)", async () => {
   for (const ruta of ["/api/leads", "/api/cargos", "/api/reportes/ejecutivo", "/api/inscripciones", "/api/yo"]) {
     assert.equal((await m.admin.get(ruta)).estado, 200, ruta);

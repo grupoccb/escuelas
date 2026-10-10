@@ -61,7 +61,8 @@ function compilar(patron: string): RegExp {
     .split("/")
     .map((s) => (s.startsWith(":") ? "[^/]+" : s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
     .join("/");
-  return new RegExp(`^${cuerpo}${prefijo ? "(?:/.*)?" : ""}$`);
+  // Bandera `s`: el punto también toma saltos de línea y separadores (`%0a`, `%e2%80%a8` ya decodificados); sin ella `/api/clases-muestra/x%0a` no caía en `/api/clases-muestra/*` (V13-fix, verificación).
+  return new RegExp(`^${cuerpo}${prefijo ? "(?:/.*)?" : ""}$`, "s");
 }
 
 const COMPILADAS: readonly ReglaCompilada[] = REGLAS.flatMap(([modulo, patrones]) => patrones.map((patron) => ({ modulo, patron, re: compilar(patron) })));
@@ -70,12 +71,14 @@ const COMPILADAS: readonly ReglaCompilada[] = REGLAS.flatMap(([modulo, patrones]
  * Una sola forma de escribir la ruta antes de clasificarla (V13-fix, EV-01): una decodificación (`%63argos` → `cargos`; si la codificación está rota se deja tal cual), minúsculas
  * (la consulta y el fragmento no son parte de la ruta; la tabla está en minúsculas y la guarda NO debe depender de que el router distinga o no las mayúsculas), sin barras repetidas y sin barra final.
  */
-export function normalizarRuta(ruta: string): string {
+export function normalizarRuta(ruta: string, decodificar = true): string {
   let r = ruta.replace(/[?#].*$/s, "");
-  try {
-    r = decodeURIComponent(r);
-  } catch {
-    // codificación rota: se clasifica la ruta tal cual llegó
+  if (decodificar) {
+    try {
+      r = decodeURIComponent(r);
+    } catch {
+      // codificación rota: se clasifica la ruta tal cual llegó
+    }
   }
   r = r.toLowerCase().replace(/\/{2,}/g, "/");
   return r.length > 1 && r.endsWith("/") ? r.replace(/\/+$/, "") || "/" : r;
@@ -86,6 +89,24 @@ export function moduloDeRuta(ruta: string): Modulo | null {
   const limpia = normalizarRuta(ruta);
   for (const r of COMPILADAS) if (r.re.test(limpia)) return r.modulo;
   return null;
+}
+
+/**
+ * Todos los módulos que reclama una ruta, leída de las DOS maneras en que el router puede entenderla (V13-fix, verificación): tal como llegó (con `%2F` o `%0a` sin decodificar, que es como la
+ * compara Express contra `/leads/:id/cotizaciones`) y decodificada. Solo la decodificada dejaba pasar `/api/leads/a%2Fb/cotizaciones` (decodificada son DOS segmentos y cae en `/api/leads/*`, de
+ * la captación) aunque el router la entrega a la ruta de cotizaciones. La guarda apaga la ruta si CUALQUIERA de las dos lecturas es de un módulo apagado.
+ */
+export function modulosDeRuta(ruta: string): Modulo[] {
+  const encontrados = new Set<Modulo>();
+  for (const forma of [normalizarRuta(ruta, false), normalizarRuta(ruta)]) {
+    for (const r of COMPILADAS) {
+      if (r.re.test(forma)) {
+        encontrados.add(r.modulo);
+        break;
+      }
+    }
+  }
+  return [...encontrados];
 }
 
 /** La fila (patrón) que reclama una ruta concreta, o null (para el test de filas muertas). */
@@ -103,10 +124,10 @@ export const PATRONES_DE_MODULOS: readonly { modulo: Modulo; patron: string }[] 
  */
 export function guardaDeModulos() {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const modulo = moduloDeRuta(req.baseUrl + req.path);
-    if (modulo !== null && modulo !== "captacion") {
+    const reclamados = modulosDeRuta(req.baseUrl + req.path).filter((m) => m !== "captacion");
+    if (reclamados.length > 0) {
       const encendidos = await leerModulos(contextoParaAutorizar(res).db);
-      if (!encendidos[modulo]) throw noEncontrado("Ruta no encontrada");
+      if (reclamados.some((m) => !encendidos[m])) throw noEncontrado("Ruta no encontrada");
     }
     next();
   };

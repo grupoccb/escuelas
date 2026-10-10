@@ -118,6 +118,17 @@ export function crearApp(deps: AppDeps): Express {
     next();
   });
 
+  // V13-fix (verificación): `strict routing` hace que `/webhooks/twilio/entrantes/` (con barra final) deje de existir. Un proveedor, el balanceador, Prometheus o un anuncio llaman a la dirección
+  // TAL CUAL se escribió en su consola, y con la barra final antes entraban (y Twilio firma esa misma dirección: la firma se calcula con `originalUrl`, que aquí no cambia). Sin esto un
+  // WhatsApp entrante a una URL configurada con barra se perdía en un 404. Solo las rutas PÚBLICAS de fuera de `/api` (webhooks, salud, métricas, landing) pierden UNA barra final; `/api` y la
+  // interfaz siguen exactas.
+  app.use((req, _res, next) => {
+    const i = req.url.search(/[?#]/);
+    const ruta = i < 0 ? req.url : req.url.slice(0, i);
+    if (ruta.length > 1 && ruta.endsWith("/") && !ruta.endsWith("//") && /^\/(?:webhooks|twilio|salud|metricas|l)(?:\/|$)/.test(ruta)) req.url = ruta.slice(0, -1) + (i < 0 ? "" : req.url.slice(i));
+    next();
+  });
+
   // API de la aplicación (B1-B3): sesiones, permisos y recursos. Ver src/api/index.ts y docs/API.md.
   if (deps.api) app.use("/api", crearApiRouter({ ...(limites ? { limites } : {}), ...(limitador ? { limitador } : {}), entorno, ...deps.api }));
 

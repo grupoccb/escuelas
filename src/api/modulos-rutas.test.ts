@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { MODULOS, SOLO_CAPTACION, TODOS_ENCENDIDOS, type Modulo } from "../modulos/index.ts";
 import { concretas, rutasDeApiReales, UUID_DE_PRUEBA } from "../testutil/rutas-reales.ts";
 import { variantesDeRuta } from "../testutil/variantes-de-ruta.ts";
-import { MODULO_DE_PERMISO, moduloDeRuta, normalizarRuta, patronDeRuta, PATRONES_DE_MODULOS, permisosEfectivos } from "./modulos-rutas.ts";
+import { MODULO_DE_PERMISO, moduloDeRuta, modulosDeRuta, normalizarRuta, patronDeRuta, PATRONES_DE_MODULOS, permisosEfectivos } from "./modulos-rutas.ts";
 import { PERMISOS, permisosDe } from "./permisos.ts";
 
 const UUID = UUID_DE_PRUEBA;
@@ -178,6 +178,42 @@ test("EV-01: normalizarRuta deja una sola forma (minúsculas, una decodificació
   assert.equal(normalizarRuta("/"), "/");
   assert.equal(moduloDeRuta("/API/REPORTES/EJECUTIVO"), "tableros");
   assert.equal(moduloDeRuta("/api/leads/x/Convertir"), "inscripcion");
+});
+
+// V13-fix (verificación), EV-01: la decodificación abrió dos huecos que la tabla no cubría. (1) `.` de `(?:/.*)?$` no toma saltos de línea: `/api/clases-muestra/x%0a` decodificado no caía en
+// `/api/clases-muestra/*` y la guarda lo dejaba pasar. (2) Un `%2F` dentro de un identificador se decodifica en DOS segmentos (`/api/leads/a/b/cotizaciones`, de la captación) aunque el router
+// lo entrega a `/leads/:id/cotizaciones`. La guarda debe leer la ruta de las dos maneras y apagarla si cualquiera es de un módulo apagado.
+test("EV-01 (verificación): saltos de línea codificados y %2F dentro de un identificador siguen siendo del módulo de la ruta (las dos lecturas)", () => {
+  const fallas: string[] = [];
+  let probadas = 0;
+  const revisa = (ruta: string, esperado: Modulo | null): void => {
+    if (esperado === null || esperado === "captacion") return;
+    probadas++;
+    if (!modulosDeRuta(ruta).includes(esperado)) fallas.push(`${ruta} → ${JSON.stringify(modulosDeRuta(ruta))} (esperado ${esperado})`);
+  };
+  for (const r of rutasDeApiReales()) {
+    const patron = r.clave.split(" ")[1]!;
+    for (const c of concretas(patron)) {
+      const esperado = moduloDeRuta(c);
+      const segmentos = c.split("/");
+      segmentos.forEach((seg, i) => {
+        if (seg !== UUID) return;
+        for (const falso of ["a%2Fb", "%2F", `${UUID}%2Fx`, `${UUID}%0a`, `${UUID}%0d%0a`, `${UUID}%E2%80%A8`, `${UUID}%0A`]) revisa(segmentos.map((x, j) => (j === i ? falso : x)).join("/"), esperado);
+      });
+    }
+  }
+  // Los árboles «y todo lo que cuelgue de aquí»: un salto de línea o un separador de línea codificado al final de cualquier cola.
+  for (const { patron } of PATRONES_DE_MODULOS.filter((p) => p.patron.endsWith("/*"))) {
+    const base = patron.slice(0, -2).replace(/:[a-z_]+/g, UUID);
+    const esperado = moduloDeRuta(`${base}/algo`);
+    for (const cola of ["algo%0a", "algo%0d", "algo%0d%0a", "algo%E2%80%A8", "algo%E2%80%A9", "%0a", "algo%0a/mas%0a"]) revisa(`${base}/${cola}`, esperado);
+  }
+  assert.deepEqual(fallas, [], `${fallas.length} de ${probadas} lecturas se escapan`);
+  assert.ok(probadas > 300, `deben probarse cientos de variantes (hubo ${probadas})`);
+  // Controles: lo que no es de un módulo sigue sin serlo, y la lectura sin decodificar no inventa módulos.
+  assert.deepEqual(modulosDeRuta("/api/leads"), ["captacion"]);
+  assert.deepEqual(modulosDeRuta("/api/desconocida"), []);
+  assert.deepEqual(modulosDeRuta("/api/leads/x%2Fcotizaciones").sort(), ["captacion", "cotizador"], "es la ruta /leads/:id de la captación, pero leída decodificada es de cotizaciones: se apaga con el cotizador");
 });
 
 test("cada permiso de la matriz tiene su módulo, y los permisos efectivos quitan los de un módulo apagado (y solo esos)", () => {

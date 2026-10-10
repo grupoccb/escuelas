@@ -73,6 +73,17 @@ function campos(m: Mundo, cambio: Record<string, string | undefined> = {}): URLS
 const enviar = (base: string, ruta: string, cuerpo: URLSearchParams | string, cabeceras: Record<string, string> = {}) =>
   fetch(`${base}${ruta}`, { method: "POST", redirect: "manual", headers: { "content-type": "application/x-www-form-urlencoded", "user-agent": "Prueba/1.0", ...cabeceras }, body: cuerpo.toString() });
 
+// V13-fix (verificación): el enlace de un anuncio se escribe a mano y puede traer la barra final (`/l/<vertical>/`): con `strict routing` dejó de existir. Debe llevar a la misma página.
+test("E1 GET: el enlace con barra final (y con consulta) abre la misma página que sin ella; otra capitalización del prefijo no", async () => {
+  const m = await mundo();
+  const sin = await fetch(`${api.base}${m.ruta}`);
+  assert.equal(sin.status, 200);
+  const con = await fetch(`${api.base}${m.ruta}/?utm_source=anuncio`);
+  assert.equal(con.status, 200);
+  assert.match(await con.text(), /Vertical &lt;Uno&gt;/);
+  assert.equal((await fetch(`${api.base}/L/${m.slug}`)).status, 404);
+});
+
 test("E1 GET: el cuestionario sale de las tablas (nombre, color, sucursales, aviso de privacidad), accesible y con CSP", async () => {
   const m = await mundo({ logo: "https://cdn.ejemplo.test/logo.png" });
   const r = await fetch(`${api.base}${m.ruta}?utm_source=anuncio`);
