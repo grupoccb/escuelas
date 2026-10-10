@@ -61,7 +61,7 @@ export function origenDelEnvioAceptable(req: Pick<Request, "get">, politica: Pol
  * se refleja sin escapar, `default-src 'none'` y `base-uri 'none'`.
  */
 function politica(res: Response, nonce: string): void {
-  res.setHeader("Content-Security-Policy", `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'`);
+  res.setHeader("Content-Security-Policy", `default-src 'none'; style-src 'nonce-${nonce}'; font-src 'self'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'`);
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
 }

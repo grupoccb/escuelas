@@ -135,7 +135,7 @@ test("E1 GET: sin color y con un logo peligroso la página usa el color por omis
   // (La base ya rechaza un color que no sea #RRGGBB; aquí el color falta y el logo es peligroso. `colorValido` se prueba aparte.)
   const m = await mundo({ color: null, logo: "javascript:alert(1)" });
   const html = await (await fetch(`${api.base}${m.ruta}`)).text();
-  assert.match(html, /--marca: #1f4e79;/, "el color por omisión");
+  assert.match(html, /--marca: #3a32d1;/, "el color por omisión (el primario del sistema visual)");
   assert.ok(!html.includes("javascript:") && !html.includes("<img"), "sin logo");
   // Una sola sucursal: va escondida, no hay lista.
   await prisma.sucursal_vertical.updateMany({ where: { vertical_id: m.org.verticalId, sucursal_id: m.org.sucursales[1]!.id }, data: { activo: false } });
