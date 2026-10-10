@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Maestro · Hoy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#171A2C;text-decoration:none}a:hover{color:#3A32D1}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 21px">
+
+<header style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 24px 20px 14px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="color: #5A6074; font-size: 13px; line-height: 18px; font-weight: 600">Escuela demo · Águilas</div>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.01em">Hoy</h1>
+<div style="color: #454B60">Lunes 12 de octubre · 2 clases muestra</div>
+</div>
+<button type="button" aria-label="Mi cuenta" style="flex-shrink: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #171A2C; color: #FFFFFF; border: 0; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer">MD</button>
+</header>
+
+<div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 0 16px 16px">
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 12px 16px; background: #ECEBFC; border-radius: 14px; color: #2B2699">
+<div style="display: flex; align-items: center; gap: 10px; font-weight: 700">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8.5a5 5 0 0110 0c0 3.5 1.5 4.5 1.5 4.5h-13S5 12 5 8.5z"></path><path d="M8.5 16a1.6 1.6 0 003 0"></path></svg>
+2 clases nuevas agendadas
+</div>
+<button type="button" style="min-height: 44px; padding: 0 14px; background: #FFFFFF; color: #2B2699; border: 0; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+
+<article style="background: #FFFFFF; border-radius: 18px; padding: 18px; box-shadow: 0 1px 3px rgba(23,26,44,0.10); display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 6px">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 32px; line-height: 34px; font-variant-numeric: tabular-nums">4:00</div>
+<div style="font-weight: 700; color: #454B60">pm</div>
+</div>
+<span style="padding: 4px 10px; background: #ECEBFC; color: #2B2699; border-radius: 999px; font-size: 13px; line-height: 18px; font-weight: 700">Agendada</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 19px; line-height: 26px; font-weight: 700">Matías <span style="font-weight: 500; color: #454B60">· 4 años</span></div>
+<div style="color: #5A6074">Karate Infantil 3-5 · Lun y Mié 4:00 pm</div>
+</div>
+<button type="button" style="min-height: 52px; padding: 0 20px; background: {{acento}}; color: #FFFFFF; border: 0; border-radius: 12px; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer">Registrar al alumno</button>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; gap: 10px">
+<button type="button" disabled style="flex: 1 1 0; min-height: 48px; background: #F3F4F8; color: #6B7085; border: 1px solid #DEE1EA; border-radius: 12px; font: inherit; font-weight: 700">Asistió</button>
+<button type="button" disabled style="flex: 1 1 0; min-height: 48px; background: #F3F4F8; color: #6B7085; border: 1px solid #DEE1EA; border-radius: 12px; font: inherit; font-weight: 700">No asistió</button>
+</div>
+<div style="color: #5A6074; font-size: 13px; line-height: 18px">La asistencia se marca a partir de las 4:00 pm.</div>
+</div>
+</article>
+
+<article style="background: #FFFFFF; border-radius: 18px; padding: 18px; box-shadow: 0 1px 3px rgba(23,26,44,0.10); display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 6px">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 32px; line-height: 34px; font-variant-numeric: tabular-nums">5:00</div>
+<div style="font-weight: 700; color: #454B60">pm</div>
+</div>
+<span style="padding: 4px 10px; background: #ECEBFC; color: #2B2699; border-radius: 999px; font-size: 13px; line-height: 18px; font-weight: 700">Agendada</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 19px; line-height: 26px; font-weight: 700">Elena</div>
+<div style="color: #5A6074">Lun y Mié 5:00 pm</div>
+</div>
+<button type="button" style="min-height: 52px; padding: 0 20px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 12px; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer">Registrar al alumno</button>
+</article>
+
+</div>
+
+<nav aria-label="Secciones" style="display: flex; background: #FFFFFF; border-top: 1px solid #DEE1EA; padding: 6px 8px 10px">
+<a href="#" aria-current="page" style="flex: 1 1 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{acento}}; font-size: 12.5px; line-height: 16px; font-weight: 700">
+<svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="13" rx="2"></rect><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>
+Hoy</a>
+<a href="#" style="flex: 1 1 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5l1.5 1.5 2.5-3M3.5 11.5l1.5 1.5 2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>
+Pase de lista</a>
+<a href="#" style="flex: 1 1 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7" r="3"></circle><path d="M2.5 16.5c.6-2.8 2.5-4.2 5-4.2s4.4 1.4 5 4.2"></path><path d="M13 4.3a3 3 0 010 5.4M15 12.6c1.4.6 2.2 1.9 2.5 3.9"></path></svg>
+Alumnos</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"acento":{"editor":"color","default":"#3A32D1","options":["#3A32D1","#0E6B5C","#B4232A","#1F5FBF"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return { acento: this.props.acento ?? '#3A32D1' };
+}
+}
+</script>
+</body>
+</html>

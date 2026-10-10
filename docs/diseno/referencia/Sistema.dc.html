@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Sistema visual</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B2699}a:hover{color:#171A2C}
+</style>
+</helmet>
+<div style="width: 1366px; height: 1040px; box-sizing: border-box; overflow: hidden; padding: 48px 56px; background: #FFFFFF; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px; display: flex; flex-direction: column; gap: 32px">
+
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 20px; border-bottom: 1px solid #DEE1EA">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 40px; line-height: 44px; letter-spacing: -0.02em">Sistema visual</h1>
+<div style="color: #5A6074; max-width: 520px; text-align: right">Los nombres son las variables que ya usa la aplicación en <span style="font-weight: 700; color: #171A2C">base.css</span>. Cambiar sus valores cambia todas las pantallas.</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px; flex-grow: 1; min-height: 0">
+
+<div style="display: flex; flex-direction: column; gap: 32px">
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">Color</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #171A2C"></div><div style="font-weight: 700">--texto / --lateral</div><div style="color: #5A6074">#171A2C</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: {{acento}}"></div><div style="font-weight: 700">--primario</div><div style="color: #5A6074">#3A32D1</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #ECEBFC"></div><div style="font-weight: 700">--primario-suave</div><div style="color: #5A6074">#ECEBFC</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #F3F4F8; border: 1px solid #DEE1EA; box-sizing: border-box"></div><div style="font-weight: 700">--fondo</div><div style="color: #5A6074">#F3F4F8</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #FFFFFF; border: 1px solid #DEE1EA; box-sizing: border-box"></div><div style="font-weight: 700">--superficie</div><div style="color: #5A6074">#FFFFFF</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #5A6074"></div><div style="font-weight: 700">--texto-suave</div><div style="color: #5A6074">#5A6074</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #DEE1EA"></div><div style="font-weight: 700">--borde</div><div style="color: #5A6074">#DEE1EA</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #8E95AA"></div><div style="font-weight: 700">--borde-campo</div><div style="color: #5A6074">#8E95AA</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #E1F3E7; display: flex; align-items: center; justify-content: center; color: #17603A; font-weight: 700">Aa</div><div style="font-weight: 700">--exito</div><div style="color: #5A6074">#17603A · #E1F3E7</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #FFF0D2; display: flex; align-items: center; justify-content: center; color: #6B4100; font-weight: 700">Aa</div><div style="font-weight: 700">--alerta</div><div style="color: #5A6074">#6B4100 · #FFF0D2</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #FDECEA; display: flex; align-items: center; justify-content: center; color: #B3261E; font-weight: 700">Aa</div><div style="font-weight: 700">--peligro</div><div style="color: #5A6074">#B3261E · #FDECEA</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 56px; border-radius: 12px; background: #E7E9F1"></div><div style="font-weight: 700">--columna</div><div style="color: #5A6074">#E7E9F1</div></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">Tipografía</h2>
+<div style="display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid #DEE1EA">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 48px; line-height: 52px; letter-spacing: -0.02em">Embudo 383</div>
+<div style="color: #5A6074; text-align: right">Bricolage Grotesque 700<br>Títulos y cifras</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 34px">Título de pantalla</div>
+<div style="color: #5A6074">30 / 34</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+<div style="font-size: 16px; line-height: 22px; font-weight: 700">Título de sección en Figtree</div>
+<div style="color: #5A6074">16 / 22 · 700</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+<div>Texto de la interfaz: Santino · vence el 10 de octubre</div>
+<div style="color: #5A6074">14 / 20 · 400</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+<div style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Etiqueta de campo y dato secundario</div>
+<div style="color: #5A6074">12.5 / 16 · 600</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+<div style="font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums">$820.50 · 55 9901 0009</div>
+<div style="color: #5A6074">Cifras tabulares</div>
+</div>
+</div>
+</section>
+
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 30px">
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">Botones</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" style="min-height: 44px; padding: 0 18px; background: {{acento}}; color: #FFFFFF; border: 0; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer">Primario</button>
+<button type="button" style="min-height: 44px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer">Secundario</button>
+<button type="button" style="min-height: 44px; padding: 0 18px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer">Sutil</button>
+<button type="button" style="min-height: 44px; padding: 0 18px; background: #FFFFFF; color: #B3261E; border: 1px solid #B3261E; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer">Cancelar pago</button>
+<button type="button" disabled style="min-height: 44px; padding: 0 18px; background: #F3F4F8; color: #6B7085; border: 1px solid #DEE1EA; border-radius: 10px; font: inherit; font-weight: 700">Deshabilitado</button>
+</div>
+<div style="display: flex; align-items: center; gap: 16px">
+<div role="group" aria-label="Ejemplo de selector" style="display: flex; padding: 4px; background: #E4E6EE; border-radius: 12px">
+<button type="button" aria-pressed="true" style="min-height: 36px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 0; border-radius: 9px; font: inherit; font-weight: 700; box-shadow: 0 1px 2px rgba(23,26,44,0.16); cursor: pointer">Tablero</button>
+<button type="button" aria-pressed="false" style="min-height: 36px; padding: 0 18px; background: transparent; color: #454B60; border: 0; border-radius: 9px; font: inherit; font-weight: 600; cursor: pointer">Lista</button>
+</div>
+<div style="color: #5A6074">Selector de dos o tres opciones, en vez de una lista desplegable</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">Etiquetas de estado</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<span style="padding: 2px 8px; background: #ECEDF3; color: #3A3F52; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 600">Página de captación</span>
+<span style="padding: 4px 10px; background: #ECEBFC; color: #2B2699; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700">Agendada</span>
+<span style="padding: 4px 10px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700">Asistió</span>
+<span style="padding: 2px 8px; background: #FFF0D2; color: #6B4100; border: 1px solid #F0C56A; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 700">14 días sin movimiento</span>
+<span style="padding: 4px 10px; background: #FDECEA; color: #B3261E; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700">Vencido</span>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">Campos</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ej-nombre" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Nombre del niño</label>
+<input id="ej-nombre" value="Matías" style="box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font: inherit">
+<div style="color: #5A6074; font-size: 12.5px; line-height: 16px">Como aparece en su acta.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ej-monto" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Monto recibido</label>
+<input id="ej-monto" value="0" aria-invalid="true" style="box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 2px solid #B3261E; border-radius: 10px; font: inherit">
+<div style="color: #B3261E; font-size: 12.5px; line-height: 16px; font-weight: 600">Escribe un monto mayor a cero.</div>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">Tarjeta y medidas</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start">
+<div style="background: #F3F4F8; border-radius: 16px; padding: 14px">
+<article style="background: #FFFFFF; border-radius: 12px; padding: 14px; box-shadow: 0 1px 2px rgba(23,26,44,0.10); display: flex; flex-direction: column; gap: 4px">
+<div style="font-weight: 700; font-size: 15px; line-height: 22px">Beatriz Montes</div>
+<div style="color: #5A6074; font-variant-numeric: tabular-nums">55 9901 0003</div>
+<div style="display: flex; gap: 6px; margin-top: 4px">
+<span style="padding: 2px 8px; background: #ECEDF3; color: #3A3F52; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 600">Águilas</span>
+</div>
+</article>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; color: #454B60">
+<div><span style="font-weight: 700; color: #171A2C">Esquinas:</span> 10 en botones y campos, 12 en tarjetas, 16 en paneles.</div>
+<div><span style="font-weight: 700; color: #171A2C">Alto mínimo:</span> 44 en todo lo que se toca; 52 en la acción principal del celular.</div>
+<div><span style="font-weight: 700; color: #171A2C">Espacios:</span> 4, 8, 12, 16, 20 y 32.</div>
+<div><span style="font-weight: 700; color: #171A2C">Sombra:</span> una sola, muy leve, solo en tarjetas que se mueven.</div>
+<div><span style="font-weight: 700; color: #171A2C">Una acción principal</span> por pantalla; las demás, secundarias.</div>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"acento":{"editor":"color","default":"#3A32D1","options":["#3A32D1","#0E6B5C","#B4232A","#1F5FBF"]},"$preview":{"width":1366,"height":1040}}'>
+class Component extends DCLogic {
+renderVals() {
+return { acento: this.props.acento ?? '#3A32D1' };
+}
+}
+</script>
+</body>
+</html>
