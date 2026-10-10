@@ -17,6 +17,7 @@ import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { CampoArea, CampoCasilla, CampoSelect, CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useAhora, useCarga, useTitulo, type Accion } from "../../ui/hooks.ts";
 import { Aceptaciones } from "./Aceptaciones.tsx";
 import { BotonesDeAsistencia, type Marca } from "./BotonesDeAsistencia.tsx";
@@ -73,7 +74,7 @@ function Seccion({ id, titulo, estado, abierta, children }: { id: string; titulo
   return (
     <details className="tarjeta seccion-registro" open={abierta} data-prueba={`seccion-${id}`}>
       <summary>
-        <span>{titulo}</span>
+        <span className="seccion-titulo">{titulo}</span>
         {estado ? <Insignia tono={estado === "Sin guardar" ? "alerta" : "exito"}>{estado}</Insignia> : null}
       </summary>
       <div className="pila">{children}</div>
@@ -87,15 +88,16 @@ function PieDeSeccion({ accion, sucio, guardado, alGuardar, bloqueado }: { accio
       {accion.error ? (
         <Aviso tono="peligro">
           <p>{accion.error.message}</p>
+          {accion.error.codigo !== "sin_red" && accion.error.detalles.length > 0 ? <p>Revisa lo marcado en rojo en esta sección y vuelve a guardar.</p> : null}
           {accion.error.codigo === "sin_red" ? <p>Lo que escribiste sigue aquí. Cuando haya conexión, vuelve a guardar.</p> : null}
         </Aviso>
       ) : null}
-      <div className="fila">
-        <Boton variante="primario" disabled={bloqueado || !sucio} cargando={accion.ocupado} onClick={alGuardar}>
+      <div className="pie-seccion">
+        <Boton variante="sutil" disabled={bloqueado || !sucio} cargando={accion.ocupado} onClick={alGuardar}>
           {accion.error ? "Reintentar guardado" : "Guardar esta sección"}
         </Boton>
-        {guardado && !sucio ? <span className="muted" role="status">Guardado a las {guardado}</span> : null}
-        {sucio ? <span className="muted">Cambios sin guardar</span> : null}
+        {guardado && !sucio ? <span className="pie-seccion-estado" role="status">Guardado a las {guardado}</span> : null}
+        {sucio ? <span className="pie-seccion-estado">Cambios sin guardar</span> : null}
       </div>
     </div>
   );
@@ -226,18 +228,20 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
   };
 
   return (
-    <div className="pila">
-      <div className="tarjeta pila">
-        <div className="fila fila-entre">
-          <strong>
-            {clase.sesion.fecha} · {clase.sesion.hora}
+    <div className="pila maestro-columna">
+      <div className="tarjeta pila registro-clase">
+        <div className="registro-clase-cabecera">
+          <strong className="registro-clase-cuando">
+            <span className="registro-clase-fecha">{clase.sesion.fecha}</span>
+            <span className="registro-clase-separador"> · </span>
+            <span className="registro-clase-hora">{clase.sesion.hora}</span>
           </strong>
           <span className="fila">
             <Insignia tono={estatusClase.tono}>{estatusClase.texto}</Insignia>
             <Insignia tono={estatusRegistro.tono}>Registro: {estatusRegistro.texto}</Insignia>
           </span>
         </div>
-        <p className="muted">
+        <p className="muted registro-clase-grupo">
           {clase.grupo} · {clase.programa} · {clase.sucursal}
         </p>
         {(clase.estatus === "agendada" || clase.estatus === "asistio" || clase.estatus === "no_asistio") && puede("clases_muestra:asistencia") ? (
@@ -262,7 +266,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
           <CampoTexto etiqueta="Nombre" autoComplete="off" value={alumno.nombre} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, nombre: e.target.value } }))} error={errs("alumno")["alumno.nombre"]} requerido />
           <CampoTexto etiqueta="Apellidos" autoComplete="off" value={alumno.apellidos} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, apellidos: e.target.value } }))} error={errs("alumno")["alumno.apellidos"]} requerido />
           <CampoTexto etiqueta="Fecha de nacimiento (del acta)" type="date" max={hoy} value={alumno.fecha_nacimiento} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, fecha_nacimiento: e.target.value } }))} error={errs("alumno")["alumno.fecha_nacimiento"]} requerido />
-          <GrupoDeOpciones etiqueta="Sexo" valor={alumno.sexo} opciones={SEXOS} alCambiar={(v) => setEd((a) => ({ ...a, alumno: { ...alumno, sexo: v } }))} error={errs("alumno")["alumno.sexo"]} />
+          <GrupoDeOpciones segmentado etiqueta="Sexo" valor={alumno.sexo} opciones={SEXOS} alCambiar={(v) => setEd((a) => ({ ...a, alumno: { ...alumno, sexo: v } }))} error={errs("alumno")["alumno.sexo"]} />
           <CampoTexto etiqueta="Escuela" autoComplete="off" value={alumno.escuela} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, escuela: e.target.value } }))} error={errs("alumno")["alumno.escuela"]} />
           <CampoSelect etiqueta="Turno en la escuela" vacio="Sin elegir" value={alumno.turno_escolar} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, turno_escolar: e.target.value } }))} opciones={TURNOS.map((t) => ({ valor: t.valor, texto: t.texto }))} error={errs("alumno")["alumno.turno_escolar"]} />
           <CampoTexto etiqueta="Talla de uniforme" autoComplete="off" value={alumno.talla_uniforme} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, talla_uniforme: e.target.value } }))} error={errs("alumno")["alumno.talla_uniforme"]} />
@@ -278,10 +282,10 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
             const p = `tutores[${i}]`;
             const e = errs("tutores");
             return (
-              <div key={t.clave} className="tarjeta pila" data-prueba={`adulto-${i}`}>
-                <div className="fila fila-entre">
+              <div key={t.clave} className="adulto-tarjeta pila" data-prueba={`adulto-${i}`}>
+                <div className="adulto-cabecera">
                   <h2 className="titulo-menor">Adulto {i + 1}</h2>
-                  <Boton variante="fantasma" onClick={() => setEd((a) => ({ ...a, tutores: (a.tutores ?? tutoresDesde(registro)).filter((x) => x.clave !== t.clave) }))}>
+                  <Boton variante="peligro" onClick={() => setEd((a) => ({ ...a, tutores: (a.tutores ?? tutoresDesde(registro)).filter((x) => x.clave !== t.clave) }))}>
                     Quitar
                   </Boton>
                 </div>
@@ -297,7 +301,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
             );
           })}
           <div>
-            <Boton onClick={() => setEd((a) => ({ ...a, tutores: [...(a.tutores ?? tutoresDesde(registro)), tutorVacio()] }))}>Agregar adulto</Boton>
+            <Boton ancho onClick={() => setEd((a) => ({ ...a, tutores: [...(a.tutores ?? tutoresDesde(registro)), tutorVacio()] }))}>Agregar adulto</Boton>
           </div>
         </fieldset>
         <PieDeSeccion accion={aTutores} sucio={sucio.tutores} guardado={guardadoA.tutores} bloqueado={cerrado} alGuardar={() => void guardar("tutores")} />
@@ -314,6 +318,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
       <Seccion id="antecedentes" titulo="Antecedentes" estado={estadoDe("antecedentes")}>
         <fieldset className="pila sin-borde" disabled={cerrado}>
           <GrupoDeOpciones
+            segmentado
             etiqueta="¿Ha practicado antes?"
             valor={antecedentes.practico_antes}
             opciones={[
@@ -341,8 +346,8 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <fieldset className="pila sin-borde" disabled={cerrado}>
           <CampoTexto etiqueta="Nivel observado en la clase" value={observacion.nivel_observado} onChange={(e) => setEd((a) => ({ ...a, observacion: { ...observacion, nivel_observado: e.target.value } }))} error={errs("observacion")["observacion.nivel_observado"]} />
           <CampoSelect etiqueta="Grupo recomendado" vacio="Sin recomendar" value={observacion.grupo_recomendado_id} onChange={(e) => setEd((a) => ({ ...a, observacion: { ...observacion, grupo_recomendado_id: e.target.value } }))} opciones={gruposDeLaVertical.map((g) => ({ valor: g.id, texto: g.nombre }))} error={errs("observacion")["observacion.grupo_recomendado_id"]} />
-          <GrupoDeOpciones etiqueta="Interés percibido" valor={observacion.interes_percibido} opciones={INTERESES} alCambiar={(v) => setEd((a) => ({ ...a, observacion: { ...observacion, interes_percibido: v } }))} error={errs("observacion")["observacion.interes_percibido"]} />
-          <CampoArea etiqueta="Notas del maestro" value={observacion.notas} onChange={(e) => setEd((a) => ({ ...a, observacion: { ...observacion, notas: e.target.value } }))} ayuda="No anotes datos de salud aquí: van en su sección." error={errs("observacion")["observacion.notas"]} />
+          <GrupoDeOpciones segmentado etiqueta="Interés percibido" valor={observacion.interes_percibido} opciones={INTERESES} alCambiar={(v) => setEd((a) => ({ ...a, observacion: { ...observacion, interes_percibido: v } }))} error={errs("observacion")["observacion.interes_percibido"]} />
+          <CampoArea etiqueta="Notas del maestro" value={observacion.notas} onChange={(e) => setEd((a) => ({ ...a, observacion: { ...observacion, notas: e.target.value } }))} ayuda={errs("observacion")["observacion.notas"] ? undefined : "No anotes datos de salud aquí: van en su sección."} error={errs("observacion")["observacion.notas"]} />
         </fieldset>
         <PieDeSeccion accion={aObservacion} sucio={sucio.observacion} guardado={guardadoA.observacion} bloqueado={cerrado} alGuardar={() => void guardar("observacion")} />
       </Seccion>
@@ -356,7 +361,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <ListaDeFaltas error={completar.error} />
         <ListaDeFaltas error={cerrar.error} />
         <ErrorDeAccion error={reabrir.error} />
-        <div className="fila">
+        <div className="formulario-acciones">
           {registro.estatus === "borrador" || registro.estatus === "sin_captura" ? (
             <Boton
               variante="primario"
@@ -397,11 +402,12 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <div className="barra-guardado">
           {/* El fallo vive DENTRO de la barra fija (V10): debajo de ella la barra lo tapaba y quien tocaba «Guardar borrador» sin señal no veía nada. */}
           {aTodo.error ? (
-            <span role="alert" className="campo-error" data-prueba="error-del-borrador">
-              {aTodo.error.message}
-            </span>
+            <div role="alert" className="barra-guardado-error" data-prueba="error-del-borrador">
+              <Icono nombre="alerta" />
+              <span>{aTodo.error.message}</span>
+            </div>
           ) : (
-            <span className="muted" role="status">
+            <span className="barra-guardado-texto" role="status">
               {haySinGuardar ? "Tienes cambios sin guardar." : "Todo guardado."}
             </span>
           )}

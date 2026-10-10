@@ -82,7 +82,7 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
 
   return (
     <div className="pila">
-      <div className="fila" data-prueba="resumen-pase">
+      <div className="fila pase-resumen" data-prueba="resumen-pase">
         <Insignia tono="exito">Presentes {cuenta("presente")}</Insignia>
         <Insignia tono="peligro">Faltas {cuenta("falta")}</Insignia>
         <Insignia tono="info">Justificadas {cuenta("justificada")}</Insignia>
@@ -90,16 +90,20 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
         {pase.pase_tomado ? <Insignia>Pase ya tomado</Insignia> : null}
       </div>
       {pase.problema === "fecha_futura" ? <Aviso tono="alerta">La clase de ese día todavía no empieza: el pase se toma desde la hora de inicio.</Aviso> : null}
-      {activos.length === 0 ? <Vacio titulo="No hay alumnos inscritos en este grupo para esa fecha" /> : null}
-      {!bloqueado && activos.length > 0 ? (
-        <div>
-          <Boton onClick={() => setEd((a) => ({ ...a, ...Object.fromEntries(activos.filter((f) => efectivo(f) === null).map((f) => [f.inscripcion_id, "presente" as const])) }))}>Marcar presentes a todos los que faltan por marcar</Boton>
+      {activos.length === 0 ? (
+        <div className="vacio-maestro">
+          <Vacio titulo="No hay alumnos inscritos en este grupo para esa fecha">Elige otra fecha u otro grupo arriba. Si falta alguien, avisa a recepción para que lo inscriba.</Vacio>
         </div>
       ) : null}
-      <ul className="lista-tarjetas">
+      {!bloqueado && activos.length > 0 ? (
+        <div className="pase-todos">
+          <Boton ancho onClick={() => setEd((a) => ({ ...a, ...Object.fromEntries(activos.filter((f) => efectivo(f) === null).map((f) => [f.inscripcion_id, "presente" as const])) }))}>Marcar presentes a todos los que faltan por marcar</Boton>
+        </div>
+      ) : null}
+      <ul className="lista-pase">
         {pase.lista.map((f) => (
           <li key={f.inscripcion_id} className="alumno-pase" data-prueba={`alumno-${f.alumno_id}`}>
-            <GrupoDeOpciones etiqueta={f.alumno + (f.activa ? "" : " (ya no está inscrito)")} valor={efectivo(f) ?? ""} opciones={OPCIONES} alCambiar={(v) => (!bloqueado && (f.activa || ed[f.inscripcion_id] !== undefined || f.estatus !== null) ? setEd((a) => ({ ...a, [f.inscripcion_id]: v as Estatus })) : undefined)} />
+            <GrupoDeOpciones etiqueta={f.alumno + (f.activa ? "" : " (ya no está inscrito)")} valor={efectivo(f) ?? ""} opciones={OPCIONES} segmentado alCambiar={(v) => (!bloqueado && (f.activa || ed[f.inscripcion_id] !== undefined || f.estatus !== null) ? setEd((a) => ({ ...a, [f.inscripcion_id]: v as Estatus })) : undefined)} />
           </li>
         ))}
       </ul>
@@ -128,7 +132,7 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
             </div>
           ) : null}
           <div className="barra-guardado-fila">
-            <span className="muted" role="status">
+            <span className="barra-guardado-texto" role="status">
               {cambios > 0 ? `${cambios} ${cambios === 1 ? "cambio sin guardar" : "cambios sin guardar"}` : guardadoA ? `Pase guardado a las ${guardadoA}` : "Sin cambios por guardar"}
               {sinMarcar > 0 ? ` · ${sinMarcar} sin marcar` : ""}
             </span>
@@ -154,9 +158,14 @@ export default function PaseDeLista() {
 
   return (
     <Marco titulo="Pase de lista" subtitulo={fecha ? formatearFechaLarga(fecha) : undefined}>
+      <div className="maestro-columna">
       {grupos.error ? <ErrorDeCarga error={grupos.error} alReintentar={grupos.recargar} /> : null}
       {grupos.cargando && !grupos.datos ? <Cargando /> : null}
-      {grupos.datos && activos.length === 0 ? <Vacio titulo="No tienes grupos activos">Cuando te asignen un grupo, aparecerá aquí.</Vacio> : null}
+      {grupos.datos && activos.length === 0 ? (
+        <div className="vacio-maestro">
+          <Vacio titulo="No tienes grupos activos">Cuando te asignen un grupo, aparecerá aquí.</Vacio>
+        </div>
+      ) : null}
       {activos.length > 0 ? (
         <div className="rejilla rejilla-2">
           <CampoSelect etiqueta="Grupo" value={grupoId} onChange={(e) => setEleccion(e.target.value)} opciones={activos.map((g) => ({ valor: g.id, texto: `${g.nombre} · ${g.programa.nombre}` }))} />
@@ -167,6 +176,7 @@ export default function PaseDeLista() {
       {pase.cargando && !pase.datos ? <Cargando texto="Cargando la lista…" /> : null}
       {pase.datos && !pase.datos.es_sesion ? <Aviso tono="alerta">Ese día este grupo no da clase. Elige otra fecha.</Aviso> : null}
       {pase.datos && pase.datos.es_sesion ? <Lista key={`${grupoId}|${fecha}`} pase={pase.datos} grupoId={grupoId} fecha={fecha} alCambiar={pase.poner} /> : null}
+      </div>
     </Marco>
   );
 }

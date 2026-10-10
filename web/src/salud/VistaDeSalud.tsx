@@ -68,7 +68,7 @@ export function VistaDeSalud({ alumnoId }: { alumnoId: string }) {
   const valor = (t: string | null | undefined) => (t && t.trim() !== "" ? t : "Sin registrar");
 
   return (
-    <div className="pila" data-prueba="vista-de-salud">
+    <div className="pila salud-vista" data-prueba="vista-de-salud">
       <Aviso tono="alerta" titulo="Datos sensibles de un menor">
         Cada consulta queda registrada con tu nombre y el motivo. No se guardan en este dispositivo y se ocultan solos a los {SEGUNDOS_VISIBLE / 60} minutos.
       </Aviso>
@@ -82,20 +82,21 @@ export function VistaDeSalud({ alumnoId }: { alumnoId: string }) {
         >
           <CampoTexto etiqueta="Motivo de la consulta" requerido autoComplete="off" value={motivo} onChange={(e) => setMotivo(e.target.value)} ayuda="Por ejemplo: «Clase de hoy» o «Llamada de la familia». Mínimo 3 caracteres." />
           <ErrorDeAccion error={leer.error} />
-          <div>
-            <Boton type="submit" variante="primario" disabled={motivo.trim().length < 3} cargando={leer.ocupado}>
-              Ver datos de salud
-            </Boton>
-          </div>
+          <Boton type="submit" variante="primario" grande ancho disabled={motivo.trim().length < 3} cargando={leer.ocupado}>
+            Ver datos de salud
+          </Boton>
         </form>
       ) : (
         <div className="pila" data-prueba="ficha-de-salud">
-          <div className="fila fila-entre">
-            <Insignia tono="info">Se ocultan en {restan} s</Insignia>
+          <div className="salud-cuenta">
+            <div className="salud-cuenta-texto">
+              <Insignia tono={restan <= 30 ? "alerta" : "info"}>Se ocultan en {restan} s</Insignia>
+              <progress className="salud-progreso" max={SEGUNDOS_VISIBLE} value={restan} aria-hidden="true" />
+            </div>
             <Boton onClick={ocultar}>Ocultar</Boton>
           </div>
           {!ficha.existe ? <Aviso>Todavía no hay ficha de salud de este alumno.</Aviso> : null}
-          <dl className="datos">
+          <dl className="datos salud-datos">
             <dt>Alergias</dt>
             <dd>{valor(c?.alergias)}</dd>
             <dt>Condiciones médicas</dt>

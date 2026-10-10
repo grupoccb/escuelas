@@ -135,42 +135,37 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
 
   return (
     <div className="pila" data-prueba="salud">
-      <p className="muted">Datos sensibles del menor: solo los ven el maestro del grupo y el administrador, cada consulta queda registrada, y nunca van a mensajes ni a notas.</p>
+      <p className="muted salud-nota">Datos sensibles del menor: solo los ven el maestro del grupo y el administrador, cada consulta queda registrada, y nunca van a mensajes ni a notas.</p>
       <div className="fila">
         <Insignia tono={estado.completa ? "exito" : "alerta"}>{estado.completa ? "Ficha completa" : "Ficha incompleta"}</Insignia>
         {estado.contacto_registrado ? <Insignia tono="info">Contacto registrado</Insignia> : null}
         {guardado ? <Insignia tono="exito">Guardado</Insignia> : null}
       </div>
       {yaHay && !visto ? (
-        <Aviso>
-          Ya hay datos de salud guardados y no se muestran. Escribe solo lo que quieras cambiar, o pídelos para revisarlos.
-          <div className="pila">
-            <CampoTexto etiqueta="Motivo de la consulta" value={motivo} onChange={(e) => setMotivo(e.target.value)} ayuda="Queda en el registro de accesos." />
-            <div>
-              <Boton disabled={bloqueado || motivo.trim().length < 3} cargando={leer.ocupado} onClick={() => void verRegistrado()}>
-                Ver lo registrado
-              </Boton>
-            </div>
-            <ErrorDeAccion error={leer.error} />
-          </div>
-        </Aviso>
-      ) : null}
-      {visto ? (
-        <div>
-          <Boton variante="fantasma" onClick={ocultar}>
-            Ocultar lo registrado
+        <div className="pila salud-consulta">
+          <Aviso>Ya hay datos de salud guardados y no se muestran. Escribe solo lo que quieras cambiar, o pídelos para revisarlos.</Aviso>
+          <CampoTexto etiqueta="Motivo de la consulta" value={motivo} onChange={(e) => setMotivo(e.target.value)} ayuda="Queda en el registro de accesos." />
+          <ErrorDeAccion error={leer.error} />
+          <Boton ancho disabled={bloqueado || motivo.trim().length < 3} cargando={leer.ocupado} onClick={() => void verRegistrado()}>
+            Ver lo registrado
           </Boton>
         </div>
+      ) : null}
+      {visto ? (
+        <Boton ancho variante="sutil" onClick={ocultar}>
+          Ocultar lo registrado
+        </Boton>
       ) : null}
       <fieldset className="pila sin-borde" disabled={bloqueado}>
         <CampoArea etiqueta="Alergias" autoComplete="off" autoCorrect="off" value={valores.alergias} onChange={(e) => poner("alergias", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("alergias", "salud.alergias")} />
         <CampoArea etiqueta="Condiciones médicas" autoComplete="off" autoCorrect="off" value={valores.condiciones_medicas} onChange={(e) => poner("condiciones_medicas", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("condiciones_medicas", "salud.condiciones_medicas")} />
         <CampoArea etiqueta="Medicamentos" autoComplete="off" autoCorrect="off" value={valores.medicamentos} onChange={(e) => poner("medicamentos", e.target.value)} ayuda="Si no toma, escribe «Ninguno»." error={error("medicamentos", "salud.medicamentos")} />
-        <h2 className="titulo-menor">Contacto de emergencia</h2>
+        <h2 className="titulo-menor salud-subtitulo">Contacto de emergencia</h2>
         <CampoTexto etiqueta="Nombre del contacto" autoComplete="off" value={valores.contacto_nombre} onChange={(e) => poner("contacto_nombre", e.target.value)} error={error("contacto_nombre", "salud.contacto_emergencia", "salud.contacto_emergencia.nombre", "tutores")} />
         <CampoTexto etiqueta="Teléfono del contacto" type="tel" inputMode="tel" autoComplete="off" value={valores.contacto_telefono} onChange={(e) => poner("contacto_telefono", e.target.value)} error={error("contacto_telefono", "salud.contacto_emergencia.telefono")} />
         <CampoTexto etiqueta="Parentesco o relación (opcional)" autoComplete="off" value={valores.contacto_parentesco} onChange={(e) => poner("contacto_parentesco", e.target.value)} />
         <GrupoDeOpciones
+          segmentado
           etiqueta="¿Autorizan atención médica de urgencia?"
           valor={valores.autorizacion}
           opciones={[
@@ -182,8 +177,8 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
       </fieldset>
       {errorLocal["general"] ? <Aviso tono="alerta">{errorLocal["general"]}</Aviso> : null}
       <ErrorDeAccion error={guardar.error} />
-      <div>
-        <Boton variante="primario" disabled={bloqueado} cargando={guardar.ocupado} onClick={() => void guardarSeccion()}>
+      <div className="pie-seccion">
+        <Boton variante="sutil" disabled={bloqueado} cargando={guardar.ocupado} onClick={() => void guardarSeccion()}>
           Guardar salud y seguridad
         </Boton>
       </div>
