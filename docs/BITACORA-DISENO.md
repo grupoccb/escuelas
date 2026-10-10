@@ -4,8 +4,8 @@ Rama `diseno-v1` (desde `v1-escuela`). Plan: `docs/PLAN-DISENO.md`. Especificaci
 
 | Bloque | Estado | Commit | Nota |
 |---|---|---|---|
-| D0 | EN CURSO | | Rama, bitácora y línea base |
-| D1 | PENDIENTE | | Inventario total |
+| D0 | HECHO | 63f8e02 | Rama, bitácora y línea base de las tres validaciones |
+| D1 | HECHO | 6ca1f90 | 1016 filas, capturas de antes, `npm run diseno:inventario` |
 | D2 | PENDIENTE | | Cimientos |
 | D3 | PENDIENTE | | Estructura general |
 | D4 | PENDIENTE | | Componentes base |
