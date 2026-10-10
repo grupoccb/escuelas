@@ -14,7 +14,8 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 | V7 | HECHO | ver `git log` (`V7:`) | Recorrido por rol en navegador real (asesor, maestro, recepción, administrador): 92 fricciones anotadas, 73 corregidas, 19 documentadas o para Eduardo; capturas de antes y después en `docs/capturas/v1/v7-*/` |
 | V8 | HECHO (parcial: el aviso de 24 h y el selector de plantillas de Chatwoot con WhatsApp real quedan en texto, sin captura) | ver `git log` (`V8:`) | Cuatro guías de una página por rol con capturas reales (`docs/guias/`), PDF carta y celular, prueba que falla si un botón citado ya no existe (`npm run guias:validar`), capturas regenerables (`npm run guias:capturas`) y lector fresco que las siguió en la pantalla |
 | V9 | PENDIENTE | | Ensayo con WhatsApp real, preparado |
-| V10 | PENDIENTE | | Hallazgos abiertos |
+| V10 | PENDIENTE | | Hallazgos abiertos; incluye la causa raíz de la prueba intermitente de pagos parciales (instrucción de Eduardo: prueba que falle siempre sin el arreglo, sin reintentos ni relajar la aserción) |
+| V10b | PENDIENTE | | Bloque agregado por Eduardo durante la sesión: con inscripción apagada, mover un lead a «Inscrito» a mano con nota obligatoria y registro de quién lo hizo; con inscripción encendida, solo inscribiendo; reporte de leads y costo por campaña cuentan los dos casos |
 | V11 | PENDIENTE | | Decisiones para Eduardo |
 | V12 | PENDIENTE | | Demo de un solo comando |
 | V13 | PENDIENTE | | Auditoría final |
