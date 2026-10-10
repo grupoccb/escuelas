@@ -188,18 +188,18 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </nav>
           <div className="lateral-usuario">
-            <div className="avatar" aria-hidden="true">
-              {iniciales(yo.usuario.nombre)}
-            </div>
-            <div className="lateral-usuario-datos">
-              {/* V7: su cuenta (y cambiar su contraseña) se alcanza desde cualquier pantalla. */}
-              <Link className="enlace-cuenta" to="/mas" aria-label={cuenta}>
-                <span data-prueba="usuario">{yo.usuario.nombre}</span>
-              </Link>
-              <button type="button" className="salir" onClick={() => void salir()}>
-                Salir
-              </button>
-            </div>
+            {/* V7: su cuenta (y cambiar su contraseña) se alcanza desde cualquier pantalla. */}
+            <Link className="enlace-cuenta" to="/mas" aria-label={cuenta}>
+              <span className="avatar" aria-hidden="true">
+                {iniciales(yo.usuario.nombre)}
+              </span>
+              <span className="enlace-cuenta-nombre" data-prueba="usuario">
+                {yo.usuario.nombre}
+              </span>
+            </Link>
+            <button type="button" className="boton boton-icono salir-icono" aria-label="Salir" title="Salir" onClick={() => void salir()}>
+              <Icono nombre="salir" />
+            </button>
           </div>
         </div>
       </div>

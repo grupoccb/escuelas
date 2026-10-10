@@ -35,7 +35,7 @@ export const FUENTES: Record<string, string> = {
   directo: "Directo",
 };
 
-function TarjetaDeLead({ lead, estancado, sucursal, cita, alMover, alMarcar }: { lead: LeadResumen; estancado: Estancado | undefined; sucursal: string; cita?: string | undefined; alMover: (l: LeadParaMover) => void; alMarcar: ((l: LeadParaMover) => void) | null }) {
+function TarjetaDeLead({ lead, estancado, sucursal, alMover, alMarcar }: { lead: LeadResumen; estancado: Estancado | undefined; sucursal: string; alMover: (l: LeadParaMover) => void; alMarcar: ((l: LeadParaMover) => void) | null }) {
   const nombre = lead.nombre_contacto ?? "Sin nombre";
   return (
     <li className="ficha-lead" data-prueba={`lead-${lead.id}`}>
@@ -46,12 +46,6 @@ function TarjetaDeLead({ lead, estancado, sucursal, cita, alMover, alMarcar }: {
         {estancado ? <Insignia tono="alerta">Sin movimiento {estancado.dias_sin_movimiento} d</Insignia> : null}
       </div>
       <span className="muted numero">{lead.telefono ?? "Sin teléfono"}</span>
-      {cita ? (
-        <span className="ficha-lead-cita">
-          <Icono nombre="hoy" tamano={16} />
-          {cita}
-        </span>
-      ) : null}
       <div className="ficha-lead-pie">
         <span className="fila">
           <Insignia>{FUENTES[lead.fuente] ?? lead.fuente}</Insignia>

@@ -28,7 +28,20 @@ for (const archivo of readdirSync(import.meta.dirname).filter((n) => /^escenas-.
 
 const VISTAS: Vista[] = ["escritorio", "celular"];
 // Escenas cuyo único propósito es mostrar algo roto a propósito (sin red, sin JavaScript): no se les pide pasar axe, pero sí el desborde.
-const SOLO_DESBORDE = new Set<string>(["acceso-marco-con-teclado"]); // simula el teclado achicando `visualViewport`: axe se queda esperando
+const SOLO_DESBORDE = new Set<string>([
+  "acceso-marco-con-teclado", // simula el teclado achicando `visualViewport`: axe se queda esperando
+  // Respuestas crudas del servidor (JSON, texto, imagen) o páginas armadas por la escena: no son páginas del diseño, no llevan título, idioma ni texto alternativo.
+  "fuera-pestana-ventana-chica",
+  "fuera-servidor-404-asset",
+  "fuera-api-404-json",
+  "fuera-api-404-json-mayusculas",
+  "fuera-api-404-json-con-sesion",
+  "fuera-salud",
+  "fuera-salud-lista",
+  "fuera-metricas",
+  "fuera-qr-png",
+  "fuera-qr-url-json",
+]);
 
 for (const e of escenas.filter((x) => coincide(x.id))) {
   for (const vista of VISTAS.filter((v) => (e.vistas ?? VISTAS).includes(v))) {
@@ -40,6 +53,8 @@ for (const e of escenas.filter((x) => coincide(x.id))) {
         const problemas: string[] = [];
 
         if (!SOLO_DESBORDE.has(e.id) && !e.impresion) {
+          // Un diálogo o un aviso que todavía entra (opacidad a medias) falsea el contraste: se espera a que termine de aparecer.
+          await page.waitForTimeout(350);
           const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
           for (const v of r.violations) problemas.push(`axe ${v.id} (${v.impact ?? "?"}): ${v.nodes.length} elemento(s), p. ej. ${v.nodes[0]?.target.join(" ")} — ${v.help}`);
         }

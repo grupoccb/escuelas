@@ -564,7 +564,7 @@ export const ESCENAS: Escena[] = [
         const visor = window.visualViewport;
         if (visor) Object.defineProperty(visor, "height", { configurable: true, get: () => window.innerHeight - 340 });
       });
-      await c.page.getByRole("textbox").first().focus();
+      await c.page.locator("input[type=text], input[type=search], input:not([type])").first().focus();
       await c.page.evaluate(() => window.visualViewport?.dispatchEvent(new Event("resize")));
       await c.page.waitForFunction(() => document.documentElement.classList.contains("con-teclado"), undefined, { timeout: 3000 }).catch(() => undefined);
       await c.page.waitForTimeout(150);

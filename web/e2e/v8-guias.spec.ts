@@ -241,7 +241,7 @@ async function irPorLaBarra(page: Page, etiqueta: string, ruta: string): Promise
 
 /** Un enlace visible de la pantalla actual (un botón de una tarjeta, una área de Administración) que lleva a `ruta`. */
 async function irPorUnEnlace(page: Page, ruta: string): Promise<void> {
-  const enlace = page.getByRole("main").locator(`a[href="${ruta}"]`).first();
+  const enlace = page.getByRole("main").locator(`a[href="${ruta}"]:visible`).first();
   await expect(enlace, `ninguna pantalla visible enlaza a ${ruta}`).toBeVisible();
   await enlace.click();
   await expect(page).toHaveURL(new RegExp(`${ruta.replace(/\//g, "\\/")}$`));

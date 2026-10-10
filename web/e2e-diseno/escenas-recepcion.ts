@@ -507,6 +507,20 @@ const LISTA: Escena[] = [
     ir: (c) => conMontoEscrito(c, "1,000"),
   },
   {
+    id: "recep-pagos-monto-todo-el-saldo",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Formulario de pago: el monto cubre TODO el saldo de la familia; el reparto muestra «Saldo después del pago» en cero",
+    tipo: "formulario",
+    fuentes: [PAGO],
+    ir: async (c) => {
+      await irA(c, rutaPago(gomez(c).tutorId));
+      const total = (await c.page.getByTestId("saldo-total").innerText()).replace(/[$,\s]/g, "");
+      await monto(c.page).fill(total);
+      await esperarListo(c.page);
+    },
+  },
+  {
     id: "recep-pagos-monto-mayor-al-saldo",
     rol: "recepcion",
     grupo: GRUPO,

@@ -37,7 +37,7 @@ async function estadoDelFoco(page: Page): Promise<{ descripcion: string; visible
     let visible = anillo(el);
     // Un campo dentro de una caja (contraseña, búsqueda) muestra el anillo en la caja.
     for (let p: Element | null = el.parentElement; p && !visible && p !== document.body; p = p.parentElement) {
-      if (p.matches(":focus-within") && anillo(p) && /campo-clave|campo-busqueda|opcion/.test(p.className)) visible = true;
+      if (p.matches(":focus-within, :has(:focus-visible)") && anillo(p) && /campo-clave|campo-busqueda|opcion|area-tarjeta/.test(p.className)) visible = true;
     }
     const r = el.getBoundingClientRect();
     const dentro = r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
@@ -80,8 +80,9 @@ test("teclado: en un diálogo el foco se queda dentro y Esc lo cierra", async ({
     await expect(dialogo).toBeVisible();
     for (let i = 0; i < 12; i++) {
       await page.keyboard.press("Tab");
-      const dentro = await page.evaluate(() => !!document.activeElement?.closest("dialog[open]"));
-      expect(dentro, "el foco salió del diálogo").toBe(true);
+      // Con un <dialog> modal el Tab puede pasar un momento por la barra del navegador (activeElement = body), pero nunca a un elemento de la página de atrás.
+      const dentro = await page.evaluate(() => document.activeElement === document.body || !!document.activeElement?.closest("dialog[open]"));
+      expect(dentro, "el foco salió del diálogo a la página de atrás").toBe(true);
     }
     await page.keyboard.press("Escape");
     await expect(dialogo).toHaveCount(0);
