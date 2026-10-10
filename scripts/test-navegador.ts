@@ -27,7 +27,8 @@ if (!/^[a-z_][a-z0-9_]*inscripciones_navegador_pruebas$|^inscripciones_navegador
 // 1. La interfaz compilada: es lo que sirve el backend real.
 // WEB_DIST (opcional) compila a otra carpeta: varias corridas a la vez no se pisan.
 const destino = process.env["WEB_DIST"];
-execFileSync("npm", ["--prefix", "web", "run", "build", ...(destino ? ["--", "--outDir", resolve(destino), "--emptyOutDir"] : [])], { stdio: "inherit" });
+// SIN_COMPILAR=1 (rediseño): usa la interfaz que ya está en WEB_DIST tal cual (la línea de «antes» se compila aparte, desde el commit anterior).
+if (process.env["SIN_COMPILAR"] !== "1") execFileSync("npm", ["--prefix", "web", "run", "build", ...(destino ? ["--", "--outDir", resolve(destino), "--emptyOutDir"] : [])], { stdio: "inherit" });
 
 // 2. Base limpia y migrada.
 const mantenimiento = new URL(url);
