@@ -41,6 +41,14 @@ test("css: un color, un nombre de color o una familia fuera de las variables son
   assert.deepEqual(reglas(revisarCss("base.css", css)), ["color-fuera-de-variables", "color-fuera-de-variables", "color-fuera-de-variables", "fuente-fuera-de-variables", "fuente-fuera-de-variables"]);
 });
 
+test("css: las esquinas y sombras escritas a mano fuera de las variables son hallazgos; las del sistema pasan", () => {
+  const bien = `:root { --radio: 10px; --sombra: 0 1px 2px #000; }
+.a { border-radius: var(--radio); box-shadow: var(--sombra); } .b { border-radius: 50%; box-shadow: none; } .c { border-radius: 0 0 var(--radio) var(--radio); box-shadow: inset 0 0 0 2px var(--primario); }`;
+  assert.deepEqual(revisarCss("base.css", bien), []);
+  const mal = `.a { border-radius: 9px; }\n.b { box-shadow: 0 2px 4px var(--texto); }\n.c { border-radius: var(--radio) 4px; }`;
+  assert.deepEqual(reglas(revisarCss("base.css", mal)), ["medida-fuera-del-sistema", "medida-fuera-del-sistema", "medida-fuera-del-sistema"]);
+});
+
 test("css: los números de línea son los del archivo aunque haya comentarios y :root antes", () => {
   const css = `/* uno\n dos */\n:root {\n --a: #fff;\n}\n.x { color: #000; }`;
   assert.equal(revisarCss("base.css", css)[0]?.linea, 6);

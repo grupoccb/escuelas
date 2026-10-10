@@ -91,6 +91,11 @@ export function revisarCss(archivo: string, css: string): Hallazgo[] {
     const hallazgo = (regla: string): void => void h.push({ archivo, linea: i + 1, regla, texto: l.trim().slice(0, 140) });
     if (COLOR_HEX.test(l) || COLOR_FUNCION.test(l)) hallazgo("color-fuera-de-variables");
     else if (/(?:^|[;{\s])(?:color|background(?:-color)?|border(?:-[a-z]+)*|outline(?:-color)?|fill|stroke|box-shadow|text-decoration-color|caret-color|accent-color)\s*:/.test(l) && COLOR_NOMBRE.test(l.replace(/var\([^)]*\)/g, ""))) hallazgo("color-fuera-de-variables");
+    // Las esquinas y las sombras son las del sistema (variables --radio*, --sombra*); un círculo (50 %), el cero y un anillo de selección (inset … var(--color)) también valen.
+    const radio = /border-radius\s*:\s*([^;}]*)/.exec(l);
+    if (radio && !/^\s*(?:var\(--radio[\w-]*\)(?:\s+var\(--radio[\w-]*\)|\s+0)*|0(?:\s+0\s+var\(--radio[\w-]*\)\s+var\(--radio[\w-]*\))?|50%|inherit)\s*$/.test(radio[1]!)) hallazgo("medida-fuera-del-sistema");
+    const sombra = /box-shadow\s*:\s*([^;}]*)/.exec(l);
+    if (sombra && !/^\s*(?:none|var\(--sombra[\w-]*\)|inset 0 0 0 \d+px var\(--[\w-]+\))\s*$/.test(sombra[1]!)) hallazgo("medida-fuera-del-sistema");
     const familia = /font-family\s*:\s*([^;}]*)/.exec(l);
     if (familia && !/^\s*(?:var\(|inherit)/.test(familia[1]!)) hallazgo("fuente-fuera-de-variables");
     const corta = /(?:^|[;{\s])font\s*:\s*([^;}]*)/.exec(l);
