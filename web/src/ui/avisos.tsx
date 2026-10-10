@@ -18,6 +18,7 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
   const [aviso, setAviso] = useState<{ numero: number; texto: string } | null>(null);
   const contador = useRef(0);
   const temporizador = useRef<number | undefined>(undefined);
+  const caja = useRef<HTMLDivElement>(null);
   const avisar = useCallback((texto: string) => {
     window.clearTimeout(temporizador.current);
     contador.current += 1;
@@ -26,11 +27,23 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => () => window.clearTimeout(temporizador.current), []);
   const valor = useMemo(() => ({ avisar }), [avisar]);
+  // El contenedor es un popover manual y siempre está abierto (vacío mientras no hay aviso, así la región sigue anunciando): vive en la capa superior del navegador y, al llegar un aviso,
+  // se vuelve a abrir para quedar encima de lo último que se haya abierto, también de un diálogo modal (antes el aviso quedaba detrás del velo). Sin soporte de popover queda como antes.
+  useEffect(() => {
+    const el = caja.current;
+    if (!el) return;
+    try {
+      if (el.matches(":popover-open")) el.hidePopover();
+      el.showPopover();
+    } catch {
+      /* navegador sin popover: no hace falta */
+    }
+  }, [aviso?.numero]);
   return (
     <Contexto.Provider value={valor}>
       {children}
       {/* La región existe siempre: así el lector de pantalla anuncia el texto cuando aparece. */}
-      <div className="avisos-vivos" role="status" aria-live="polite">
+      <div className="avisos-vivos" ref={caja} role="status" aria-live="polite" {...{ popover: "manual" }}>
         {aviso ? (
           <div key={aviso.numero} className="aviso-global" data-prueba="aviso-global">
             <span>{aviso.texto}</span>

@@ -1,19 +1,23 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 import { MENSAJE_NO_ENCONTRADO, type ErrorDeApi } from "../api/cliente.ts";
+import type { NombreDeIcono } from "../navegacion.ts";
+import { Icono } from "./Icono.tsx";
 
-type Variante = "primario" | "secundario" | "peligro" | "fantasma";
+type Variante = "primario" | "secundario" | "sutil" | "peligro" | "fantasma";
 
 interface PropsBoton extends ButtonHTMLAttributes<HTMLButtonElement> {
   variante?: Variante;
   cargando?: boolean;
   ancho?: boolean;
+  /** La acción principal del celular y la que cierra un formulario de dinero: 52 px de alto. */
+  grande?: boolean;
 }
 
 /** Botón de al menos 44 px de alto. `cargando` lo desactiva y lo dice con texto (no solo con un giro). */
-export function Boton({ variante = "secundario", cargando = false, ancho = false, children, disabled, className, type = "button", ...resto }: PropsBoton) {
+export function Boton({ variante = "secundario", cargando = false, ancho = false, grande = false, children, disabled, className, type = "button", ...resto }: PropsBoton) {
   return (
-    <button {...resto} type={type} disabled={disabled || cargando} aria-busy={cargando || undefined} className={["boton", `boton-${variante}`, ancho ? "boton-ancho" : "", className ?? ""].join(" ").trim()}>
+    <button {...resto} type={type} disabled={disabled || cargando} aria-busy={cargando || undefined} className={["boton", `boton-${variante}`, ancho ? "boton-ancho" : "", grande ? "boton-grande" : "", className ?? ""].join(" ").trim()}>
       {cargando ? "Procesando…" : children}
     </button>
   );
@@ -46,10 +50,16 @@ export function Insignia({ children, tono = "neutro" }: { children: ReactNode; t
 /** Un mensaje a la vista. `peligro` y `alerta` se anuncian solos a un lector de pantalla (`role="alert"`). */
 export function Aviso({ children, tono = "info", titulo }: { children: ReactNode; tono?: Tono; titulo?: string }) {
   const urgente = tono === "peligro" || tono === "alerta";
+  const icono = tono === "exito" ? "exito" : urgente ? "alerta" : "info";
   return (
     <div className={`aviso aviso-${tono}`} role={urgente ? "alert" : "status"}>
-      {titulo ? <strong>{titulo}</strong> : null}
-      <div>{children}</div>
+      <span className="aviso-icono">
+        <Icono nombre={icono} tamano={20} />
+      </span>
+      <div className="aviso-cuerpo">
+        {titulo ? <strong>{titulo}</strong> : null}
+        <div>{children}</div>
+      </div>
     </div>
   );
 }
@@ -72,11 +82,17 @@ export function Cargando({ texto = "Cargando…" }: { texto?: string }) {
   );
 }
 
-export function Vacio({ children, titulo }: { children?: ReactNode; titulo: string }) {
+/** Estado vacío: un recuadro con ícono, qué pasó y cuál es el siguiente paso. */
+export function Vacio({ children, titulo, icono = "vacio" }: { children?: ReactNode; titulo: string; icono?: NombreDeIcono }) {
   return (
     <div className="vacio">
-      <p className="vacio-titulo">{titulo}</p>
-      {children ? <div className="vacio-detalle">{children}</div> : null}
+      <span className="vacio-icono">
+        <Icono nombre={icono} tamano={22} />
+      </span>
+      <div className="vacio-texto">
+        <p className="vacio-titulo">{titulo}</p>
+        {children ? <div className="vacio-detalle">{children}</div> : null}
+      </div>
     </div>
   );
 }

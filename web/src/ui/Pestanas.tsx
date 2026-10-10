@@ -20,7 +20,8 @@ export function propsDePanel(nombre: string, activa: string): { role: "tabpanel"
   return { role: "tabpanel", id: idDePanel(nombre, activa), "aria-labelledby": idDePestana(nombre, activa), tabIndex: 0 };
 }
 
-export function Pestanas<T extends string>({ nombre, etiqueta, pestanas, activa, alCambiar }: { nombre: string; etiqueta: string; pestanas: readonly DefinicionDePestana<T>[]; activa: T | undefined; alCambiar: (id: T) => void }) {
+/** `segmentada`: dos o tres vistas excluyentes (Tablero / Lista) como selector segmentado; mantiene el patrón de pestañas (rol, flechas, panel). */
+export function Pestanas<T extends string>({ nombre, etiqueta, pestanas, activa, alCambiar, segmentada = false }: { nombre: string; etiqueta: string; pestanas: readonly DefinicionDePestana<T>[]; activa: T | undefined; alCambiar: (id: T) => void; segmentada?: boolean }) {
   const lista = useRef<HTMLDivElement>(null);
 
   function alTeclear(e: KeyboardEvent<HTMLDivElement>): void {
@@ -40,7 +41,7 @@ export function Pestanas<T extends string>({ nombre, etiqueta, pestanas, activa,
   }
 
   return (
-    <div className="pestanas" role="tablist" aria-label={etiqueta} ref={lista} onKeyDown={alTeclear}>
+    <div className={segmentada ? "pestanas pestanas-segmentadas" : "pestanas"} role="tablist" aria-label={etiqueta} ref={lista} onKeyDown={alTeclear}>
       {pestanas.map((p) => (
         <button key={p.id} type="button" role="tab" id={idDePestana(nombre, p.id)} aria-selected={activa === p.id} aria-controls={idDePanel(nombre, p.id)} tabIndex={activa === p.id ? 0 : -1} onClick={() => alCambiar(p.id)}>
           {p.texto}

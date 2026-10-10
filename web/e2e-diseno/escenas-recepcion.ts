@@ -572,7 +572,7 @@ const LISTA: Escena[] = [
     fuentes: [PAGO],
     ir: async (c) => {
       await conMontoEscrito(c, "1500");
-      await c.page.getByLabel("Método de pago").selectOption("tarjeta");
+      await elegirMetodo(c.page, "tarjeta", "Tarjeta");
       await c.page.getByLabel("Referencia (opcional)").fill("VOUCHER-4821");
       await esperarListo(c.page);
     },
@@ -586,7 +586,7 @@ const LISTA: Escena[] = [
     fuentes: [PAGO],
     ir: async (c) => {
       await conMontoEscrito(c, "1500");
-      await c.page.getByLabel("Método de pago").selectOption("transferencia");
+      await elegirMetodo(c.page, "transferencia", "Transferencia");
       await c.page.getByLabel("Referencia (opcional)").fill("SPEI-0098213");
       await c.page.getByLabel(/^Fecha del pago/).fill(await ayerEnElNavegador(c.page));
       await esperarListo(c.page);
@@ -1517,6 +1517,13 @@ const LISTA: Escena[] = [
 ];
 
 /** Cada escena termina con la página arriba: en una captura de página entera, un desplazamiento previo deja la barra lateral y la superior fijas a media imagen. */
+/** El método de pago: selector segmentado (radios) en el diseño nuevo, lista desplegable en el anterior. */
+async function elegirMetodo(page: import("@playwright/test").Page, valor: string, nombre: string): Promise<void> {
+  const radio = page.getByRole("radio", { name: nombre });
+  if ((await radio.count()) > 0) await radio.check();
+  else await page.getByLabel("Método de pago").selectOption(valor);
+}
+
 export const ESCENAS: Escena[] = LISTA.map((e) => ({
   ...e,
   ir: async (c: Contexto) => {

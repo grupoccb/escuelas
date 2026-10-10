@@ -1,4 +1,5 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Icono } from "./Icono.tsx";
+import { useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 /** Etiqueta visible + control + ayuda + error enlazados (`aria-describedby`, `aria-invalid`). TODO campo lleva etiqueta. */
 interface Base {
@@ -55,6 +56,8 @@ export interface Opcion {
   valor: string;
   texto: string;
   deshabilitada?: boolean;
+  /** Para `GrupoDeOpciones`: lo que se dibuja dentro de la opción en lugar de `texto` (que sigue siendo lo que lee el lector de pantalla si no hay otra cosa). */
+  contenido?: ReactNode;
 }
 
 export function CampoSelect({ etiqueta, ayuda, error, requerido, opciones, vacio, ...resto }: Base & Omit<SelectHTMLAttributes<HTMLSelectElement>, "required"> & { opciones: readonly Opcion[]; vacio?: string }) {
@@ -90,17 +93,17 @@ export function CampoCasilla({ etiqueta, ayuda, ...resto }: { etiqueta: ReactNod
 }
 
 /** Tres opciones exclusivas en botones grandes (Sí / No / Sin responder), para el celular. */
-/** `rejilla`: para listas largas con texto (V7: las sesiones de una clase muestra) las opciones van en columnas parejas en vez de apretarse en una fila. */
-export function GrupoDeOpciones({ etiqueta, valor, opciones, alCambiar, error, rejilla = false }: { etiqueta: string; valor: string; opciones: readonly Opcion[]; alCambiar: (v: string) => void; error?: string | undefined; rejilla?: boolean }) {
+/** `segmentado`: dos o tres opciones cortas y excluyentes como selector segmentado (la pista --columna con la activa en blanco); `rejilla`: para listas largas con texto (V7: las sesiones de una clase muestra) las opciones van en columnas parejas en vez de apretarse en una fila. */
+export function GrupoDeOpciones({ etiqueta, valor, opciones, alCambiar, error, rejilla = false, segmentado = false }: { etiqueta: string; valor: string; opciones: readonly Opcion[]; alCambiar: (v: string) => void; error?: string | undefined; rejilla?: boolean; segmentado?: boolean }) {
   const id = useId();
   return (
-    <fieldset className={`grupo-opciones${error ? " campo-con-error" : ""}`} aria-describedby={error ? `${id}-error` : undefined}>
+    <fieldset className={`grupo-opciones${segmentado ? " grupo-segmentado" : ""}${error ? " campo-con-error" : ""}`} aria-describedby={error ? `${id}-error` : undefined}>
       <legend>{etiqueta}</legend>
       <div className={rejilla ? "grupo-opciones-fila grupo-opciones-rejilla" : "grupo-opciones-fila"}>
         {opciones.map((o) => (
           <label key={o.valor} className={`opcion${valor === o.valor ? " opcion-activa" : ""}${o.deshabilitada ? " opcion-inactiva" : ""}`}>
             <input type="radio" name={id} value={o.valor} checked={valor === o.valor} disabled={o.deshabilitada} onChange={() => alCambiar(o.valor)} />
-            <span>{o.texto}</span>
+            <span>{o.contenido ?? o.texto}</span>
           </label>
         ))}
       </div>
@@ -110,5 +113,33 @@ export function GrupoDeOpciones({ etiqueta, valor, opciones, alCambiar, error, r
         </p>
       ) : null}
     </fieldset>
+  );
+}
+
+/** Búsqueda en una lista: lupa y campo dentro de una sola caja. La etiqueta existe para los lectores de pantalla. */
+export function CampoBusqueda({ etiqueta, ...resto }: { etiqueta: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const id = useId();
+  return (
+    <label className="campo-busqueda" htmlFor={id}>
+      <Icono nombre="buscar" tamano={18} />
+      <span className="solo-lectores">{etiqueta}</span>
+      <input {...resto} id={id} type="search" />
+    </label>
+  );
+}
+
+/** Contraseña con «Mostrar» / «Ocultar» dentro de la caja del campo. El botón no lleva etiqueta propia con la palabra «contraseña»: la etiqueta del campo sigue apuntando solo al campo. */
+export function CampoClave({ etiqueta, ayuda, error, requerido, ...resto }: Base & Omit<InputHTMLAttributes<HTMLInputElement>, "required" | "type">) {
+  const id = useId();
+  const [visible, setVisible] = useState(false);
+  return (
+    <Envoltura id={id} etiqueta={etiqueta} ayuda={ayuda} error={error} requerido={requerido}>
+      <div className="campo-clave">
+        <input {...resto} id={id} type={visible ? "text" : "password"} required={requerido} aria-invalid={error ? true : undefined} aria-describedby={describe(id, ayuda, error)} />
+        <button type="button" className="boton" aria-pressed={visible} onClick={() => setVisible((v) => !v)}>
+          {visible ? "Ocultar" : "Mostrar"}
+        </button>
+      </div>
+    </Envoltura>
   );
 }

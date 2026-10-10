@@ -5,12 +5,14 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["node_modules/", "dist/", "playwright-report/", "test-results/"] },
+  { ignores: ["node_modules/", "dist/", "dist-*/", "ver.mjs", "playwright-report/", "test-results/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat["recommended-latest"] ?? reactHooks.configs.flat.recommended,
   // Playwright llama `use(...)` en sus fixtures: no son hooks de React.
-  { files: ["e2e/**"], rules: { "react-hooks/rules-of-hooks": "off" } },
+  { files: ["e2e/**", "e2e-diseno/**"], rules: { "react-hooks/rules-of-hooks": "off" } },
+  // Las escenas del inventario de diseño reescriben respuestas de la API (JSON sin tipo): ahí `any` es lo honesto.
+  { files: ["e2e-diseno/**"], rules: { "@typescript-eslint/no-explicit-any": "off" } },
   {
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
     rules: {
@@ -19,4 +21,5 @@ export default tseslint.config(
       "no-console": "error",
     },
   },
+  { files: ["scripts/**"], rules: { "no-console": "off" } },
 );

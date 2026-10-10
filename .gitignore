@@ -9,6 +9,8 @@ coverage/
 .tmp/
 web/node_modules/
 web/dist/
+web/dist-*/
+web/ver.mjs
 web/test-results/
 web/playwright-report/
 

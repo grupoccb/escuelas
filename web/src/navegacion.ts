@@ -6,7 +6,50 @@
 
 import type { ModuloId, Modulos, Rol } from "./api/tipos.ts";
 
-export type NombreDeIcono = "hoy" | "lista" | "embudo" | "tareas" | "pagos" | "cuenta" | "uniforme" | "ventas" | "familia" | "admin" | "tableros" | "mas" | "salir" | "chatwoot" | "alerta";
+export type NombreDeIcono =
+  | "hoy"
+  | "lista"
+  | "embudo"
+  | "tareas"
+  | "pagos"
+  | "cuenta"
+  | "uniforme"
+  | "ventas"
+  | "corte"
+  | "alumnos"
+  | "familias"
+  | "admin"
+  | "tableros"
+  | "mas"
+  | "salir"
+  | "chatwoot"
+  | "alerta"
+  | "buscar"
+  | "descargar"
+  | "siguiente"
+  | "campana"
+  | "cerrar"
+  | "vacio"
+  | "exito"
+  | "info"
+  | "mas_opciones"
+  | "atras"
+  | "llave"
+  | "bloquear"
+  | "reactivar"
+  | "qr"
+  | "flecha_arriba"
+  | "flecha_abajo"
+  | "encender"
+  | "imprimir"
+  | "lapiz"
+  | "papelera"
+  | "pausa"
+  | "reanudar"
+  | "enlace_externo"
+  | "subir"
+  | "archivo"
+  | "cambiar";
 
 export interface Seccion {
   id: string;
@@ -28,10 +71,10 @@ export const SECCIONES: readonly Seccion[] = [
   { id: "cuenta", ruta: "/cuenta", etiqueta: "Estado de cuenta", icono: "cuenta", permiso: "estado_cuenta:leer", modulo: "finanzas" },
   { id: "uniformes", ruta: "/uniformes", etiqueta: "Uniformes", icono: "uniforme", permiso: "beneficios:entregar", modulo: "finanzas" },
   { id: "ventas", ruta: "/ventas", etiqueta: "Ventas", icono: "ventas", permiso: "ventas:registrar", modulo: "finanzas" },
-  { id: "corte", ruta: "/corte", etiqueta: "Cierre del día", icono: "cuenta", permiso: "pagos:registrar", modulo: "finanzas" },
+  { id: "corte", ruta: "/corte", etiqueta: "Cierre del día", icono: "corte", permiso: "pagos:registrar", modulo: "finanzas" },
   { id: "tableros", ruta: "/tableros", etiqueta: "Tableros", icono: "tableros", permiso: "reportes:clases_muestra", modulo: "tableros" },
-  { id: "alumnos", ruta: "/alumnos", etiqueta: "Alumnos", icono: "familia", permiso: "alumnos:leer", modulo: "inscripcion" },
-  { id: "familias", ruta: "/familias", etiqueta: "Familias", icono: "familia", permiso: "tutores:leer", modulo: "inscripcion" },
+  { id: "alumnos", ruta: "/alumnos", etiqueta: "Alumnos", icono: "alumnos", permiso: "alumnos:leer", modulo: "inscripcion" },
+  { id: "familias", ruta: "/familias", etiqueta: "Familias", icono: "familias", permiso: "tutores:leer", modulo: "inscripcion" },
   { id: "admin", ruta: "/admin", etiqueta: "Administración", icono: "admin", permiso: "catalogo:escribir", modulo: "captacion" },
 ];
 

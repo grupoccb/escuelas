@@ -117,7 +117,7 @@ function Rutas() {
 
 function Raiz() {
   const { estado } = useSesion();
-  if (estado.fase === "cargando") return <Cargando texto="Abriendo la aplicación…" />;
+  if (estado.fase === "cargando") return <div className="carga-inicial"><Cargando texto="Abriendo la aplicación…" /></div>;
   if (estado.fase === "anonima") return <Acceso motivo={estado.motivo} />;
   return (
     <AvisosProvider>
