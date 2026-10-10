@@ -2,12 +2,18 @@
 // `PATCH /api/leads/:id/etapa`, o el sistema (clase agendada, asistió… por `moverLeadAEtapa`)— se anexa una fila a `lead_etapa_historial`
 // (solo de anexar). Las reglas de qué movimientos valen están en `transiciones.ts` (puras).
 //
+// V10b: con el módulo de inscripción APAGADO una persona puede marcar al lead como inscrito A MANO (nota obligatoria, queda `a_mano` en el historial); con el módulo
+// encendido, a «inscrito» solo se llega inscribiendo. El módulo se lee DENTRO de la transacción y con el candado del lead tomado: si alguien lo enciende en medio, gana
+// el estado que se lee con el candado.
+//
 // Concurrencia: un movimiento toma el candado `lead_etapa:<lead>` y el cambio es condicional a la etapa leída; quien trae `desde_etapa_id`
 // (la etapa que vio en pantalla) recibe 409 si el lead ya se movió. Dos movimientos simultáneos del mismo lead se serializan: gana uno y el
 // otro ve el resultado del primero (o, con `desde_etapa_id`, un 409).
 
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
+import { leerModulos } from "../modulos/index.ts";
+import { estaInscritoAMano, inscritosAMano } from "./inscrito-a-mano.ts";
 import { evaluarTransicion, tiempoPorEtapa, tramosEnEtapa, type MotivoDeRechazoDeTransicion, type ReglaDeMatriz, type TipoDeMovimiento } from "./transiciones.ts";
 
 export const claveDeCandadoDeLead = (leadId: string): string => `lead_etapa:${leadId}`;
@@ -51,6 +57,8 @@ export type ResultadoDeMovimiento =
 export interface CambioDeLead {
   antes: { etapa_id: string; motivo_perdida_id: string | null; recuperaciones: number };
   despues: { etapa_id: string; motivo_perdida_id: string | null; recuperaciones: number };
+  /** V10b: el movimiento fue una marca de inscrito a mano o la corrección de una; `historialId` es la fila del historial donde está la nota. */
+  aMano?: { tipo: "inscripcion_a_mano" | "correccion_de_inscrito_a_mano"; historialId: string };
 }
 
 /**
@@ -70,13 +78,21 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
     if (motivoPerdidaId && !(await tx.motivo_perdida.findFirst({ where: { id: motivoPerdidaId, activo: true }, select: { id: true } }))) return { ok: false, motivo: "motivo_inexistente" };
     const nota = e.nota?.trim() ? e.nota.trim() : null;
     const regla = await tx.transicion_etapa.findFirst({ where: { desde_etapa_id: lead.etapa_id, hacia_etapa_id: hacia.id }, select: { regla: true } });
+    const desdeParaRegla = aEtapaParaTransicion(lead.etapa);
+    const haciaParaRegla = aEtapaParaTransicion(hacia);
+    // V10b: solo se consulta lo que la regla necesita (el módulo si el destino es de inscrito; la marca a mano si el origen lo es).
+    const inscripcionApagada = haciaParaRegla.esGanado ? !(await leerModulos(tx)).inscripcion : false;
+    const inscritoAMano = desdeParaRegla.esGanado ? await estaInscritoAMano(tx, lead.id) : false;
     const decision = evaluarTransicion({
-      desde: aEtapaParaTransicion(lead.etapa),
-      hacia: aEtapaParaTransicion(hacia),
+      desde: desdeParaRegla,
+      hacia: haciaParaRegla,
       esAdministrador: actor.esAdministrador,
       regla: (regla?.regla ?? null) as ReglaDeMatriz | null,
       conMotivoDePerdida: motivoPerdidaId !== null,
       conNota: nota !== null,
+      largoDeNota: nota?.length ?? 0,
+      inscripcionApagada,
+      inscritoAMano,
     });
     if (!decision.ok) return { ok: false, motivo: decision.motivo };
 
@@ -102,6 +118,7 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
         motivo_perdida_id: decision.tipo === "perdida" ? motivoPerdidaId : null,
         nota,
         es_recuperacion: recupera,
+        a_mano: decision.tipo === "inscripcion_a_mano",
         creado_en: actor.ahora,
       }),
       select: { id: true },
@@ -119,6 +136,7 @@ export async function moverEtapaDeLead(db: BaseDatos, actor: ActorDeMovimiento, 
     await alCambiar?.(tx, {
       antes: { etapa_id: lead.etapa_id, motivo_perdida_id: lead.motivo_perdida_id, recuperaciones: lead.recuperaciones },
       despues: { etapa_id: hacia.id, motivo_perdida_id: actual.motivo_perdida_id, recuperaciones },
+      ...(decision.tipo === "inscripcion_a_mano" || decision.tipo === "correccion_de_inscrito_a_mano" ? { aMano: { tipo: decision.tipo, historialId: fila.id } } : {}),
     });
     return { ok: true, cambio: true, tipo: decision.tipo, desdeEtapaId: lead.etapa_id, haciaEtapaId: hacia.id, historialId: fila.id, recuperaciones, etapaAnterior: { id: lead.etapa.id, nombre: lead.etapa.nombre }, etapaNueva: { id: hacia.id, nombre: hacia.nombre } };
   });
@@ -131,12 +149,16 @@ export interface HistorialDeLead {
   etapaActual: { id: string; nombre: string };
   recuperaciones: number;
   motivoPerdida: { id: string; codigo: string; nombre: string } | null;
+  /** V10b: hoy está inscrito a mano (sin inscripción real): quién y cuándo. */
+  inscritoAMano: { por: { id: string; nombre: string } | null; en: Date } | null;
   cambios: {
     id: string;
     desde: { id: string; nombre: string | null } | null;
     hacia: { id: string; nombre: string | null };
     origen: "usuario" | "sistema";
     usuario: { id: string; nombre: string } | null;
+    /** V10b: una persona marcó al lead como inscrito a mano (con la nota en `nota`). */
+    aMano: boolean;
     motivo: string | null;
     motivoPerdida: { id: string; codigo: string; nombre: string } | null;
     nota: string | null;
@@ -158,10 +180,12 @@ export async function historialDeLead(db: BaseDatos, leadId: string, ahora: Date
   const filas = await db.lead_etapa_historial.findMany({
     where: { lead_id: lead.id },
     orderBy: [{ secuencia: "asc" }],
-    select: { id: true, etapa_anterior_id: true, etapa_nueva_id: true, origen: true, motivo: true, nota: true, es_recuperacion: true, creado_en: true, usuario: { select: { id: true, nombre: true } }, motivo_perdida: { select: { id: true, codigo: true, nombre: true } } },
+    select: { id: true, etapa_anterior_id: true, etapa_nueva_id: true, origen: true, a_mano: true, motivo: true, nota: true, es_recuperacion: true, creado_en: true, usuario: { select: { id: true, nombre: true } }, motivo_perdida: { select: { id: true, codigo: true, nombre: true } } },
   });
   const ids = [...new Set(filas.flatMap((f) => [f.etapa_anterior_id, f.etapa_nueva_id]).filter((x): x is string => x !== null))];
   const nombres = new Map((await db.etapa_pipeline.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((e) => [e.id, e.nombre]));
+  const aMano = (await inscritosAMano(db, { leadIds: [lead.id] })).get(lead.id) ?? null;
+  const quien = aMano ? await db.usuario.findFirst({ where: { id: aMano.usuarioId }, select: { id: true, nombre: true } }) : null;
   const tramos = tramosEnEtapa(lead.creado_en, lead.etapa_id, filas.map((f) => ({ etapaAnteriorId: f.etapa_anterior_id, etapaNuevaId: f.etapa_nueva_id, creadoEn: f.creado_en })), ahora);
   // El tramo que empieza en cada cambio: el primero es el de la creación (si el historial empieza con un movimiento), los demás van uno por cambio.
   const tramoDeCambio = tramos.length === filas.length + 1 ? tramos.slice(1) : tramos;
@@ -170,12 +194,14 @@ export async function historialDeLead(db: BaseDatos, leadId: string, ahora: Date
     etapaActual: lead.etapa,
     recuperaciones: lead.recuperaciones,
     motivoPerdida: lead.motivo_perdida,
+    inscritoAMano: aMano ? { por: quien, en: aMano.en } : null,
     cambios: filas.map((f, i) => ({
       id: f.id,
       desde: f.etapa_anterior_id ? { id: f.etapa_anterior_id, nombre: nombres.get(f.etapa_anterior_id) ?? null } : null,
       hacia: { id: f.etapa_nueva_id, nombre: nombres.get(f.etapa_nueva_id) ?? null },
       origen: f.origen,
       usuario: f.usuario,
+      aMano: f.a_mano,
       motivo: f.motivo,
       motivoPerdida: f.motivo_perdida,
       nota: f.nota,

@@ -11,6 +11,8 @@ import { CampoCasilla, CampoSelect } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Pestanas, propsDePanel } from "../../ui/Pestanas.tsx";
 import { AvisoDePrimerosPasos } from "../admin/AvisoDePrimerosPasos.tsx";
+import { sePuedeMarcarComoInscrito } from "./inscrito-a-mano.ts";
+import { MarcarInscrito } from "./MarcarInscrito.tsx";
 import { MoverEtapa, type LeadParaMover } from "./MoverEtapa.tsx";
 
 interface Estancado {
@@ -32,7 +34,7 @@ export const FUENTES: Record<string, string> = {
   directo: "Directo",
 };
 
-function TarjetaDeLead({ lead, estancado, sucursal, alMover }: { lead: LeadResumen; estancado: Estancado | undefined; sucursal: string; alMover: (l: LeadParaMover) => void }) {
+function TarjetaDeLead({ lead, estancado, sucursal, alMover, alMarcar }: { lead: LeadResumen; estancado: Estancado | undefined; sucursal: string; alMover: (l: LeadParaMover) => void; alMarcar: ((l: LeadParaMover) => void) | null }) {
   const nombre = lead.nombre_contacto ?? "Sin nombre";
   return (
     <li className="ficha-lead" data-prueba={`lead-${lead.id}`}>
@@ -46,8 +48,9 @@ function TarjetaDeLead({ lead, estancado, sucursal, alMover }: { lead: LeadResum
         {estancado ? <Insignia tono="alerta">Sin movimiento {estancado.dias_sin_movimiento} d</Insignia> : null}
         {lead.recuperaciones > 0 ? <Insignia tono="info">Recuperado {lead.recuperaciones}×</Insignia> : null}
       </span>
-      <div>
+      <div className="fila">
         <Boton onClick={() => alMover({ id: lead.id, nombre, etapa_id: lead.etapa_id })}>Mover de etapa</Boton>
+        {alMarcar ? <Boton onClick={() => alMarcar({ id: lead.id, nombre, etapa_id: lead.etapa_id })} data-prueba={`marcar-inscrito-${lead.id}`}>Marcar como inscrito</Boton> : null}
       </div>
     </li>
   );
@@ -56,11 +59,12 @@ function TarjetaDeLead({ lead, estancado, sucursal, alMover }: { lead: LeadResum
 export default function Embudo() {
   useTitulo("Embudo");
   const yo = useYo();
-  const { sucursalId } = useSesion();
+  const { sucursalId, puede, moduloEncendido } = useSesion();
   const [vista, setVista] = useState<"tablero" | "lista">("tablero");
   const [fuente, setFuente] = useState("");
   const [soloEstancados, setSoloEstancados] = useState(false);
   const [moviendo, setMoviendo] = useState<LeadParaMover | null>(null);
+  const [marcando, setMarcando] = useState<LeadParaMover | null>(null);
 
   const etapas = useCarga((senal) => api.get<{ datos: Etapa[] }>("/api/etapas", undefined, senal).then((r) => r.datos), []);
   const motivos = useCarga((senal) => api.get<{ datos: MotivoPerdida[] }>("/api/motivos-perdida", { activo: true }, senal).then((r) => r.datos), []);
@@ -74,6 +78,8 @@ export default function Embudo() {
   const visibles = todos.filter((l) => (!fuente || l.fuente === fuente) && (!soloEstancados || estancados.datos?.has(l.id)));
   const lista = etapas.datos ?? [];
   const cuantosEstancados = todos.filter((l) => estancados.datos?.has(l.id)).length;
+  // V10b: con la inscripción apagada, «Marcar como inscrito» en cada lead que sigue abierto (la regla es del servidor).
+  const puedeMarcar = (l: LeadResumen): boolean => sePuedeMarcarComoInscrito({ inscripcionEncendida: moduloEncendido("inscripcion"), puedeEscribir: puede("leads:escribir"), etapaActual: lista.find((e) => e.id === l.etapa_id) });
   const recargar = () => {
     leads.recargar();
     estancados.recargar();
@@ -118,7 +124,7 @@ export default function Embudo() {
                 </h2>
                 <ul className="lista-tarjetas">
                   {enEtapa.map((l) => (
-                    <TarjetaDeLead key={l.id} lead={l} estancado={estancados.datos?.get(l.id)} sucursal={nombreDeSucursal(l.sucursal_interes_id)} alMover={setMoviendo} />
+                    <TarjetaDeLead key={l.id} lead={l} estancado={estancados.datos?.get(l.id)} sucursal={nombreDeSucursal(l.sucursal_interes_id)} alMover={setMoviendo} alMarcar={puedeMarcar(l) ? setMarcando : null} />
                   ))}
                 </ul>
               </section>
@@ -154,7 +160,10 @@ export default function Embudo() {
                     {l.ultima_interaccion_en ? `hace ${diasDesde(l.ultima_interaccion_en)} d` : "—"} {estancados.datos?.has(l.id) ? <Insignia tono="alerta">Estancado</Insignia> : null}
                   </td>
                   <td>
-                    <Boton onClick={() => setMoviendo({ id: l.id, nombre: l.nombre_contacto ?? "Sin nombre", etapa_id: l.etapa_id })}>Mover</Boton>
+                    <span className="fila">
+                      <Boton onClick={() => setMoviendo({ id: l.id, nombre: l.nombre_contacto ?? "Sin nombre", etapa_id: l.etapa_id })}>Mover</Boton>
+                      {puedeMarcar(l) ? <Boton onClick={() => setMarcando({ id: l.id, nombre: l.nombre_contacto ?? "Sin nombre", etapa_id: l.etapa_id })} data-prueba={`marcar-inscrito-${l.id}`}>Marcar como inscrito</Boton> : null}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -163,6 +172,7 @@ export default function Embudo() {
         </div>
       ) : null}
       </div>
+      <MarcarInscrito lead={marcando} etapas={lista} abierto={marcando !== null} alCerrar={() => setMarcando(null)} alMarcar={recargar} />
       <MoverEtapa lead={moviendo} etapas={lista} motivos={motivos.datos ?? []} abierto={moviendo !== null} alCerrar={() => setMoviendo(null)} alMover={recargar} />
     </Pagina>
   );

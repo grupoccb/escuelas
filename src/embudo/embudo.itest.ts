@@ -179,7 +179,7 @@ test("D7: a una etapa de inscrito no se llega moviendo etapas; de una inscrita n
   for (const c of [asesorNorte, admin]) {
     const r = await mover(c, quiere.leadId, { etapa_id: etapas.inscrito });
     assert.equal(r.estado, 409);
-    assert.match(r.cuerpo.error.mensaje, /conversión/);
+    assert.match(r.cuerpo.error.mensaje, /inscríbela desde la ficha/);
   }
   const inscrito = await lead("inscrito");
   const asesor = await mover(asesorNorte, inscrito.leadId, { etapa_id: etapas.negociacion });

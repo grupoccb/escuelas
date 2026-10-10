@@ -93,3 +93,47 @@ test("estancado: el umbral de la etapa, días completos, nunca en etapas de cier
   assert.equal(estaEstancado({ ultimaInteraccionEn: null, creadoEn: new Date(ahora.getTime() - 4 * DIA) }, etapa, ahora), true);
   assert.equal(estaEstancado({ ultimaInteraccionEn: null, creadoEn: new Date(ahora.getTime() - 1 * DIA) }, etapa, ahora), false);
 });
+
+// ── V10b: inscrito a mano ──────────────────────────────────────────────────────────────────────────────
+
+const NOTA_VALIDA = { conNota: true, largoDeNota: 20 };
+const ABIERTAS = [NUEVO, CONTACTADO, e("agendada", 3), e("asistida", 4), NEGOCIACION];
+
+test("V10b: a «inscrito» a mano solo con la inscripción apagada; encendida (o sin decirlo) se rechaza como siempre, con el mismo motivo", () => {
+  for (const desde of ABIERTAS) {
+    assert.deepEqual(ev(desde, INSCRITO, { ...NOTA_VALIDA, inscripcionApagada: true }), { ok: true, tipo: "inscripcion_a_mano" }, desde.id);
+    assert.deepEqual(ev(desde, INSCRITO, { ...NOTA_VALIDA, inscripcionApagada: false }), { ok: false, motivo: "destino_ganado" }, desde.id);
+    assert.deepEqual(ev(desde, INSCRITO, { ...NOTA_VALIDA }), { ok: false, motivo: "destino_ganado" }, "por omisión se toma como encendido: lo seguro es rechazar");
+    assert.deepEqual(ev(desde, INSCRITO, { ...NOTA_VALIDA, inscripcionApagada: false, esAdministrador: true }), { ok: false, motivo: "destino_ganado" }, "ni el administrador con el módulo encendido");
+  }
+});
+
+test("V10b: la nota manda — sin nota, o más corta que el mínimo sin contar espacios, no pasa; con el mínimo exacto sí", () => {
+  const apagada = { inscripcionApagada: true };
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, apagada), { ok: false, motivo: "falta_nota_inscrito_a_mano" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...apagada, conNota: false, largoDeNota: 0 }), { ok: false, motivo: "falta_nota_inscrito_a_mano" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...apagada, conNota: true, largoDeNota: 9 }), { ok: false, motivo: "nota_inscrito_a_mano_corta" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...apagada, conNota: true, largoDeNota: 10 }), { ok: true, tipo: "inscripcion_a_mano" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...apagada, conNota: true, largoDeNota: 1000 }), { ok: true, tipo: "inscripcion_a_mano" });
+});
+
+test("V10b: un perdido primero se recupera; un motivo de pérdida no va con la marca; las reglas de la matriz siguen valiendo", () => {
+  const ok = { ...NOTA_VALIDA, inscripcionApagada: true };
+  assert.deepEqual(ev(PERDIDO, INSCRITO, ok), { ok: false, motivo: "perdido_a_inscrito" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...ok, conMotivoDePerdida: true }), { ok: false, motivo: "motivo_sin_perdida" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...ok, regla: "prohibida" }), { ok: false, motivo: "prohibida" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...ok, regla: "solo_administrador" }), { ok: false, motivo: "solo_administrador" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...ok, regla: "solo_administrador", esAdministrador: true }), { ok: true, tipo: "inscripcion_a_mano" });
+  assert.deepEqual(ev(NEGOCIACION, INSCRITO, { ...ok, regla: "permitida" }), { ok: true, tipo: "inscripcion_a_mano" });
+  assert.deepEqual(ev(INSCRITO, e("otro-inscrito", 9, { ganado: true }), { ...ok, esAdministrador: true }), { ok: false, motivo: "destino_ganado" }, "de una ganada a otra ganada tampoco");
+});
+
+test("V10b: corregir un inscrito a mano — solo el administrador y con nota; un inscrito de verdad se corrige como siempre; nunca a perdido", () => {
+  const aMano = { inscritoAMano: true };
+  assert.deepEqual(ev(INSCRITO, CONTACTADO, { ...aMano, ...NOTA_VALIDA }), { ok: false, motivo: "ganado_inmutable" }, "el asesor no");
+  assert.deepEqual(ev(INSCRITO, CONTACTADO, { ...aMano, esAdministrador: true }), { ok: false, motivo: "falta_nota_correccion" });
+  assert.deepEqual(ev(INSCRITO, CONTACTADO, { ...aMano, esAdministrador: true, conNota: true, largoDeNota: 9 }), { ok: false, motivo: "nota_correccion_corta" });
+  assert.deepEqual(ev(INSCRITO, CONTACTADO, { ...aMano, esAdministrador: true, ...NOTA_VALIDA }), { ok: true, tipo: "correccion_de_inscrito_a_mano" });
+  assert.deepEqual(ev(INSCRITO, PERDIDO, { ...aMano, esAdministrador: true, conMotivoDePerdida: true, ...NOTA_VALIDA }), { ok: false, motivo: "ganado_a_perdido" });
+  assert.deepEqual(ev(INSCRITO, CONTACTADO, { esAdministrador: true }), { ok: true, tipo: "retroceso" }, "uno inscrito de verdad: como antes, sin nota obligatoria");
+});

@@ -7,16 +7,19 @@
 //   POST   /api/motivos-perdida {nombre, codigo?, orden?} · PATCH/DELETE /api/motivos-perdida/:id   (catalogo:escribir)
 //
 // Reglas del movimiento en `src/embudo/transiciones.ts`. Pasar a perdido EXIGE el motivo; recuperar (de perdido a una etapa activa) EXIGE una
-// nota y suma una recuperación; a una etapa de inscrito no se llega moviendo etapas (la hace la conversión, F2); de una inscrita solo el
-// administrador. Un movimiento es serializado por lead; con `desde_etapa_id` (la etapa que vio quien lo pide) un lead que ya cambió responde 409.
+// nota y suma una recuperación; a una etapa de inscrito no se llega moviendo etapas (la hace la conversión, F2) SALVO con el módulo de inscripción APAGADO (V10b): entonces el
+// asesor o el administrador la marca A MANO con una nota obligatoria (`movimiento: "inscripcion_a_mano"`); de una inscrita solo el
+// administrador (y si estaba inscrita a mano, con nota). Un movimiento es serializado por lead; con `desde_etapa_id` (la etapa que vio quien lo pide) un lead que ya cambió responde 409.
 // Alcance como el resto de los leads: administrador todos; asesor, los de sus sucursales.
 
 import { Router } from "express";
 import express from "express";
+import { deFecha } from "../../catalogo/precios.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { leadsEstancados } from "../../embudo/estancados.ts";
 import { historialDeLead, moverEtapaDeLead, type MotivoDeRechazoDeMovimiento } from "../../embudo/historial.ts";
+import { leerModulos } from "../../modulos/index.ts";
 import { MENSAJE_DE_RECHAZO, type MotivoDeRechazoDeTransicion } from "../../embudo/transiciones.ts";
 import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -55,6 +58,10 @@ function rechazo(motivo: MotivoDeRechazoDeMovimiento): never {
     case "motivo_sin_perdida":
       throw validacion([{ campo: "motivo_perdida_id", mensaje: MENSAJE_DE_RECHAZO[motivo] }]);
     case "falta_nota_recuperacion":
+    case "falta_nota_inscrito_a_mano":
+    case "nota_inscrito_a_mano_corta":
+    case "falta_nota_correccion":
+    case "nota_correccion_corta":
       throw validacion([{ campo: "nota", mensaje: MENSAJE_DE_RECHAZO[motivo] }]);
     default:
       throw conflicto(MENSAJE_DE_RECHAZO[motivo as MotivoDeRechazoDeTransicion]);
@@ -106,7 +113,15 @@ export function rutasDeEmbudo(_deps: DepsApi): Router {
       desdeEtapaId: e.desde_etapa_id ?? null,
     },
     // ED-13: el registro de cambios va en la misma transacción que el movimiento.
-    (tx, cambio) => registrarCambio(tx, ctx, { entidad: "lead", entidadId: id, accion: "actualizar", antes: cambio.antes, despues: cambio.despues }));
+    // V10b: si fue una marca a mano (o su corrección), el registro lo dice y apunta a la fila del historial donde está la nota; el texto de la nota no se copia.
+    (tx, cambio) =>
+      registrarCambio(tx, ctx, {
+        entidad: "lead",
+        entidadId: id,
+        accion: "actualizar",
+        antes: { ...cambio.antes, ...(cambio.aMano?.tipo === "correccion_de_inscrito_a_mano" ? { inscrito_a_mano: true } : {}) },
+        despues: { ...cambio.despues, ...(cambio.aMano ? { inscrito_a_mano: cambio.aMano.tipo === "inscripcion_a_mano", historial_id: cambio.aMano.historialId } : {}) },
+      }));
     if (!resultado.ok) rechazo(resultado.motivo);
     const lead = await ctx.db.lead.findFirstOrThrow({ where: { id }, select: { id: true, etapa_id: true, motivo_perdida_id: true, recuperaciones: true, etapa: { select: { nombre: true } } } });
     res.json({
@@ -121,17 +136,23 @@ export function rutasDeEmbudo(_deps: DepsApi): Router {
     const { id } = parsear(esquemaId, req.params);
     const h = await historialDeLead(ctx.db, id, ctx.ahora(), await dondeLead(ctx));
     if (!h) throw noEncontrado();
+    const inscripciones = (await leerModulos(ctx.db)).inscripcion ? await ctx.db.inscripcion.findMany({ where: { lead_id: id }, orderBy: [{ fecha_inscripcion: "asc" }, { id: "asc" }], select: { fecha_inscripcion: true } }) : [];
     res.json({
       lead_id: h.leadId,
       etapa_actual: h.etapaActual,
       recuperaciones: h.recuperaciones,
       motivo_perdida: h.motivoPerdida,
+      // V10b: hoy está inscrito a mano (sin inscripción real): quién lo marcó y cuándo. null si no.
+      inscrito_a_mano: h.inscritoAMano ? { por: h.inscritoAMano.por, en: h.inscritoAMano.en } : null,
+      // V10b: las inscripciones reales del lead (solo la fecha), si el módulo de inscripción está encendido: junto al cambio «a mano», muestra que después se inscribió de verdad.
+      inscripciones: inscripciones.map((i) => ({ fecha: deFecha(i.fecha_inscripcion) })),
       cambios: h.cambios.map((c) => ({
         id: c.id,
         desde: c.desde,
         hacia: c.hacia,
         origen: c.origen,
         usuario: c.usuario,
+        a_mano: c.aMano,
         motivo: c.motivo,
         motivo_perdida: c.motivoPerdida,
         // V7: la nota con la que el asesor movió al lead es del asesor (a veces dice cómo es la familia o cómo salió la llamada): recepción lee el avance, no la nota.

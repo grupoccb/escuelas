@@ -152,7 +152,7 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
             <Indicador etiqueta="Gasto total" valor={formatear(r.total.gasto)} prueba="ind-gasto" />
             <Indicador etiqueta="Costo por lead" valor={texto(r.total.costo_por_lead_texto)} />
             <Indicador etiqueta="Costo por clase muestra" valor={texto(r.total.costo_por_clase_muestra_texto)} />
-            <Indicador etiqueta="Costo por alumno inscrito" valor={texto(r.total.costo_por_alumno_texto)} nota={`${cantidad(r.total.inscripciones_activas, "inscripción activa", "inscripciones activas")}`} prueba="ind-costo-alumno" />
+            <Indicador etiqueta="Costo por alumno inscrito" valor={texto(r.total.costo_por_alumno_texto)} nota={`${cantidad(r.total.inscripciones_activas, "inscripción activa", "inscripciones activas")}${r.total.inscritos_a_mano > 0 ? ` y ${cantidad(r.total.inscritos_a_mano, "inscrito a mano", "inscritos a mano")}` : ""}`} prueba="ind-costo-alumno" />
           </div>
           {r.filas.length === 0 ? (
             <Aviso tono="info">
@@ -171,7 +171,7 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
           <Tarjeta>
             <Barras
               titulo="Gasto por campaña"
-              filas={r.filas.map((f) => ({ clave: f.campana.id, etiqueta: f.campana.nombre, valor: aCentavos(f.gasto), texto: formatear(f.gasto), nota: `${cantidad(f.leads, "lead", "leads")} · ${cantidad(f.clases_muestra, "clase muestra", "clases muestra")} · ${cantidad(f.inscripciones_activas, "alumno inscrito", "alumnos inscritos")}` }))}
+              filas={r.filas.map((f) => ({ clave: f.campana.id, etiqueta: f.campana.nombre, valor: aCentavos(f.gasto), texto: formatear(f.gasto), nota: `${cantidad(f.leads, "lead", "leads")} · ${cantidad(f.clases_muestra, "clase muestra", "clases muestra")} · ${cantidad(f.alumnos_inscritos, "alumno inscrito", "alumnos inscritos")}${f.inscritos_a_mano > 0 ? ` (${f.inscritos_a_mano} a mano)` : ""}` }))}
               vacio="Todavía no hay campañas."
             />
           </Tarjeta>
@@ -205,6 +205,11 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
               </table>
             </div>
             <p className="muted">«—» significa que no hay con qué dividir (por ejemplo, ningún alumno inscrito todavía). El gasto se captura a mano.</p>
+            {r.total.inscritos_a_mano > 0 ? (
+              <p className="muted" data-prueba="nota-inscritos-a-mano">
+                Los alumnos inscritos incluyen {cantidad(r.total.inscritos_a_mano, "familia marcada a mano como inscrita", "familias marcadas a mano como inscritas")}; cada una cuenta como un alumno, aunque haya inscrito a más de un niño.
+              </p>
+            ) : null}
           </Tarjeta>
         </>
       ) : null}

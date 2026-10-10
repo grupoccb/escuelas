@@ -539,12 +539,13 @@ test.describe("un día de Alba", () => {
       await expect(page.getByRole("heading", { name: "Familia Captación" })).toBeVisible();
       // Nada de cotizar, clase muestra ni inscribir; lo que sí hay es mover de etapa, niños y de dónde llegó.
       await expect(page.getByRole("button", { name: /Cotizar|Agendar|Inscribir/ })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Marcar como inscrito" })).toHaveCount(1); // V10b: lo que sí hay para cerrar una inscripción sin el módulo
       await expect(page.getByRole("link", { name: /Inscribir|Convertir/ })).toHaveCount(0);
       await foto(page, "solo-captacion-ficha", true);
       await page.getByRole("button", { name: "Mover de etapa" }).click();
-      // V7-ASESOR-09: la etapa de inscrito no promete un camino que no existe («se llega inscribiendo» sin inscripción activada).
+      // V7-ASESOR-09: la etapa de inscrito no promete un camino que no existe («se llega inscribiendo» sin inscripción activada). V10b: sí hay uno, «Marcar como inscrito», y el texto lo nombra.
       const inscrito = page.getByRole("dialog").getByRole("option", { name: /^Etapa F/ });
-      await expect(inscrito).toHaveText("Etapa F (todavía no está activada la inscripción)");
+      await expect(inscrito).toHaveText("Etapa F (usa «Marcar como inscrito»)");
       await expect(inscrito).toBeDisabled();
       await foto(page, "solo-captacion-mover");
       await page.keyboard.press("Escape");

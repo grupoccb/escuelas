@@ -71,8 +71,8 @@ export function ClasesMuestra({ filtros, alCambiar }: { filtros: ValoresDeFiltro
             <Indicador etiqueta="Agendadas" valor={r.total.agendadas} prueba="ind-agendadas" />
             <Indicador etiqueta="Asistidas" valor={r.total.asistidas} prueba="ind-asistidas" />
             <Indicador etiqueta="No asistidas" valor={r.total.no_asistidas} prueba="ind-no-asistidas" />
-            <Indicador etiqueta="Inscritas" valor={r.total.inscritas} prueba="ind-inscritas" />
-            <Indicador etiqueta="Conversión" valor={r.total.conversion === null ? "—" : `${r.total.conversion} %`} nota="de las asistidas, las que hoy tienen inscripción" prueba="ind-conversion" />
+            <Indicador etiqueta="Inscritas" valor={r.total.inscritas} nota={r.total.inscritas_a_mano > 0 ? `${r.total.inscritas_a_mano} marcadas a mano` : undefined} prueba="ind-inscritas" />
+            <Indicador etiqueta="Conversión" valor={r.total.conversion === null ? "—" : `${r.total.conversion} %`} nota="de las asistidas, las que hoy tienen inscripción o se marcaron a mano como inscritas" prueba="ind-conversion" />
           </div>
           {r.total.agendadas === 0 ? <Aviso>No hay clases muestra en este rango.</Aviso> : null}
           <Tarjeta>

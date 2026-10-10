@@ -151,7 +151,7 @@ test("leads: respeta la sucursal del asesor, neutraliza un nombre que es una fó
   const norte = await bajar(m.asesorNorte, "/api/exportaciones/leads");
   esDescargaCsv(norte);
   const filas = leerCsv(norte.texto);
-  assert.deepEqual(filas[0], ["Fecha", "Contacto", "Teléfono", "Vertical", "Sucursal", "Etapa", "Campaña", "Fuente"]);
+  assert.deepEqual(filas[0], ["Fecha", "Contacto", "Teléfono", "Vertical", "Sucursal", "Etapa", "Campaña", "Fuente", "Cómo se inscribió"]);
   assert.ok(filas.some((f) => f[1]?.startsWith("'=cmd")), "la fórmula quedó como texto");
   assert.ok(!filas.some((f) => f[1] === "Del Sur"), "el asesor del norte no descarga el sur");
   assert.ok(filas.slice(1).every((f) => f[7] === "landing" || f[7] === "directo"));
@@ -192,11 +192,11 @@ test("leads, descarga GRANDE: más de un lote, sin repetir ni perder filas, en e
 test("los reportes se descargan con ?formato=csv (los mismos permisos que el JSON) y el dinero y los porcentajes salen exactos", async () => {
   const clases = await bajar(m.asesorNorte, "/api/reportes/clases-muestra?formato=csv");
   esDescargaCsv(clases);
-  assert.deepEqual(leerCsv(clases.texto)[0], ["Dimensión", "Nombre", "Agendadas", "Asistidas", "No asistidas", "Canceladas", "Pendientes", "Inscritas", "Conversión (%)"]);
+  assert.deepEqual(leerCsv(clases.texto)[0], ["Dimensión", "Nombre", "Agendadas", "Asistidas", "No asistidas", "Canceladas", "Pendientes", "Inscritas", "De ellas, inscritas a mano", "Conversión (%)"]);
   assert.equal((await bajar(m.recepcion, "/api/reportes/clases-muestra?formato=csv")).estado, 403);
   const costo = await bajar(m.admin, "/api/reportes/costo-por-alumno?formato=csv");
   esDescargaCsv(costo);
-  assert.deepEqual(leerCsv(costo.texto)[0], ["Campaña", "Origen", "Gasto", "Leads", "Clases muestra", "Clases asistidas", "Inscripciones activas", "Costo por lead", "Costo por clase muestra", "Costo por alumno inscrito"]);
+  assert.deepEqual(leerCsv(costo.texto)[0], ["Campaña", "Origen", "Gasto", "Leads", "Clases muestra", "Clases asistidas", "Inscripciones activas", "Inscritos a mano", "Alumnos inscritos", "Costo por lead", "Costo por clase muestra", "Costo por alumno inscrito"]);
   assert.equal((await bajar(m.asesorNorte, "/api/reportes/costo-por-alumno?formato=csv")).estado, 403);
   const resumen = await bajar(m.admin, "/api/reportes/ejecutivo?formato=csv&mes=2026-11");
   esDescargaCsv(resumen);

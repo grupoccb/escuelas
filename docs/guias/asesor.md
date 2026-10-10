@@ -12,6 +12,7 @@ Tu inicio es «Embudo»: cada familia que escribió aparece en una tarjeta, en l
 2. Toca el nombre de una familia para abrir su ficha: teléfono, niños, de dónde llegó e historial. Si la familia ya escribió por WhatsApp, ahí aparece «Abrir conversación en Chatwoot».
 3. «Cotizar a mano» le calcula el precio; «Agendar clase muestra» le reserva lugar. Si ya decidió, «Convertir e inscribir» abre un asistente de seis pasos que solo pide lo que falta. El cobro lo hace recepción.
 4. Anota cada avance con «Mover de etapa»: elige la «Nueva etapa», escribe una nota si quieres y toca «Mover». Si la familia dijo que no, elige la etapa de pérdida y el «Motivo de pérdida».
+   Sin la inscripción activada, toca «Marcar como inscrito» y anota cómo fue.
 5. Termina en «Tareas»: haz lo que pide cada una y toca «Marcar como hecha» (o «Descartar» si ya no aplica). Qué hacer con cada tipo de tarea viene en el documento [Operación diaria](../OPERACION.md) (pídelo al administrador).
 
 ## En Chatwoot

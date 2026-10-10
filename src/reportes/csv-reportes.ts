@@ -28,6 +28,7 @@ export const COLUMNAS_DE_CLASES: Columna<FilaPlanaDeClases>[] = [
   { titulo: "Canceladas", tipo: "entero", valor: (f) => f.canceladas },
   { titulo: "Pendientes", tipo: "entero", valor: (f) => f.pendientes },
   { titulo: "Inscritas", tipo: "entero", valor: (f) => f.inscritas },
+  { titulo: "De ellas, inscritas a mano", tipo: "entero", valor: (f) => f.inscritas_a_mano },
   { titulo: "Conversión (%)", valor: (f) => oGuion(f.conversion) },
 ];
 
@@ -45,6 +46,8 @@ export const COLUMNAS_DE_COSTO: Columna<FilaPlanaDeCosto>[] = [
   { titulo: "Clases muestra", tipo: "entero", valor: (f) => f.clases_muestra },
   { titulo: "Clases asistidas", tipo: "entero", valor: (f) => f.clases_asistidas },
   { titulo: "Inscripciones activas", tipo: "entero", valor: (f) => f.inscripciones_activas },
+  { titulo: "Inscritos a mano", tipo: "entero", valor: (f) => f.inscritos_a_mano },
+  { titulo: "Alumnos inscritos", tipo: "entero", valor: (f) => f.alumnos_inscritos },
   { titulo: "Costo por lead", tipo: "dinero", valor: (f) => f.costo_por_lead ?? "—" },
   { titulo: "Costo por clase muestra", tipo: "dinero", valor: (f) => f.costo_por_clase_muestra ?? "—" },
   { titulo: "Costo por alumno inscrito", tipo: "dinero", valor: (f) => f.costo_por_alumno ?? "—" },

@@ -2243,6 +2243,8 @@ model lead_etapa_historial {
   nota               String?
   /// De perdido a una etapa activa: el lead se recuperó.
   es_recuperacion    Boolean             @default(false)
+  /// V10b: la persona marcó al lead como inscrito A MANO (con la inscripción apagada). Exige origen «usuario» y una nota de al menos 10 caracteres (CHECK).
+  a_mano             Boolean             @default(false)
   /// Orden de registro (`creado_en` puede repetirse, p. ej. con un reloj inyectado).
   secuencia          BigInt              @default(autoincrement())
   creado_en          DateTime            @default(now()) @db.Timestamptz(6)

@@ -6,7 +6,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Etapa, LeadDetalle, MotivoPerdida, Tarea } from "../../api/tipos.ts";
 import { urlDeConversacion } from "../../lib/chatwoot.ts";
-import { formatearInstante } from "../../lib/fechas.ts";
+import { formatearFecha, formatearInstante } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { Icono } from "../../ui/Icono.tsx";
@@ -14,17 +14,27 @@ import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { ClasesMuestraDeLead } from "./ClasesMuestraDeLead.tsx";
 import { Cotizaciones } from "./Cotizaciones.tsx";
 import { FUENTES } from "./Embudo.tsx";
+import { sePuedeMarcarComoInscrito } from "./inscrito-a-mano.ts";
+import { MarcarInscrito } from "./MarcarInscrito.tsx";
 import { MoverEtapa } from "./MoverEtapa.tsx";
 import { Ninos } from "./Ninos.tsx";
 import { TarjetaDeTarea } from "./Tareas.tsx";
 
 interface Historial {
   etapa_actual: string;
-  cambios: { id: string; desde: { id: string; nombre: string | null } | null; hacia: { id: string; nombre: string | null }; origen: string; usuario: { id: string; nombre: string } | null; motivo: string; motivo_perdida: { id: string; nombre: string } | null; nota: string | null; es_recuperacion: boolean; creado_en: string }[];
+  /** V10b: hoy está inscrito a mano (sin inscripción real). */
+  inscrito_a_mano: { por: { id: string; nombre: string } | null; en: string } | null;
+  /** V10b: fechas de las inscripciones reales del lead (solo con el módulo de inscripción encendido). */
+  inscripciones: { fecha: string }[];
+  cambios: { id: string; a_mano: boolean; desde: { id: string; nombre: string | null } | null; hacia: { id: string; nombre: string | null }; origen: string; usuario: { id: string; nombre: string } | null; motivo: string; motivo_perdida: { id: string; nombre: string } | null; nota: string | null; es_recuperacion: boolean; creado_en: string }[];
 }
 
 /** Las claves de la atribución que se pueden mostrar (el resto del referral del proveedor no es para la pantalla). */
 const CLAVES_DE_ATRIBUCION: Record<string, string> = { fuente: "Fuente", utm_source: "Plataforma del anuncio", utm_medium: "Tipo de anuncio", utm_campaign: "Campaña del anuncio", utm_content: "Contenido del anuncio", utm_term: "Palabra clave del anuncio", codigo_rastreo: "Código de rastreo" };
+
+/** El motivo del cambio de etapa, en palabras de la escuela (V10b agrega los de «a mano»). */
+const MOTIVOS_DE_CAMBIO: Record<string, string> = { inscripcion_a_mano: "marcado a mano", correccion_de_inscrito_a_mano: "corrección de una inscripción a mano", inscripcion: "inscripción" };
+const textoDeMotivo = (motivo: string): string => MOTIVOS_DE_CAMBIO[motivo] ?? motivo.replace(/_/g, " ");
 
 function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
   const { yo } = useSesion();
@@ -87,6 +97,7 @@ export default function FichaLead() {
   const historial = useCarga((senal) => api.get<Historial>(`/api/leads/${id}/historial`, undefined, senal), [id]);
   const tareas = useCarga((senal) => (puede("tareas:leer") ? api.get<Pagina<Tarea>>("/api/tareas", { lead_id: id, estado: "pendiente", limite: 20 }, senal) : Promise.resolve(null)), [id]);
   const [moviendo, setMoviendo] = useState(false);
+  const [marcando, setMarcando] = useState(false);
   // V3: el niño al que se le abre el formulario de cotizar (desde su fila en «Niños»).
   const [cotizandoA, setCotizandoA] = useState<{ id: string; vez: number } | null>(null);
   const d = lead.datos;
@@ -105,6 +116,8 @@ export default function FichaLead() {
   const inscrito = d.etapa.tipo_sistema === "inscrito" || d.etapa.es_ganado;
   // V3: un lead ya inscrito que recibe a otro hijo vuelve a tener a quién inscribir.
   const hayPorInscribir = d.prospectos.some((p) => p.alumno_id === null);
+  // V10b: con la inscripción apagada, «Marcar como inscrito» (la regla es del servidor; aquí solo se anticipa).
+  const puedeMarcarInscrito = sePuedeMarcarComoInscrito({ inscripcionEncendida: moduloEncendido("inscripcion"), puedeEscribir: escribir, etapaActual: d.etapa });
   // «fuente» ya sale arriba con su nombre en español: repetirla con el valor crudo («landing») era ruido (V7).
   const atribucion = Object.entries(d.atribucion ?? {}).filter(([k, v]) => k !== "fuente" && k in CLAVES_DE_ATRIBUCION && typeof v === "string");
 
@@ -128,11 +141,22 @@ export default function FichaLead() {
           Sin sucursal no se puede cotizar ni ver los grupos para la clase muestra. Pregúntale a la familia cuál le queda mejor y elígela en «Sucursal».
         </Aviso>
       ) : null}
-      <Tarjeta titulo="Contacto" acciones={escribir ? <Boton onClick={() => setMoviendo(true)}>Mover de etapa</Boton> : undefined}>
+      <Tarjeta
+        titulo="Contacto"
+        acciones={
+          escribir ? (
+            <>
+              {puedeMarcarInscrito ? <Boton variante="primario" onClick={() => setMarcando(true)} data-prueba="marcar-como-inscrito">Marcar como inscrito</Boton> : null}
+              <Boton onClick={() => setMoviendo(true)}>Mover de etapa</Boton>
+            </>
+          ) : undefined
+        }
+      >
         <dl className="datos">
           <dt>Etapa</dt>
           <dd data-prueba="etapa-actual">
             <Insignia tono={d.etapa.es_perdido ? "peligro" : inscrito ? "exito" : "info"}>{d.etapa.nombre}</Insignia>
+            {historial.datos?.inscrito_a_mano ? <> <Insignia tono="info">Inscrito a mano</Insignia></> : null}
             {d.motivo_perdida ? ` · Motivo: ${d.motivo_perdida.nombre}` : ""}
             {d.recuperaciones > 0 ? ` · Recuperado ${d.recuperaciones} vez/veces` : ""}
           </dd>
@@ -193,22 +217,37 @@ export default function FichaLead() {
         {historial.datos && historial.datos.cambios.length > 0 ? (
           <ol className="lista-historial" data-prueba="historial">
             {historial.datos.cambios.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} data-prueba={c.a_mano ? "cambio-a-mano" : undefined}>
                 <strong>
                   {c.desde ? (c.desde.nombre ?? "—") : "Alta"} → {c.hacia.nombre ?? "—"}
                 </strong>
+                {c.a_mano ? (
+                  <>
+                    {" "}
+                    <Insignia tono="info">Inscrito a mano</Insignia>
+                  </>
+                ) : null}
                 <span className="muted">
                   {" "}
-                  · {formatearInstante(c.creado_en)} · {c.origen === "sistema" ? "automático" : (c.usuario?.nombre ?? "persona")} · {c.motivo.replace(/_/g, " ")}
+                  · {formatearInstante(c.creado_en)} · {c.origen === "sistema" ? "automático" : (c.usuario?.nombre ?? "persona")} · {textoDeMotivo(c.motivo)}
                 </span>
+                {c.a_mano ? <div>Inscrito a mano por {c.usuario?.nombre ?? "una persona"} el {formatearInstante(c.creado_en)}</div> : null}
                 {c.motivo_perdida ? <div>Motivo de pérdida: {c.motivo_perdida.nombre}</div> : null}
                 {c.nota ? <div className="muted">Nota: {c.nota}</div> : null}
+              </li>
+            ))}
+            {historial.datos.inscripciones.map((i, n) => (
+              <li key={`inscripcion-${n}`} data-prueba="inscripcion-real">
+                <strong>Inscripción registrada en el sistema</strong>
+                <span className="muted"> · {formatearFecha(i.fecha)}</span>
+                {historial.datos?.cambios.some((c) => c.a_mano) ? <div className="muted">La familia ya estaba marcada como inscrita a mano; desde ahora cuenta por esta inscripción.</div> : null}
               </li>
             ))}
           </ol>
         ) : null}
       </Tarjeta>
 
+      <MarcarInscrito lead={marcando ? { id: d.id, nombre, etapa_id: d.etapa.id } : null} etapas={etapas.datos ?? []} abierto={marcando} alCerrar={() => setMarcando(false)} alMarcar={recargar} />
       <MoverEtapa lead={moviendo ? { id: d.id, nombre, etapa_id: d.etapa.id } : null} etapas={etapas.datos ?? []} motivos={motivos.datos ?? []} abierto={moviendo} alCerrar={() => setMoviendo(false)} alMover={recargar} />
     </Marco>
   );

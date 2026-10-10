@@ -17,6 +17,7 @@ import { enviarCsv, enviarCsvPorLotes } from "../../exportacion/http.ts";
 import { deFecha } from "../../catalogo/precios.ts";
 import { fechaLocal } from "../../lib/horario.ts";
 import { log } from "../../lib/log.ts";
+import { inscritosAMano } from "../../embudo/inscrito-a-mano.ts";
 import { fuenteDe } from "../../reportes/fuente.ts";
 import { condicionDeLead } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
@@ -99,14 +100,18 @@ export function rutasDeExportaciones(_deps: DepsApi): Router {
     if (q.sucursal_id) condiciones.push({ sucursal_interes_id: q.sucursal_id });
     if (q.etapa_id) condiciones.push({ etapa_id: q.etapa_id });
     const where = condiciones.length > 0 ? { AND: condiciones } : {};
-    const pedir = (ultima: { id: string } | null, tamano: number) =>
-      ctx.db.lead.findMany({
+    const pedir = async (ultima: { id: string } | null, tamano: number) => {
+      const lote = await ctx.db.lead.findMany({
         where,
         orderBy: [{ creado_en: "desc" }, { id: "asc" }],
         take: tamano,
         ...(ultima ? { cursor: { id: ultima.id }, skip: 1 } : {}),
-        select: { id: true, creado_en: true, nombre_contacto: true, telefono: true, anuncio_id: true, ctwa_clid: true, atribucion: true, etapa: { select: { nombre: true } }, sucursal_interes: { select: { nombre: true, zona_horaria: true } }, vertical_interes: { select: { nombre: true } }, campana: { select: { nombre: true, origen: true } } },
+        select: { id: true, creado_en: true, nombre_contacto: true, telefono: true, anuncio_id: true, ctwa_clid: true, atribucion: true, etapa: { select: { nombre: true, es_ganado: true, tipo_sistema: true } }, sucursal_interes: { select: { nombre: true, zona_horaria: true } }, vertical_interes: { select: { nombre: true } }, campana: { select: { nombre: true, origen: true } } },
       });
+      // V10b: cómo llegó a «inscrito» cada lead de este lote (a mano o por inscripción).
+      const manos = await inscritosAMano(ctx.db, { leadIds: lote.map((l) => l.id) });
+      return lote.map((l) => ({ ...l, inscrito: l.etapa.es_ganado || l.etapa.tipo_sistema === "inscrito", a_mano: manos.has(l.id) }));
+    };
     const columnas: Columna<Awaited<ReturnType<typeof pedir>>[number]>[] = [
       { titulo: "Fecha", valor: (l) => fechaLocal(l.creado_en, l.sucursal_interes?.zona_horaria ?? "UTC") },
       { titulo: "Contacto", valor: (l) => l.nombre_contacto },
@@ -116,6 +121,7 @@ export function rutasDeExportaciones(_deps: DepsApi): Router {
       { titulo: "Etapa", valor: (l) => l.etapa.nombre },
       { titulo: "Campaña", valor: (l) => l.campana?.nombre },
       { titulo: "Fuente", valor: (l) => fuenteDe(l) },
+      { titulo: "Cómo se inscribió", valor: (l) => (!l.inscrito ? null : l.a_mano ? "A mano" : "Por inscripción") },
     ];
     await enviarCsvPorLotes(res, "leads", columnas, pedir, { alFallar: (e) => log.error("exportacion_fallida", { ruta: "leads", error: e instanceof Error ? e.message : "desconocido" }) });
   });

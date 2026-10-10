@@ -9,6 +9,7 @@ export interface FilaDeClases {
   canceladas: number;
   pendientes: number;
   inscritas: number;
+  inscritas_a_mano: number;
   conversion: string | null;
 }
 export interface ReporteDeClases {
@@ -27,6 +28,8 @@ export interface FilaDeCosto {
   clases_muestra: number;
   clases_asistidas: number;
   inscripciones_activas: number;
+  inscritos_a_mano: number;
+  alumnos_inscritos: number;
   costo_por_lead_texto: string;
   costo_por_clase_muestra_texto: string;
   costo_por_alumno_texto: string;
