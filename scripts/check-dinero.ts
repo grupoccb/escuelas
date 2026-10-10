@@ -13,7 +13,8 @@
 //   4. en una ZONA DE DINERO (`promociones/`, `cotizador/`, `finanzas/`, `pagos/`, `cobranza/`, `reportes/`, `demo/`, `exportacion/`, `api/rutas/finanzas-*`, `api/rutas/reportes-*`, `inscripciones/`, `conversion/`, `eventos/`, `expediente/`, `api/rutas/eventos.ts`, `api/rutas/expediente.ts`,
 //      `catalogo/precios.ts`) aparece CUALQUIERA de esas llamadas, sin importar los nombres, y además: acceso por corchetes
 //      a `Math` o a esas funciones, `globalThis`, `~~x`, el `+x` unario, y una multiplicación o división por un literal
-//      decimal (`* 0.15`) o por 1 (`* 1`): aritmética de flotantes sin llamar a nada.
+//      decimal (`* 0.15`, `* .15`) o por 1 (`* 1`): aritmética de flotantes sin llamar a nada, y una función de redondeo de `Math` pasada sin llamarla
+//      (`.map(Math.round)`, `(0, Math.round)(x)`).
 //
 //   npm run check:dinero
 //   node scripts/check-dinero.ts --raiz <dir>
@@ -55,7 +56,9 @@ const REGLAS_DE_TEXTO: { re: RegExp; regla: string; donde: "siempre" | "zona" | 
   { re: /(?:[=(,:?]|\|\||\?\?|\breturn)\s*(?:Number\s*\.\s*parseFloat|parseFloat|parseInt|Number)\s*(?=[;,)\]}\n])/g, regla: "función de flotantes pasada o guardada sin llamarla (const f = parseFloat; .map(Number)): usa centavos (src/lib/dinero.ts)", donde: "dinero" },
   { re: /~~/g, regla: "~~ trunca a entero de 32 bits y baja el importe a flotante: usa centavos (src/lib/dinero.ts)", donde: "zona" },
   { re: /(?:[=(,:?*/%<>!&|-]|\breturn|\bcase)\s*\+\s*(?=[A-Za-z_$(])/g, regla: "+x unario: convierte a número flotante; usa deTexto() de src/lib/dinero.ts", donde: "zona" },
-  { re: /[*/]\s*\d+\.\d+|\d+\.\d+\s*[*/]/g, regla: "multiplicación o división por un decimal literal (* 0.15): usa porcentaje() de src/lib/dinero.ts", donde: "zona" },
+  { re: /[*/]\s*\d+\.\d+|\d+\.\d+\s*[*/]|[*/]\s*\.\d+|(?<![\w.])\.\d+\s*[*/]/g, regla: "multiplicación o división por un decimal literal (* 0.15, * .15): usa porcentaje() de src/lib/dinero.ts", donde: "zona" },
+  // V10 / EF-20: una función de redondeo de Math pasada o guardada sin llamarla (`.map(Math.round)`, `(0, Math.round)(x)`, `const r = Math.round`).
+  { re: /\bMath\s*\.\s*(?:round|floor|ceil|trunc|fround)\b(?!\s*\()/g, regla: "Math.round/floor/ceil/trunc pasada sin llamarla (.map(Math.round), (0, Math.round)(x)): usa centavos (src/lib/dinero.ts)", donde: "dinero" },
   { re: /[*/]\s*1(?![\d._n])/g, regla: "multiplicar o dividir por 1 convierte a número: usa deTexto() de src/lib/dinero.ts", donde: "zona" },
 ];
 

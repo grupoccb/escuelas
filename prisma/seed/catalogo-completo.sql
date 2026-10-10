@@ -197,6 +197,9 @@ FROM (VALUES
   ('Twerk',                500.00,  750.00)
 ) AS p(programa, inscripcion, mensualidad)
 JOIN programa pr ON pr.organizacion_id = '00000000-0000-4000-8000-000000000001' AND pr.nombre = p.programa AND pr.eliminado_en IS NULL
+-- V10 / EC-25: solo a los programas que NUNCA han tenido precio (ni vivo ni dado de baja). Si un administrador dio de baja el precio de ejemplo, volver a correr este
+-- seed no lo resucita (el índice de la base solo mira los precios vivos, así que `ON CONFLICT` no lo impedía).
+WHERE NOT EXISTS (SELECT 1 FROM precio x WHERE x.organizacion_id = pr.organizacion_id AND x.programa_id = pr.id)
 ON CONFLICT DO NOTHING;
 
 -- ── PROMOCIONES DE EJEMPLO [SUPUESTO] ───────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ export async function barrerTareasDeCobranza(db: BaseDatos, ahora: Date, umbralD
   const resumen: ResumenDeTareasDeCobranza = { creadas: 0, resueltas: 0 };
   const abiertos = await db.cargo.findMany({
     where: { estatus: { in: ["pendiente", "vencido"] }, OR: [{ inscripcion_id: null }, { inscripcion: { estatus: { not: "baja" } } }] },
-    orderBy: [{ fecha_vencimiento: "asc" }, { id: "asc" }],
+    orderBy: [{ fecha_vencimiento: "asc" }, { concepto: "asc" }, { creado_en: "asc" }, { id: "asc" }], // el orden de antigüedad del reparto (`compararAntiguedad`)
     select: { id: true, tutor_id: true, inscripcion_id: true, fecha_vencimiento: true, monto_final: true, monto_pagado: true, alumno: { select: { nombre: true } }, inscripcion: { select: { lead_id: true } }, sucursal: { select: { zona_horaria: true } } },
   });
   // Por familia: los cargos con atraso >= umbral (el más antiguo primero, por el orden de la consulta).

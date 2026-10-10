@@ -153,6 +153,27 @@ test("EF-04: el precio congelado y lo que valió cada promoción no se modifican
   await prisma.promocion_aplicacion.update({ where: { id: a.id }, data: { estatus: "entregado", fecha_entrega: new Date() } });
 });
 
+test("V10 / EG-19: de dónde vino la inscripción (la promoción aplicada, el lead y la cotización aceptada) tampoco se reescribe después de inscribir", async () => {
+  const g = await grupoNuevo(10);
+  const a = await alumno();
+  const promo = await prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "Origen", codigo: `EG19${Date.now()}`, vigencia_desde: new Date("2020-01-01"), activo: false } });
+  const otraPromo = await prisma.promocion.create({ data: { organizacion_id: org.organizacionId, nombre: "Otra", codigo: `EG19B${Date.now()}`, vigencia_desde: new Date("2020-01-01"), activo: false } });
+  const i = await prisma.inscripcion.create({ data: datos(a.alumnoId, g, { lead_id: a.leadId, promocion_id: promo.id }) as never });
+  const otroLead = (await alumno()).leadId;
+  const cambiar = (data: Record<string, unknown>) => prisma.inscripcion.update({ where: { id: i.id }, data: data as never });
+  await assert.rejects(cambiar({ promocion_id: otraPromo.id }), /inscripcion_precio_congelado/, "cambiar la promoción");
+  await assert.rejects(cambiar({ promocion_id: null }), /inscripcion_precio_congelado/, "quitar la promoción");
+  await assert.rejects(cambiar({ lead_id: otroLead }), /inscripcion_precio_congelado/, "cambiar el lead");
+  await assert.rejects(cambiar({ lead_id: null }), /inscripcion_precio_congelado/, "quitar el lead");
+  const cot = await prisma.cotizacion.findFirst({ where: { organizacion_id: org.organizacionId } });
+  if (cot) await assert.rejects(cambiar({ cotizacion_id: cot.id }), /inscripcion_precio_congelado/, "ligar una cotización");
+  const intacta = await prisma.inscripcion.findFirstOrThrow({ where: { id: i.id } });
+  assert.deepEqual([intacta.promocion_id, intacta.lead_id], [promo.id, a.leadId]);
+  // Volver a escribir el mismo valor, y lo que sí cambia (estatus, día de corte), sigue pasando.
+  await cambiar({ promocion_id: promo.id, lead_id: a.leadId, dia_corte_pago: 8 });
+  await cambiar({ estatus: "congelada", congelada_desde: new Date("2026-10-21") });
+});
+
 test("la aplicación de una promoción: descuento y meses no negativos, y la inscripción tiene que existir en la MISMA organización", async () => {
   const g = await grupoNuevo(10);
   const i = await inscribirDirecto(g);

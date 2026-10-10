@@ -41,7 +41,7 @@ function DialogoDeSesion({ lead, clase, abierto, alCerrar, alGuardar }: { lead: 
 
   return (
     <Dialogo abierto={abierto} titulo={reprograma ? "Reprogramar clase muestra" : "Agendar clase muestra"} alCerrar={cerrar}>
-      <form
+      <form noValidate
         className="formulario"
         onSubmit={(e) => {
           e.preventDefault();

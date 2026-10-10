@@ -34,7 +34,7 @@ function ListaDeFamilias() {
   };
   return (
     <div className="pila">
-      <form className="formulario" onSubmit={buscar} role="search">
+      <form noValidate className="formulario" onSubmit={buscar} role="search">
         <CampoTexto etiqueta="Teléfono o nombre de la familia" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} ayuda="El teléfono puede ir con o sin lada y con espacios o guiones." />
         <div>
           <Boton type="submit" variante="primario">

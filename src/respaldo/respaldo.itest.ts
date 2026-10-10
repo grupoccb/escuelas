@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, mkdtempSync, readdirSync, writeFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, statSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
@@ -166,4 +166,40 @@ test("retención: conserva los N respaldos más recientes de la base, borra los 
 test("la conexión se lee sin exponer la clave en los argumentos de los procesos", () => {
   const c = leerConexion("postgresql://usuario:cl%40ve@localhost:5433/mi_base?sslmode=require");
   assert.deepEqual(c, { usuario: "usuario", clave: "cl@ve", host: "localhost", puerto: "5433", base: "mi_base" });
+});
+
+test("V10 / EK-23: el conteo del respaldo sale de la MISMA foto que el volcado — filas que entran con el sistema vivo ENTRE el conteo y el volcado no descuadran la restauración", { timeout: 300_000 }, async () => {
+  const admin = new pg.Client({ connectionString: urlOrigen });
+  await admin.connect();
+  const slug = `durante-${randomBytes(3).toString("hex")}`;
+  try {
+    const r = await respaldar({
+      url: urlOrigen,
+      directorio,
+      ahora: new Date("2026-10-09T12:00:00Z"),
+      // Justo después de contar y antes de volcar: otra sesión de la aplicación (el sistema sigue vivo) da de alta algo.
+      alContarLasFilas: async () => {
+        await admin.query("INSERT INTO organizacion (nombre, slug) VALUES ($1, $2)", [`Entró durante el respaldo ${slug}`, slug]);
+      },
+    });
+    const ahora = await contarFilasPorTabla(urlOrigen);
+    assert.equal(ahora.filas["organizacion"], r.metadatos.filasPorTabla["organizacion"]! + 1, "la fila sí entró en la base viva");
+    const base = `respaldo_restaurada_${sufijo}_foto_pruebas`;
+    BASES_CREADAS.push(base);
+    const res = await restaurar({ archivo: r.archivo, urlDestino: urlDe(base) });
+    assert.deepEqual(res.filasPorTabla, r.metadatos.filasPorTabla, "lo restaurado es exactamente la foto que se contó (sin la fila que entró después)");
+  } finally {
+    await admin.end();
+  }
+});
+
+test("V10 / EK-23: el respaldo y su metadato quedan 0600 y una carpeta nueva 0700 (solo quien respalda los lee)", { timeout: 300_000 }, async () => {
+  const nueva = join(mkdtempSync(join(tmpdir(), "respaldos-permisos-")), "carpeta-nueva");
+  const r = await respaldar({ url: urlOrigen, directorio: nueva, ahora: new Date("2026-10-09T13:00:00Z") });
+  const modo = (ruta: string): string => (statSync(ruta).mode & 0o777).toString(8);
+  assert.equal(modo(nueva), "700", "la carpeta");
+  assert.equal(modo(r.archivo), "600", "el volcado");
+  assert.equal(modo(`${r.archivo}.json`), "600", "su metadato");
+  const cifrado = await respaldar({ url: urlOrigen, directorio: nueva, frase: "frase-larga-para-el-permiso-1234", ahora: new Date("2026-10-09T13:30:00Z") });
+  assert.equal(modo(cifrado.archivo), "600", "el cifrado también");
 });

@@ -120,7 +120,7 @@ export async function registrarEventoInesperado(prisma: PrismaRaiz, e: EventoIne
   const organizacionId = e.contexto?.organizacionId ?? bandeja?.organizacion_id ?? null;
   if (!organizacionId) {
     const r = await registrarEventoInesperadoSinOrganizacion(prisma, { origen: e.origen, clave: e.clave, causa: e.causa, detalle: e.detalle, forma: e.forma });
-    log.error("evento_inesperado", { origen: e.origen, causa: e.causa, organizacion: null, nuevo: r.nuevo, detalle: e.detalle });
+    log.error(r.descartado ? "evento_inesperado_descartado_por_tope" : "evento_inesperado", { origen: e.origen, causa: e.causa, organizacion: null, nuevo: r.nuevo, detalle: e.detalle });
     return { nuevo: r.nuevo, tareaId: null };
   }
 

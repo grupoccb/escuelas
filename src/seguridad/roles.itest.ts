@@ -73,6 +73,9 @@ test("la cuenta de la aplicación no es dueña, no es superusuaria y no puede bo
     "CREATE TABLE intruso (id int)",
     "CREATE OR REPLACE FUNCTION cargo_no_se_borra() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN OLD; END $$",
     "SET session_replication_role = replica",
+    // V10 (EK-29): el historial de migraciones se lee, no se escribe.
+    "UPDATE _prisma_migrations SET applied_steps_count = applied_steps_count",
+    "INSERT INTO _prisma_migrations (id, checksum, migration_name) VALUES ('x', 'x', 'x')",
     ...TABLAS_SOLO_ANEXAR.map((t) => `UPDATE ${t} SET creado_en = creado_en`),
   ]) {
     const r = await comoApp(sql);

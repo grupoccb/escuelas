@@ -172,3 +172,7 @@ Método: sobre una copia de HEAD se revirtió **solo el código fuente** de cada
 5. **EH-17.** Conversión por vertical: ¿solo cuenta la inscripción en la misma vertical y posterior a la clase?
 6. **EG-05 (decidida).** El tope de marketing de 1 cada 7 días se aplica por la **clase declarada** de la plantilla. Consecuencia: la recuperación de quien no llegó (2 intentos) y el reenganche (que son `utility` en Meta pero `marketing` en clase) quedan sujetos al tope; ver la bitácora.
 7. Las seis decisiones abiertas del cierre de H1–H5 (reactivar a mitad de mes, excedente como crédito, descuento diferido, stock por sucursal, ventana para cancelar pagos viejos, un responsable de pago por cargo) siguen abiertas.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

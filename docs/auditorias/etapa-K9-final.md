@@ -145,3 +145,7 @@ Mutaciones propias de verificación de las correcciones (todas mueren con la pru
 
 - **Una petición externa.** Un auditor del flujo de interfaz sondeó la ruta `//evil.com` con `request.get` de Playwright; se resolvió como host externo y salió **un solo GET a `http://evil.com/`** (dominio de prueba, sin credenciales ni datos del proyecto, sin repetirse). No es ningún servicio del sistema (Twilio, Meta, WhatsApp, AWS, Chatwoot), pero rompe la regla «nada externo». No se abrió `wa.me` ni `api.whatsapp.com`.
 - **El contenedor de la demo.** Por EK-06, `respaldo.itest.ts` ejecutó `pg_dump` dentro de `inscripciones-postgres-1` (el Postgres de la demo) contra una base que no existe allí: solo un intento de lectura fallido, sin escritura ni cambio en la base `inscripciones`. En ese servidor quedaron cuatro bases `respaldo_*_7b2171_*pruebas` (residuo de una corrida interrumpida de algún agente; no son la base de la demo) que se dejaron sin tocar.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

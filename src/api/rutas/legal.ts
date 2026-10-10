@@ -126,7 +126,7 @@ export function rutasDeLegal(_deps: DepsApi): Router {
 
   /** La clase tiene que ser visible; devuelve lo que la aceptación necesita de ella. */
   async function claseVisible(ctx: ContextoApi, id: string) {
-    const clase = await ctx.db.clase_muestra.findFirst({ where: { id, ...(await alcanceDeClases(ctx)) }, select: { id: true, estatus: true, prospecto_id: true, prospecto: { select: { vertical_interes_id: true } } } });
+    const clase = await ctx.db.clase_muestra.findFirst({ where: { id, ...(await alcanceDeClases(ctx)) }, select: { id: true, estatus: true, prospecto_id: true, prospecto: { select: { vertical_interes_id: true } }, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } } });
     if (!clase) throw noEncontrado();
     return clase;
   }
@@ -145,7 +145,7 @@ export function rutasDeLegal(_deps: DepsApi): Router {
       prospecto_id: clase.prospecto_id,
       // J2: con la vertical la interfaz pide los documentos vigentes (`GET /api/documentos-legales/vigentes?vertical_id=`) sin necesitar leer el lead.
       vertical_id: clase.prospecto.vertical_interes_id,
-      estado: (await estadoLegal(ctx.db, clase.prospecto_id, clase.prospecto.vertical_interes_id, ctx.ahora())).map((e) => ({ tipo: e.tipo, estado: e.estado, version_aceptada: e.versionAceptada, aceptado_en: e.aceptadoEn, aceptante: e.aceptante, version_vigente: e.versionVigente, al_corriente: e.alCorriente, texto: e.texto })),
+      estado: (await estadoLegal(ctx.db, clase.prospecto_id, clase.prospecto.vertical_interes_id, ctx.ahora(), clase.grupo.programa.sucursal.zona_horaria)).map((e) => ({ tipo: e.tipo, estado: e.estado, version_aceptada: e.versionAceptada, aceptado_en: e.aceptadoEn, aceptante: e.aceptante, version_vigente: e.versionVigente, al_corriente: e.alCorriente, texto: e.texto })),
       historial: historial.map((h) =>
         presentarAceptacion({ id: h.id, documentoId: h.documento_id, tipo: h.tipo, versionAceptada: h.version_aceptada, resultado: h.resultado, aceptanteNombre: h.aceptante_nombre, aceptanteParentesco: h.aceptante_parentesco, registroTutorId: h.registro_tutor_id, canal: h.canal, capturadaPorUsuarioId: h.capturada_por_usuario_id, aceptadoEn: h.aceptado_en, textoHash: h.texto_hash, evidencia: h.evidencia, ip: h.ip, agenteUsuario: h.agente_usuario, secuencia: h.secuencia }),
       ),

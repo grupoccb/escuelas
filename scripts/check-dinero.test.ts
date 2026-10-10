@@ -150,3 +150,19 @@ test("UI-06: el expediente, la ficha de la familia y las cotizaciones del asesor
   }
   assert.deepEqual(hallazgos({ "web/src/pantallas/familia/vista.ts": `const años = Math.floor(a.meses / 12);` }), [], "la edad en años no es dinero");
 });
+
+test("V10 / EF-20: lo que quedaba sin ver en las zonas de dinero ahora falla (literal decimal sin parte entera, Math.round pasada sin llamar, (0, Math.round)(x))", () => {
+  const z = (codigo: string, ruta = "src/promociones/a.ts") => [...new Set(hallazgos({ [ruta]: codigo }))];
+  assert.deepEqual(z(`const d = importe * .15;`), ["src/promociones/a.ts:1"], "× .15");
+  assert.deepEqual(z(`const d = importe / .5;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const d = .15 * importe;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const r = montos.map(Math.round);`), ["src/promociones/a.ts:1"], ".map(Math.round)");
+  assert.deepEqual(z(`const r = (0, Math.round)(x);`), ["src/promociones/a.ts:1"], "(0, Math.round)(x)");
+  assert.deepEqual(z(`const redondear = Math.round;`), ["src/promociones/a.ts:1"]);
+  assert.deepEqual(z(`const r = a.map(Math.floor).map(Math.trunc);`), ["src/promociones/a.ts:1"]);
+  // Fuera de una zona y sin palabra de dinero, igual que siempre, no se persigue; con palabra de dinero sí.
+  assert.deepEqual(z(`const r = filas.map(Math.round);`, "src/otra/a.ts"), []);
+  assert.deepEqual(z(`const saldos = filas.map(Math.round);`, "src/otra/a.ts"), ["src/otra/a.ts:1"]);
+  // Y lo que no es redondeo sigue pasando.
+  assert.deepEqual(z(`const m = Math.max(0, a); const n = Math.min(a, 3); const abs = Math.abs(x);`), []);
+});

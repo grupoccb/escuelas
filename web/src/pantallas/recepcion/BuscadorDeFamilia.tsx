@@ -38,7 +38,7 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
 
   return (
     <div className="pila" data-prueba="buscador-de-familia">
-      <form className="formulario" onSubmit={buscar} role="search">
+      <form noValidate className="formulario" onSubmit={buscar} role="search">
         <CampoTexto etiqueta="Teléfono o nombre de la familia" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} ayuda={escrito.trim().length === 1 ? "Escribe al menos dos letras para buscar." : "Escribe el teléfono (con o sin +52, con espacios o guiones) o el nombre de la mamá o del niño. No importan los acentos ni las mayúsculas."} />
         <div>
           <Boton type="submit" variante="primario" disabled={escrito.trim().length < 2}>

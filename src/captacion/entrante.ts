@@ -7,6 +7,7 @@
 
 import { ErrorTransitorio } from "../lib/transitorio.ts";
 import { InscripcionesActivas, cupoPorGrupo, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { etapaInicialDeLeads } from "../embudo/etapas.ts";
 import { registrarAltaDeLead } from "../embudo/historial.ts";
 import { aplicarCodigoAlLead, resolverCodigosDeMensaje, type RastreoDelMensaje } from "./rastreo.ts";
 import { agendarClaseMuestra, proximasSesionesConLugar } from "../clases-muestra/agenda.ts";
@@ -16,7 +17,7 @@ import { leerModulos } from "../modulos/index.ts";
 import { cargarCatalogoCotizable } from "../cotizador/cargar.ts";
 import { snapshotDeCotizacion } from "../cotizador/cotizacion.ts";
 import { elegirHorario, guardarCotizacion, horariosCotizadosAlContacto } from "../cotizador/guardar.ts";
-import { altaListaEspera } from "../lista-espera/lista-espera.ts";
+import { altaListaEsperaBajoCandado } from "../lista-espera/lista-espera.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { altaConAlcance, conAlcance, type Consultas } from "../datos/alcance.ts";
 import { esViolacionUnica, type PrismaRaiz } from "../datos/prisma.ts";
@@ -278,7 +279,7 @@ async function registrarYAvanzar(
 async function entrarAListaDeEspera(tx: Consultas, grupoId: string, c: { leadId: string; conversacionId: string; prospectoId: string; fuente: FuenteOcupacion }): Promise<void> {
   const grupo = await tx.grupo.findFirst({ where: { id: grupoId }, select: { nombre: true } });
   const nombre = grupo?.nombre ?? "el grupo";
-  const alta = await altaListaEspera(tx, { grupoId, prospectoId: c.prospectoId, leadId: c.leadId });
+  const alta = await altaListaEsperaBajoCandado(tx, { grupoId, prospectoId: c.prospectoId, leadId: c.leadId });
   if (!alta.ok) {
     await asegurarTareaEnTransaccion(tx, {
       leadId: c.leadId,
@@ -493,11 +494,7 @@ async function obtenerConversacion(
     log.warn("entrante_telefono_invalido", { telefono: enmascararTelefono(evento.contacto.telefono) });
   }
 
-  const etapaInicial = await tx.etapa_pipeline.findFirst({
-    where: { es_ganado: false, es_perdido: false },
-    orderBy: { orden: "asc" },
-    select: { id: true },
-  });
+  const etapaInicial = await etapaInicialDeLeads(tx);
   if (!etapaInicial) throw new Error("La organización no tiene etapas de pipeline: falta el seed");
 
   // La atribución es del primer contacto: un lead que ya existe conserva la suya.

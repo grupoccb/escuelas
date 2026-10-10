@@ -113,7 +113,7 @@ function FormularioBandeja({ canal, alGuardar, alCerrar }: { canal: CanalAdmin; 
 
 export default function Canales() {
   useTitulo("Canales de WhatsApp");
-  const lista = useCarga((senal) => api.get<{ datos: CanalAdmin[] }>("/api/canales-whatsapp", undefined, senal), []);
+  const lista = useCarga((senal) => api.get<{ datos: CanalAdmin[] }>("/api/canales-whatsapp", { limite: 100 }, senal), []);
   const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
   const sucursales = useCarga((senal) => api.get<{ datos: SucursalAdmin[] }>("/api/sucursales", undefined, senal), []);
   const { avisar } = useAvisos();

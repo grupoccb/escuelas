@@ -2,7 +2,8 @@
 // `leerSensible()` / `guardarSensible()` de src/sensibles/, que cifra, exige el permiso y deja
 // constancia en el registro de accesos.
 //
-//   GET /api/salud/:sujeto_tipo/:sujeto_id?motivo=…&campos=a,b   (salud:leer: administrador, maestro del grupo)
+//   GET /api/salud/:sujeto_tipo/:sujeto_id?campos=a,b   + cabecera X-Motivo-De-Consulta (con encodeURIComponent)   (salud:leer: administrador, maestro del grupo)
+//        (la forma vieja `?motivo=` se acepta, pero deja el motivo en la dirección: no la uses)
 //   PUT /api/salud/:sujeto_tipo/:sujeto_id   { motivo, <campo>?: valor | null }   (salud:escribir)
 //   GET /api/salud-accesos?sujeto_id=&usuario_id=&resultado=   (registro_cambios:leer: administrador) quién vio a quién
 //
@@ -26,7 +27,26 @@ import { booleano, enumerado, nulable, objeto, opcional, parsear, parsearQuery, 
 
 const SUJETOS = ["prospecto", "alumno"] as const;
 const esquemaRuta = objeto({ sujeto_tipo: enumerado(SUJETOS), sujeto_id: uuid() });
-const esquemaLectura = objeto({ motivo: texto({ min: 3, max: 300 }), campos: opcional(texto({ max: 200 })) });
+const esquemaLectura = objeto({ motivo: opcional(texto({ min: 3, max: 300 })), campos: opcional(texto({ max: 200 })) });
+const esquemaMotivo = objeto({ motivo: texto({ min: 3, max: 300 }) });
+
+/**
+ * El motivo de la consulta (V10 / EB-21): viaja en la cabecera `X-Motivo-De-Consulta` (con `encodeURIComponent`, porque una cabecera no lleva acentos), no en la URL: las
+ * direcciones quedan en los registros del balanceador, del navegador y de cualquier intermediario, y el motivo lo escribe una persona (puede ser una frase libre). La
+ * forma vieja `?motivo=` se sigue aceptando para quien ya la usa, pero la interfaz ya no la manda.
+ */
+export const CABECERA_MOTIVO = "x-motivo-de-consulta";
+function motivoPedido(req: Request): string | undefined {
+  const h = req.get(CABECERA_MOTIVO);
+  if (h !== undefined) {
+    try {
+      return decodeURIComponent(h);
+    } catch {
+      throw validacion([{ campo: "motivo", mensaje: "El motivo de la consulta no se pudo leer" }]);
+    }
+  }
+  return typeof req.query["motivo"] === "string" ? req.query["motivo"] : undefined;
+}
 const esquemaEscritura = objeto({
   motivo: texto({ min: 3, max: 300 }),
   alergias: opcional(nulable(texto({ max: 2000 }))),
@@ -58,7 +78,13 @@ export function rutasDeSalud(deps: DepsApi): Router {
     } catch {
       return; // identificador mal formado: no hay sujeto a quien atribuir el intento
     }
-    const motivo = typeof req.query["motivo"] === "string" && req.query["motivo"].trim() ? req.query["motivo"].trim().slice(0, 300) : "(sin motivo)";
+    let pedido: string | undefined;
+    try {
+      pedido = motivoPedido(req);
+    } catch {
+      pedido = undefined; // una cabecera ilegible igual deja constancia del intento
+    }
+    const motivo = pedido !== undefined && pedido.trim() ? pedido.trim().slice(0, 300) : "(sin motivo)";
     await registrarDenegado(
       ctx.db,
       actorDe(ctx),
@@ -72,6 +98,7 @@ export function rutasDeSalud(deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const ruta = parsear(esquemaRuta, req.params);
     const q = parsearQuery(esquemaLectura, req.query);
+    const { motivo } = parsear(esquemaMotivo, { motivo: motivoPedido(req) });
     let campos: CampoSensible[] | undefined;
     if (q.campos !== undefined) {
       const pedidos = q.campos.split(",").map((c) => c.trim());
@@ -83,7 +110,7 @@ export function rutasDeSalud(deps: DepsApi): Router {
       const ficha = await leerSensible(
         ctx.db,
         actorDe(ctx),
-        { sujetoTipo: ruta.sujeto_tipo as SujetoSalud, sujetoId: ruta.sujeto_id, motivo: q.motivo, ruta: `GET ${req.baseUrl}${req.path}`, ...(campos ? { campos } : {}) },
+        { sujetoTipo: ruta.sujeto_tipo as SujetoSalud, sujetoId: ruta.sujeto_id, motivo, ruta: `GET ${req.baseUrl}${req.path}`, ...(campos ? { campos } : {}) },
         deps.sensibles,
       );
       const salida: Record<string, unknown> = {};

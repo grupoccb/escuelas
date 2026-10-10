@@ -82,6 +82,7 @@ export function rutasDeSalones(_deps: DepsApi): Router {
     const ctx = contextoDe(res);
     const e = parsear(esquemaAlta, req.body);
     const nombre = nombreDeSalon(e.nombre);
+    if (nombre === "") throw validacion([{ campo: "nombre", mensaje: "Escribe el nombre del salón (con letras o números)" }]);
     try {
       const creado = await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
         if (!(await tx.sucursal.findFirst({ where: { id: e.sucursal_id }, select: { id: true } }))) throw validacion([{ campo: "sucursal_id", mensaje: "La sucursal no existe" }]);
@@ -106,6 +107,7 @@ export function rutasDeSalones(_deps: DepsApi): Router {
     const cambios = parsear(esquemaCambio, req.body);
     if (Object.keys(cambios).length === 0) throw validacion([{ mensaje: "No hay nada que cambiar" }]);
     const nombre = cambios.nombre !== undefined ? nombreDeSalon(cambios.nombre) : undefined;
+    if (nombre === "") throw validacion([{ campo: "nombre", mensaje: "Escribe el nombre del salón (con letras o números)" }]);
     try {
       const salida = await transaccionConBloqueo(ctx.db, ctx.organizacionId, CANDADO_OCUPACION, async (tx) => {
         const antes = await tx.salon.findFirst({ where: { id }, select: SELECCION });

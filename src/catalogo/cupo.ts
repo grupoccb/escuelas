@@ -23,6 +23,16 @@ export interface Cupo {
 /** Cuántos lugares tiene ocupados un grupo. */
 export interface FuenteOcupacion {
   ocupados(db: Consultas, grupoId: string): Promise<number>;
+  /** Los ocupados de VARIOS grupos en una sola consulta (EC-23). Opcional: sin ella `ocupadosDeVarios` pregunta grupo por grupo. */
+  ocupadosPorGrupo?(db: Consultas, grupoIds: readonly string[]): Promise<Map<string, number>>;
+}
+
+/** Los ocupados de varios grupos: en una consulta si la fuente sabe, y si no, uno por uno (mismo resultado). */
+export async function ocupadosDeVarios(fuente: FuenteOcupacion, db: Consultas, grupoIds: readonly string[]): Promise<Map<string, number>> {
+  if (fuente.ocupadosPorGrupo) return fuente.ocupadosPorGrupo(db, grupoIds);
+  const salida = new Map<string, number>();
+  for (const id of grupoIds) salida.set(id, await fuente.ocupados(db, id));
+  return salida;
 }
 
 /** Ningún lugar está ocupado (solo pruebas). */
@@ -39,6 +49,14 @@ export class SinInscripciones implements FuenteOcupacion {
 export class InscripcionesActivas implements FuenteOcupacion {
   async ocupados(db: Consultas, grupoId: string): Promise<number> {
     return db.inscripcion.count({ where: { grupo_id: grupoId, estatus: "activa" } });
+  }
+
+  /** EC-23: una sola consulta para todos los grupos del catálogo (antes, una por grupo en cada mensaje del bot). */
+  async ocupadosPorGrupo(db: Consultas, grupoIds: readonly string[]): Promise<Map<string, number>> {
+    const salida = new Map<string, number>(grupoIds.map((id) => [id, 0]));
+    if (grupoIds.length === 0) return salida;
+    for (const f of await db.inscripcion.groupBy({ by: ["grupo_id"], where: { grupo_id: { in: [...grupoIds] }, estatus: "activa" }, _count: { _all: true } })) salida.set(f.grupo_id, f._count._all);
+    return salida;
   }
 }
 

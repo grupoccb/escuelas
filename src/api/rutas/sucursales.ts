@@ -12,7 +12,7 @@
 
 import { Router } from "express";
 import express from "express";
-import { esZonaHorariaValida } from "../../catalogo/organizacion.ts";
+import { zonaCanonica } from "../../catalogo/organizacion.ts";
 import { CANDADO_OCUPACION } from "../../catalogo/choques.ts";
 import { altaConAlcance } from "../../datos/alcance.ts";
 import { transaccionConBloqueo } from "../../datos/bloqueos.ts";
@@ -57,8 +57,12 @@ const esquemaRelacion = objeto({ id: uuid(), vertical_id: uuid() });
 const esquemaOfrece = objeto({ activo: opcional(booleano()) });
 
 const repetido = () => conflicto("Ya existe una sucursal con ese nombre", [{ campo: "nombre", mensaje: "Ya está en uso" }]);
-function exigirZona(z: string | undefined): void {
-  if (z !== undefined && !esZonaHorariaValida(z)) throw validacion([{ campo: "zona_horaria", mensaje: "No es una zona horaria conocida (por ejemplo, America/Mexico_City)" }]);
+/** La zona con la escritura oficial (`america/mexico_city` se guarda como `America/Mexico_City`); 400 si no existe. */
+function exigirZona<T extends string | undefined>(z: T): T {
+  if (z === undefined) return z;
+  const canonica = zonaCanonica(z);
+  if (canonica === null) throw validacion([{ campo: "zona_horaria", mensaje: "No es una zona horaria conocida (por ejemplo, America/Mexico_City)" }]);
+  return canonica as T;
 }
 
 export function rutasDeSucursales(_deps: DepsApi): Router {
@@ -84,8 +88,8 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
 
   r.post("/sucursales", requierePermiso("catalogo:escribir"), json, async (req, res) => {
     const ctx = contextoDe(res);
-    const e = parsear(esquemaAlta, req.body);
-    exigirZona(e.zona_horaria);
+    const e = { ...parsear(esquemaAlta, req.body) };
+    e.zona_horaria = exigirZona(e.zona_horaria);
     try {
       const creada = await ctx.db.$transaction(async (tx) => {
         const s = await tx.sucursal.create({ data: altaConAlcance({ nombre: e.nombre, direccion: e.direccion ?? null, zona_horaria: e.zona_horaria, activo: e.activo ?? true }), select: SELECCION });
@@ -102,9 +106,9 @@ export function rutasDeSucursales(_deps: DepsApi): Router {
   r.patch("/sucursales/:id", requierePermiso("catalogo:escribir"), json, async (req, res) => {
     const ctx = contextoDe(res);
     const { id } = parsear(esquemaId, req.params);
-    const c = parsear(esquemaCambio, req.body);
+    const c = { ...parsear(esquemaCambio, req.body) };
     if (Object.keys(c).length === 0) throw validacion([{ mensaje: "No hay nada que cambiar" }]);
-    exigirZona(c.zona_horaria);
+    if (c.zona_horaria !== undefined) c.zona_horaria = exigirZona(c.zona_horaria);
     try {
       const salida = await ctx.db.$transaction(async (tx) => {
         const antes = await tx.sucursal.findFirst({ where: { id }, select: SELECCION });

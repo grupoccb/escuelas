@@ -45,7 +45,7 @@ export function MoverEtapa({ lead, etapas, motivos, abierto, alCerrar, alMover }
   return (
     <Dialogo abierto={abierto && lead !== null} titulo={`Mover a ${lead?.nombre ?? "lead"}`} alCerrar={cerrar}>
       <p className="muted">Ahora está en: <strong>{actual?.nombre ?? "—"}</strong></p>
-      <form
+      <form noValidate
         className="formulario"
         onSubmit={(e) => {
           e.preventDefault();

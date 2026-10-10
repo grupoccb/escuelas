@@ -114,7 +114,7 @@ export async function estadoDeCuentaDeFamilia(db: Consultas, tutorId: string, ah
   const hoy = await hoyDeCadaSucursal(db, ahora);
   const filas = await db.cargo.findMany({
     where: { tutor_id: tutorId },
-    orderBy: [{ fecha_vencimiento: "asc" }, { creado_en: "asc" }, { id: "asc" }],
+    orderBy: [{ fecha_vencimiento: "asc" }, { concepto: "asc" }, { creado_en: "asc" }, { id: "asc" }], // el mismo orden de antigüedad que el reparto de un pago (`compararAntiguedad`; el enum `concepto_cargo` ordena inscripción, mensualidad, evento, producto)
     select: { id: true, alumno_id: true, inscripcion_id: true, sucursal_id: true, concepto: true, periodo: true, descripcion: true, monto_final: true, monto_pagado: true, fecha_vencimiento: true, estatus: true, alumno: { select: { id: true, nombre: true, apellidos: true } } },
   });
   const porAlumno = new Map<string, { alumno: { id: string; nombre: string; apellidos: string }; items: ReturnType<typeof cargoDeCuenta>[] }>();

@@ -150,7 +150,7 @@ export class EnvioAInstructores {
       const horario = ventanaDeLaOrganizacion(acotado({ inicioMin: config.horarioEnvioInicioMin, finMin: config.horarioEnvioFinMin }));
       const motivo = evaluarReglas({
         // `en_atencion_humana` no aplica a un instructor: la conversación es siempre del sistema.
-        conv: { estado: "bot", ventana_servicio_hasta: ci?.ventana_servicio_hasta ?? null, dado_de_baja: await estaDadoDeBaja(tx, telefono, "todo"), dado_de_baja_marketing: false },
+        conv: { estado: "bot", ventana_servicio_hasta: ci?.ventana_servicio_hasta ?? null, dado_de_baja: await estaDadoDeBaja(tx, telefono, "todo"), dado_de_baja_marketing: await estaDadoDeBaja(tx, telefono, "marketing") },
         tipo: "mensaje",
         origen: "automatizacion",
         ahora,

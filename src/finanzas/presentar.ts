@@ -5,6 +5,7 @@ import type { BaseDatos, Consultas } from "../datos/alcance.ts";
 import { aTexto, deDecimal } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { diasDeAtraso, estatusEfectivo, saldoDe, type EstatusDeCargo } from "./cargos.ts";
+import { claveDeCargo, compararAntiguedad, type ConceptoOrdenable } from "./distribucion.ts";
 
 export const SELECCION_CARGO = {
   id: true,
@@ -101,9 +102,11 @@ export const SELECCION_PAGO = {
   motivo_cancelacion: true,
   creado_en: true,
   registrado_por: { select: { id: true, nombre: true } },
+  // Sin `orderBy`: el orden NO lo da la base. Las aplicaciones de un pago nacen en la misma transacción y su `creado_en` (milisegundos) se repite; con un empate la base las
+  // devuelve en su orden físico, que cambia con el espacio libre que dejan las cancelaciones (V10: la causa de la prueba intermitente de pagos parciales). `presentarPago` las ordena
+  // por la antigüedad del cargo (`compararAntiguedad`).
   aplicaciones: {
-    orderBy: { creado_en: "asc" },
-    select: { id: true, cargo_id: true, monto_aplicado: true, estatus: true, revertida_en: true, cargo: { select: { concepto: true, periodo: true, descripcion: true, alumno: { select: { id: true, nombre: true } } } } },
+    select: { id: true, cargo_id: true, monto_aplicado: true, estatus: true, revertida_en: true, cargo: { select: { concepto: true, periodo: true, descripcion: true, fecha_vencimiento: true, creado_en: true, alumno: { select: { id: true, nombre: true } } } } },
   },
 } as const;
 
@@ -128,7 +131,7 @@ export interface FilaDePago {
     monto_aplicado: Decimal2;
     estatus: string;
     revertida_en: Date | null;
-    cargo: { concepto: string; periodo: string | null; descripcion: string | null; alumno: { id: string; nombre: string } };
+    cargo: { concepto: ConceptoOrdenable; periodo: string | null; descripcion: string | null; fecha_vencimiento: Date; creado_en: Date; alumno: { id: string; nombre: string } };
   }[];
 }
 
@@ -146,16 +149,18 @@ export function presentarPago(f: FilaDePago) {
     cancelado_en: f.cancelado_en,
     motivo_cancelacion: f.motivo_cancelacion,
     creado_en: f.creado_en,
-    aplicaciones: f.aplicaciones.map((a) => ({
-      id: a.id,
-      cargo_id: a.cargo_id,
-      monto: aTexto(deDecimal(a.monto_aplicado)),
-      estatus: a.estatus,
-      revertida_en: a.revertida_en,
-      concepto: a.cargo.concepto,
-      periodo: a.cargo.periodo,
-      descripcion: a.cargo.descripcion,
-      alumno: a.cargo.alumno,
-    })),
+    aplicaciones: [...f.aplicaciones]
+      .sort((a, b) => compararAntiguedad(claveDeCargo({ ...a.cargo, id: a.cargo_id }), claveDeCargo({ ...b.cargo, id: b.cargo_id })))
+      .map((a) => ({
+        id: a.id,
+        cargo_id: a.cargo_id,
+        monto: aTexto(deDecimal(a.monto_aplicado)),
+        estatus: a.estatus,
+        revertida_en: a.revertida_en,
+        concepto: a.cargo.concepto,
+        periodo: a.cargo.periodo,
+        descripcion: a.cargo.descripcion,
+        alumno: a.cargo.alumno,
+      })),
   };
 }

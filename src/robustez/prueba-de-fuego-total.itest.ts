@@ -81,6 +81,13 @@ after(async () => {
   await prisma.$disconnect();
 });
 
+// V10 / EK-24: la sucursal nueva vive en una zona que NO es la del servidor ni UTC, y su clase es a las 19:00 locales: en UTC ya es el día siguiente (00:00). Así, cualquier cálculo que use
+// UTC en lugar de la zona de la sucursal (la fecha de la sesión, el pase de lista, el rango por día de un reporte, el aviso al maestro) se nota en esta prueba.
+const ZONA_NUEVA = "America/Bogota";
+const HORA_LOCAL = 19 * 60;
+const horaLocal = (d: Date): string => new Intl.DateTimeFormat("en-GB", { timeZone: ZONA_NUEVA, hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+const diaLocal = (d: Date): string => new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_NUEVA, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+
 test("K1: una escuela recién nacida, un administrador y SOLO la API de administración: una sucursal y una vertical nuevas operan de punta a punta", { timeout: 300_000 }, async () => {
   const db = conAlcance(prisma, orgId);
   assert.equal(await db.vertical.count({}), 0, "parte de cero: ninguna vertical");
@@ -90,7 +97,7 @@ test("K1: una escuela recién nacida, un administrador y SOLO la API de administ
   // ── Administración ────────────────────────────────────────────────────────────────────────────────
   const vertical = await admin.post<{ id: string; slug: string } & Err>("/api/verticales", { nombre: "Disciplina Nueva", etiqueta_progresion: "Grado", usa_progresion: true, cotizador_whatsapp_activo: true, clase_muestra_whatsapp_activo: true });
   assert.equal(vertical.estado, 201, motivo(vertical));
-  const sucursal = await admin.post<{ id: string } & Err>("/api/sucursales", { nombre: "Sede Nueva", direccion: "Calle de prueba 1", zona_horaria: "America/Mexico_City" });
+  const sucursal = await admin.post<{ id: string } & Err>("/api/sucursales", { nombre: "Sede Nueva", direccion: "Calle de prueba 1", zona_horaria: ZONA_NUEVA });
   assert.equal(sucursal.estado, 201, motivo(sucursal));
   assert.equal((await admin.put(`/api/sucursales/${sucursal.cuerpo.id}/verticales/${vertical.cuerpo.id}`, {})).estado, 200);
 
@@ -125,7 +132,7 @@ test("K1: una escuela recién nacida, un administrador y SOLO la API de administ
     cupo_maximo: 12,
     salon_id: salon.cuerpo.id,
     instructor_id: instructor.id,
-    horarios: [{ dia_semana: 1, hora_inicio_min: 960, hora_fin_min: 1020 }, { dia_semana: 3, hora_inicio_min: 960, hora_fin_min: 1020 }],
+    horarios: [{ dia_semana: 1, hora_inicio_min: HORA_LOCAL, hora_fin_min: HORA_LOCAL + 60 }, { dia_semana: 3, hora_inicio_min: HORA_LOCAL, hora_fin_min: HORA_LOCAL + 60 }],
   });
   assert.equal(grupo.estado, 201, motivo(grupo));
 
@@ -240,6 +247,10 @@ test("K1: una escuela recién nacida, un administrador y SOLO la API de administ
   const clase = await db.clase_muestra.findFirstOrThrow({ where: { lead_id: leadWa.id, estatus: "agendada" } });
   assert.equal(clase.agendada_por, "bot");
   assert.equal(clase.grupo_id, grupo.cuerpo.id);
+  // EK-24: la sesión que el bot ofreció es a las 19:00 de la zona de la sucursal (00:00 UTC del día siguiente), lunes o miércoles allá.
+  assert.equal(horaLocal(clase.fecha_hora), "19:00");
+  assert.equal(clase.fecha_hora.getUTCHours(), 0, "en UTC ya es el día siguiente");
+  assert.ok([1, 3].includes(new Date(`${diaLocal(clase.fecha_hora)}T12:00:00Z`).getUTCDay()), "lunes o miércoles según el calendario de la sucursal");
   assert.equal((await db.conversacion.findFirstOrThrow({ where: { chatwoot_conversacion_id: conversacion } })).estado, "en_atencion_humana", "la conversación pasa a una persona");
 
   // ── El maestro y su aviso ────────────────────────────────────────────────────────────────────────
@@ -247,6 +258,7 @@ test("K1: una escuela recién nacida, un administrador y SOLO la API de administ
   assert.ok(hoy.cuerpo.datos.some((c) => c.id === clase.id), "el maestro ve la clase de su grupo nuevo");
   const avisos = await maestro.get<{ datos: { tipo: string }[] }>("/api/maestro/avisos");
   assert.ok(avisos.cuerpo.datos.some((a) => a.tipo === "agendada"), "y su aviso");
+  assert.ok(JSON.stringify(avisos.cuerpo.datos).includes("19:00"), "el aviso al maestro dice la hora de la sucursal, no la de UTC");
 
   // ── La clase: registro del maestro, asistencia, aceptaciones, listo para cerrar ──────────────────
   reloj.ahora = new Date(clase.fecha_hora.getTime() + 30 * 60_000);
@@ -276,6 +288,14 @@ test("K1: una escuela recién nacida, un administrador y SOLO la API de administ
   const { tutor_id: tutorId, alumnos } = conversion.cuerpo;
   const inscripcion = await asesor.get<{ precio_inscripcion_aplicado: string; precio_mensualidad_aplicado: string; descuento_inscripcion_aplicado: string }>(`/api/inscripciones/${alumnos[0]!.inscripcion.id}`);
   assert.deepEqual([inscripcion.cuerpo.precio_inscripcion_aplicado, inscripcion.cuerpo.precio_mensualidad_aplicado, inscripcion.cuerpo.descuento_inscripcion_aplicado], ["300.00", "800.00", "300.00"], "precio congelado y promoción aplicada");
+
+  // ── EK-24: el pase de lista de la sucursal nueva y el rango por día de los reportes usan SU zona ────
+  const sesionLocal = diaLocal(clase.fecha_hora);
+  const pase = await maestro.pedir<{ creadas?: number; error?: unknown }>("PUT", `/api/grupos/${grupo.cuerpo.id}/pase`, { fecha: sesionLocal, asistencias: [{ inscripcion_id: alumnos[0]!.inscripcion.id, estatus: "presente" }] });
+  assert.equal(pase.estado, 200, `el pase del día local de la sesión (${sesionLocal}): ${JSON.stringify(pase.cuerpo)}`);
+  const reporte = await admin.get<{ resumen?: { agendadas?: number }; total?: { agendadas?: number } }>(`/api/reportes/clases-muestra?desde=${sesionLocal}&hasta=${sesionLocal}&sucursal_id=${sucursal.cuerpo.id}`);
+  assert.equal(reporte.estado, 200, motivo(reporte));
+  assert.ok(/"agendadas":[1-9]/.test(JSON.stringify(reporte.cuerpo)), `el reporte del día LOCAL de la sucursal cuenta la clase (a las 19:00 locales): ${JSON.stringify(reporte.cuerpo).slice(0, 300)}`);
 
   // ── Cargos, pago, beneficio y expediente ─────────────────────────────────────────────────────────
   const cargos = (await recepcion.get<{ datos: { id: string; concepto: string; monto_final: string; saldo: string }[] }>(`/api/cargos?tutor_id=${tutorId}&limite=50`)).cuerpo.datos;

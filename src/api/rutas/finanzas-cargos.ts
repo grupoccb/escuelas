@@ -81,7 +81,7 @@ export function rutasDeCargos(_deps: DepsApi): express.Router {
       await paginar(
         pag,
         () => ctx.db.cargo.count({ where }),
-        async (saltar, tomar) => (await ctx.db.cargo.findMany({ where, select: SELECCION_CARGO, orderBy: [{ fecha_vencimiento: "asc" }, { creado_en: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentarCargo(f as unknown as FilaDeCargo, hoy)),
+        async (saltar, tomar) => (await ctx.db.cargo.findMany({ where, select: SELECCION_CARGO, orderBy: [{ fecha_vencimiento: "asc" }, { concepto: "asc" }, { creado_en: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentarCargo(f as unknown as FilaDeCargo, hoy)),
       ),
     );
   });

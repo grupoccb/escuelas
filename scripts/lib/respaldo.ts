@@ -170,19 +170,26 @@ export interface OpcionesDeRespaldo {
   /** Cuántos respaldos de esta base se conservan (los más recientes); los demás se borran. 0 o ausente = todos. */
   retener?: number;
   ahora?: Date;
+  /** Solo para pruebas: corre justo DESPUÉS de contar las filas y ANTES de lanzar `pg_dump` (el hueco en el que un sistema vivo sigue escribiendo). */
+  alContarLasFilas?: () => Promise<void>;
 }
 
 const sello = (d: Date): string => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z").replace("T", "-");
+
+/** Cuenta las filas de cada tabla y las migraciones aplicadas con una conexión ya abierta (dentro de la transacción que ella tenga). */
+async function contarFilasEn(c: pg.Client): Promise<{ filas: Record<string, number>; migraciones: number }> {
+  const tablas = (await c.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")).rows.map((r) => r.tablename);
+  const filas: Record<string, number> = {};
+  for (const t of tablas) filas[t] = Number((await c.query<{ n: string }>(`SELECT count(*) AS n FROM "${t.replace(/"/g, '""')}"`)).rows[0]!.n);
+  const migraciones = tablas.includes("_prisma_migrations") ? Number((await c.query<{ n: string }>("SELECT count(*) AS n FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL")).rows[0]!.n) : 0;
+  return { filas, migraciones };
+}
 
 export async function contarFilasPorTabla(url: string): Promise<{ filas: Record<string, number>; migraciones: number }> {
   const c = new pg.Client({ connectionString: url });
   await c.connect();
   try {
-    const tablas = (await c.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")).rows.map((r) => r.tablename);
-    const filas: Record<string, number> = {};
-    for (const t of tablas) filas[t] = Number((await c.query<{ n: string }>(`SELECT count(*) AS n FROM "${t.replace(/"/g, '""')}"`)).rows[0]!.n);
-    const migraciones = tablas.includes("_prisma_migrations") ? Number((await c.query<{ n: string }>("SELECT count(*) AS n FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL")).rows[0]!.n) : 0;
-    return { filas, migraciones };
+    return await contarFilasEn(c);
   } finally {
     await c.end();
   }
@@ -196,10 +203,25 @@ export async function respaldar(o: OpcionesDeRespaldo): Promise<{ archivo: strin
   const base = `${con.base}-${sello(ahora)}.dump${o.frase ? ".enc" : ""}`;
   const final = join(o.directorio, base);
   const parcial = `${final}.parcial`;
-  const antes = await contarFilasPorTabla(o.url);
-
-  const dump = lanzarHerramienta("pg_dump", ["-Fc", "--no-owner", "--no-acl", "-d", con.base], con);
-  const termino = esperar(dump, "pg_dump");
+  // V10 (EK-23): el conteo y el respaldo salen de LA MISMA foto de la base. Antes se contaba y luego se respaldaba: con el sistema vivo entraban filas en medio y, al restaurar,
+  // los conteos de la restaurada no coincidían con los del respaldo (falsa alarma). Una transacción de lectura exporta su foto (`pg_export_snapshot`), cuenta con ella y
+  // `pg_dump --snapshot` respalda esa misma foto; la transacción se queda abierta hasta que termina el volcado.
+  const foto = new pg.Client({ connectionString: o.url });
+  await foto.connect();
+  let antes: { filas: Record<string, number>; migraciones: number };
+  let dump: ChildProcess;
+  let termino: Promise<void>;
+  try {
+    await foto.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const instantanea = (await foto.query<{ s: string }>("SELECT pg_export_snapshot() AS s")).rows[0]!.s;
+    antes = await contarFilasEn(foto);
+    await o.alContarLasFilas?.();
+    dump = lanzarHerramienta("pg_dump", ["-Fc", "--no-owner", "--no-acl", `--snapshot=${instantanea}`, "-d", con.base], con);
+    termino = esperar(dump, "pg_dump");
+  } catch (e) {
+    await foto.end().catch(() => undefined);
+    throw e;
+  }
   const hash = createHash("sha256");
   const medir = new Transform({
     transform(trozo, _c, cb) {
@@ -218,6 +240,9 @@ export async function respaldar(o: OpcionesDeRespaldo): Promise<{ archivo: strin
       // ya no estaba
     }
     throw e;
+  } finally {
+    await foto.query("COMMIT").catch(() => undefined);
+    await foto.end().catch(() => undefined);
   }
   renameSync(parcial, final);
   const metadatos: MetadatosDeRespaldo = { formato: 1, base: con.base, creadoEn: ahora.toISOString(), cifrado: Boolean(o.frase), sha256: hash.digest("hex"), bytes: statSync(final).size, filasPorTabla: antes.filas, migraciones: antes.migraciones };

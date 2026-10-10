@@ -296,6 +296,23 @@ test("D2: la baja del teléfono del instructor se respeta (opt-out)", async () =
   assert.equal(await m.db.tarea_asesor.count(), 0, "quien pidió la baja no genera tarea de plantilla");
 });
 
+test("V10 / EG-10 (M11): la baja de MARKETING de un instructor frena un aviso solo si su plantilla es de marketing; los avisos de servicio (lo normal) siguen saliendo", async () => {
+  const m = await mundo();
+  await m.agendar();
+  await m.db.consentimiento.create({ data: altaConAlcance({ telefono: m.telefono, estado: "opt_out" as const, alcance: "marketing" as const, origen: "palabra_clave" }) });
+  // Plantilla de servicio: la baja de marketing no la toca.
+  const servicio = await m.barrer(AHORA);
+  assert.equal(servicio.enviados, 1, "el aviso de servicio sale");
+  // Una plantilla mal declarada como marketing sí se frena por esa baja.
+  await prisma.plantilla_mensaje.updateMany({ where: { organizacion_id: m.org.organizacionId, codigo: "aviso_maestro_reprogramada" }, data: { clase_mensaje: "marketing" } });
+  const clase = await m.db.clase_muestra.findFirstOrThrow({ where: { estatus: "agendada" } });
+  const r = await reprogramarClaseMuestra(m.db, m.ctx(), { claseId: clase.id, fechaHora: MIERCOLES_11 });
+  assert.ok(r.ok, JSON.stringify(r));
+  const frenado = await m.barrer(AHORA);
+  assert.equal(frenado.bloqueados, 1);
+  assert.deepEqual((await m.avisos()).filter((x) => x.tipo === "reprogramada").map((x) => [x.entrega, x.motivo_entrega]), [["bloqueado", "opt_out"]]);
+});
+
 test("D2 / ED-04: la frecuencia (3 automáticos al día por teléfono, configurable) frena los avisos a un instructor pero NO los pierde: se reintentan cada hora", async () => {
   const m = await mundo();
   await fijarConfiguracion(prisma, m.org.organizacionId, { max_automaticos_por_dia: 2 });
@@ -351,6 +368,31 @@ test("D2: sin teléfono solo queda la lista de la aplicación y una tarea para e
   assert.deepEqual([r.enviados, r.bloqueados], [0, 0]);
   assert.equal(m.transporte.envios.length, 0);
   assert.equal(await m.db.tarea_asesor.count({ where: { clase_muestra_id: claseId } }), 1);
+});
+
+test("V10 / V7-ASESOR-18: sin teléfono del maestro, agendar, reprogramar y cancelar dejan UNA sola tarea pendiente por familia (la de la clase más reciente), no una por cada cambio", async () => {
+  const m = await mundo({ conTelefono: false });
+  const claseId = await m.agendar();
+  const lead = (await m.db.clase_muestra.findFirstOrThrow({ where: { id: claseId } })).lead_id;
+  const pendientes = () => m.db.tarea_asesor.findMany({ where: { lead_id: lead, tipo: "aviso_maestro_no_enviado", estado: "pendiente" } });
+  assert.equal((await pendientes()).length, 1);
+  // Reprogramar crea el aviso «reprogramada» (y la clase nueva): la tarea es la misma, ahora de la clase nueva y con su fecha.
+  const r = await m.db.$transaction((tx) => reprogramarClaseMuestra(tx, m.ctx(), { claseId, fechaHora: MIERCOLES_11 }));
+  assert.ok(r.ok, JSON.stringify(r));
+  const tras = await pendientes();
+  assert.equal(tras.length, 1, "sigue siendo una");
+  assert.equal(tras[0]!.clase_muestra_id, r.clase.id, "ahora apunta a la clase más reciente");
+  assert.match(tras[0]!.descripcion, /no tiene teléfono registrado/);
+  // Cancelarla tampoco suma otra.
+  const c = await m.db.$transaction((tx) => cancelarClaseMuestra(tx, r.clase.id, null, AHORA, POR_UNA_PERSONA));
+  assert.ok(c.ok, JSON.stringify(c));
+  assert.equal((await pendientes()).length, 1);
+  assert.equal((await m.avisos()).length, 3, "los tres avisos sí quedan en la lista de la aplicación del maestro");
+  // Cuando la asesora resuelve la tarea, un aviso nuevo SÍ deja otra.
+  await m.db.tarea_asesor.updateMany({ where: { id: tras[0]!.id }, data: { estado: "hecha", resuelta_en: new Date() } });
+  const f = await sembrarFamilia(prisma, m.org, { sucursalId: m.org.sucursales[0]!.id });
+  await m.db.$transaction((tx) => agendarClaseMuestra(tx, m.ctx(), { prospectoId: f.prospectoId, grupoId: m.grupoId, fechaHora: MIERCOLES_11 }));
+  assert.equal(await m.db.tarea_asesor.count({ where: { tipo: "aviso_maestro_no_enviado", estado: "pendiente" } }), 1, "otra familia, otra tarea");
 });
 
 test("D2: en_atencion_humana NO aplica a un instructor (aunque su número sea también el de un contacto atendido por una persona)", async () => {

@@ -49,9 +49,9 @@ function TarjetaDeDocumento({ doc, estado, claseId, tutores, bloqueado, alCambia
   return (
     <div className="pila" data-prueba={`documento-${doc.tipo}`}>
       <div className="fila fila-entre">
-        <h3>
+        <h2 className="titulo-menor">
           {NOMBRE[doc.tipo]} (v{doc.version})
-        </h3>
+        </h2>
         <Insignia tono={estado?.al_corriente && aceptada ? "exito" : estado?.estado === "rechazada" || estado?.estado === "revocada" ? "peligro" : "alerta"}>
           {aceptada ? (estado?.al_corriente ? "Aceptado" : "Aceptó otra versión") : estado?.estado === "rechazada" ? "Rechazado" : estado?.estado === "revocada" ? "Revocado" : "Sin respuesta"}
         </Insignia>

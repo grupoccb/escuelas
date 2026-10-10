@@ -26,6 +26,19 @@ export function esZonaHorariaValida(zona: string): boolean {
   }
 }
 
+const ZONAS_POR_MINUSCULAS = new Map(Intl.supportedValuesOf("timeZone").map((z) => [z.toLowerCase(), z]));
+
+/**
+ * La zona con la escritura de la lista oficial («america/mexico_city» → «America/Mexico_City»); `null` si no es válida. V10 (EK-25): el runtime acepta cualquier combinación de
+ * mayúsculas y por eso se guardaban zonas escritas de varias formas, y la pantalla (que compara el texto exacto) no reconocía la de la sucursal. Solo corrige las
+ * mayúsculas: nunca cambia una zona por otra equivalente.
+ */
+export function zonaCanonica(zona: string): string | null {
+  const z = zona.trim();
+  if (!esZonaHorariaValida(z)) return null;
+  return ZONAS_POR_MINUSCULAS.get(z.toLowerCase()) ?? (z.toUpperCase() === "UTC" ? "UTC" : z);
+}
+
 /** Un color de marca `#RRGGBB` (el CHECK de la base lo repite). */
 export const PATRON_DE_COLOR = /^#[0-9A-Fa-f]{6}$/;
 

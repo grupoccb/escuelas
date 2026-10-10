@@ -6,6 +6,7 @@
 // EA-17: se niega a conectarse a una base cuyo nombre no termine en `_pruebas` o `_test`. Los tests
 // dejan organizaciones y datos propios; ya ocurrió una vez que corrieron contra la base de la demo.
 
+import pg from "pg";
 import { clienteSinAlcance, crearPrisma, type PrismaRaiz } from "../datos/prisma.ts";
 import type { PrismaClient } from "../generated/prisma/client.ts";
 
@@ -40,3 +41,23 @@ export function crearPrismaDePruebas(databaseUrl = process.env["DATABASE_URL"], 
   const raiz = crearPrisma(exigirBaseDePruebas(databaseUrl), maxConexiones);
   return clienteSinAlcance(raiz) as PrismaPruebas;
 }
+
+// V10 / EK-27: `pg` avisa (y en la versión 9 romperá) cuando se le pide una consulta a una conexión que todavía atiende otra. Dentro de una transacción de Prisma hay UNA sola
+// conexión: dos lecturas lanzadas a la vez con `Promise.all` sobre la misma transacción hacen justo eso. Cualquier prueba de integración que lo provoque ahora FALLA (el proceso
+// de su archivo sale con 1) en lugar de dejar el aviso perdido en la salida, y el mensaje dice QUÉ dos consultas chocaron. Lo que corre dentro de una transacción pide sus
+// consultas una tras otra.
+const choques: string[] = [];
+const consultaOriginal = pg.Client.prototype.query as (...a: unknown[]) => unknown;
+(pg.Client.prototype as unknown as { query: (...a: unknown[]) => unknown }).query = function (this: { activeQuery?: { text?: string } | null }, ...args: unknown[]) {
+  if (this.activeQuery) {
+    const nueva = typeof args[0] === "string" ? args[0] : ((args[0] as { text?: string } | undefined)?.text ?? "?");
+    choques.push(`ocupada con: ${(this.activeQuery.text ?? "?").slice(0, 160)}\n  se pidió: ${nueva.slice(0, 160)}`);
+  }
+  return consultaOriginal.apply(this, args);
+};
+process.on("warning", (aviso) => {
+  if (aviso.name === "DeprecationWarning" && /Calling client\.query\(\) when the client is already executing a query/.test(aviso.message)) {
+    console.error(`\n✗ EK-27: se pidió una consulta a una conexión de pg ocupada (dos consultas a la vez en una misma transacción). Pídelas una tras otra.\n  ${choques.at(-1) ?? "(sin detalle)"}`);
+    process.exitCode = 1;
+  }
+});

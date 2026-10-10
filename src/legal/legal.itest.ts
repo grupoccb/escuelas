@@ -199,7 +199,7 @@ test("D6: aceptar el reglamento — queda quién, cuándo, canal, quién lo capt
   const e = (await estado(asesor, c.id)).cuerpo;
   const reg = e.estado.find((x) => x.tipo === "reglamento")!;
   assert.deepEqual([reg.estado, reg.version_aceptada, reg.version_vigente, reg.al_corriente], ["aceptada", 1, 1, true]);
-  assert.equal(reg.texto, "Aceptó el reglamento v1 el 2026-11-10 (Rosa Mena, madre)");
+  assert.equal(reg.texto, "Aceptó el reglamento v1 el 10 de noviembre de 2026 (Rosa Mena, madre)");
   assert.equal(e.estado.find((x) => x.tipo === "uso_imagen")!.texto, "Todavía no responde a la autorización de uso de imagen");
   assert.equal(e.historial.length, 1);
   // Por la web se guardan IP y agente.
@@ -273,7 +273,7 @@ test("D6: la autorización de imagen se REVOCA con una fila nueva — la aceptac
   assert.equal(filas[0]!.canal, "presencial", "la aceptación original no cambió");
   const e = (await estado(asesor, c.id)).cuerpo.estado.find((x) => x.tipo === "uso_imagen")!;
   assert.deepEqual([e.estado, e.al_corriente], ["revocada", false]);
-  assert.match(e.texto, /^Revocó la autorización de uso de imagen v1 el 2026-11-10/);
+  assert.match(e.texto, /^Revocó la autorización de uso de imagen v1 el 10 de noviembre de 2026/);
   assert.equal((await aceptar(asesor, c.id, { ...imagen, resultado: "revocada" })).estado, 200, "revocar otra vez es lo mismo");
   assert.equal(await db().aceptacion_legal.count({ where: { prospecto_id: c.prospectoId, tipo: "uso_imagen" } }), 2);
   // Puede volver a autorizar: una fila más.
@@ -360,4 +360,20 @@ test("D6: permisos y alcance — recepción 403; el maestro de otro grupo y el a
   const cambios = await db().registro_cambio.findMany({ where: { entidad_tipo: "aceptacion_legal" } });
   assert.ok(cambios.length >= 1);
   assert.ok(!JSON.stringify(cambios).includes("Rosa Mena"));
+});
+
+test("V10 / V8: la fecha de la aceptación es el día de calendario de la SUCURSAL, no el día UTC: de noche en México no dice el día siguiente", async () => {
+  await montar();
+  const c = await clase();
+  // 9 de noviembre, 21:30 en la Ciudad de México = 10 de noviembre, 03:30 UTC.
+  await prisma.aceptacion_legal.create({
+    data: { organizacion_id: org.organizacionId, documento_id: docs.reglamento, tipo: "reglamento", version_aceptada: 1, resultado: "aceptada", lead_id: c.leadId, prospecto_id: c.prospectoId, aceptante_nombre: "Rosa Mena", aceptante_parentesco: "madre", canal: "presencial", aceptado_en: new Date("2026-11-10T03:30:00Z"), texto_hash: hash("Texto de prueba de reglamento, versión 1.") },
+  });
+  const reg = (await estado(asesor, c.id)).cuerpo.estado.find((x) => x.tipo === "reglamento")!;
+  assert.equal(reg.texto, "Aceptó el reglamento v1 el 9 de noviembre de 2026 (Rosa Mena, madre)", "el día que se vivió en México, escrito con letras");
+  // Con la sucursal en otra zona se lee su propio día.
+  await prisma.sucursal.update({ where: { id: org.sucursales[0]!.id }, data: { zona_horaria: "Asia/Tokyo" } });
+  const tokio = (await estado(asesor, c.id)).cuerpo.estado.find((x) => x.tipo === "reglamento")!;
+  assert.match(tokio.texto, /el 10 de noviembre de 2026/);
+  await prisma.sucursal.update({ where: { id: org.sucursales[0]!.id }, data: { zona_horaria: "America/Mexico_City" } });
 });

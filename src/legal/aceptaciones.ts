@@ -9,6 +9,7 @@
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
 import type { ValorJson } from "../datos/tipos.ts";
+import { fechaEnPalabras } from "../lib/horario.ts";
 import { documentoVigente, NOMBRE_DE_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from "./documentos.ts";
 
 export type ResultadoDeAceptacion = "aceptada" | "rechazada" | "revocada";
@@ -146,17 +147,18 @@ export interface EstadoLegalDeTipo {
   versionVigente: number | null;
   /** true si la última respuesta es a la versión vigente (o no hay versión vigente que responder). */
   alCorriente: boolean;
-  /** «Aceptó el reglamento v3 el 2026-11-10 (Rosa Mena, madre)». */
+  /** «Aceptó el reglamento v3 el 10 de noviembre de 2026 (Rosa Mena, madre)»: el día de la sucursal, en palabras. */
   texto: string;
 }
 
 /** El estado del prospecto frente a cada tipo de documento, con la frase lista para mostrar. */
-export async function estadoLegal(tx: Consultas | BaseDatos, prospectoId: string, verticalId: string | null, ahora: Date): Promise<EstadoLegalDeTipo[]> {
+export async function estadoLegal(tx: Consultas | BaseDatos, prospectoId: string, verticalId: string | null, ahora: Date, zonaHoraria: string): Promise<EstadoLegalDeTipo[]> {
   const salida: EstadoLegalDeTipo[] = [];
   for (const tipo of TIPOS_DE_DOCUMENTO) {
     const [ultima, vigente] = [await ultimaAceptacion(tx, prospectoId, tipo), await documentoVigente(tx, tipo, verticalId, ahora)];
     const quien = ultima ? [ultima.aceptanteNombre, ultima.aceptanteParentesco].filter(Boolean).join(", ") : null;
-    const dia = ultima ? ultima.aceptadoEn.toISOString().slice(0, 10) : null;
+    // V10 (V8): el día de la SUCURSAL en palabras. Antes era el día UTC en formato técnico: de noche en México decía el día siguiente («2026-10-10» siendo 9 de octubre).
+    const dia = ultima ? fechaEnPalabras(ultima.aceptadoEn, zonaHoraria) : null;
     const verbo = ultima?.resultado === "aceptada" ? "Aceptó" : ultima?.resultado === "rechazada" ? "Rechazó" : "Revocó";
     salida.push({
       tipo,

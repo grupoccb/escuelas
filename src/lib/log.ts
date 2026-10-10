@@ -18,9 +18,26 @@ const PROFUNDIDAD_MAXIMA = 6;
 /** Un número de teléfono dentro de un texto: 10 a 15 dígitos seguidos, sin letras, dígitos ni guiones pegados (así no toca UUID ni identificadores hexadecimales). */
 const TELEFONO_EN_TEXTO = /(?<![A-Za-z0-9_-])\+?\d{10,15}(?![A-Za-z0-9_-])/g;
 
-/** "Falló el envío a +525512345678 (whatsapp:5512345678)" → "Falló el envío a +52******5678 (whatsapp:551***5678)". */
+/**
+ * V10 (EK-21): un teléfono escrito con separadores («55 1234 5678», «(55) 1234-5678», «+52 55 1234 5678», «55-1234-5678»). Reglas para no tocar lo que no lo es: grupos de dígitos
+ * separados por UN espacio, punto o guion (con el primer grupo opcionalmente entre paréntesis), el ÚLTIMO grupo de exactamente cuatro dígitos, de 10 a 15 dígitos en total, sin
+ * letras, dígitos, dos puntos ni guiones pegados a los lados. No son teléfonos: una fecha con hora («2026-10-09 03:18:02»), una dirección IP, un UUID, una lista de números
+ * («10 20 30 40 50») ni un importe.
+ */
+const TELEFONO_CON_SEPARADORES = /(?<![A-Za-z0-9_.+-])(?:\+\d{1,3}[\s.-](?:\d[\s.-])?)?(?:\(\d{2,3}\)|\d{2,3})(?:[\s.-]\d{1,4}){1,4}[\s.-]\d{4}(?![A-Za-z0-9_:-]|[\s.-]\d)/g;
+
+function esTelefonoConSeparadores(candidato: string): boolean {
+  const digitos = candidato.replace(/\D/g, "");
+  if (digitos.length < 10 || digitos.length > 15) return false;
+  if (/^\d{4}-\d{2}-\d{2}\b/.test(candidato)) return false; // fecha ISO
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidato)) return false; // IPv4
+  return true;
+}
+
+/** "Falló el envío a +525512345678 (whatsapp:5512345678)" → "Falló el envío a +52******5678 (whatsapp:551***5678)"; «55 1234 5678» → «551***5678» (siempre se muestra solo el principio y los últimos cuatro). */
 export function enmascararTelefonosEnTexto(texto: string): string {
-  return texto.replace(TELEFONO_EN_TEXTO, (t) => enmascararTelefono(t) ?? "***");
+  const sinSeparadores = texto.replace(TELEFONO_EN_TEXTO, (t) => enmascararTelefono(t) ?? "***");
+  return sinSeparadores.replace(TELEFONO_CON_SEPARADORES, (t) => (esTelefonoConSeparadores(t) ? (enmascararTelefono(t.replace(/[^\d+]/g, "")) ?? "***") : t));
 }
 
 /** Copia del valor sin lo sensible. No muta el original. */

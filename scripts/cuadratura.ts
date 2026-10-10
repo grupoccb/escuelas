@@ -20,7 +20,16 @@ if (process.argv[1] && process.argv[1].endsWith("cuadratura.ts")) {
   try {
     const todas = await listarOrganizaciones(prisma);
     const elegidas = o.organizacion ? todas.filter((x) => x.id === o.organizacion || x.nombre === o.organizacion) : todas;
-    if (elegidas.length === 0) throw new Error(o.organizacion ? `No hay una organización «${o.organizacion}»` : "No hay organizaciones");
+    // V10 (EK-29): antes lanzaba una excepción con su traza (sobre una base sin organizaciones, que es lo normal en una instalación recién migrada). Una base sin organizaciones no tiene
+    // nada que cuadrar (sale 0 y lo dice); una organización pedida por nombre que no existe sí es un error de quien lo pidió (sale 1, sin traza).
+    if (elegidas.length === 0) {
+      if (o.organizacion) {
+        console.error(`No hay una organización «${o.organizacion}» en esta base.`);
+        malas++;
+      } else {
+        if (!o.json) console.log("No hay organizaciones en esta base: no hay nada que cuadrar.");
+      }
+    }
     const salida = [];
     for (const org of elegidas) {
       const r = await cuadratura(conAlcance(prisma, org.id));

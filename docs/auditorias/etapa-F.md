@@ -224,3 +224,7 @@ prisma migrate diff (E→F con datos / vacía→F)   No difference detected / No
 | EF-11, EF-14, EF-15, EF-18 a EF-25 | pendientes (BAJA) | — |
 
 Cada corrección lleva un test que falla con la mutación contraria (la lista, en la bitácora de noche 2, «Auditoría y correcciones de la etapa F»). `validar` (506/507) y `test:int` (836 a 853) salieron con exit 0 en cada commit de código.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

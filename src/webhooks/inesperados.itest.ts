@@ -707,3 +707,32 @@ test("EG-01 con Prisma y Postgres reales: una conexión matada en plena transacc
     }
   }
 });
+
+// ── V10 / EG-20: las constancias sin organización tienen tope por día y retención ───────────────────────
+
+test("EG-20: las constancias SIN organización tienen un tope por día (lo de más se acepta y se descarta, sin 500 ni fila) y las de más de 30 días se dan de baja", async () => {
+  const { registrarEventoInesperadoSinOrganizacion, RETENCION_SIN_ORGANIZACION_DIAS } = await import("../datos/sistema.ts");
+  const nuevo = (clave: string) => ({ origen: "chatwoot" as const, clave, causa: "json_invalido" as const, detalle: "prueba", forma: {} });
+  const ahora = new Date("2026-12-01T12:00:00Z");
+  const sufijo = randomBytes(6).toString("hex");
+  // La base de pruebas acumula constancias de otras corridas: el tope se fija relativo a lo que ya hay en las últimas 24 h de «ahora».
+  const yaHay = await prisma.evento_inesperado.count({ where: { organizacion_id: null, eliminado_en: null, creado_en: { gte: new Date(ahora.getTime() - 86_400_000) } } });
+  const tope = yaHay + 3;
+  const resultados = [];
+  for (let i = 0; i < 5; i++) resultados.push(await registrarEventoInesperadoSinOrganizacion(prisma, nuevo(`tope-${sufijo}-${i}`), { ahora, topePorDia: tope }));
+  assert.deepEqual(resultados.map((r) => [r.nuevo, r.descartado ?? false]), [[true, false], [true, false], [true, false], [false, true], [false, true]], "caben 3; las demás se descartan");
+  assert.equal(await prisma.evento_inesperado.count({ where: { clave: { startsWith: `tope-${sufijo}-` } } }), 3, "solo 3 filas");
+  // Un reintento de uno que ya está guardado NO cuenta contra el tope: suma intentos.
+  const repetido = await registrarEventoInesperadoSinOrganizacion(prisma, nuevo(`tope-${sufijo}-0`), { ahora, topePorDia: tope });
+  assert.deepEqual([repetido.nuevo, repetido.descartado ?? false], [false, false]);
+  assert.equal((await prisma.evento_inesperado.findFirstOrThrow({ where: { clave: `tope-${sufijo}-0` } })).intentos, 2);
+  // Retención: pasados 30 días se dan de baja (borrado lógico, nunca físico).
+  const despues = new Date(ahora.getTime() + (RETENCION_SIN_ORGANIZACION_DIAS + 1) * 86_400_000);
+  await registrarEventoInesperadoSinOrganizacion(prisma, nuevo(`retencion-${sufijo}`), { ahora: despues, topePorDia: 1_000_000 });
+  const viejas = await prisma.evento_inesperado.findMany({ where: { clave: { startsWith: `tope-${sufijo}-` } } });
+  assert.equal(viejas.length, 3, "las filas siguen existiendo");
+  assert.ok(viejas.every((f) => f.eliminado_en !== null), "pero dadas de baja");
+  assert.equal((await prisma.evento_inesperado.findFirstOrThrow({ where: { clave: `retencion-${sufijo}` } })).eliminado_en, null, "la nueva sigue viva");
+  // Limpieza de lo que esta prueba dejó vivo para no pesar en otras: baja lógica (nunca DELETE).
+  await prisma.evento_inesperado.updateMany({ where: { clave: `retencion-${sufijo}` }, data: { eliminado_en: new Date() } });
+});

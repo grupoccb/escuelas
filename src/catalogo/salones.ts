@@ -2,9 +2,15 @@
 // mismo cuarto escrito distinto («Salón A», «salón a», «SALÓN  A», «Salon A») harían invisible un choque real.
 // La clave quita mayúsculas, acentos y espacios de más; dos salones de una sucursal con la misma clave son el mismo.
 
-/** El nombre como se guarda: sin espacios en los extremos y con los internos colapsados en uno solo. */
+/**
+ * Caracteres que no se ven (ancho cero, guion suave, controles bidireccionales…) y los «rellenos» Hangul: «Sala\u200B Uno» y «Sala Uno» se ven igual y no pueden ser dos
+ * salones (EF-18). Mismos que filtra la landing en los nombres de personas.
+ */
+const INVISIBLES = /\p{Cf}|[\u2028\u2029\u115F\u1160\u3164\uFFA0]|\u17B4|\u17B5|\u034F|\u180B|\u180C|\u180D/gu;
+
+/** El nombre como se guarda: sin caracteres invisibles, sin espacios en los extremos y con los internos colapsados en uno solo. */
 export function nombreDeSalon(nombre: string): string {
-  return nombre.replace(/\s+/gu, " ").trim();
+  return nombre.replace(INVISIBLES, "").replace(/\s+/gu, " ").trim();
 }
 
 /** La clave de comparación: minúsculas, sin acentos ni marcas, espacios colapsados. */

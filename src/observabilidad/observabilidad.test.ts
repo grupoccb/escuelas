@@ -174,3 +174,36 @@ test("el enmascarado no toca lo que no es un teléfono: UUID, fechas, identifica
   const sano = "lead 0053c588-a9dd-4cab-9367-9cf6e3aaf712 el 2026-10-09T07:00:00.000Z SM0123456789abcdef0123456789abcdef folio 12345 (9 dígitos: 123456789)";
   assert.equal(enmascararTelefonosEnTexto(sano), sano);
 });
+
+test("V10 / EK-21: el enmascarado ve también los teléfonos escritos con separadores, y sigue sin tocar fechas con hora, IP, UUID, listas de números ni importes", () => {
+  const mascara = enmascararTelefonosEnTexto;
+  assert.equal(mascara("llamó 55 1234 5678 ayer"), "llamó 551***5678 ayer");
+  assert.equal(mascara("(55) 1234-5678"), "551***5678");
+  assert.equal(mascara("55-1234-5678"), "551***5678");
+  assert.equal(mascara("55.1234.5678"), "551***5678");
+  assert.equal(mascara("+52 55 1234 5678"), "+52******5678");
+  assert.equal(mascara("+52 1 55 1234 5678"), "+52*******5678");
+  assert.equal(mascara("a 55 1234 5678, b 56 8765 4321."), "a 551***5678, b 568***4321.");
+  assert.equal(mascara("tel:55 1234 5678;"), "tel:551***5678;");
+  // Lo que NO es un teléfono queda tal cual.
+  for (const sano of [
+    "pasó el 2026-10-09 03:18:02 en el servidor",
+    "el 2026-10-09 a las 03:18",
+    "desde 192.168.100.200 y 10.0.0.1",
+    "lead 0053c588-a9dd-4cab-9367-9cf6e3aaf712",
+    "ids 10 20 30 40 50 y 1 2 3",
+    "total $1 234 567 pesos",
+    "versión 1.2.3.4",
+    "paso 12 de 34 5678",
+    "SM0123456789abcdef0123456789abcdef",
+  ]) assert.equal(mascara(sano), sano, sano);
+  // Ni un teléfono con separadores llega completo a un log.
+  const logs = colectarLogs();
+  try {
+    log.error("prueba", { detalle: "no se pudo avisar al (55) 1234-5678", error: new Error("falló para 55 8765 4321") });
+  } finally {
+    logs.detener();
+  }
+  const todo = logs.texto();
+  assert.ok(!todo.includes("1234-5678") && !todo.includes("8765 4321"), todo);
+});

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diaDeSemana, diaEnZona, edadEn, esFechaReal, formatearFecha, formatearFechaLarga, horaDeMinutos, hoyLocal, sumarDias } from "./fechas.ts";
+import { diaDeSemana, diaEnZona, edadEn, esFechaReal, formatearFecha, formatearFechaLarga, horaDeMinutos, hoyLocal, mensajeDeFechaDePago, sumarDias } from "./fechas.ts";
 
 test("formatos en español", () => {
   assert.equal(formatearFecha("2026-11-10"), "10 nov 2026");
@@ -29,4 +29,14 @@ test("el día de un instante depende de la zona de la sucursal, no de la del nav
   assert.equal(diaEnZona("2026-11-11T03:00:00.000Z", "America/Mexico_City"), "2026-11-10");
   assert.equal(diaEnZona("2026-11-11T03:00:00.000Z", "UTC"), "2026-11-11");
   assert.equal(diaEnZona("no es fecha", "UTC"), "");
+});
+
+test("V10: mensajeDeFechaDePago — vacía o de hoy hacia atrás está bien; el futuro y lo que no existe se dicen en español", () => {
+  assert.equal(mensajeDeFechaDePago("", "2026-10-09"), null);
+  assert.equal(mensajeDeFechaDePago("2026-10-09", "2026-10-09"), null);
+  assert.equal(mensajeDeFechaDePago("2026-09-30", "2026-10-09"), null);
+  assert.match(mensajeDeFechaDePago("2026-10-10", "2026-10-09") ?? "", /de mañana en adelante/);
+  assert.match(mensajeDeFechaDePago("2027-01-01", "2026-10-09") ?? "", /de mañana en adelante/);
+  assert.match(mensajeDeFechaDePago("2026-02-31", "2026-10-09") ?? "", /no existe/);
+  assert.match(mensajeDeFechaDePago("basura", "2026-10-09") ?? "", /no existe/);
 });

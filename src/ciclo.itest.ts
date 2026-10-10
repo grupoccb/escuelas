@@ -14,6 +14,7 @@ import { correrCiclo } from "./ciclo.ts";
 import { ENVIO_INCIERTO, MessagingProvider, ReenviadorTwilioFalso, TransporteFalso, crearBordeTwilio, type EventoEntrante } from "./mensajeria/index.ts";
 import { sembrarOrganizacion, type OrganizacionDePrueba } from "./testutil/semilla.ts";
 import { conGanchos, soloOrganizaciones } from "./testutil/carrera.ts";
+import { colectarLogs } from "./testutil/logs.ts";
 
 let prisma: PrismaPruebas;
 let siguiente = randomInt(1_000_000, 2_000_000_000);
@@ -281,4 +282,31 @@ test("EA-03: el ciclo reenvía los eventos de Twilio pendientes aunque la espera
   assert.equal(otro.twilio, null);
   assert.equal(otro.errores, 1);
   assert.ok(otro.espera && otro.motor);
+});
+
+test("V10 / EA-07: un ciclo con errores lo DICE (`ciclo_con_errores` con su cuenta) y uno sano no — es lo que cuenta la alarma «el barrido termina con errores varias veces seguidas»", async () => {
+  const o = await sembrarOrganizacion(prisma, "Ciclo con errores");
+  await contactoAMedias(o);
+  let consultas = 0;
+  const raiz = conGanchos(soloOrganizaciones(prisma, [o.organizacionId]), {
+    modelo: "organizacion",
+    operacion: "findMany",
+    antes: async () => {
+      if (++consultas === 2) throw new Error("la base se cayó al empezar el motor");
+    },
+  });
+  const ahora = despues(40 * MIN);
+  const logs = colectarLogs();
+  try {
+    const malo = await correrCiclo({ prisma: raiz, mensajeria: new MessagingProvider({ transporte: new TransporteFalso(), reloj: () => ahora }), reloj: () => ahora });
+    assert.equal(malo.errores, 1);
+    const sano = await correrCiclo({ prisma: soloOrganizaciones(prisma, [o.organizacionId]), mensajeria: new MessagingProvider({ transporte: new TransporteFalso(), reloj: () => ahora }), reloj: () => ahora });
+    assert.equal(sano.errores, 0);
+  } finally {
+    logs.detener();
+  }
+  const conErrores = logs.lineas.filter((l) => l.includes('"evento":"ciclo_con_errores"'));
+  assert.equal(conErrores.length, 1, "solo el ciclo malo lo dice");
+  assert.match(conErrores[0]!, /"errores":1/);
+  assert.equal(logs.lineas.filter((l) => l.includes('"evento":"ciclo_completado"')).length, 2, "los dos terminan (el barrido sigue corriendo)");
 });

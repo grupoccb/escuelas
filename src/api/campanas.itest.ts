@@ -158,3 +158,24 @@ test("EE-09 (C02): el código de un lead se usa una sola vez: cambiarle el tope 
   assert.equal((await prisma.codigo_rastreo.findFirstOrThrow({ where: { id: codigo.id } })).max_usos, 1);
   assert.equal((await admin.patch(`/api/codigos-rastreo/${codigo.id}`, { activo: false })).estado, 200);
 });
+
+test("V10 / EE-15: un código no se crea para una campaña apagada ni para una sucursal donde la vertical no se imparte (se avisa al crearlo, no cuando el QR ya está impreso)", async () => {
+  const c = (await crearCampana(admin, { nombre: "Apagada", origen: "facebook", vertical_id: org.verticalId, activo: false })).cuerpo;
+  const apagada = await crearCodigo(admin, { campana_id: c.id });
+  assert.equal(apagada.estado, 409, JSON.stringify(apagada.cuerpo));
+  assert.match(apagada.cuerpo.error.mensaje, /apagada/);
+  assert.equal((await db().codigo_rastreo.count({ where: { campana_id: c.id } })), 0, "no se guardó nada");
+  assert.equal((await admin.patch(`/api/campanas/${c.id}`, { activo: true })).estado, 200);
+  assert.equal((await crearCodigo(admin, { campana_id: c.id })).estado, 201, "encendida, ya se puede");
+
+  // Una sucursal activa de la organización donde la vertical NO se imparte.
+  const tercera = await prisma.sucursal.create({ data: { organizacion_id: org.organizacionId, nombre: "Sin esta vertical", zona_horaria: "America/Mexico_City" } });
+  const sinVertical = await crearCodigo(admin, { campana_id: c.id, sucursal_id: tercera.id });
+  assert.equal(sinVertical.estado, 400, JSON.stringify(sinVertical.cuerpo));
+  assert.equal(sinVertical.cuerpo.error.detalles?.[0]?.campo, "sucursal_id");
+  // También cuando la sucursal es la de la campaña (se hereda).
+  const heredada = (await crearCampana(admin, { nombre: "Heredada", origen: "presencial", vertical_id: org.verticalId, sucursal_id: tercera.id })).cuerpo;
+  assert.equal((await crearCodigo(admin, { campana_id: heredada.id })).estado, 400);
+  // Una donde sí se imparte sigue funcionando.
+  assert.equal((await crearCodigo(admin, { campana_id: c.id, sucursal_id: org.sucursales[0]!.id })).estado, 201);
+});

@@ -93,7 +93,7 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
   }
 
   async function verRegistrado() {
-    const ficha = await leer.ejecutar(() => api.get<FichaLeida>(`/api/salud/prospecto/${registro.prospecto_id}`, { motivo: motivo.trim() }));
+    const ficha = await leer.ejecutar(() => api.getConMotivo<FichaLeida>(`/api/salud/prospecto/${registro.prospecto_id}`, motivo));
     if (!ficha) return;
     const c = ficha.campos;
     setValores({
@@ -166,7 +166,7 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
         <CampoArea etiqueta="Alergias" autoComplete="off" autoCorrect="off" value={valores.alergias} onChange={(e) => poner("alergias", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("alergias", "salud.alergias")} />
         <CampoArea etiqueta="Condiciones médicas" autoComplete="off" autoCorrect="off" value={valores.condiciones_medicas} onChange={(e) => poner("condiciones_medicas", e.target.value)} ayuda="Si no tiene, escribe «Ninguna»." error={error("condiciones_medicas", "salud.condiciones_medicas")} />
         <CampoArea etiqueta="Medicamentos" autoComplete="off" autoCorrect="off" value={valores.medicamentos} onChange={(e) => poner("medicamentos", e.target.value)} ayuda="Si no toma, escribe «Ninguno»." error={error("medicamentos", "salud.medicamentos")} />
-        <h3>Contacto de emergencia</h3>
+        <h2 className="titulo-menor">Contacto de emergencia</h2>
         <CampoTexto etiqueta="Nombre del contacto" autoComplete="off" value={valores.contacto_nombre} onChange={(e) => poner("contacto_nombre", e.target.value)} error={error("contacto_nombre", "salud.contacto_emergencia", "salud.contacto_emergencia.nombre", "tutores")} />
         <CampoTexto etiqueta="Teléfono del contacto" type="tel" inputMode="tel" autoComplete="off" value={valores.contacto_telefono} onChange={(e) => poner("contacto_telefono", e.target.value)} error={error("contacto_telefono", "salud.contacto_emergencia.telefono")} />
         <CampoTexto etiqueta="Parentesco o relación (opcional)" autoComplete="off" value={valores.contacto_parentesco} onChange={(e) => poner("contacto_parentesco", e.target.value)} />

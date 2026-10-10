@@ -38,7 +38,7 @@ export default function AlumnosLista() {
 
   return (
     <Pagina titulo="Alumnos" subtitulo={esMaestro ? "Tus alumnos (sin datos de contacto de la familia ni importes)." : "Busca por nombre del alumno o por teléfono de un adulto de la familia."}>
-      <form className="formulario" onSubmit={buscar} role="search">
+      <form noValidate className="formulario" onSubmit={buscar} role="search">
         <div className="rejilla rejilla-2">
           <CampoTexto etiqueta={esMaestro ? "Nombre del alumno" : "Nombre o teléfono"} autoComplete="off" value={escrito} onChange={(e) => setEscrito(e.target.value)} />
           <CampoSelect

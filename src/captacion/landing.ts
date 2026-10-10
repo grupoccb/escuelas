@@ -20,6 +20,7 @@ import { transaccionConBloqueo } from "../datos/bloqueos.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { ValorJson } from "../datos/tipos.ts";
 import { resolverVerticalPublica } from "../datos/sistema.ts";
+import { etapaInicialDeLeads } from "../embudo/etapas.ts";
 import { registrarAltaDeLead } from "../embudo/historial.ts";
 import { type DocumentoLegal, documentoVigente } from "../legal/documentos.ts";
 import { registrarAceptacion } from "../legal/aceptaciones.ts";
@@ -124,17 +125,19 @@ export interface ErroresDelEnvio {
 
 const COMPACTAR = /\s+/g;
 /** Caracteres de formato invisibles (ancho cero, controles bidireccionales…): no son parte de un nombre y sirven para esconder texto (EE-12). */
-const INVISIBLES = /[\p{Cf}\u2028\u2029]/gu;
+const INVISIBLES = /\p{Cf}|[\u2028\u2029\u115F\u1160\u3164\uFFA0\u2800]|\u17B4|\u17B5|\u034F|\u180B|\u180C|\u180D/gu;
 /** Un nombre tiene al menos una letra o un número. */
 const CON_LETRAS = /[\p{L}\p{N}]/u;
 /** Direcciones web dentro de un nombre (EE-05): el bot las repetiría al contacto en su saludo. */
-const DIRECCION_WEB = /(?:https?:|www\.|:\/\/|[\p{L}\p{N}-]\.(?:com|net|org|mx|io|co|me|app|link|xyz|top|site|ly)\b)/iu;
+const DIRECCION_WEB = /(?:https?:|www\.|:\/\/|[\p{L}\p{N}-][.。｡](?:com|net|org|mx|io|co|me|app|link|xyz|top|site|ly)\b)/iu;
 const nombreLimpio = (t: unknown, max: number): string | null => {
   if (typeof t !== "string") return null;
   const limpio = sinControl(t.normalize("NFKC").replace(INVISIBLES, "")).replace(COMPACTAR, " ");
   return limpio.length >= 1 && limpio.length <= max && CON_LETRAS.test(limpio) ? limpio : null;
 };
-const raro = (t: string): boolean => /[<>]/.test(t) || DIRECCION_WEB.test(t);
+/** La misma dirección con espacios alrededor del punto («wa . me/123»): EF-24. Pide dos o más caracteres antes del punto para no rechazar «Nguyen T. Ly». */
+const DIRECCION_WEB_ESPACIADA = /[\p{L}\p{N}-]{2,}(?:\s+[.。｡]\s*|\s*[.。｡]\s+)(?:com|net|org|mx|io|co|me|app|link|xyz|top|site|ly)\b/iu;
+const raro = (t: string): boolean => /[<>]/.test(t) || DIRECCION_WEB.test(t) || DIRECCION_WEB_ESPACIADA.test(t);
 
 export type ResultadoDeValidacion = { ok: true; datos: DatosDelEnvio } | { ok: false; errores: ErroresDelEnvio };
 
@@ -204,9 +207,15 @@ export async function numeroDeContacto(db: BaseDatos | Consultas, verticalId: st
   return numeroParaEnlace(elegido?.numero_whatsapp);
 }
 
-/** Para el campo trampa (EE-10): el mismo enlace que un envío bueno, con un código al azar que NO se guarda. null si la vertical no tiene número. */
-export async function enlaceSimulado(prisma: PrismaRaiz, landing: Landing): Promise<string | null> {
-  const numero = await numeroDeContacto(conAlcance(prisma, landing.organizacionId), landing.verticalId, null);
+/**
+ * Para el campo trampa (EE-10): el mismo enlace que un envío bueno, con un código al azar que NO se guarda. null si la vertical no tiene número.
+ * EF-23: el número sale de la sucursal que el robot eligió en el formulario (como en un envío de verdad); con dos canales, usar siempre el general
+ * delataba la trampa.
+ */
+export async function enlaceSimulado(prisma: PrismaRaiz, landing: Landing, sucursalElegida?: unknown): Promise<string | null> {
+  const s = typeof sucursalElegida === "string" ? sucursalElegida.trim().toLowerCase() : "";
+  const elegida = landing.sucursales.length === 1 && s === "" ? landing.sucursales[0]! : landing.sucursales.find((x) => x.id === s);
+  const numero = await numeroDeContacto(conAlcance(prisma, landing.organizacionId), landing.verticalId, elegida?.id ?? null);
   return numero ? enlaceDeWhatsapp(numero, landing.nombre, generarCodigo()) : null;
 }
 
@@ -226,7 +235,7 @@ const comparable = (t: string): string => normalizarNombre(t).replaceAll("_", " 
 /** Registra el envío del formulario (ver la cabecera). Idempotente: repetirlo, o dos a la vez, deja UN lead, UN prospecto y UNA aceptación. */
 export async function registrarEnvioDeLanding(prisma: PrismaRaiz, landing: Landing, datos: DatosDelEnvio, parametros: ParametrosDeLanding, procedencia: Procedencia, ahora: Date): Promise<ResultadoDelEnvio> {
   const db = conAlcance(prisma, landing.organizacionId);
-  const etapaInicial = await db.etapa_pipeline.findFirst({ where: { es_ganado: false, es_perdido: false, OR: [{ tipo_sistema: null }, { tipo_sistema: { notIn: ["inscrito", "perdido"] } }] }, orderBy: { orden: "asc" }, select: { id: true } });
+  const etapaInicial = await etapaInicialDeLeads(db);
   if (!etapaInicial) return { ok: false, motivo: "sin_etapas" };
 
   const creado = await transaccionConBloqueo(db, landing.organizacionId, `landing:${landing.verticalId}:${datos.telefono}`, async (tx) => {

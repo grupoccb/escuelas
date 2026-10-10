@@ -119,6 +119,11 @@ export const api = {
   put: <T>(ruta: string, cuerpo: unknown) => pedir<T>("PUT", ruta, { cuerpo }),
   patch: <T>(ruta: string, cuerpo: unknown) => pedir<T>("PATCH", ruta, { cuerpo }),
   delete: <T>(ruta: string) => pedir<T>("DELETE", ruta),
+  /**
+   * Una consulta de salud: el motivo viaja en una cabecera (con `encodeURIComponent`, porque una cabecera no lleva acentos) y NUNCA en la dirección, que queda en los registros
+   * del navegador, del balanceador y de cualquier intermediario (EB-21).
+   */
+  getConMotivo: <T>(ruta: string, motivo: string) => pedir<T>("GET", ruta, { cabeceras: { "X-Motivo-De-Consulta": encodeURIComponent(motivo.trim()) } }),
 };
 
 export interface Pagina<T> {

@@ -3,7 +3,7 @@
 // Cada función recibe el texto de la celda ya recortado y devuelve el valor o un `mensaje` en español dicho a la persona que llena la hoja (sin términos técnicos). Los
 // mensajes empiezan en minúscula porque se muestran después de «Fila 7, columna “Cupo”: ». El dinero va en centavos exactos (`src/lib/dinero.ts`), nunca en flotantes.
 
-import { PATRON_DE_COLOR, esZonaHorariaValida } from "../organizacion.ts";
+import { PATRON_DE_COLOR, zonaCanonica } from "../organizacion.ts";
 import { MAXIMO_DECIMAL_12_2, deTexto } from "../../lib/dinero.ts";
 import { normalizarTelefono } from "../../lib/telefono.ts";
 
@@ -191,6 +191,7 @@ export const ZONAS_QUE_SE_ENTIENDEN = "Centro, Pacífico, Sonora, Noroeste o Qui
 export function leerZonaHoraria(texto: string): Leido<string> {
   const amigable = ZONAS_AMIGABLES[claveDeNombre(texto)];
   if (amigable) return bien(amigable);
-  if (esZonaHorariaValida(texto.trim())) return bien(texto.trim());
+  const canonica = zonaCanonica(texto);
+  if (canonica !== null) return bien(canonica);
   return mal(`«${texto}» no es una zona horaria que el sistema conozca. Escribe ${ZONAS_QUE_SE_ENTIENDEN} (para el resto del mundo, el nombre como America/Bogota).`);
 }

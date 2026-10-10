@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ordenDeAplicacion, proponerDistribucion, validarDistribucion, type CargoAbierto } from "./distribucion.ts";
 
-const c = (id: string, saldo: bigint, vence: string, creado = 0): CargoAbierto => ({ id, saldo, fechaVencimiento: vence, creadoEn: creado });
+const c = (id: string, saldo: bigint, vence: string, creado = 0, concepto: CargoAbierto["concepto"] = "mensualidad"): CargoAbierto => ({ id, saldo, fechaVencimiento: vence, creadoEn: creado, concepto });
 
 test("el orden es del más antiguo al más nuevo: vencimiento, luego creación, luego id; sin saldo no entra", () => {
   const orden = ordenDeAplicacion([c("d", 100n, "2026-12-01", 1), c("b", 100n, "2026-11-01", 5), c("a", 100n, "2026-11-01", 5), c("c", 100n, "2026-11-01", 2), c("z", 0n, "2026-01-01")]);
@@ -49,4 +49,19 @@ test("el reparto manual se valida: cargo ajeno, repetido, parte que pasa del sal
   assert.deepEqual(validarDistribucion(60000n, [{ cargoId: "b", monto: 60000n }], cargos), [{ motivo: "excede_el_saldo", cargoId: "b", saldo: 50000n }]);
   assert.deepEqual(validarDistribucion(100000n, [{ cargoId: "a", monto: 50000n }], cargos), [{ motivo: "no_suma_el_monto", suma: 50000n, monto: 100000n }]);
   assert.ok(validarDistribucion(0n, [{ cargoId: "a", monto: 0n }], cargos).some((p) => p.motivo === "monto_invalido"));
+});
+
+// V10 (causa raíz de la prueba intermitente de pagos): la inscripción y la primera mensualidad nacen en UN solo INSERT (misma hora de creación) y pueden vencer el mismo día;
+// el desempate por id (uuid al azar) dejaba al azar cuál se cubría primero. El concepto va ANTES de la creación y del id.
+test("a igual vencimiento y creación, la inscripción se cubre antes que la mensualidad, sin importar el id", () => {
+  // El id de la mensualidad ordena ANTES que el de la inscripción: sin el desempate por concepto saldría primero la mensualidad.
+  const mens = c("0000-mens", 100000n, "2026-11-10", 7, "mensualidad");
+  const insc = c("ffff-insc", 50000n, "2026-11-10", 7, "inscripcion");
+  const otra = c("0000-otra", 100000n, "2026-11-10", 7, "producto");
+  const esperado = ["ffff-insc", "0000-mens", "0000-otra"];
+  for (const p of [[mens, insc, otra], [otra, mens, insc], [insc, otra, mens], [otra, insc, mens]]) assert.deepEqual(ordenDeAplicacion(p).map((x) => x.id), esperado);
+  assert.deepEqual(proponerDistribucion(60000n, [mens, insc]), { ok: true, aplicaciones: [{ cargoId: "ffff-insc", monto: 50000n }, { cargoId: "0000-mens", monto: 10000n }] });
+  // El concepto solo desempata: el vencimiento y la creación siguen mandando.
+  assert.deepEqual(ordenDeAplicacion([c("i", 1n, "2026-11-11", 0, "inscripcion"), c("m", 1n, "2026-11-10", 9, "mensualidad")]).map((x) => x.id), ["m", "i"]);
+  assert.deepEqual(ordenDeAplicacion([c("i", 1n, "2026-11-10", 9, "inscripcion"), c("m", 1n, "2026-11-10", 2, "mensualidad")]).map((x) => x.id), ["i", "m"], "a igual vencimiento y concepto distinto, el concepto manda antes que la creación");
 });

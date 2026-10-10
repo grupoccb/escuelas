@@ -47,7 +47,7 @@ export function VistaDeSalud({ alumnoId }: { alumnoId: string }) {
   }, []);
 
   async function ver() {
-    const f = await leer.ejecutar(() => api.get<Ficha>(`/api/salud/alumno/${alumnoId}`, { motivo: motivo.trim() }));
+    const f = await leer.ejecutar(() => api.getConMotivo<Ficha>(`/api/salud/alumno/${alumnoId}`, motivo));
     if (!f) return;
     setFicha(f);
     setRestan(SEGUNDOS_VISIBLE);
@@ -73,7 +73,7 @@ export function VistaDeSalud({ alumnoId }: { alumnoId: string }) {
         Cada consulta queda registrada con tu nombre y el motivo. No se guardan en este dispositivo y se ocultan solos a los {SEGUNDOS_VISIBLE / 60} minutos.
       </Aviso>
       {!ficha ? (
-        <form
+        <form noValidate
           className="formulario"
           onSubmit={(e) => {
             e.preventDefault();

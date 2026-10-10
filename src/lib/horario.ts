@@ -61,3 +61,8 @@ export function fechaLocal(instante: Date, zonaHoraria: string): string {
   // «en-CA» da el orden AAAA-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone: zonaHoraria, year: "numeric", month: "2-digit", day: "2-digit" }).format(instante);
 }
+
+/** La fecha del instante en palabras, en el día de calendario de esa zona horaria: «9 de octubre de 2026». V10: el día de la escuela, no el del servidor ni el UTC. */
+export function fechaEnPalabras(instante: Date, zonaHoraria: string): string {
+  return new Intl.DateTimeFormat("es-MX", { timeZone: zonaHoraria, day: "numeric", month: "long", year: "numeric" }).format(instante);
+}

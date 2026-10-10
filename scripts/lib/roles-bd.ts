@@ -55,6 +55,9 @@ export async function prepararRolDeAplicacion(o: OpcionesDeRoles): Promise<{ rol
     await q(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
     const presentes = (await cliente.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)", [[...TABLAS_SOLO_ANEXAR]])).rows.map((r) => r.tablename);
     for (const t of presentes) await q(`REVOKE UPDATE ON ${await ident(t)} FROM ${app}`);
+    // V10 (EK-29): el historial de migraciones es del que migra. La aplicación solo lo LEE (`/salud/lista` comprueba que no haya migraciones pendientes); con UPDATE podía borrar el rastro
+    // de lo aplicado o marcar como aplicada una migración que no corrió.
+    if ((await cliente.query("SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = '_prisma_migrations'")).rowCount) await q(`REVOKE INSERT, UPDATE ON "_prisma_migrations" FROM ${app}`);
     // Lo que las migraciones futuras creen nace con lo mismo (esta función se vuelve a correr y quita el UPDATE de las tablas de solo anexar).
     await q(`ALTER DEFAULT PRIVILEGES FOR ROLE ${dueno} IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO ${app}`);
     await q(`ALTER DEFAULT PRIVILEGES FOR ROLE ${dueno} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${app}`);

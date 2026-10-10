@@ -22,6 +22,7 @@ import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion, type DetalleDeError } from "../errores.ts";
 import { cantidad, segun } from "../../lib/cantidad.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
+import { PLANTILLA_DE_AVISO } from "../../mensajeria/avisos-instructor.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
 import { booleano, booleanoDeTexto, entero, enumerado, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
@@ -176,6 +177,8 @@ export function rutasDePlantillas(_deps: DepsApi): Router {
     await ctx.db.$transaction(async (tx) => {
       const antes = (await tx.plantilla_mensaje.findFirst({ where: { id }, select: SELECCION })) as unknown as Fila | null;
       if (!antes) throw noEncontrado();
+      // V10 (EK-25): el aviso al maestro busca sus plantillas por código, no por una automatización; darlas de baja lo dejaba sin plantilla en silencio (cada aviso quedaba bloqueado).
+      if ((Object.values(PLANTILLA_DE_AVISO) as string[]).includes(antes.codigo)) throw conflicto("El aviso al maestro usa esta plantilla por su nombre: no se puede dar de baja. Si hay que cambiarla, edita su texto o apágala.");
       if (antes._count.automatizaciones > 0) throw conflicto(`La ${segun(antes._count.automatizaciones, "usa", "usan")} ${cantidad(antes._count.automatizaciones, "automatización", "automatizaciones")}: ${segun(antes._count.automatizaciones, "cámbiala", "cámbialas")} de plantilla antes de darla de baja`);
       await tx.plantilla_mensaje.update({ where: { id }, data: { eliminado_en: ctx.ahora() } });
       await registrarCambio(tx, ctx, { entidad: "plantilla_mensaje", entidadId: id, accion: "eliminar", antes: instantanea(antes) });

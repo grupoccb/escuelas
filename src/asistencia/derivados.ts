@@ -119,9 +119,14 @@ export async function recalcularDerivados(db: BaseDatos, p: { organizacionId: st
     const alerta = await transaccionConBloqueo(db, p.organizacionId, `racha:${inscripcionId}`, async (tx) => {
       const insc = await tx.inscripcion.findFirst({
         where: { id: inscripcionId },
-        select: { id: true, lead_id: true, alumno: { select: { nombre: true, apellidos: true } }, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } },
+        select: { id: true, lead_id: true, estatus: true, alumno: { select: { nombre: true, apellidos: true } }, grupo: { select: { programa: { select: { sucursal: { select: { zona_horaria: true } } } } } } },
       });
       if (!insc) return null;
+      // EG-17: una inscripción que ya no está activa (se congeló o se dio de baja antes de que llegara este recálculo) no genera tarea y la que tenía se descarta.
+      if (insc.estatus !== "activa") {
+        await tx.tarea_asesor.updateMany({ where: { inscripcion_id: inscripcionId, tipo: "faltas_consecutivas", estado: "pendiente" }, data: { estado: "descartada", resuelta_en: p.ahora } });
+        return null;
+      }
       const filas = (await tx.asistencia.findMany({ where: { inscripcion_id: inscripcionId }, select: { fecha: true, estatus: true } })).map((f) => ({ fecha: dateAFecha(f.fecha), estatus: f.estatus }));
       const { umbralFaltasConsecutivas: umbral } = await leerConfiguracion(tx);
       const d = calcularDerivados(filas, hoyEn(insc.grupo.programa.sucursal.zona_horaria, p.ahora));

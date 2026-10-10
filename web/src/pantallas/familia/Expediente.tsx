@@ -9,6 +9,7 @@ import { formatearFecha } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Cargando, EnlaceBoton, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
+import { Pestanas, propsDePanel } from "../../ui/Pestanas.tsx";
 import { AccionesDeInscripcion } from "./AccionesDeInscripcion.tsx";
 import type { AlumnoDeLista, Comercial, Economico, Expediente as Datos, Operativo, Trayectoria } from "./tipos.ts";
 import { ESTATUS_DE_ALUMNO, ESTATUS_DE_INSCRIPCION, TIPOS_DE_BENEFICIO, nombreCompleto, textoDeAntiguedad, textoDeElegibilidad } from "./vista.ts";
@@ -318,14 +319,8 @@ export default function Expediente() {
         </>
       }
     >
-      <div className="pestanas" role="tablist" aria-label="Secciones del expediente">
-        {pestanas.map((p) => (
-          <button key={p.id} type="button" role="tab" id={`pestana-${p.id}`} aria-selected={pestana === p.id} aria-controls={`panel-${p.id}`} onClick={() => setPestana(p.id)}>
-            {p.texto}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`pestana-${pestana}`}>
+      <Pestanas nombre="expediente" etiqueta="Secciones del expediente" pestanas={pestanas} activa={pestana} alCambiar={setPestana} />
+      <div {...propsDePanel("expediente", pestana)}>
         {pestana === "trayectoria" ? <PanelTrayectoria t={d.trayectoria} puedeEscribir={puede("inscripciones:escribir")} alCambiar={exp.recargar} /> : null}
         {pestana === "economico" && d.economico ? <PanelEconomico e={d.economico} /> : null}
         {pestana === "operativo" ? <PanelOperativo o={d.operativo} /> : null}

@@ -20,6 +20,19 @@ export async function etapaDeSistema(tx: Consultas, tipo: TipoSistemaEtapa): Pro
   return e ? { id: e.id, nombre: e.nombre, orden: e.orden, esGanado: e.es_ganado, esPerdido: e.es_perdido } : null;
 }
 
+/**
+ * La etapa en la que nace un lead: la primera (por orden) que no es de cierre, ni por su bandera (`es_ganado`, `es_perdido`) ni por su papel
+ * (`tipo_sistema` inscrito o perdido). Una sola regla para el bot y para la landing (EF-22: el bot solo miraba las banderas y una etapa de
+ * cierre marcada solo por su papel podía recibir a los leads nuevos).
+ */
+export async function etapaInicialDeLeads(tx: Consultas): Promise<{ id: string } | null> {
+  return tx.etapa_pipeline.findFirst({
+    where: { es_ganado: false, es_perdido: false, OR: [{ tipo_sistema: null }, { tipo_sistema: { notIn: ["inscrito", "perdido"] } }] },
+    orderBy: { orden: "asc" },
+    select: { id: true },
+  });
+}
+
 export interface OpcionesDeMovimiento {
   /** Por qué se mueve (queda en la interacción `cambio_etapa` y en el historial). */
   motivo: string;

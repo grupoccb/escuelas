@@ -152,6 +152,8 @@ export default function FichaLead() {
       <Ninos key={d.id} lead={d} puedeEscribir={escribir} cotizadorEncendido={moduloEncendido("cotizador")} alCambiar={recargar} alCotizar={(id) => setCotizandoA({ id, vez: Date.now() })} />
 
       <Tarjeta titulo="De dónde llegó">
+        {/* V10 (V7-ASESOR-19): lo que capturó el asistente también queda como nota privada en Chatwoot; aquí no se decía. */}
+        {d.conversaciones.length > 0 ? <p className="muted" data-prueba="aviso-resumen-del-asistente">Lo que el asistente capturó (nombre, edad, sucursal y de dónde llegó) está aquí y también como nota privada al inicio de la conversación en Chatwoot.</p> : null}
         <dl className="datos">
           <dt>Fuente</dt>
           <dd>{FUENTES[d.fuente] ?? d.fuente}</dd>

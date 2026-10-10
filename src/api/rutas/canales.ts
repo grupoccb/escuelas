@@ -1,7 +1,7 @@
 // Canales de WhatsApp y bandejas de Chatwoot (J7): a qué número llega cada vertical y en qué bandeja la atiende el asesor. Solo el administrador los ve y los escribe
 // (llevan identificadores del proveedor). Sin credenciales: el token de Twilio y el de Chatwoot viven en variables de entorno, nunca aquí.
 //
-//   GET    /api/canales-whatsapp                      (catalogo:escribir) — cada canal con su bandeja
+//   GET    /api/canales-whatsapp?limite=&pagina=      (catalogo:escribir) — cada canal con su bandeja (paginada: 25 por omisión, tope de 100)
 //   POST   /api/canales-whatsapp   { vertical_id, sucursal_id? (null = todas las de la vertical), numero_whatsapp?, messaging_service_sid?, sender_sid?, waba_id?, nombre_publico, calidad_meta?, activo? }
 //   PATCH  /api/canales-whatsapp/:id   { …lo mismo salvo vertical_id; null borra un dato opcional }
 //   DELETE /api/canales-whatsapp/:id   baja lógica; 409 si tiene bandeja viva (quítala primero)
@@ -18,12 +18,13 @@ import { altaConAlcance } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { normalizarNumeroWhatsapp } from "../../lib/telefono.ts";
 import { requierePermiso } from "../autorizar.ts";
+import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
 import { conflicto, noEncontrado, validacion } from "../errores.ts";
 import { cantidad } from "../../lib/cantidad.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
-import { booleano, entero, enumerado, nulable, objeto, opcional, parsear, texto, uuid } from "../validar.ts";
+import { booleano, entero, enumerado, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const CALIDADES = ["alta", "media", "baja", "desconocida"] as const;
 const SELECCION_CANAL = {
@@ -87,9 +88,15 @@ export function rutasDeCanales(_deps: DepsApi): Router {
 
   r.get("/canales-whatsapp", requierePermiso("catalogo:escribir"), async (req, res) => {
     const ctx = contextoDe(res);
-    void req;
-    const filas = (await ctx.db.canal_whatsapp.findMany({ select: SELECCION_CANAL, orderBy: [{ nombre_publico: "asc" }, { id: "asc" }] })) as unknown as FilaCanal[];
-    res.json({ datos: filas.map(presentarCanal) });
+    // V10 (EK-25): paginada como las demás listas (25 por omisión, 100 como tope; el orden termina en `id`, así que las páginas no se repiten ni se saltan filas).
+    const pag = leerPaginacion(parsearQuery(objeto({ ...esquemaPaginacion }), req.query));
+    res.json(
+      await paginar(
+        pag,
+        () => ctx.db.canal_whatsapp.count(),
+        async (saltar, tomar) => ((await ctx.db.canal_whatsapp.findMany({ select: SELECCION_CANAL, orderBy: [{ nombre_publico: "asc" }, { id: "asc" }], skip: saltar, take: tomar })) as unknown as FilaCanal[]).map(presentarCanal),
+      ),
+    );
   });
 
   r.post("/canales-whatsapp", requierePermiso("catalogo:escribir"), json, async (req, res) => {

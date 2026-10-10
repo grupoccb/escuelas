@@ -75,7 +75,10 @@ test("secretos: todo valor sensible de las tareas viene de Secrets Manager (secr
 
 test("alarmas: barrido atrasado, 5xx, descuadre, errores y tareas sanas", () => {
   const m = leer("monitoreo.tf");
-  for (const a of ["barrido_atrasado", "descuadre", "cinco_xx", "sin_tareas_sanas", "errores_backend", "rds_espacio"]) assert.ok(m.includes(`"${a}"`), a);
+  for (const a of ["barrido_atrasado", "ciclos_con_errores", "descuadre", "cinco_xx", "sin_tareas_sanas", "errores_backend", "rds_espacio"]) assert.ok(m.includes(`"${a}"`), a);
+  // V10 / EA-07: la alarma de «el barrido termina con errores varias veces seguidas» lee el evento que escribe `src/ciclo.ts`.
+  assert.match(m, /ciclo_con_errores/);
+  assert.match(m, /resource "aws_cloudwatch_metric_alarm" "ciclos_con_errores"[\s\S]*?evaluation_periods\s*=\s*3/);
   assert.match(m, /ciclo_completado/);
   assert.match(m, /cuadratura_descuadre/);
   assert.match(m, /treat_missing_data\s*=\s*"breaching"/);
@@ -96,4 +99,14 @@ test("EK-01: las URL de la base hacia RDS cifran con la semántica de libpq (sin
   const urls = leer("secretos.tf").split("\n").filter((l) => /"base-url-(aplicacion|migrador)"/.test(l));
   assert.equal(urls.length, 2);
   for (const l of urls) assert.match(l, /sslmode=require&uselibpqcompat=true/, l.trim());
+});
+
+test("V10 / EK-29: la clave que cifra los datos de salud no se puede destruir ni regenerar por descuido (prevent_destroy en el generador y en su copia)", () => {
+  const bloque = (recurso: string): string => {
+    const i = todo.indexOf(recurso);
+    assert.ok(i >= 0, `${recurso} existe`);
+    return todo.slice(i, todo.indexOf("\n}\n", i) + 3);
+  };
+  assert.match(bloque('resource "random_id" "clave_datos_sensibles"'), /prevent_destroy\s*=\s*true/);
+  assert.match(bloque('resource "aws_secretsmanager_secret" "clave_datos_protegida"'), /prevent_destroy\s*=\s*true/);
 });

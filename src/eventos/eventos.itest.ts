@@ -7,6 +7,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { mundoDeOperacion, type MundoDeOperacion } from "../testutil/operacion.ts";
+import { conAlcance } from "../datos/alcance.ts";
+import { Barrera, conGanchos } from "../testutil/carrera.ts";
+import { convocarAlumnos } from "./eventos.ts";
 import type { ClienteApi } from "../testutil/api.ts";
 
 let prisma: PrismaPruebas;
@@ -419,4 +422,19 @@ test("EG-10: la elegibilidad cuenta solo las asistencias de ESA vertical: las de
   // La décima de ESTA vertical sí lo hace elegible.
   await prisma.asistencia.create({ data: { organizacion_id: m.org.organizacionId, inscripcion_id: a.inscripcionId, grupo_id: m.grupoA, fecha: dia("2026-12-30"), estatus: "presente" } });
   assert.equal((await elegibles(id)).find((x) => x.alumno_id === a.alumnoId)!.elegible, true);
+});
+
+test("V10 / EG-10 (M49): dos convocatorias a la vez se forman en fila por la fila del evento (la base ya rechazaba el sobrecupo, pero entonces una convocatoria entera fallaba en vez de convocar a los que caben)", async () => {
+  const id = await evento({ cupo: 2 });
+  const [a, b] = [await alumno(12, { nivelIdx: 0 }), await alumno(12, { nivelIdx: 0 })];
+  // Cada convocatoria cuenta los lugares ocupados y espera a la otra: sin la fila del evento las dos cuentan 0 a la vez (se solapan); con ella, la segunda cuenta
+  // después de que la primera terminó.
+  const barrera = new Barrera(2);
+  const raiz = conGanchos(prisma, { modelo: "evento_alumno", operacion: "count", despues: () => barrera.esperar(300) });
+  const db = conAlcance(raiz, m.org.organizacionId);
+  const convocar1 = (alumnoId: string) => db.$transaction((tx) => convocarAlumnos(tx, { eventoId: id, alumnoIds: [alumnoId], usuarioId: null, alumnoVisible: {} }));
+  const [ra, rb] = await Promise.all([convocar1(a.alumnoId), convocar1(b.alumnoId)]);
+  assert.ok(ra.ok && rb.ok);
+  assert.equal(barrera.completa, false, "se pusieron en fila: nunca contaron a la vez");
+  assert.equal(await ocupados(id), 2);
 });

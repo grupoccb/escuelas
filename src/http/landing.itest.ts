@@ -546,6 +546,22 @@ test("EE-04: el canal de WhatsApp sale de la sucursal que ELIGIÓ quien llena el
   assert.equal(existenteEligiendoSur, nuevoEligiendoSur, "el existente que elige Sur recibe lo mismo: no se averigua si ya era lead");
 });
 
+test("EF-23: el campo trampa responde con el canal de la sucursal que eligió el robot, igual que un envío bueno (con dos canales no se distingue)", async () => {
+  const m = await mundo();
+  const numeroSur = numeroUnico();
+  await prisma.canal_whatsapp.create({ data: { organizacion_id: m.org.organizacionId, vertical_id: m.org.verticalId, sucursal_id: m.org.sucursales[1]!.id, nombre_publico: "Sur", numero_whatsapp: `whatsapp:+${numeroSur}` } });
+  const sur = m.org.sucursales[1]!.id;
+  const quitarCodigo = (r: Response): string => decodeURIComponent(r.headers.get("location") ?? "").replace(/[A-Z2-9]{4}-[A-Z2-9]{4}/, "CODIGO");
+  const bueno = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8200 0001", sucursal_id: sur }));
+  await bueno.text();
+  const trampa = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8200 0002", sucursal_id: sur, sitio_web: "http://spam.test" }));
+  await trampa.text();
+  assert.equal(trampa.status, 303);
+  assert.ok(quitarCodigo(bueno).startsWith(`https://wa.me/${numeroSur}?`), "el envío bueno que elige Sur va al canal de Sur");
+  assert.equal(quitarCodigo(trampa), quitarCodigo(bueno), "la trampa que elige Sur recibe EXACTAMENTE lo mismo");
+  assert.equal(await m.db.lead.count({ where: { telefono: "+525582000002" } }), 0, "la trampa no guarda nada");
+});
+
 test("EE-05: quien manda el teléfono de un lead que ya existe no le agrega prospectos ni cambia nada de él (nombre, atribución, prospecto)", async () => {
   const m = await mundo();
   const primero = await enviar(api.base, m.ruta, campos(m, { telefono: "55 8100 0001" }));

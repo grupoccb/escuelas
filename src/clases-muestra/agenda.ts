@@ -128,9 +128,15 @@ export async function proximasSesionesConLugar(
   const config = await leerConfiguracion(tx);
   const ocupados = await fuente.ocupados(tx, grupo.id);
   const salida: SesionConLugares[] = [];
-  for (const fechaHora of sesionesAgendables({ ahora, horarios: grupo.horarios, zona: grupo.zona, anticipacionMin: config.claseMuestraAnticipacionMin, horizonteDias: config.claseMuestraHorizonteDias })) {
-    const muestras = await tx.clase_muestra.count({ where: { grupo_id: grupo.id, fecha_hora: fechaHora, estatus: "agendada", ...(o.excluirClaseId ? { id: { not: o.excluirClaseId } } : {}) } });
-    const { lugares } = calcularLugaresDeSesion(grupo.cupo_maximo, ocupados, muestras);
+  const sesiones = sesionesAgendables({ ahora, horarios: grupo.horarios, zona: grupo.zona, anticipacionMin: config.claseMuestraAnticipacionMin, horizonteDias: config.claseMuestraHorizonteDias });
+  // ED-15: las muestras agendadas de TODAS las sesiones en una sola consulta (antes, un `count` por sesión: hasta 60 por grupo en cada mensaje del bot).
+  const agendadas = new Map<number, number>();
+  if (sesiones.length > 0) {
+    const filas = await tx.clase_muestra.groupBy({ by: ["fecha_hora"], where: { grupo_id: grupo.id, fecha_hora: { in: sesiones }, estatus: "agendada", ...(o.excluirClaseId ? { id: { not: o.excluirClaseId } } : {}) }, _count: { _all: true } });
+    for (const f of filas) agendadas.set(f.fecha_hora.getTime(), f._count._all);
+  }
+  for (const fechaHora of sesiones) {
+    const { lugares } = calcularLugaresDeSesion(grupo.cupo_maximo, ocupados, agendadas.get(fechaHora.getTime()) ?? 0);
     if (lugares > 0 || o.incluirLlenas) salida.push({ fechaHora, lugares });
     if (salida.length >= o.maximo) break;
   }

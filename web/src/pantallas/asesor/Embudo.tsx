@@ -9,6 +9,7 @@ import { useSesion, useYo } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
+import { Pestanas, propsDePanel } from "../../ui/Pestanas.tsx";
 import { AvisoDePrimerosPasos } from "../admin/AvisoDePrimerosPasos.tsx";
 import { MoverEtapa, type LeadParaMover } from "./MoverEtapa.tsx";
 
@@ -99,27 +100,22 @@ export default function Embudo() {
       <div className="rejilla rejilla-3">
         <CampoSelect etiqueta="Fuente" vacio="Todas las fuentes" value={fuente} onChange={(e) => setFuente(e.target.value)} opciones={fuentes.map((f) => ({ valor: f, texto: FUENTES[f] ?? f }))} />
         <CampoCasilla etiqueta="Solo estancados" checked={soloEstancados} onChange={(e) => setSoloEstancados(e.target.checked)} />
-        <div className="pestanas" role="tablist" aria-label="Vista del embudo">
-          {(["tablero", "lista"] as const).map((v) => (
-            <button key={v} role="tab" aria-selected={vista === v} onClick={() => setVista(v)}>
-              {v === "tablero" ? "Tablero" : "Lista"}
-            </button>
-          ))}
-        </div>
+        <Pestanas nombre="embudo" etiqueta="Vista del embudo" pestanas={[{ id: "tablero", texto: "Tablero" }, { id: "lista", texto: "Lista" }] as const} activa={vista} alCambiar={setVista} />
       </div>
       {leads.datos?.truncado ? <Aviso tono="info">Se muestran los primeros {todos.length} de {leads.datos.total} leads. Filtra por sucursal para ver el resto.</Aviso> : null}
       {(leads.cargando && !leads.datos) || (etapas.cargando && !etapas.datos) ? <Cargando texto="Cargando el embudo…" /> : null}
       {leads.datos && lista.length > 0 && visibles.length === 0 ? <Vacio titulo="No hay leads con estos filtros" /> : null}
+      <div {...propsDePanel("embudo", vista)}>
       {leads.datos && vista === "tablero" ? (
         <div className="tablero">
           {lista.map((e) => {
             const enEtapa = visibles.filter((l) => l.etapa_id === e.id);
             return (
               <section key={e.id} className="columna" aria-label={e.nombre} data-prueba={`columna-${e.id}`}>
-                <h3>
+                <h2>
                   <span>{e.nombre}</span>
                   <Insignia>{enEtapa.length}</Insignia>
-                </h3>
+                </h2>
                 <ul className="lista-tarjetas">
                   {enEtapa.map((l) => (
                     <TarjetaDeLead key={l.id} lead={l} estancado={estancados.datos?.get(l.id)} sucursal={nombreDeSucursal(l.sucursal_interes_id)} alMover={setMoviendo} />
@@ -166,6 +162,7 @@ export default function Embudo() {
           </table>
         </div>
       ) : null}
+      </div>
       <MoverEtapa lead={moviendo} etapas={lista} motivos={motivos.datos ?? []} abierto={moviendo !== null} alCerrar={() => setMoviendo(null)} alMover={recargar} />
     </Pagina>
   );

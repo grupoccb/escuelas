@@ -9,7 +9,7 @@ import { esViolacionUnica } from "../datos/prisma.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
 import { fijarConfiguracion, sembrarOrganizacion, sembrarPrograma, type OrganizacionDePrueba } from "../testutil/semilla.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
-import { altaConCandado, altaListaEspera, cerrarEntrada, cerrarEntradaDe, moverEnListaEspera, ofrecerLugarLiberado } from "./lista-espera.ts";
+import { altaConCandado, altaListaEspera, altaListaEsperaBajoCandado, cerrarEntrada, cerrarEntradaDe, moverEnListaEspera, ofrecerLugarLiberado } from "./lista-espera.ts";
 
 let prisma: PrismaPruebas;
 before(() => {
@@ -272,4 +272,27 @@ test("la base: una viva por (grupo, prospecto), posición única y positiva, ofe
   // Cerrada, la familia puede volver a apuntarse y su posición vieja se puede reusar.
   await prisma.lista_espera.update({ where: { id: una.id }, data: { estatus: "cancelado" } });
   await prisma.lista_espera.create({ data: { ...base, posicion: 1 } });
+});
+
+test("V10 / EC-11: el alta del bot (dentro de la transacción del mensaje) y un «quitar» simultáneo no dejan huecos (1, 2, 4): se excluyen por la fila del grupo", async () => {
+  const m = await mundo();
+  const [a, b, c, nueva] = [await m.familia(), await m.familia(), await m.familia(), await m.familia()];
+  await altaConCandado(m.db, { grupoId: m.grupoId, ...a });
+  const rb = await altaConCandado(m.db, { grupoId: m.grupoId, ...b });
+  await altaConCandado(m.db, { grupoId: m.grupoId, ...c });
+  assert.ok(rb.ok);
+  const idDeB = rb.entrada.id;
+  // El alta lee la posición máxima (3) y espera; el «quitar» de b va a cerrar su entrada y recorrer a los que siguen. Sin la exclusión, los dos se solapan:
+  // el alta escribe la 4 aunque, al terminar el quitar, solo quedan la 1 y la 2.
+  const barrera = new Barrera(2);
+  const raiz = conGanchos(
+    prisma,
+    { modelo: "lista_espera", operacion: "aggregate", despues: () => barrera.esperar(400) },
+    { modelo: "lista_espera", operacion: "update", cuando: (args) => (args["where"] as { id?: string }).id === idDeB && (args["data"] as { estatus?: string }).estatus === "cancelado", antes: () => barrera.esperar(400) },
+  );
+  const db = conAlcance(raiz, m.org.organizacionId);
+  const [alta, quitado] = await Promise.all([db.$transaction((tx) => altaListaEsperaBajoCandado(tx, { grupoId: m.grupoId, ...nueva })), cerrarEntrada(db, idDeB)]);
+  assert.ok(alta.ok && alta.creada && quitado.ok);
+  assert.deepEqual((await posiciones(m)).map((p) => p.posicion), [1, 2, 3], "sin huecos ni repetidos");
+  assert.equal(barrera.completa, false, "se pusieron en fila: nunca coincidieron (si coincidieran, no hay exclusión)");
 });

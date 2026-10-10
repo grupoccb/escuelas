@@ -10,6 +10,12 @@ test("mencionaSalud: frena lo evidente en un texto libre y deja pasar lo demás"
   for (const t of ["Muy atento y entusiasta", "los fantasmas del gimnasio", "le gusta la música", "llegó puntual", "no hay problema"]) assert.ok(!mencionaSalud(t), t);
 });
 
+test("V10 / EF-21: mencionaSalud también frena lo que antes se colaba (enfermo, gripe y fiebre, TDAH, autismo, letras separadas, invisibles) sin frenar el texto normal", () => {
+  for (const t of ["está enfermo", "Esta enferma desde ayer", "gripe y fiebre", "tiene tdah", "TDAH", "es autista", "tiene autismo", "a s m a", "A.S.M.A", "a-s-m-a", "as\u200bma", "ale\u200drgia", "síndrome de Down", "trastorno del sueño", "hiperactivo", "tiene dislexia", "una discapacidad motriz", "convulsiones", "problema cardiaco", "déficit de atención"]) assert.ok(mencionaSalud(t), t);
+  // Texto normal: lo que NO es salud no se frena (palabras que contienen fragmentos, siglas sueltas y frases largas).
+  for (const t of ["Muy atento y entusiasta", "los fantasmas del gimnasio", "una tarde de clase", "le gusta jugar con A y B", "tiene mucha energía", "estudia en la escuela", "su mamá se llama Ana María", "llegó a las 5 y se fue a casa", "vino con su tío", "autoridad y orden"]) assert.ok(!mencionaSalud(t), t);
+});
+
 test("mismaPersona: mismo teléfono, o mismo nombre sin acentos ni mayúsculas", () => {
   const a = { nombre: "Lucía Prado", telefono: "+525512345678" };
   assert.ok(mismaPersona(a, { nombre: "Otra", telefono: "+525512345678" }));

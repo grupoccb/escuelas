@@ -217,3 +217,7 @@ Commits `G-fix` (cada uno con su prueba verificada por mutación; `validar` y `t
 | EG-16 | corregido (2 mutaciones muertas) | `b637ef8` |
 | EG-05, EG-09, EG-12 a EG-15 | pendientes: decisión de Eduardo (EG-05 se intentó y se revirtió: rompe dos pruebas de diseño) | — |
 | EG-17 a EG-20 | pendientes (BAJA) | — |
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

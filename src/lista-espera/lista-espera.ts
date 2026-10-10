@@ -16,6 +16,7 @@
 
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
+import { bloquearCupoDeGrupo } from "../catalogo/cupo.ts";
 import { leerConfiguracion } from "../configuracion/index.ts";
 import { formatearHorarios } from "../lib/horario.ts";
 
@@ -53,7 +54,12 @@ async function conCandado<R>(db: BaseDatos, grupoId: string, fn: (tx: Consultas)
   // La organización sale de la fila misma (el scope ya la filtró): el candado la exige explícita.
   const g = await db.grupo.findFirst({ where: { id: grupoId } });
   if (!g) throw new RangeError("El grupo no existe");
-  return transaccionConBloqueo(db, g.organizacion_id, claveDeCandado(grupoId), fn);
+  // EC-11: además del candado consultivo toma la FILA del grupo, que es el candado que puede tomar una transacción ya abierta (la del bot): así quitar, mover y
+  // ofrecer se excluyen también con el alta que corre dentro de la transacción del mensaje (`altaListaEsperaBajoCandado`).
+  return transaccionConBloqueo(db, g.organizacion_id, claveDeCandado(grupoId), async (tx) => {
+    await bloquearCupoDeGrupo(tx, grupoId);
+    return fn(tx);
+  });
 }
 
 // ── Alta ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -88,6 +94,16 @@ export async function altaListaEspera(tx: Consultas, d: DatosDeAlta): Promise<Re
     select: SELECCION,
   });
   return { ok: true, creada: true, entrada: aEntrada(creada) };
+}
+
+/**
+ * `altaListaEspera` para quien ya tiene su transacción abierta (el bot, al registrar el mensaje) y no puede tomar el candado consultivo: toma antes la fila del grupo,
+ * la misma que toman quitar, mover y ofrecer (EC-11). Sin esto, un «quitar» que recorre las posiciones a la vez dejaba 1, 2, 4. Orden de candados de la casa: lead
+ * (ya tomado por quien llama) → grupo.
+ */
+export async function altaListaEsperaBajoCandado(tx: Consultas, d: DatosDeAlta): Promise<ResultadoDeAlta> {
+  await bloquearCupoDeGrupo(tx, d.grupoId);
+  return altaListaEspera(tx, d);
 }
 
 /** `altaListaEspera` en su propia transacción y bajo el candado del grupo: las altas simultáneas se ponen en fila. */

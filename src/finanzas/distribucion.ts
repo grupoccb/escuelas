@@ -1,21 +1,45 @@
 // Cómo se reparte un pago entre los cargos de una familia (H2). PURO: sin base de datos ni reloj; dinero en centavos `bigint`.
 //
-// ORDEN PROPUESTO: el cargo que venció primero se paga primero (más antiguo primero); a igual vencimiento, el que se creó antes; a igual, por id. Es determinista:
-// el mismo conjunto de cargos da siempre el mismo orden. Recepción puede ajustar el reparto a mano (`validarDistribucion`).
+// ORDEN DE ANTIGÜEDAD (V10): el cargo que venció primero se paga primero; a igual vencimiento, por concepto (la inscripción antes que la mensualidad, y esta antes que un evento
+// o un producto); a igual concepto, el que se creó antes; a igual, por id. Es un orden TOTAL: el mismo conjunto de cargos da siempre el mismo orden, y es el MISMO con el que se
+// reparte un pago, se lista la cuenta de la familia y se presentan las aplicaciones de un pago (`compararAntiguedad`). El concepto va antes que la creación porque la inscripción
+// y la primera mensualidad nacen en un solo INSERT (misma hora) y pueden vencer el mismo día: sin él decidía el id, un uuid al azar. Recepción puede ajustar el reparto a mano
+// (`validarDistribucion`).
 //
 // PAGO PARCIAL: si el pago no alcanza para todo, se cubre en ese orden hasta agotarse; el último cargo alcanzado queda con saldo (sigue pendiente).
 // EXCEDENTE (decisión conservadora, documentada): un pago mayor que lo adeudado se RECHAZA (`excedente_sin_cargo`); no existe «saldo a favor». Quien cobra
 // registra lo que se debe y devuelve el cambio. La base lo exige también: un pago aplicado cubre exactamente su monto (disparador diferido).
 
-import type { FechaISO } from "../catalogo/precios.ts";
+import { deFecha, type FechaISO } from "../catalogo/precios.ts";
 import { sumar, type Centavos } from "../lib/dinero.ts";
 
-export interface CargoAbierto {
+/** Los conceptos de un cargo, en el orden en que desempatan (el mismo orden del tipo `concepto_cargo` en la base, para que `orderBy: concepto` coincida). */
+export const CONCEPTOS_EN_ORDEN = ["inscripcion", "mensualidad", "evento", "producto"] as const;
+export type ConceptoOrdenable = (typeof CONCEPTOS_EN_ORDEN)[number];
+
+/** Lo que hace falta de un cargo para ordenarlo «del más antiguo al más nuevo». */
+export interface ClaveDeAntiguedad {
   id: string;
-  saldo: Centavos;
   fechaVencimiento: FechaISO;
+  concepto: ConceptoOrdenable;
   /** Orden de creación (instante en ms, o cualquier número creciente). */
   creadoEn: number;
+}
+
+/** La clave de antigüedad de un cargo tal como sale de la base. */
+export const claveDeCargo = (c: { id: string; concepto: ConceptoOrdenable; fecha_vencimiento: Date; creado_en: Date }): ClaveDeAntiguedad => ({ id: c.id, concepto: c.concepto, fechaVencimiento: deFecha(c.fecha_vencimiento), creadoEn: c.creado_en.getTime() });
+
+export interface CargoAbierto extends ClaveDeAntiguedad {
+  saldo: Centavos;
+}
+
+/** Vencimiento, luego concepto, luego creación, luego id. Total: dos cargos distintos nunca empatan. */
+export function compararAntiguedad(a: ClaveDeAntiguedad, b: ClaveDeAntiguedad): number {
+  if (a.fechaVencimiento !== b.fechaVencimiento) return a.fechaVencimiento < b.fechaVencimiento ? -1 : 1;
+  const porConcepto = CONCEPTOS_EN_ORDEN.indexOf(a.concepto) - CONCEPTOS_EN_ORDEN.indexOf(b.concepto);
+  if (porConcepto !== 0) return porConcepto;
+  if (a.creadoEn !== b.creadoEn) return a.creadoEn - b.creadoEn;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 export interface AplicacionPropuesta {
@@ -23,11 +47,9 @@ export interface AplicacionPropuesta {
   monto: Centavos;
 }
 
-/** Los cargos con saldo, del más antiguo al más nuevo (vencimiento, creación, id). */
+/** Los cargos con saldo, del más antiguo al más nuevo (`compararAntiguedad`). */
 export function ordenDeAplicacion(cargos: readonly CargoAbierto[]): CargoAbierto[] {
-  return cargos
-    .filter((c) => c.saldo > 0n)
-    .sort((a, b) => (a.fechaVencimiento < b.fechaVencimiento ? -1 : a.fechaVencimiento > b.fechaVencimiento ? 1 : a.creadoEn - b.creadoEn || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
+  return cargos.filter((c) => c.saldo > 0n).sort(compararAntiguedad);
 }
 
 export type Propuesta = { ok: true; aplicaciones: AplicacionPropuesta[] } | { ok: false; motivo: "excedente_sin_cargo"; excedente: Centavos } | { ok: false; motivo: "monto_invalido" };

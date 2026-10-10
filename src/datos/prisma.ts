@@ -10,6 +10,7 @@
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.ts";
+import { crearPoolSerial } from "./cliente-serial.ts";
 
 declare const marcaRaiz: unique symbol;
 
@@ -25,7 +26,7 @@ export interface PrismaRaiz {
 export function crearPrisma(databaseUrl = process.env["DATABASE_URL"], maxConexiones?: number): PrismaRaiz {
   if (!databaseUrl) throw new Error("Falta DATABASE_URL");
   // `maxConexiones`: el tamaño del pool (10 por omisión). Las pruebas de concurrencia con 20–50 hilos simultáneos necesitan uno mayor.
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl, ...(maxConexiones ? { max: maxConexiones } : {}) }) }) as unknown as PrismaRaiz;
+  return new PrismaClient({ adapter: new PrismaPg(crearPoolSerial({ connectionString: databaseUrl, ...(maxConexiones ? { max: maxConexiones } : {}) }), { disposeExternalPool: true }) }) as unknown as PrismaRaiz;
 }
 
 /**

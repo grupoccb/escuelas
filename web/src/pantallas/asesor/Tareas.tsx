@@ -10,6 +10,7 @@ import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect } from "../../ui/campos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
+import { Pestanas, propsDePanel } from "../../ui/Pestanas.tsx";
 
 /** Una tarea con su tipo explicado y, si está pendiente, sus botones. `alCambiar` recarga la lista que la contiene. */
 export function TarjetaDeTarea({ tarea, alCambiar, conEnlaceAlLead = true }: { tarea: Tarea; alCambiar: () => void; conEnlaceAlLead?: boolean }) {
@@ -82,13 +83,8 @@ export default function Tareas() {
 
   return (
     <Marco titulo="Tareas" subtitulo="Lo que el sistema dejó para una persona">
-      <div className="pestanas" role="tablist" aria-label="Estado de las tareas">
-        {(["pendiente", "resueltas"] as const).map((e) => (
-          <button key={e} role="tab" aria-selected={estado === e} onClick={() => setEstado(e)}>
-            {e === "pendiente" ? "Pendientes" : "Resueltas"}
-          </button>
-        ))}
-      </div>
+      <Pestanas nombre="tareas" etiqueta="Estado de las tareas" pestanas={[{ id: "pendiente", texto: "Pendientes" }, { id: "resueltas", texto: "Resueltas" }] as const} activa={estado} alCambiar={setEstado} />
+      <div {...propsDePanel("tareas", estado)} className="pila">
       <CampoSelect etiqueta="Tipo de tarea" vacio="Todos los tipos" value={tipo} onChange={(e) => setTipo(e.target.value)} opciones={Object.entries(TIPOS_DE_TAREA).map(([valor, t]) => ({ valor, texto: t.titulo }))} />
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
@@ -98,6 +94,7 @@ export default function Tareas() {
           <TarjetaDeTarea key={t.id} tarea={t} alCambiar={carga.recargar} />
         ))}
       </ul>
+      </div>
     </Marco>
   );
 }

@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { formatearFecha, hoyLocal } from "../lib/fechas.ts";
 import { seccionesDe } from "../navegacion.ts";
 import { useSesion, useYo } from "../sesion/SesionContext.tsx";
@@ -11,25 +11,66 @@ const MAXIMO_EN_BARRA = 5;
 /** Campos donde sale el teclado del teléfono (no casillas, opciones, botones, listas ni fechas). */
 const CAMPO_DE_TECLADO = "textarea, input:not([type]), input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search], input[type=number], input[type=url]";
 
+/** Cuánto tiene que haberse achicado la pantalla visible para decir que hay un teclado abierto (la barra de direcciones que se esconde o se muestra no llega a tanto). */
+const ALTO_DE_TECLADO_MINIMO_PX = 150;
+
 /**
  * V7 (celular): con el teclado abierto la barra de abajo se esconde (`con-teclado` en <html>, ver base.css): el teclado ya se come media pantalla y la barra fija dejaba el campo
- * y el botón de guardar en una rendija. Se cierra al salir del campo.
+ * y el botón de guardar en una rendija.
+ *
+ * V10: antes bastaba con que un campo de texto tuviera el foco. Pero quien baja el teclado (o usa un teclado físico, o una computadora con la ventana angosta) deja el foco en el campo y la
+ * barra de abajo seguía escondida con el registro a medio llenar: había que tocar fuera para recuperarla. Ahora además la pantalla visible tiene que haberse achicado de verdad
+ * (`visualViewport`). Si el navegador no sabe decirlo, se queda la regla de antes (el foco).
  */
 function useClaseDeTeclado(): void {
   useEffect(() => {
     const raiz = document.documentElement;
-    const alEnfocar = (e: FocusEvent) => {
-      if (e.target instanceof HTMLElement && e.target.matches(CAMPO_DE_TECLADO)) raiz.classList.add("con-teclado");
+    const visor = window.visualViewport;
+    let base = { ancho: window.innerWidth, alto: Math.max(window.innerHeight, visor?.height ?? 0) };
+    const campoEnFoco = (): boolean => document.activeElement instanceof HTMLElement && document.activeElement.matches(CAMPO_DE_TECLADO);
+    const actualizar = () => {
+      let abierto = campoEnFoco();
+      if (abierto && visor) {
+        // Si giró el teléfono, la altura de referencia es la nueva; si no, la mayor que se ha visto (el teclado la achica, nunca la agranda).
+        if (window.innerWidth !== base.ancho) base = { ancho: window.innerWidth, alto: Math.max(window.innerHeight, visor.height) };
+        else base.alto = Math.max(base.alto, window.innerHeight, visor.height);
+        abierto = base.alto - visor.height >= ALTO_DE_TECLADO_MINIMO_PX;
+      }
+      raiz.classList.toggle("con-teclado", abierto);
     };
-    const alSoltar = () => raiz.classList.remove("con-teclado");
-    document.addEventListener("focusin", alEnfocar);
-    document.addEventListener("focusout", alSoltar);
+    // El foco ya cambió cuando el navegador avisa de `focusout`: se revisa en el siguiente turno.
+    const despues = () => window.setTimeout(actualizar, 0);
+    document.addEventListener("focusin", actualizar);
+    document.addEventListener("focusout", despues);
+    window.addEventListener("resize", actualizar);
+    visor?.addEventListener("resize", actualizar);
     return () => {
-      document.removeEventListener("focusin", alEnfocar);
-      document.removeEventListener("focusout", alSoltar);
+      document.removeEventListener("focusin", actualizar);
+      document.removeEventListener("focusout", despues);
+      window.removeEventListener("resize", actualizar);
+      visor?.removeEventListener("resize", actualizar);
       raiz.classList.remove("con-teclado");
     };
   }, []);
+}
+
+/**
+ * V10 (EK-26): al cambiar de pantalla el foco se lleva al contenido nuevo. En una aplicación de una sola página el navegador no hace nada al «navegar»: el foco se quedaba en el
+ * enlace de la barra y quien usa un lector de pantalla (o el teclado) no se enteraba de que la pantalla cambió. No lo roba si la pantalla nueva ya puso el foco dentro de su
+ * contenido (un campo con `autoFocus`) y solo reacciona al CAMBIO de pantalla (no a un filtro en la dirección).
+ */
+function useFocoAlNavegar(): void {
+  const { pathname } = useLocation();
+  const primera = useRef(true);
+  useEffect(() => {
+    if (primera.current) {
+      primera.current = false;
+      return;
+    }
+    const contenido = document.getElementById("contenido");
+    const activo = document.activeElement;
+    if (contenido && (activo === null || activo === document.body || !contenido.contains(activo))) contenido.focus({ preventScroll: true });
+  }, [pathname]);
 }
 
 /** El marco de la aplicación: encabezado (escuela, sucursal, usuario), barra lateral en escritorio y barra inferior en celular. */
@@ -41,6 +82,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const hayMas = secciones.length > MAXIMO_EN_BARRA;
   const nombreEscuela = yo.organizacion?.nombre ?? "Gestión";
   useClaseDeTeclado();
+  useFocoAlNavegar();
 
   return (
     <div className="app">

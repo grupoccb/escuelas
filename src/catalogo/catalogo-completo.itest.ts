@@ -244,3 +244,20 @@ test("C5/C6: el cotizador sobre el catálogo completo: cada edad da programas de
   assert.equal(c.programas.length, 2, "dos alternativas para esa edad");
   assert.deepEqual(c.programas.map((p) => p.programaId).sort(), [a.id, b.id].sort());
 });
+
+test("V10 / EC-25: volver a correr el seed no resucita un precio de ejemplo que un administrador dio de baja", async () => {
+  const antes = await db().precio.findMany({ select: { id: true, programa_id: true } });
+  assert.equal(antes.length, await db().programa.count(), "un precio de ejemplo por programa");
+  const [quitado, ...resto] = antes;
+  await prisma.precio.update({ where: { id: quitado!.id }, data: { eliminado_en: new Date() } });
+  const cliente = new pg.Client({ connectionString: process.env["DATABASE_URL"] });
+  await cliente.connect();
+  try {
+    await aplicar(cliente, "catalogo-completo");
+  } finally {
+    await cliente.end();
+  }
+  assert.equal(await db().precio.count({ where: { programa_id: quitado!.programa_id } }), 0, "el programa sigue sin precio vivo: el seed no lo resucitó");
+  assert.equal(await prisma.precio.count({ where: { organizacion_id: orgId, programa_id: quitado!.programa_id } }), 1, "ni creó otra fila");
+  assert.equal(await db().precio.count(), resto.length, "los demás siguen igual");
+});

@@ -4,7 +4,7 @@
 // Se guarda por secciones (cada una con su botón) o todo junto («Guardar borrador»). Lo que se escribe vive en la memoria de la página: si falla la red NO se pierde
 // (el aviso lo dice y se reintenta); no se guarda en el navegador y se avisa antes de salir con cambios sin guardar. La salud va aparte (src/salud/).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ErrorDeApi, type Pagina as PaginaDeApi } from "../../api/cliente.ts";
 import type { ClaseMuestra, Grupo } from "../../api/tipos.ts";
@@ -148,6 +148,8 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
     return () => window.removeEventListener("beforeunload", aviso);
   }, [haySinGuardar]);
 
+  /** El último fallo de una sección al guardar: «Guardar borrador» lo usa para decir POR QUÉ no se guardó (sin señal, o algo que revisar). */
+  const ultimoFallo = useRef<ErrorDeApi | null>(null);
   const acciones: Record<NombreDeSeccion, Accion> = { alumno: aAlumno, tutores: aTutores, antecedentes: aAntecedentes, observacion: aObservacion };
 
   async function guardar(seccion: NombreDeSeccion): Promise<boolean> {
@@ -167,7 +169,15 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
     }
     setErroresDelCliente((e) => ({ ...e, [seccion]: errores }));
     if (Object.keys(errores).length > 0) return false;
-    const nuevo = await acciones[seccion].ejecutar(() => api.patch<Registro>(`/api/clases-muestra/${registro.clase_muestra_id}/registro`, cuerpo));
+    ultimoFallo.current = null;
+    const nuevo = await acciones[seccion].ejecutar(async () => {
+      try {
+        return await api.patch<Registro>(`/api/clases-muestra/${registro.clase_muestra_id}/registro`, cuerpo);
+      } catch (e) {
+        if (e instanceof ErrorDeApi) ultimoFallo.current = e;
+        throw e;
+      }
+    });
     if (!nuevo) return false;
     poner(nuevo);
     setEd((actual) => {
@@ -182,7 +192,11 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
   async function guardarTodo() {
     await aTodo.ejecutar(async () => {
       for (const s of ["alumno", "tutores", "antecedentes", "observacion"] as const) {
-        if (sucio[s] && !(await guardar(s))) throw new ErrorDeApi(0, "seccion", `Revisa la sección «${s === "alumno" ? "Alumno" : s === "tutores" ? "Adultos" : s === "antecedentes" ? "Antecedentes" : "Observación del maestro"}»: no se pudo guardar.`);
+        if (sucio[s] && !(await guardar(s))) {
+          // V10 (V8): sin señal, el aviso dice lo que importa —no se guardó nada y lo escrito sigue aquí—, no «revisa la sección», que parecería un error de captura.
+          if (ultimoFallo.current?.codigo === "sin_red") throw new ErrorDeApi(0, "sin_red", "No hay conexión con el servidor. No se guardó nada todavía: lo que escribiste sigue aquí. Cuando haya señal, toca «Guardar borrador» otra vez (no se duplica nada).");
+          throw new ErrorDeApi(0, "seccion", `Revisa la sección «${s === "alumno" ? "Alumno" : s === "tutores" ? "Adultos" : s === "antecedentes" ? "Antecedentes" : "Observación del maestro"}»: no se pudo guardar.`);
+        }
       }
     });
   }
@@ -266,7 +280,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
             return (
               <div key={t.clave} className="tarjeta pila" data-prueba={`adulto-${i}`}>
                 <div className="fila fila-entre">
-                  <h3>Adulto {i + 1}</h3>
+                  <h2 className="titulo-menor">Adulto {i + 1}</h2>
                   <Boton variante="fantasma" onClick={() => setEd((a) => ({ ...a, tutores: (a.tutores ?? tutoresDesde(registro)).filter((x) => x.clave !== t.clave) }))}>
                     Quitar
                   </Boton>
@@ -381,9 +395,16 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
 
       {!cerrado ? (
         <div className="barra-guardado">
-          <span className="muted" role="status">
-            {aTodo.error ? aTodo.error.message : haySinGuardar ? "Tienes cambios sin guardar." : "Todo guardado."}
-          </span>
+          {/* El fallo vive DENTRO de la barra fija (V10): debajo de ella la barra lo tapaba y quien tocaba «Guardar borrador» sin señal no veía nada. */}
+          {aTodo.error ? (
+            <span role="alert" className="campo-error" data-prueba="error-del-borrador">
+              {aTodo.error.message}
+            </span>
+          ) : (
+            <span className="muted" role="status">
+              {haySinGuardar ? "Tienes cambios sin guardar." : "Todo guardado."}
+            </span>
+          )}
           <Boton variante="primario" disabled={!haySinGuardar} cargando={aTodo.ocupado} onClick={() => void guardarTodo()}>
             Guardar borrador
           </Boton>

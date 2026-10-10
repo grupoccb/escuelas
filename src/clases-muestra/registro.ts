@@ -25,6 +25,7 @@ import type { ContextoApi } from "../api/contexto.ts";
 import { registrarCambio } from "../api/registro.ts";
 import { altaConAlcance, type BaseDatos, type Consultas } from "../datos/alcance.ts";
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
+import { bloquearLead } from "../embudo/etapas.ts";
 import { esViolacionUnica } from "../datos/prisma.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import {
@@ -317,6 +318,11 @@ export async function guardarRegistro(ctx: ContextoApi, deps: DepsRegistro, clas
 
   // 4. Escribir, serializado por la clase: dos capturas simultáneas se mezclan.
   await transaccionConBloqueo(ctx.db, ctx.organizacionId, claveDeCandado(claseId), async (tx) => {
+    // ED-16: la clase se leyó ANTES de abrir esta transacción; si alguien la reprogramó o la canceló en el hueco, el registro no se crea en la clase que ya no
+    // está vigente. Orden de candados de la casa: lead → clase (reprogramar toma el lead primero), y entonces se vuelve a leer.
+    await bloquearLead(tx, clase.lead_id);
+    const vigente = await tx.clase_muestra.findFirst({ where: { id: claseId }, select: { estatus: true } });
+    if (!vigente || vigente.estatus === "cancelada" || vigente.estatus === "reagendada") throw conflicto("La clase ya no está vigente: el registro se captura en la clase que la reemplazó");
     const actual = await cargarRegistro(tx, claseId);
     if (actual?.registro.estatus === "cerrado") throw conflicto("El registro está cerrado: un administrador puede reabrirlo");
     const datos: Record<string, unknown> = {};

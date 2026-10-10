@@ -401,6 +401,25 @@ test("EC-05: un salón con el nombre de otro cambiando mayúsculas, acentos o es
   assert.equal((await admin.post("/api/salones", { sucursal_id: norte, nombre: "Sala dos" })).estado, 201);
 });
 
+test("V10 / EF-18: un salón con caracteres invisibles en el nombre (ancho cero, guion suave, relleno Hangul) es el MISMO salón: 409 al crear y al renombrar, y el nombre se guarda sin ellos", async () => {
+  const base = await crearSalon(norte, "Sala Invisible");
+  for (const variante of ["Sala\u200B Invisible", "Sala In\u00ADvisible", "Sala\u3164 Invisible", "\u200DSala Invisible\u200B", "Sala\u115F\u1160 Invisible"]) {
+    const r = await admin.post<ErrorBody>("/api/salones", { sucursal_id: norte, nombre: variante });
+    assert.equal(r.estado, 409, JSON.stringify(variante));
+    assert.equal(r.cuerpo.error.detalles?.[0]?.campo, "nombre");
+  }
+  const otro = await crearSalon(norte, "Sala\u200B Distinta");
+  assert.equal(otro.nombre, "Sala Distinta", "el nombre se guarda sin invisibles");
+  assert.equal((await admin.patch<ErrorBody>(`/api/salones/${otro.id}`, { nombre: "Sala\u200B Invisible" })).estado, 409, "renombrar a la forma de otro");
+  assert.notEqual(otro.id, base.id);
+  // Un nombre que solo trae invisibles no es un nombre.
+  for (const vacio of ["\u200B\u200B", "\u3164"]) {
+    const r = await admin.post<ErrorBody>("/api/salones", { sucursal_id: norte, nombre: vacio });
+    assert.equal(r.estado, 400, JSON.stringify(vacio));
+    assert.equal((await admin.patch<ErrorBody>(`/api/salones/${otro.id}`, { nombre: vacio })).estado, 400);
+  }
+});
+
 test("EC-05: altas simultáneas del mismo salón con nombres equivalentes dejan UNA sola fila (seis rondas de dieciséis)", async () => {
   // Dieciséis formas distintas del mismo nombre (cada letra de «sala» en mayúscula o minúscula): ninguna choca con otra en el índice único.
   for (let ronda = 0; ronda < 6; ronda++) {

@@ -213,3 +213,7 @@ Ningún invariante roto. Ninguno parcial por culpa de C.
 ## 8. Estado después de las correcciones
 
 Este informe describe el HEAD `110eb73` tal como lo encontré; no se reescribe. El estado de cada ID tras la fase de correcciones (commits `C-fix`) está en `docs/BITACORA-NOCHE-2.md`, sección «Auditoría y correcciones de la etapa C». En resumen: corregidos EC-01 a EC-09, EC-12, EC-14 y EC-15; documentados EC-16 y EC-24; pendientes por decisión de producto EC-10, EC-13 y EC-18 a EC-22; pendientes técnicos EC-11, EC-17, EC-23, EC-25 y EC-26. Tras las correcciones: `validar` 409 tests y `test:int` 500, ambos con exit 0 (dos corridas seguidas y una base vacía).
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

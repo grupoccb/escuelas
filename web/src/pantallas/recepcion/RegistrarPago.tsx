@@ -7,7 +7,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { aCentavos, formatear, normalizarCaptura } from "../../lib/dinero.ts";
-import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
+import { formatearFecha, hoyLocal, mensajeDeFechaDePago } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoArea, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
@@ -84,7 +84,9 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
 
   const reparto = ajuste && montoOk ? validarReparto(montoOk, lista.map((l) => ({ id: l.cargo.id, saldo: l.cargo.saldo })), ajuste) : null;
   const exceso = propuesta.datos && !propuesta.datos.ok && propuesta.datos.motivo === "excedente_sin_cargo";
-  const puedeEnviar = hayMonto && (ajuste ? reparto?.ok === true : propuesta.datos?.ok === true);
+  // Una fecha de mañana en adelante no es un pago ya recibido: se dice aquí, en español, junto al campo (antes lo decía el aviso del navegador, en el idioma del navegador).
+  const problemaDeFecha = mensajeDeFechaDePago(fecha, hoyLocal());
+  const puedeEnviar = hayMonto && problemaDeFecha === null && (ajuste ? reparto?.ok === true : propuesta.datos?.ok === true);
 
   const iniciarAjuste = () => {
     const base: Record<string, string> = {};
@@ -108,7 +110,7 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
 
   return (
     <Tarjeta titulo="Registrar un pago" className="cobro-formulario no-imprimir">
-      <form
+      <form noValidate
         className="formulario"
         onSubmit={(e) => {
           e.preventDefault();
@@ -118,7 +120,7 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
         <CampoTexto etiqueta="Monto recibido" inputMode="decimal" autoComplete="off" value={monto} onChange={(e) => setMonto(e.target.value)} error={mensajeDeCaptura(monto)} ayuda={`Se muestra como ${hayMonto ? formatear(montoOk) : "$0.00"}`} requerido />
         <CampoSelect etiqueta="Método de pago" value={metodo} onChange={(e) => setMetodo(e.target.value)} opciones={METODOS.map((m) => ({ valor: m.valor, texto: m.texto }))} />
         <CampoTexto etiqueta="Referencia (opcional)" autoComplete="off" value={referencia} onChange={(e) => setReferencia(e.target.value)} ayuda="Folio del voucher o de la transferencia." maxLength={120} />
-        <CampoTexto etiqueta="Fecha del pago (opcional)" type="date" max={hoyLocal()} value={fecha} onChange={(e) => setFecha(e.target.value)} ayuda="Si la dejas vacía, es hoy." />
+        <CampoTexto etiqueta="Fecha del pago (opcional)" type="date" max={hoyLocal()} value={fecha} onChange={(e) => setFecha(e.target.value)} ayuda="Si la dejas vacía, es hoy." {...(problemaDeFecha ? { error: problemaDeFecha } : {})} />
 
         {hayMonto && propuesta.cargando ? <Cargando texto="Calculando el reparto…" /> : null}
         {hayMonto && propuesta.error ? <ErrorDeCarga error={propuesta.error} alReintentar={propuesta.recargar} /> : null}

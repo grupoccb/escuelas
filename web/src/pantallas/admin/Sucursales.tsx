@@ -41,7 +41,7 @@ function Formulario({ sucursal, alGuardar, alCerrar }: { sucursal: SucursalAdmin
     >
       <CampoTexto etiqueta="Nombre de la sucursal" requerido value={nombre} onChange={(e) => setNombre(e.target.value)} error={err("nombre")} />
       <CampoTexto etiqueta="Dirección" value={direccion} onChange={(e) => setDireccion(e.target.value)} error={err("direccion")} />
-      <CampoSelect etiqueta="Zona horaria" requerido value={zona} opciones={opcionesDeZona(zona)} onChange={(e) => setZona(e.target.value)} error={err("zona_horaria")} ayuda="Decide a qué hora salen los mensajes automáticos (de 09:00 a 20:00, hora de esta sucursal)." />
+      <CampoSelect etiqueta="Zona horaria" requerido value={zona} opciones={opcionesDeZona(zona)} onChange={(e) => setZona(e.target.value)} error={err("zona_horaria")} ayuda={`Decide a qué hora salen los mensajes automáticos (de 09:00 a 20:00, hora de esta sucursal).${sucursal && zona !== sucursal.zona_horaria ? " Ojo: lo que ya está programado conserva la hora de la zona anterior; solo lo nuevo usa la zona que elijas." : ""}`} />
       <CampoCasilla etiqueta="Activa" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
       <ErrorDeAccion error={guardar.error} enCampos={["nombre", "direccion", "zona_horaria"]} />
       <div className="formulario-acciones">

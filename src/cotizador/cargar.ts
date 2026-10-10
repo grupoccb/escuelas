@@ -7,7 +7,7 @@
 // (la API la recibe en `DepsApi.fuenteOcupacion` y el bot en `DepsCaptacion.fuenteOcupacion`); nada más cambia.
 
 import type { BaseDatos, Consultas } from "../datos/alcance.ts";
-import { InscripcionesActivas, type FuenteOcupacion } from "../catalogo/cupo.ts";
+import { InscripcionesActivas, ocupadosDeVarios, type FuenteOcupacion } from "../catalogo/cupo.ts";
 import { aFecha, deFecha, elegirVigente, precioDeFila, type FechaISO } from "../catalogo/precios.ts";
 import { cargarPromociones } from "../promociones/cargar.ts";
 import { cotizar } from "./cotizar.ts";
@@ -47,6 +47,8 @@ export async function cargarCatalogoCotizable(db: Consultas | BaseDatos, o: Opci
     where: { programa_id: { in: programaIds }, vigencia_desde: { lte: f }, OR: [{ vigencia_hasta: null }, { vigencia_hasta: { gte: f } }] },
   });
 
+  // EC-23: los ocupados de todos los grupos en una sola consulta (la fuente real sabe; las de prueba, grupo por grupo).
+  const ocupadosDe = await ocupadosDeVarios(fuente, db as Consultas, grupos.map((g) => g.id));
   const gruposDe = new Map<string, GrupoCotizable[]>();
   for (const g of grupos) {
     const lista = gruposDe.get(g.programa_id) ?? [];
@@ -56,7 +58,7 @@ export async function cargarCatalogoCotizable(db: Consultas | BaseDatos, o: Opci
       nombre: g.nombre,
       cupoMaximo: g.cupo_maximo,
       permiteListaEspera: g.permite_lista_espera,
-      ocupados: await fuente.ocupados(db as Consultas, g.id),
+      ocupados: ocupadosDe.get(g.id) ?? 0,
       horarios: horarios.filter((h) => h.grupo_id === g.id).map((h) => ({ dia: h.dia_semana, inicioMin: h.hora_inicio_min, finMin: h.hora_fin_min })),
     });
   }

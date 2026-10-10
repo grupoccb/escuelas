@@ -171,3 +171,7 @@ Procedimiento: `python3 .sondeo/mutar.py [prefijo]` (cada mutación edita la cop
 ## 8. Estado de la corrección
 
 Ver la sección «Auditoría y correcciones de las etapas D y E» de `docs/BITACORA-NOCHE-2.md`: EE-01 (ALTA, verificada en Chrome 154), EE-02 a EE-05, EE-08 (en parte), EE-09 y las BAJA EE-10, EE-11, EE-12, EE-14, EE-16 y EE-17 quedaron corregidas con su prueba; EE-06, EE-07, EE-13 y EE-15 y la parte de EE-08 que es trabajo grande (token firmado, tope por organización) quedan pendientes como decisión de producto.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

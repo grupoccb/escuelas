@@ -345,3 +345,7 @@ Sobre la eficacia del test de fuga (`fuga.itest.ts`) y la guarda: las mutaciones
 - Pruebas de CSRF en un navegador real (Fetch Metadata, comportamiento de `Origin: null` en `iframe sandbox`): solo con peticiones HTTP construidas a mano (14 variantes).
 - Rendimiento bajo carga sostenida del limitador y de scrypt: las cifras de EB-17 y EB-18 son por cálculo y por pruebas puntuales, no una prueba de carga.
 - No audité `docs/` ni la lógica de captación de la etapa A más allá de lo que B toca.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

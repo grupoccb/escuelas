@@ -312,3 +312,7 @@ Las mutaciones se aplicaron con `sed` sobre la copia y se restauraron; `cmp` con
 ## Apéndice B. Limpieza
 
 Se bajó solo `auditoria-a1` (`docker compose -p auditoria-a1 … down -v`) y se borró el contenedor `auditoria-a1-pg` con sus bases (`aud`, `aud_pruebas`, `aud_mig1`, `aud_n22`). El proyecto `inscripciones` (Postgres, Chatwoot, backend, sus volúmenes) no se tocó.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

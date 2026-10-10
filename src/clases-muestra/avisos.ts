@@ -77,14 +77,12 @@ export async function crearAvisoMaestro(tx: Consultas, e: EntradaDeAviso): Promi
   if (r.count === 0) return { creado: false, motivo: "ya_existia" };
   const aviso = await tx.aviso_maestro.findFirstOrThrow({ where: { clase_muestra_id: e.claseId, tipo: e.tipo }, select: { id: true } });
   if (sinTelefono) {
-    await tx.tarea_asesor.create({
-      data: altaConAlcance({
-        lead_id: clase.lead_id,
-        clase_muestra_id: e.claseId,
-        tipo: "aviso_maestro_no_enviado" as const,
-        descripcion: `El maestro ${instructor.nombre} no tiene teléfono registrado: no se le avisó por WhatsApp de la clase muestra de ${datos.nombre_alumno} en ${datos.nombre_grupo} (${datos.fecha_clase} a las ${datos.hora_clase}). El aviso sí está en su lista de la aplicación; avísale tú o registra su teléfono.`,
-      }),
-    });
+    const descripcion = `El maestro ${instructor.nombre} no tiene teléfono registrado: no se le avisó por WhatsApp de la clase muestra de ${datos.nombre_alumno} en ${datos.nombre_grupo} (${datos.fecha_clase} a las ${datos.hora_clase}). El aviso sí está en su lista de la aplicación; avísale tú o registra su teléfono.`;
+    // V10 (V7-ASESOR-18): UNA tarea pendiente por familia, no una por cada agenda o reprogramación (la asesora veía tres «Aviso al maestro no enviado» iguales). Si ya hay una pendiente
+    // para este lead, se actualiza con la clase más reciente. (Dentro de la transacción de la clase, que ya tiene el candado del lead: no hay dos creando a la vez.)
+    const pendiente = await tx.tarea_asesor.findFirst({ where: { lead_id: clase.lead_id, tipo: "aviso_maestro_no_enviado", estado: "pendiente" }, select: { id: true } });
+    if (pendiente) await tx.tarea_asesor.updateMany({ where: { id: pendiente.id, estado: "pendiente" }, data: { clase_muestra_id: e.claseId, descripcion } });
+    else await tx.tarea_asesor.create({ data: altaConAlcance({ lead_id: clase.lead_id, clase_muestra_id: e.claseId, tipo: "aviso_maestro_no_enviado" as const, descripcion }) });
   }
   return { creado: true, avisoId: aviso.id, sinTelefono };
 }

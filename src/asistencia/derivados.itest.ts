@@ -5,7 +5,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
-import { fijarConfiguracion } from "../testutil/semilla.ts";
+import { fijarConfiguracion, sembrarMotivoBaja } from "../testutil/semilla.ts";
 import { conAlcance } from "../datos/alcance.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { recalcularDerivados } from "./derivados.ts";
@@ -192,8 +192,8 @@ test("G2 SQL directo: la base no deja dos tareas pendientes de la misma inscripc
 });
 
 test("G2 la tarea de una inscripción sin lead la ve el asesor de la sucursal de su grupo (no el de otra), la resuelve y el administrador la ve", async () => {
-  const a = await m.inscribir(m.grupoA, { nombre: "Gabo" });
-  await prisma.inscripcion.update({ where: { id: a.inscripcionId }, data: { lead_id: null } });
+  // V10 / EG-19: el lead de una inscripción ya no se reescribe; la inscripción nace SIN lead (como la de un alumno de mostrador).
+  const a = await m.inscribir(m.grupoA, { nombre: "Gabo", datos: { lead_id: null } });
   for (const f of [L26, M28, L02]) await pasar(m, m.grupoA, f, [[a.inscripcionId, "falta"]]);
   const [t] = await tareasDe(a.inscripcionId);
   assert.equal(t!.lead_id, null);
@@ -260,4 +260,38 @@ test("EG-04: si el pase se guardó pero el recálculo no llegó a correr (el pro
   // Y repetirlo otra vez no la duplica.
   assert.equal((await pasar(m, m.grupoA, L26, [[a.inscripcionId, "falta"]])).estado, 200);
   assert.equal((await tareasDe(a.inscripcionId)).length, 1);
+});
+
+test("V10 / EG-17: la tarea de «faltas consecutivas» se descarta cuando la inscripción se congela o se da de baja (ya no hay a quién llamar antes de que deje de venir)", async () => {
+  const mundo = await mundoDeOperacion(prisma, "Faltas y bajas");
+  try {
+    const motivo = await sembrarMotivoBaja(prisma, mundo.org);
+    const conRacha = async (nombre: string) => {
+      const x = await mundo.inscribir(mundo.grupoA, { nombre });
+      for (const f of [L19, M21, L26]) assert.equal((await pasar(mundo, mundo.grupoA, f, [[x.inscripcionId, "falta"]])).estado, 200);
+      const [t] = await tareasDe(x.inscripcionId);
+      assert.equal(t!.estado, "pendiente", `${nombre}: la tarea nació`);
+      return x;
+    };
+    const estadoDe = async (inscripcionId: string) => (await tareasDe(inscripcionId)).map((t) => [t.estado, t.resuelta_en !== null]);
+    // Congelar.
+    const c = await conRacha("Congelada");
+    assert.equal((await mundo.admin.post(`/api/inscripciones/${c.inscripcionId}/congelar`, {})).estado, 200);
+    assert.deepEqual(await estadoDe(c.inscripcionId), [["descartada", true]]);
+    // Dar de baja (y la baja desde congelada también descarta lo que hubiera).
+    const b = await conRacha("Baja");
+    assert.equal((await mundo.admin.post(`/api/inscripciones/${b.inscripcionId}/baja`, { motivo_baja_id: motivo })).estado, 200);
+    assert.deepEqual(await estadoDe(b.inscripcionId), [["descartada", true]]);
+    // La tarea de OTRA inscripción activa no se toca.
+    const otra = await conRacha("Sigue activa");
+    assert.equal((await mundo.admin.post(`/api/inscripciones/${c.inscripcionId}/reactivar`, {})).estado, 200);
+    assert.deepEqual(await estadoDe(otra.inscripcionId), [["pendiente", false]]);
+    // Si la inscripción deja de estar activa por una vía que no pasó por el cambio (una carrera con el pase, la base), el recálculo descarta la tarea y no deja alerta.
+    const carrera = await conRacha("Carrera");
+    await prisma.inscripcion.update({ where: { id: carrera.inscripcionId }, data: { estatus: "congelada", congelada_desde: new Date("2026-10-27T00:00:00.000Z") } });
+    assert.deepEqual(await recalcularDerivados(mundo.db, { organizacionId: mundo.org.organizacionId, inscripcionIds: [carrera.inscripcionId], ahora: new Date("2026-11-18T18:00:00Z") }), []);
+    assert.deepEqual(await estadoDe(carrera.inscripcionId), [["descartada", true]], "una inscripción congelada no conserva la tarea");
+  } finally {
+    await mundo.cerrar();
+  }
 });

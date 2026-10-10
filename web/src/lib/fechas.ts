@@ -87,3 +87,14 @@ export function diaEnZona(iso: string, zona: string): string {
   if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: zona, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
+
+/**
+ * Qué decirle a quien captura la fecha de un pago que ya recibió (`null` si está bien o vacía, que es «hoy»). Con `noValidate` el aviso ya no lo da el navegador (en el idioma del
+ * navegador y sin decir qué hacer): lo dice la pantalla (V10).
+ */
+export function mensajeDeFechaDePago(fecha: string, hoy: string): string | null {
+  if (fecha === "") return null;
+  if (!esFechaReal(fecha)) return "Esa fecha no existe en el calendario. Revísala.";
+  if (fecha > hoy) return "La fecha del pago no puede ser de mañana en adelante.";
+  return null;
+}

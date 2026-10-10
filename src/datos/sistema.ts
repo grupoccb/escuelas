@@ -176,15 +176,38 @@ export interface EventoInesperadoSinOrganizacion {
   forma: Record<string, unknown>;
 }
 
-/** Constancia de un evento que no se pudo atar a ninguna organización. Idempotente: devuelve `nuevo` solo la primera vez. */
-export async function registrarEventoInesperadoSinOrganizacion(raiz: PrismaRaiz, e: EventoInesperadoSinOrganizacion): Promise<{ nuevo: boolean }> {
+/**
+ * EG-20: una constancia sin organización nace de un cuerpo que NO se pudo atar a nadie (JSON roto, receptor desconocido) pero que sí traía una firma válida;
+ * cada cuerpo distinto era una fila nueva sin tope ni retención. Ahora hay un tope por día para todo el sistema y las que pasan de 30 días se dan de baja
+ * (borrado lógico). Pasado el tope el evento se acepta igual (el proveedor no reintenta) y queda UNA línea de log `error` por cada uno que se descarta.
+ */
+export const TOPE_SIN_ORGANIZACION_POR_DIA = 500;
+export const RETENCION_SIN_ORGANIZACION_DIAS = 30;
+
+/** Constancia de un evento que no se pudo atar a ninguna organización. Idempotente: devuelve `nuevo` solo la primera vez; `descartado` si ya se pasó el tope del día. */
+export async function registrarEventoInesperadoSinOrganizacion(
+  raiz: PrismaRaiz,
+  e: EventoInesperadoSinOrganizacion,
+  o: { ahora?: Date; topePorDia?: number } = {},
+): Promise<{ nuevo: boolean; descartado?: boolean }> {
   const prisma = clienteSinAlcance(raiz);
+  const ahora = o.ahora ?? new Date();
+  const dia = 86_400_000;
+  // Retención: lo de hace más de 30 días se da de baja (la tabla es de solo anexar para el resto del sistema; esto es borrado lógico).
+  await prisma.evento_inesperado.updateMany({ where: { organizacion_id: null, eliminado_en: null, creado_en: { lt: new Date(ahora.getTime() - RETENCION_SIN_ORGANIZACION_DIAS * dia) } }, data: { eliminado_en: ahora } });
+  // Un reintento del MISMO evento solo suma `intentos` (no cuenta contra el tope).
+  const repetido = await prisma.evento_inesperado.updateMany({ where: { organizacion_id: null, origen: e.origen, clave: e.clave, eliminado_en: null }, data: { intentos: { increment: 1 } } });
+  if (repetido.count > 0) return { nuevo: false };
+  if ((await prisma.evento_inesperado.count({ where: { organizacion_id: null, eliminado_en: null, creado_en: { gte: new Date(ahora.getTime() - dia) } } })) >= (o.topePorDia ?? TOPE_SIN_ORGANIZACION_POR_DIA)) {
+    return { nuevo: false, descartado: true };
+  }
   try {
-    await prisma.evento_inesperado.create({ data: { origen: e.origen, clave: e.clave, causa: e.causa, detalle: e.detalle, forma: e.forma as never } });
+    await prisma.evento_inesperado.create({ data: { origen: e.origen, clave: e.clave, causa: e.causa, detalle: e.detalle, forma: e.forma as never, creado_en: ahora } });
     return { nuevo: true };
   } catch (error) {
     if ((error as { code?: unknown }).code !== "P2002") throw error;
   }
+  // Otro igual se guardó justo a la vez: es el mismo evento.
   await prisma.evento_inesperado.updateMany({ where: { organizacion_id: null, origen: e.origen, clave: e.clave, eliminado_en: null }, data: { intentos: { increment: 1 } } });
   return { nuevo: false };
 }

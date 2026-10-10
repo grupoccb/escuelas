@@ -67,7 +67,7 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
 
   return (
     <Tarjeta titulo="Nueva venta">
-      <form className="formulario" onSubmit={vender}>
+      <form noValidate className="formulario" onSubmit={vender}>
         <div className="rejilla rejilla-2">
           {/* Enter en este campo BUSCA (antes mandaba el formulario de la venta y no pasaba nada). */}
           <CampoTexto etiqueta="Buscar al alumno por nombre" autoComplete="off" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarAlumno(); } }} ayuda={busqueda.trim().length === 1 ? "Escribe al menos dos letras." : "No importan los acentos ni las mayúsculas."} />

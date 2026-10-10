@@ -159,3 +159,7 @@ Ver la sección «Auditoría y correcciones de las etapas D y E» de `docs/BITAC
 5. ¿Debe avisarse a quien toma la conversación que los recordatorios de la clase ya no saldrán solos (ED-11)?
 6. Mínimo de antelación para un recordatorio recorrido (hoy cualquiera antes de la clase sale, aunque sea 30 minutos antes).
 7. Avisar a la familia cuando una persona reprograma o cancela su clase (hoy no sale nada por WhatsApp).
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

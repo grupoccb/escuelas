@@ -5,7 +5,7 @@
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { conAlcance } from "../datos/alcance.ts";
 import { Barrera, conGanchos } from "../testutil/carrera.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../testutil/prisma-pruebas.ts";
@@ -340,5 +340,40 @@ test("EH-07: la cuadratura lee con UNA instantánea: un pago que se confirma a l
     assert.equal(despues.resumen.totalPagado, "100.00");
   } finally {
     await m.cerrar();
+  }
+});
+
+test("V10 / EK-29: `npm run cuadratura` sobre una base sin organizaciones lo dice y sale con 0 (sin traza); una organización pedida que no existe sale con 1, también sin traza", { timeout: 180_000 }, async () => {
+  const { randomBytes } = await import("node:crypto");
+  const pgModulo = await import("pg");
+  const base = new URL(process.env["DATABASE_URL"]!);
+  const nombre = `cuadratura_vacia_${randomBytes(4).toString("hex")}_pruebas`;
+  const mantenimiento = new URL(base);
+  mantenimiento.pathname = "/postgres";
+  const admin = new pgModulo.default.Client({ connectionString: mantenimiento.toString() });
+  await admin.connect();
+  await admin.query(`CREATE DATABASE "${nombre}"`);
+  try {
+    const aqui = new URL(base);
+    aqui.pathname = `/${nombre}`;
+    const env = { ...process.env, DATABASE_URL: aqui.toString() };
+    execFileSync("npx", ["prisma", "migrate", "deploy"], { env, stdio: ["ignore", "ignore", "inherit"] });
+    const correr = (...args: string[]): { codigo: number; salida: string; errores: string } => {
+      const r = spawnSync(process.execPath, ["scripts/cuadratura.ts", ...args], { env, encoding: "utf8" });
+      return { codigo: r.status ?? -1, salida: r.stdout, errores: r.stderr };
+    };
+    const vacia = correr();
+    assert.equal(vacia.codigo, 0, vacia.errores);
+    assert.match(vacia.salida, /No hay organizaciones en esta base: no hay nada que cuadrar/);
+    assert.ok(!/\bat \S+ \(|node:internal|file:\/\//.test(vacia.errores + vacia.salida), "ninguna traza");
+    assert.equal(correr("--json").salida.trim(), "[]");
+    const pedida = correr("--organizacion", "No existe");
+    assert.equal(pedida.codigo, 1);
+    assert.match(pedida.errores, /No hay una organización «No existe» en esta base/);
+    assert.ok(!/\bat \S+ \(|node:internal|file:\/\//.test(pedida.errores), "ninguna traza");
+  } finally {
+    await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()", [nombre]);
+    await admin.query(`DROP DATABASE IF EXISTS "${nombre}"`);
+    await admin.end();
   }
 });

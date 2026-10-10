@@ -125,15 +125,20 @@ export { ErrorAccesoSensible };
 // ── Notas libres sin salud ─────────────────────────────────────────────────────────────────────────────
 
 const SIN_ACENTOS = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Letras sueltas separadas por espacios o signos («a s m a», «t.d.a.h») se juntan para que no esquiven la búsqueda (EF-21). */
+const JUNTAR_LETRAS_SUELTAS = /(?<![a-z0-9])(?:[a-z][\s.\-_*·]+){2,}[a-z](?![a-z0-9])/g;
+/** Caracteres invisibles que se cuelan entre las letras de una palabra. */
+const INVISIBLES = /[\p{Cf}\u3164\uFFA0\u115F\u1160]/gu;
+const comparable = (t: string): string => SIN_ACENTOS(t).replace(INVISIBLES, "").replace(JUNTAR_LETRAS_SUELTAS, (m) => m.replace(/[^a-z]/g, ""));
 /**
  * Palabras que delatan un dato de salud en un texto libre. Las notas del maestro NO son para eso: la salud va cifrada en su
  * sección (decisión 12). No es una garantía —nadie puede detectar toda mención— sino un freno a lo evidente.
  */
-const PALABRAS_DE_SALUD = /(?<![a-z])(alergi|medicament|medicina|diabet|asma|asmatic|epilep|enfermedad|padecimiento|condicion medica|tratamiento medico|cirugia|fractura|lesion)/;
+const PALABRAS_DE_SALUD = /(?<![a-z])(alergi|medicament|medicina|diabet|asma|asmatic|epilep|enfermedad|enfermo|enferma|padecimiento|condicion medica|tratamiento medico|cirugia|fractura|lesion|gripe|fiebre|tdah|tda\b|autis|hiperactiv|deficit de atencion|sindrome|trastorno|discapacidad|convuls|cardiac|cardiopat|dislexia)/;
 
 /** ¿El texto libre parece traer un dato de salud? */
 export function mencionaSalud(texto: string): boolean {
-  return PALABRAS_DE_SALUD.test(SIN_ACENTOS(texto));
+  return PALABRAS_DE_SALUD.test(comparable(texto));
 }
 
 export const MENSAJE_SIN_SALUD = "Las notas no son para datos de salud (alergias, medicamentos, condiciones médicas…): captúralos en la sección de salud";

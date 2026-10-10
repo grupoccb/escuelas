@@ -16,7 +16,7 @@ import { esViolacionUnica } from "../datos/prisma.ts";
 import { aTexto, deDecimal, sumar, type Centavos } from "../lib/dinero.ts";
 import { fechaLocal } from "../lib/horario.ts";
 import { diasEntre } from "../lib/periodo.ts";
-import { proponerDistribucion, validarDistribucion, type AplicacionPropuesta, type CargoAbierto, type ProblemaDeDistribucion } from "./distribucion.ts";
+import { claveDeCargo, compararAntiguedad, proponerDistribucion, validarDistribucion, type AplicacionPropuesta, type CargoAbierto, type ProblemaDeDistribucion } from "./distribucion.ts";
 
 export type MetodoDePago = "efectivo" | "tarjeta" | "transferencia";
 /** EH-13 [SUPUESTO]: lo más atrás que puede fechar un pago quien lo registra (un año y unos días de holgura). Una fecha de 1900 era un error de captura. */
@@ -83,12 +83,13 @@ export async function bloquearFamilia(tx: Consultas, tutorId: string): Promise<b
 export async function cargosAbiertosDe(tx: Consultas, tutorId: string): Promise<(CargoAbierto & { sucursalId: string })[]> {
   const filas = await tx.cargo.findMany({
     where: { tutor_id: tutorId, estatus: { in: ["pendiente", "vencido"] } },
-    select: { id: true, monto_final: true, monto_pagado: true, fecha_vencimiento: true, creado_en: true, sucursal_id: true },
-    orderBy: [{ fecha_vencimiento: "asc" }, { creado_en: "asc" }, { id: "asc" }],
+    select: { id: true, concepto: true, monto_final: true, monto_pagado: true, fecha_vencimiento: true, creado_en: true, sucursal_id: true },
   });
+  // El orden de antigüedad es el de `compararAntiguedad` (el mismo con el que se reparte y se presenta): se ordena aquí, en memoria, con ese único criterio.
   return filas
-    .map((f) => ({ id: f.id, saldo: deDecimal(f.monto_final) - deDecimal(f.monto_pagado), fechaVencimiento: deFecha(f.fecha_vencimiento), creadoEn: f.creado_en.getTime(), sucursalId: f.sucursal_id }))
-    .filter((c) => c.saldo > 0n);
+    .map((f) => ({ id: f.id, concepto: f.concepto, saldo: deDecimal(f.monto_final) - deDecimal(f.monto_pagado), fechaVencimiento: deFecha(f.fecha_vencimiento), creadoEn: f.creado_en.getTime(), sucursalId: f.sucursal_id }))
+    .filter((c) => c.saldo > 0n)
+    .sort(compararAntiguedad);
 }
 
 const mensajeDeProblema = (p: ProblemaDeDistribucion): string => {
@@ -115,14 +116,14 @@ export async function registrarPago(tx: Consultas, ctx: ContextoDePago, e: Entra
 
   // Idempotencia: lo que ya se registró con esta clave (ya con el candado de la familia, así que un reintento simultáneo ya espera a que el primero termine).
   if (e.clave) {
-    const previo = await tx.pago.findFirst({ where: { clave_idempotencia: e.clave }, select: { id: true, tutor_id: true, monto: true, metodo: true, estatus: true, aplicaciones: { select: { cargo_id: true, monto_aplicado: true }, orderBy: { creado_en: "asc" } } } });
+    const previo = await tx.pago.findFirst({ where: { clave_idempotencia: e.clave }, select: { id: true, tutor_id: true, monto: true, metodo: true, estatus: true, aplicaciones: { select: { cargo_id: true, monto_aplicado: true, cargo: { select: { concepto: true, fecha_vencimiento: true, creado_en: true } } } } } });
     if (previo) {
       if (previo.tutor_id !== e.tutorId || deDecimal(previo.monto) !== e.monto || previo.metodo !== e.metodo) {
         throw new RechazoDePago("clave_reutilizada", "Esa clave de idempotencia ya se usó con otro pago");
       }
       // EH-12: repetir la clave de un pago que ya se CANCELÓ no es «el mismo cobro»: devolver 200 con ese pago invita a leerlo como cobrado. Es un conflicto: para cobrar de nuevo, otra clave.
       if (previo.estatus === "cancelado") throw new RechazoDePago("pago_cancelado", "Ese pago ya se canceló: para cobrar de nuevo registra otro con una clave distinta");
-      return { id: previo.id, repetido: true, tutorId: previo.tutor_id, aplicaciones: previo.aplicaciones.map((a) => ({ cargoId: a.cargo_id, monto: deDecimal(a.monto_aplicado) })), cargosSaldados: [] };
+      return { id: previo.id, repetido: true, tutorId: previo.tutor_id, aplicaciones: [...previo.aplicaciones].sort((a, b) => compararAntiguedad(claveDeCargo({ ...a.cargo, id: a.cargo_id }), claveDeCargo({ ...b.cargo, id: b.cargo_id }))).map((a) => ({ cargoId: a.cargo_id, monto: deDecimal(a.monto_aplicado) })), cargosSaldados: [] };
     }
   }
 

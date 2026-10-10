@@ -14,8 +14,14 @@ resource "random_password" "base_chatwoot" {
   special = false
 }
 
+# V10 (EK-29): la clave de cifrado de los datos de salud de los menores. Si Terraform la regenerara (un cambio de nombre del recurso, un `taint`, un `destroy`), todo lo ya cifrado
+# quedaría ilegible. `prevent_destroy` hace que cualquier plan que la destruya falle; para cambiarla a propósito hay que quitar esta línea en una revisión.
 resource "random_id" "clave_datos_sensibles" {
   byte_length = 32
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "random_id" "secreto_webhook_chatwoot" {

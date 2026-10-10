@@ -25,3 +25,12 @@ test("EC-05: salonesRepetidosPorForma agrupa por sucursal y por clave, y no mezc
   assert.deepEqual(r, [{ sucursalId: "s1", clave: "salon a", ids: ["1", "3"] }]);
   assert.deepEqual(salonesRepetidosPorForma([]), []);
 });
+
+test("V10 / EF-18: los caracteres invisibles (ancho cero, guion suave, controles bidireccionales, rellenos Hangul) no cuentan: ni se guardan ni distinguen salones", () => {
+  const visible = "Sala Uno";
+  for (const n of ["Sala\u200B Uno", "Sala\u00AD Uno", "Sala\u200D Uno", "\u202ESala Uno", "Sala\u3164 Uno", "Sala\uFFA0 Uno", "Sala\u115F\u1160 Uno", "Sala \u2060Uno\uFEFF"]) {
+    assert.equal(nombreDeSalon(n), visible, JSON.stringify(n));
+    assert.equal(claveDeSalon(n), "sala uno", JSON.stringify(n));
+  }
+  assert.equal(nombreDeSalon("\u200B\u200B"), "", "solo invisibles queda vacío (la API lo rechaza como nombre vacío)");
+});

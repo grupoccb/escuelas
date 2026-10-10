@@ -182,7 +182,7 @@ export function rutasDeLanding(deps: DepsLanding): Router {
     // página de gracias si la vertical no tiene número) y no se guarda nada (EE-10): no hay forma de distinguir la trampa de un éxito.
     if (typeof cuerpo["sitio_web"] === "string" && cuerpo["sitio_web"] !== "") {
       log.info("landing_trampa", { vertical: landing.verticalId });
-      const enlace = await enlaceSimulado(deps.prisma, landing);
+      const enlace = await enlaceSimulado(deps.prisma, landing, cuerpo["sucursal_id"]);
       if (enlace) {
         res.setHeader("Cache-Control", "no-store");
         res.redirect(303, enlace);

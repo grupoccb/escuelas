@@ -285,6 +285,14 @@ export function rutasDeCampanas(deps: DepsApi): Router {
     if (!campana) throw validacion([{ campo: "campana_id", mensaje: "No es una campaña de la organización" }]);
     await comprobarReferencias(ctx, e);
     if (campana.vertical_id && e.vertical_id && campana.vertical_id !== e.vertical_id) throw validacion([{ campo: "vertical_id", mensaje: "La campaña es de otra vertical" }]);
+    // V10 / EE-15: un código de una campaña apagada no atribuye (EE-03): se avisa al crearlo, no cuando ya está impreso.
+    if (!campana.activo) throw conflicto("La campaña está apagada: enciéndela antes de crearle códigos, porque un código de una campaña apagada no atribuye", [{ campo: "campana_id", mensaje: "Campaña apagada" }]);
+    // …y la sucursal tiene que ser una donde se imparte esa vertical (como en el QR).
+    const verticalDelCodigo = e.vertical_id ?? campana.vertical_id;
+    const sucursalDelCodigo = e.sucursal_id ?? campana.sucursal_id;
+    if (verticalDelCodigo && sucursalDelCodigo && !(await ctx.db.sucursal_vertical.findFirst({ where: { vertical_id: verticalDelCodigo, sucursal_id: sucursalDelCodigo, activo: true, sucursal: { activo: true, eliminado_en: null } }, select: { id: true } }))) {
+      throw validacion([{ campo: "sucursal_id", mensaje: "La vertical no se imparte en esa sucursal" }]);
+    }
     if (e.vigente_desde && e.vigente_hasta && e.vigente_hasta <= e.vigente_desde) throw validacion([{ campo: "vigente_hasta", mensaje: "Tiene que ser posterior al inicio" }]);
     let codigo: string | null = null;
     if (e.codigo !== undefined) {

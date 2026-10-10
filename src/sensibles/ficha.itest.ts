@@ -316,3 +316,38 @@ test("API: no-fuga entre organizaciones — el administrador de otra organizaci�
     await api.cerrar();
   }
 });
+
+test("V10 / EB-21: el motivo de la consulta de salud viaja en una cabecera (con acentos), no en la URL; se registra igual, también al denegar; sin motivo es 400", async () => {
+  const id = await sembrarProspecto();
+  const api = levantarApi(prisma, { sensibles: { cifrador } });
+  try {
+    const entrar = async (u: UsuarioDePrueba) => {
+      const cli = api.cliente();
+      assert.equal((await cli.login(org.slug, u.correo, u.contrasena)).estado, 201);
+      return cli;
+    };
+    const cAdmin = await entrar(admin);
+    const ruta = `/api/salud/prospecto/${id}`;
+    assert.equal((await cAdmin.pedir("PUT", ruta, { motivo: "alta en inscripción", alergias: "polen-cabecera" })).estado, 204);
+    const frase = "Revisión antes de la clase de la niña";
+    const get = await cAdmin.pedir<{ campos: Record<string, unknown> }>("GET", ruta, undefined, { "x-motivo-de-consulta": encodeURIComponent(frase) });
+    assert.equal(get.estado, 200, JSON.stringify(get.cuerpo));
+    assert.equal(get.cuerpo.campos["alergias"], "polen-cabecera");
+    const leidas = (await accesos(id)).filter((a) => a.accion === "leer" && a.resultado === "permitido");
+    assert.equal(leidas.at(-1)?.motivo, frase, "el motivo con acentos llega completo al registro de accesos");
+    assert.ok(!leidas.at(-1)?.ruta?.includes("motivo"), "y la ruta registrada no lleva el motivo");
+    // Sin motivo: 400 (ni en cabecera ni en la URL). Con una cabecera ilegible: 400.
+    assert.equal((await cAdmin.get(ruta)).estado, 400);
+    assert.equal((await cAdmin.pedir("GET", ruta, undefined, { "x-motivo-de-consulta": "%E0%A4%A" })).estado, 400);
+    assert.equal((await cAdmin.pedir("GET", ruta, undefined, { "x-motivo-de-consulta": "ab" })).estado, 400, "muy corto");
+    // La forma vieja `?motivo=` sigue aceptándose para quien ya la usa.
+    assert.equal((await cAdmin.get(`${ruta}?motivo=revision`)).estado, 200);
+    // Quien no tiene permiso deja constancia con SU motivo de la cabecera.
+    const cAsesor = await entrar(asesor);
+    assert.equal((await cAsesor.pedir("GET", ruta, undefined, { "x-motivo-de-consulta": encodeURIComponent("curiosidad del asesor") })).estado, 403);
+    const denegado = (await accesos(id)).filter((a) => a.resultado === "denegado" && a.usuario_id === asesor.id);
+    assert.equal(denegado.at(-1)?.motivo, "curiosidad del asesor");
+  } finally {
+    await api.cerrar();
+  }
+});

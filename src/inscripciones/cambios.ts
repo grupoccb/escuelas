@@ -81,6 +81,14 @@ async function movimiento(tx: Consultas, ctx: ContextoDeInscripcion, m: { inscri
   });
 }
 
+/**
+ * EG-17: la tarea de «faltas consecutivas» pide llamar a la familia ANTES de que deje de venir; cuando la inscripción se congela o se da de baja ya no hay a quién
+ * convencer de volver y la tarea se queda pendiente para siempre en la bandeja del asesor. Se descarta en la misma transacción del cambio.
+ */
+async function descartarTareasDeFaltas(tx: Consultas, inscripcionId: string, ahora: Date): Promise<void> {
+  await tx.tarea_asesor.updateMany({ where: { inscripcion_id: inscripcionId, tipo: "faltas_consecutivas", estado: "pendiente" }, data: { estado: "descartada", resuelta_en: ahora } });
+}
+
 async function ok(tx: Consultas, i: Cargada, antes: Antes, liberaLugarEn: string | null): Promise<ResultadoDeCambio> {
   const d = await tx.inscripcion.findFirstOrThrow({ where: { id: i.id }, select: { estatus: true, grupo_id: true, fecha_baja: true, motivo_baja_id: true } });
   await recalcularEstatusDelAlumno(tx, i.alumno_id);
@@ -118,6 +126,7 @@ export async function congelarInscripcion(tx: Consultas, ctx: ContextoDeInscripc
   const r = await tx.inscripcion.updateMany({ where: { id: i.id, estatus: "activa" }, data: { estatus: "congelada", congelada_desde: aFecha(hoy) } });
   if (r.count !== 1) return rechazo("cambio_concurrente", "La inscripción cambió mientras tanto: vuelve a intentarlo");
   await movimiento(tx, ctx, { inscripcionId: i.id, tipo: "congelacion", fecha: hoy });
+  await descartarTareasDeFaltas(tx, i.id, ctx.ahora);
   return ok(tx, i, antes, i.grupo_id);
 }
 
@@ -154,5 +163,6 @@ export async function darDeBaja(tx: Consultas, ctx: ContextoDeInscripcion, e: { 
   await movimiento(tx, ctx, { inscripcionId: i.id, tipo: "baja", fecha: fechaBaja, motivoBajaId: e.motivoBajaId });
   // H6: a una inscripción dada de baja no se le siguen mandando recordatorios de pago (la deuda sigue siendo deuda; la cobra una persona).
   await cancelarEjecucionesDeInscripcion(tx, i.id, "inscripcion_baja");
+  await descartarTareasDeFaltas(tx, i.id, ctx.ahora);
   return ok(tx, i, antes, i.estatus === "activa" ? i.grupo_id : null);
 }

@@ -97,7 +97,7 @@ function FormularioDeNino({ lead, editando, disciplinas, alGuardar, alCerrar }: 
     });
 
   return (
-    <form
+    <form noValidate
       className="formulario"
       data-prueba="formulario-nino"
       onSubmit={(e) => {

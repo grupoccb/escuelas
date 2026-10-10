@@ -361,3 +361,7 @@ await Promise.all([1, 2, 3].map(() => p.despachar(lento as never, conv.id)));
 ## Apéndice C. Limpieza
 
 Se bajó solo mi material: el contenedor `auditoria-ea-pg` (con sus bases `aud_pruebas*`, `aud_mig`, `aud_exp`, `aud_ev`, `aud_vacia`, `aud_n22`, `aud_c_*`) se eliminó con `docker rm -fv`; proyecto compose `auditoria-etapa-a` con `down -v`; imagen `auditoria-etapa-a-backend:local` y las imágenes `node:22` y `postgres:17` que descargué para esta auditoría. Los directorios temporales de la sesión (`ea/limpio`, `mut*`, `exp`, `guard`, `demoproj`, `twcheck`) quedan en el espacio temporal de la sesión, fuera del repo. El proyecto `inscripciones` (6 contenedores, 3 volúmenes, red) no se tocó. Queda un volumen anónimo huérfano de Docker (`6becf5b0…`, creado a las 06:25 UTC por mi primer contenedor de prueba, sin contenedor que lo use); no lo borré porque la herramienta me negó el permiso y no es de ningún proyecto compose: se puede quitar con `docker volume rm`.
+
+---
+
+Estado al 9 de octubre: ver docs/HALLAZGOS-ABIERTOS-V1.md

@@ -95,3 +95,35 @@ test("EH-19: 4 barridos que vencen 60 cargos a la vez que 60 pagos los reparten 
     await m.cerrar();
   }
 });
+
+test("V10 / EK-22 (EH-19 determinista): el barrido de vencidos nunca sostiene el candado de un cargo mientras espera otro — un pago que ya tiene el segundo y pide el primero NO se interbloquea", async () => {
+  const logs = colectarLogs();
+  const m = await mundoDeFinanzas(prisma, "EH-19 determinista");
+  try {
+    const ins = await m.inscribir();
+    const [bajo, alto] = ins.cargos.map((c) => c.id).sort() as [string, string];
+    m.reloj.ahora = new Date("2027-03-01T16:00:00Z"); // los dos cargos ya vencieron, pero siguen «pendiente» hasta que corra el barrido
+    const barrera = new Barrera(2);
+    // El «pago»: toma primero el cargo de id ALTO (el que el barrido toca de último) y, cuando el barrido ya está esperando, pide el de id BAJO.
+    const pago = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM cargo WHERE id = ${alto}::uuid FOR UPDATE`;
+      await barrera.esperar(5000); // «ya tengo el alto»; el barrido sale a correr
+      await new Promise((r) => setTimeout(r, 600)); // le da tiempo al barrido de procesar el bajo y quedar esperando el alto
+      await tx.$queryRaw`SELECT id FROM cargo WHERE id = ${bajo}::uuid FOR UPDATE`; // con un UPDATE masivo, el barrido sostendría el bajo y esto sería un interbloqueo
+      return "pago listo";
+    });
+    const barrido = (async () => {
+      await barrera.esperar(5000);
+      return barrerFinanzas({ prisma, reloj: () => m.reloj.ahora, organizacionId: m.org.organizacionId });
+    })();
+    const [rp, rb] = await Promise.allSettled([pago, barrido]);
+    assert.equal(rp.status, "fulfilled", `el pago no se interbloquea: ${rp.status === "rejected" ? String(rp.reason) : ""}`);
+    assert.equal(rb.status, "fulfilled");
+    assert.equal((rb as PromiseFulfilledResult<Awaited<typeof barrido>>).value.errores, 0);
+    assert.equal(await prisma.cargo.count({ where: { id: { in: [bajo, alto] }, estatus: "vencido" } }), 2, "el barrido terminó de vencer los dos");
+    assert.equal(logs.lineas.filter((l) => /40P01|deadlock|interbloqueo/i.test(l)).length, 0);
+  } finally {
+    logs.detener();
+    await m.cerrar();
+  }
+});

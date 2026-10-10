@@ -6,6 +6,7 @@ import { hoyLocal } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Pagina } from "../../ui/basicos.tsx";
 import { useTitulo } from "../../ui/hooks.ts";
+import { Pestanas, propsDePanel } from "../../ui/Pestanas.tsx";
 import { ClasesMuestra } from "./ClasesMuestra.tsx";
 import { CostoPorCampana } from "./CostoPorCampana.tsx";
 import { Ejecutivo } from "./Ejecutivo.tsx";
@@ -36,14 +37,8 @@ export default function Tableros() {
   const [mes, setMes] = useState(hoyLocal().slice(0, 7));
   return (
     <Pagina titulo="Tableros" subtitulo="Cómo va la escuela: captación, costo y números del mes.">
-      <div className="pestanas" role="tablist" aria-label="Tableros">
-        {vistas.map((v) => (
-          <button key={v.id} type="button" role="tab" aria-selected={vista === v.id} onClick={() => ponerParams({ vista: v.id })}>
-            {v.texto}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel">
+      <Pestanas nombre="tableros" etiqueta="Tableros" pestanas={vistas} activa={vista} alCambiar={(id) => ponerParams({ vista: id })} />
+      <div {...propsDePanel("tableros", vista ?? "")}>
         {vista === "clases" ? <ClasesMuestra filtros={filtros} alCambiar={setFiltros} /> : null}
         {vista === "costo" ? <CostoPorCampana filtros={filtros} alCambiar={setFiltros} /> : null}
         {vista === "ejecutivo" ? <Ejecutivo mes={mes} alCambiarMes={setMes} /> : null}

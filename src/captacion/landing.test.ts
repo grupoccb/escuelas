@@ -44,7 +44,7 @@ test("validarEnvio: lo correcto sale limpio (nombre compactado, teléfono normal
   const sin = validarEnvio({ ...buenos, nombre_contacto: "" }, DOS);
   assert.ok(sin.ok && sin.datos.nombreContacto === null);
   // Nombres de verdad no se rechazan por el filtro: acentos, apóstrofos, puntos de iniciales, números romanos, guiones, una sola letra.
-  for (const nombre of ["María José Pérez-Soto", "O'Brien", "J. Luis", "Ana B.", "Luis II", "李小龍", "Nadia\u200b Ruiz"]) {
+  for (const nombre of ["María José Pérez-Soto", "O'Brien", "J. Luis", "Ana B.", "Luis II", "李小龍", "Nadia\u200b Ruiz", "Nguyen T. Ly", "Luis A. Me", "Ana M. Co"]) {
     const r = validarEnvio({ ...buenos, nombre_alumno: nombre, nombre_contacto: nombre }, DOS);
     assert.ok(r.ok, nombre);
   }
@@ -71,8 +71,11 @@ test("validarEnvio: cada campo malo da su mensaje; nada se acepta a medias", () 
   assert.deepEqual(validarEnvio({ ...buenos, nombre_contacto: "x".repeat(120) }, DOS).ok, true);
   // EE-12: solo caracteres invisibles (ancho cero, controles bidireccionales) no es un nombre; EE-05: tampoco una dirección web.
   for (const invisible of ["\u200b", "\u200b\u200b ", "\u202e", "\ufeff"]) assert.deepEqual(campos({ nombre_alumno: invisible }), ["nombre_alumno"], JSON.stringify(invisible));
+  // V10 / EF-24: los rellenos Hangul y otros caracteres «en blanco» que no son de la categoría Cf tampoco forman un nombre.
+  for (const relleno of ["\u3164", "\u3164\u3164 ", "\uffa0", "\u115f\u1160", "\u2800", "\u034f"]) assert.deepEqual(campos({ nombre_alumno: relleno }), ["nombre_alumno"], JSON.stringify(relleno));
   assert.deepEqual(campos({ nombre_alumno: "---" }), ["nombre_alumno"], "sin una letra o un número");
-  for (const web of ["Paga aquí https://pago.example/x", "www.ejemplo.com", "ver ejemplo.com", "http://x", "mira://raro", "oferta.mx hoy"]) {
+  // V10 / EF-24: la dirección con espacios alrededor del punto es la misma dirección.
+  for (const web of ["Paga aquí https://pago.example/x", "www.ejemplo.com", "ver ejemplo.com", "http://x", "mira://raro", "oferta.mx hoy", "wa . me/123", "ofertas .com", "ofertas. mx", "mira ejemplo。com ya"]) {
     assert.deepEqual(campos({ nombre_alumno: web }), ["nombre_alumno"], web);
     assert.deepEqual(campos({ nombre_contacto: web }), ["nombre_contacto"], web);
   }

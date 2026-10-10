@@ -1,7 +1,7 @@
 // EK-B1: las herramientas de Postgres del contenedor solo atienden una conexión que sea de ese contenedor.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { aplicarRetencion, elegirContenedor, leerConexion, respaldar, type EjecutarDocker } from "./respaldo.ts";
@@ -41,4 +41,18 @@ test("EK-07: una retención de 0, negativa o decimal se rechaza y no borra nada 
   await assert.rejects(respaldar({ url: "postgresql://u:p@localhost:1/x", directorio: dir, retener: -5 }), /entero de 1 o más/);
   assert.equal(readdirSync(dir).length, 3);
   assert.deepEqual(aplicarRetencion(dir, "base_x", 2), ["base_x-20261001-000000Z.dump"]);
+});
+
+test("V10 / EK-23: las banderas que cuidan el respaldo y la restauración no se pierden (--snapshot al respaldar; --exit-on-error, --no-owner y --no-acl al restaurar)", () => {
+  // Es una guarda de TEXTO a propósito: `--exit-on-error` solo se nota cuando un respaldo está roto a la mitad, y ninguna prueba con una base sana lo distingue de su ausencia.
+  const fuente = readFileSync(new URL("./respaldo.ts", import.meta.url), "utf8");
+  const llamada = (herramienta: string): string => {
+    const i = fuente.indexOf(`lanzarHerramienta("${herramienta}", [`);
+    assert.ok(i >= 0, `${herramienta} se lanza con lanzarHerramienta`);
+    return fuente.slice(i, fuente.indexOf("]", i));
+  };
+  const dump = llamada("pg_dump");
+  for (const bandera of ["-Fc", "--no-owner", "--no-acl", "--snapshot="]) assert.ok(dump.includes(bandera), `pg_dump lleva ${bandera}`);
+  const restaura = llamada("pg_restore");
+  for (const bandera of ["--no-owner", "--no-acl", "--exit-on-error"]) assert.ok(restaura.includes(bandera), `pg_restore lleva ${bandera}`);
 });

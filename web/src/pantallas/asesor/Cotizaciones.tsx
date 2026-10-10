@@ -100,7 +100,7 @@ function CotizarAMano({ lead, alCotizar, prospectoInicial }: { lead: LeadDetalle
   if (sucursalId === null) return <Aviso tono="alerta">Este lead todavía no tiene sucursal: sin ella no se puede cotizar. Elígela arriba, en «Sucursal».</Aviso>;
   if (conEdad.length === 0) return <Aviso>No hay niños con edad por cotizar (los ya inscritos no se cotizan).</Aviso>;
   return (
-    <form
+    <form noValidate
       className="formulario"
       data-prueba="cotizar-a-mano"
       onSubmit={(e) => {

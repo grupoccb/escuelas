@@ -9,7 +9,7 @@ export function Barras({ titulo, filas, vacio = "Sin datos en este rango." }: { 
   return (
     <figure className="grafica" data-prueba={`grafica-${titulo}`}>
       <figcaption>
-        <h3>{titulo}</h3>
+        <h2>{titulo}</h2>
       </figcaption>
       {filas.length === 0 ? <p className="muted">{vacio}</p> : null}
       <ul className="barras">

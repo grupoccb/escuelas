@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fechaLocal, formatearHorarios, horaDeMinutos, nombreDeDia } from "./horario.ts";
+import { fechaEnPalabras, fechaLocal, formatearHorarios, horaDeMinutos, nombreDeDia } from "./horario.ts";
 
 test("nombres de los días en español de México", () => {
   assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(nombreDeDia), ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]);
@@ -63,4 +63,14 @@ test("fechaLocal usa el reloj de la zona, no el de UTC", () => {
   assert.equal(fechaLocal(instante, "America/Mexico_City"), "2026-10-08");
   assert.equal(fechaLocal(instante, "UTC"), "2026-10-09");
   assert.equal(fechaLocal(instante, "Asia/Tokyo"), "2026-10-09");
+});
+
+test("V10: fechaEnPalabras es el día de calendario de la zona de la escuela, en español, no el día UTC", () => {
+  // 9 de octubre, 21:30 en la Ciudad de México = 10 de octubre, 03:30 UTC.
+  const instante = new Date("2026-10-10T03:30:00Z");
+  assert.equal(fechaEnPalabras(instante, "America/Mexico_City"), "9 de octubre de 2026");
+  assert.equal(fechaEnPalabras(instante, "UTC"), "10 de octubre de 2026");
+  assert.equal(fechaEnPalabras(instante, "Asia/Tokyo"), "10 de octubre de 2026");
+  assert.equal(fechaEnPalabras(new Date("2026-01-01T05:59:00Z"), "America/Mexico_City"), "31 de diciembre de 2025", "cruza el año");
+  assert.equal(fechaEnPalabras(new Date("2026-03-05T18:00:00Z"), "America/Mexico_City"), "5 de marzo de 2026");
 });
