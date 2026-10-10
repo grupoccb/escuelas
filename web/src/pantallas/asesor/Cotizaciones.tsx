@@ -22,15 +22,15 @@ interface Cotizacion {
   snapshot: { programa?: ProgramaCotizado; supuestos?: { hermanos_inscritos: number; meses_pagados: number } };
 }
 
-const TONO = { vigente: "exito", aceptada: "info", vencida: "neutro" } as const;
+const TONO = { vigente: "exito", aceptada: "info", vencida: "peligro" } as const;
 
 function TarjetaDeCotizacion({ c, prospectos }: { c: Cotizacion; prospectos: LeadDetalle["prospectos"] }) {
   const p = c.snapshot.programa;
   const quien = prospectos.find((x) => x.id === c.prospecto_id)?.nombre ?? "Alumno";
   return (
-    <li className="tarjeta pila" data-prueba={`cotizacion-${c.id}`}>
+    <li className="pila cotizacion" data-prueba={`cotizacion-${c.id}`}>
       <div className="fila fila-entre">
-        <strong>
+        <strong className="cotizacion-titulo">
           {p?.nombre ?? "Programa"} · {quien}
         </strong>
         <span className="fila">
@@ -39,27 +39,27 @@ function TarjetaDeCotizacion({ c, prospectos }: { c: Cotizacion; prospectos: Lea
         </span>
       </div>
       {p?.precio ? (
-        <p>
+        <p className="cotizacion-precio numero">
           Inscripción {formatear(p.precio.costo_inscripcion)} · Mensualidad {formatear(p.precio.costo_mensualidad)}
           {p.promociones && p.promociones.aplicadas.length > 0 ? (
             <>
               <br />
-              <span className="muted">
+              <span className="muted dato-chico">
                 Con {p.promociones.aplicadas.map((a) => a.nombre).join(", ")}: inscripción {formatear(p.promociones.inscripcion.final_ahora)} · mensualidad {formatear(p.promociones.mensualidad.final_ahora)}
               </span>
             </>
           ) : null}
         </p>
       ) : (
-        <p className="muted">Sin precio vigente cuando se cotizó.</p>
+        <p className="muted dato-chico">Sin precio vigente cuando se cotizó.</p>
       )}
       {c.snapshot.supuestos ? (
-        <p className="muted">
+        <p className="muted dato-chico">
           Supuestos: {c.snapshot.supuestos.hermanos_inscritos} hermano(s) inscrito(s), {c.snapshot.supuestos.meses_pagados} mes(es) por adelantado.
         </p>
       ) : null}
       {p?.grupos.length ? (
-        <ul>
+        <ul className="lista-simple">
           {p.grupos.map((g) => (
             <li key={g.grupo_id}>
               {g.horario_texto} ({g.nombre}) · {g.oferta === "lugar" ? textoDeLugares(g.lugares_disponibles) : "lista de espera"}
@@ -68,7 +68,7 @@ function TarjetaDeCotizacion({ c, prospectos }: { c: Cotizacion; prospectos: Lea
           ))}
         </ul>
       ) : null}
-      <p className="muted">Vigente hasta {formatearFecha(c.vigente_hasta)}</p>
+      <p className="muted dato-chico">Vigente hasta {formatearFecha(c.vigente_hasta)}</p>
     </li>
   );
 }
@@ -101,7 +101,7 @@ function CotizarAMano({ lead, alCotizar, prospectoInicial }: { lead: LeadDetalle
   if (conEdad.length === 0) return <Aviso>No hay niños con edad por cotizar (los ya inscritos no se cotizan).</Aviso>;
   return (
     <form noValidate
-      className="formulario"
+      className="formulario formulario-incrustado"
       data-prueba="cotizar-a-mano"
       onSubmit={(e) => {
         e.preventDefault();
@@ -120,7 +120,7 @@ function CotizarAMano({ lead, alCotizar, prospectoInicial }: { lead: LeadDetalle
         <CampoSelect etiqueta="Programa" value={programa?.programa_id ?? ""} onChange={(e) => setProgramaId(e.target.value)} opciones={programas.map((p) => ({ valor: p.programa_id, texto: p.precio ? `${p.nombre} · ${formatear(p.precio.costo_mensualidad)} al mes` : `${p.nombre} · sin precio`, deshabilitada: p.sin_precio }))} />
       ) : null}
       {programa?.promociones ? (
-        <p data-prueba="precio-con-promociones">
+        <p className="cotizacion-precio numero" data-prueba="precio-con-promociones">
           Con lo que aplica hoy: inscripción {formatear(programa.promociones.inscripcion.final_ahora)} · mensualidad {formatear(programa.promociones.mensualidad.final_ahora)}
         </p>
       ) : null}
@@ -165,7 +165,7 @@ export function Cotizaciones({ lead, puedeEscribir, cotizarA }: { lead: LeadDeta
       ) : null}
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
-      {carga.datos && carga.datos.datos.length === 0 ? <Vacio titulo="Todavía no se le cotiza nada" /> : null}
+      {carga.datos && carga.datos.datos.length === 0 ? <Vacio icono="cuenta" titulo="Todavía no se le cotiza nada">{puedeEscribir ? <p>Usa «Cotizar a mano» para calcular el precio de un niño con los programas de hoy.</p> : null}</Vacio> : null}
       <ul className="lista-tarjetas">
         {(carga.datos?.datos ?? []).map((c) => (
           <TarjetaDeCotizacion key={c.id} c={c} prospectos={lead.prospectos} />

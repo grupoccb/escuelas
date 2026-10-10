@@ -40,11 +40,11 @@ function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
   const { yo } = useSesion();
   const base = yo?.configuracion.chatwoot_url_publica ?? null;
   const conversaciones = lead.conversaciones;
-  if (conversaciones.length === 0) return <span className="muted">Sin conversación de WhatsApp todavía.</span>;
+  if (conversaciones.length === 0) return <span className="muted dato-chico">Sin conversación de WhatsApp todavía.</span>;
   const enlaces = conversaciones.map((c) => ({ c, url: urlDeConversacion(base, c.chatwoot) }));
   if (enlaces.every((e) => e.url === null)) return <Aviso tono="alerta">No se puede abrir la conversación: falta la dirección pública de Chatwoot. Pídele a quien administra el sistema que la configure.</Aviso>;
   return (
-    <>
+    <div className={enlaces.length > 2 ? "enlaces-chatwoot enlaces-chatwoot-muchos" : "enlaces-chatwoot"}>
       {enlaces.map(({ c, url }) =>
         url ? (
           <a key={c.id} className="boton" href={url} target="_blank" rel="noopener noreferrer" data-prueba="enlace-chatwoot">
@@ -52,7 +52,7 @@ function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
           </a>
         ) : null,
       )}
-    </>
+    </div>
   );
 }
 
@@ -119,16 +119,17 @@ export default function FichaLead() {
   // V10b: con la inscripción apagada, «Marcar como inscrito» (la regla es del servidor; aquí solo se anticipa).
   const puedeMarcarInscrito = sePuedeMarcarComoInscrito({ inscripcionEncendida: moduloEncendido("inscripcion"), puedeEscribir: escribir, etapaActual: d.etapa });
   // «fuente» ya sale arriba con su nombre en español: repetirla con el valor crudo («landing») era ruido (V7).
+  const hayConvertir = puede("conversion:ejecutar") && escribir && (!inscrito || hayPorInscribir);
   const atribucion = Object.entries(d.atribucion ?? {}).filter(([k, v]) => k !== "fuente" && k in CLAVES_DE_ATRIBUCION && typeof v === "string");
 
   return (
     <Marco
       titulo={nombre}
-      subtitulo={<Link to="/embudo">← Volver al embudo</Link>}
+      subtitulo={<Link className="enlace-volver" to="/embudo">← Volver al embudo</Link>}
       acciones={
         <>
           <EnlaceAChatwoot lead={d} />
-          {puede("conversion:ejecutar") && escribir && (!inscrito || hayPorInscribir) ? (
+          {hayConvertir ? (
             <EnlaceBoton to={`/leads/${d.id}/convertir`} variante="primario">
               {d.prospectos.filter((p) => p.alumno_id === null).length > 1 ? "Inscribir a los niños" : "Convertir e inscribir"}
             </EnlaceBoton>
@@ -143,33 +144,42 @@ export default function FichaLead() {
       ) : null}
       <Tarjeta
         titulo="Contacto"
+        className="ficha-resumen"
         acciones={
           escribir ? (
-            <>
-              {puedeMarcarInscrito ? <Boton variante="primario" onClick={() => setMarcando(true)} data-prueba="marcar-como-inscrito">Marcar como inscrito</Boton> : null}
+            <div className="fila fila-fin">
+              {puedeMarcarInscrito ? <Boton variante={hayConvertir ? "sutil" : "primario"} onClick={() => setMarcando(true)} data-prueba="marcar-como-inscrito">Marcar como inscrito</Boton> : null}
               <Boton onClick={() => setMoviendo(true)}>Mover de etapa</Boton>
-            </>
+            </div>
           ) : undefined
         }
       >
-        <dl className="datos">
-          <dt>Etapa</dt>
-          <dd data-prueba="etapa-actual">
+        <div className="ficha-estado">
+          <span className="ficha-etapa" data-prueba="etapa-actual">
             <Insignia tono={d.etapa.es_perdido ? "peligro" : inscrito ? "exito" : "info"}>{d.etapa.nombre}</Insignia>
             {historial.datos?.inscrito_a_mano ? <> <Insignia tono="info">Inscrito a mano</Insignia></> : null}
             {d.motivo_perdida ? ` · Motivo: ${d.motivo_perdida.nombre}` : ""}
             {d.recuperaciones > 0 ? ` · Recuperado ${d.recuperaciones} vez/veces` : ""}
-          </dd>
-          <dt>Teléfono</dt>
-          <dd>{d.telefono ?? "—"}</dd>
-          <dt>Sucursal</dt>
-          <dd>{d.sucursal ? d.sucursal.nombre : escribir ? <ElegirSucursal lead={d} alElegir={recargar} /> : "Sin elegir"}</dd>
-          <dt>Interés</dt>
-          <dd>{d.vertical.nombre}</dd>
-          <dt>Llegó</dt>
-          <dd>{formatearInstante(d.creado_en)}</dd>
-          <dt>Último movimiento</dt>
-          <dd>{formatearInstante(d.ultima_interaccion_en)}</dd>
+          </span>
+          <span className="ficha-telefono numero">{d.telefono ?? "—"}</span>
+        </div>
+        <dl className="datos-rejilla">
+          <div>
+            <dt>Sucursal</dt>
+            <dd>{d.sucursal ? d.sucursal.nombre : escribir ? <ElegirSucursal lead={d} alElegir={recargar} /> : "Sin elegir"}</dd>
+          </div>
+          <div>
+            <dt>Interés</dt>
+            <dd>{d.vertical.nombre}</dd>
+          </div>
+          <div>
+            <dt>Llegó</dt>
+            <dd className="numero">{formatearInstante(d.creado_en)}</dd>
+          </div>
+          <div>
+            <dt>Último movimiento</dt>
+            <dd className="numero">{formatearInstante(d.ultima_interaccion_en)}</dd>
+          </div>
         </dl>
       </Tarjeta>
 
@@ -213,9 +223,9 @@ export default function FichaLead() {
 
       <Tarjeta titulo="Historial de etapas">
         {historial.error ? <ErrorDeCarga error={historial.error} alReintentar={historial.recargar} /> : null}
-        {historial.datos && historial.datos.cambios.length === 0 ? <Vacio titulo="Todavía no hay cambios de etapa registrados" /> : null}
+        {historial.datos && historial.datos.cambios.length === 0 ? <Vacio icono="lista" titulo="Todavía no hay cambios de etapa registrados">El primer cambio aparecerá aquí cuando muevas al lead de etapa.</Vacio> : null}
         {historial.datos && historial.datos.cambios.length > 0 ? (
-          <ol className="lista-historial" data-prueba="historial">
+          <ol className="lista-historial historial-linea" data-prueba="historial">
             {historial.datos.cambios.map((c) => (
               <li key={c.id} data-prueba={c.a_mano ? "cambio-a-mano" : undefined}>
                 <strong>

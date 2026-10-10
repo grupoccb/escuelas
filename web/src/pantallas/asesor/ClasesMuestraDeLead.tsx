@@ -61,7 +61,9 @@ function DialogoDeSesion({ lead, clase, abierto, alCerrar, alGuardar }: { lead: 
         {sesiones.error ? <ErrorDeCarga error={sesiones.error} alReintentar={sesiones.recargar} /> : null}
         {sesiones.datos && sesiones.datos.length === 0 ? <Aviso tono="alerta">Este grupo no tiene sesiones con lugar en los próximos días.</Aviso> : null}
         {sesiones.datos && sesiones.datos.length > 0 ? (
-          <GrupoDeOpciones rejilla etiqueta="Sesión" valor={fechaHora} alCambiar={setFechaHora} opciones={sesiones.datos.map((s) => ({ valor: s.fecha_hora, texto: `${s.completa} · ${s.lugares} ${s.lugares === 1 ? "lugar" : "lugares"}` }))} />
+          <div className="sesiones">
+            <GrupoDeOpciones rejilla etiqueta="Sesión" valor={fechaHora} alCambiar={setFechaHora} opciones={sesiones.datos.map((s) => ({ valor: s.fecha_hora, texto: `${s.completa} · ${s.lugares} ${s.lugares === 1 ? "lugar" : "lugares"}` }))} />
+          </div>
         ) : null}
         <CampoArea etiqueta="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} ayuda="Sin datos de salud." maxLength={1000} />
         <ErrorDeAccion error={accion.error} />
@@ -124,14 +126,14 @@ export function ClasesMuestraDeLead({ lead, puedeEscribir, alCambiar }: { lead: 
     <Tarjeta titulo="Clase muestra" acciones={puedeEscribir ? <Boton onClick={() => setAgendando(true)}>Agendar clase muestra</Boton> : undefined}>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
-      {carga.datos && clases.length === 0 ? <Vacio titulo="No tiene clase muestra" /> : null}
+      {carga.datos && clases.length === 0 ? <Vacio icono="hoy" titulo="No tiene clase muestra">{puedeEscribir ? <p>Usa «Agendar clase muestra» para reservarle un lugar.</p> : null}</Vacio> : null}
       <ul className="lista-tarjetas">
         {clases.map((c) => {
           const e = ESTATUS_DE_CLASE[c.estatus] ?? { texto: c.estatus, tono: "neutro" as const };
           return (
-            <li key={c.id} className="tarjeta pila" data-prueba={`clase-${c.id}`}>
+            <li key={c.id} className="pila clase" data-prueba={`clase-${c.id}`}>
               <div className="fila fila-entre">
-                <strong>
+                <strong className="clase-hora numero">
                   {c.sesion.fecha} · {c.sesion.hora}
                 </strong>
                 <Insignia tono={e.tono}>{e.texto}</Insignia>
@@ -139,7 +141,7 @@ export function ClasesMuestraDeLead({ lead, puedeEscribir, alCambiar }: { lead: 
               <p>
                 {c.prospecto ?? "Alumno"} · {c.grupo} · {c.sucursal}
               </p>
-              {c.motivo_cancelacion ? <p className="muted">Motivo: {c.motivo_cancelacion}</p> : null}
+              {c.motivo_cancelacion ? <p className="muted dato-chico">Motivo: {c.motivo_cancelacion}</p> : null}
               {puedeEscribir && c.estatus === "agendada" ? (
                 <div className="fila">
                   <Boton onClick={() => setReprogramando(c)}>Reprogramar</Boton>

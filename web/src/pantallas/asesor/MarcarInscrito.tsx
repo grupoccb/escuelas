@@ -72,7 +72,7 @@ export function MarcarInscrito({ lead, etapas, abierto, alCerrar, alMarcar }: { 
           <p>
             Vas a marcar a <strong>{nombre}</strong> como <strong>{destino.nombre}</strong> con esta nota:
           </p>
-          <blockquote className="muted">{nota.trim()}</blockquote>
+          <blockquote className="cita-nota">{nota.trim()}</blockquote>
           <p className="muted">Queda guardado que lo hiciste tú, con la fecha y tu nota. Si te equivocas, solo un administrador puede corregirlo.</p>
           <ErrorDeAccion error={accion.error} enCampos={["nota"]} />
           {accion.error?.esConflicto ? <Aviso tono="alerta">La familia cambió mientras lo veías. Cierra esta ventana: la pantalla se actualiza.</Aviso> : null}

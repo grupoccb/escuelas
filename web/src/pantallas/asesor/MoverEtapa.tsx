@@ -44,7 +44,7 @@ export function MoverEtapa({ lead, etapas, motivos, abierto, alCerrar, alMover }
 
   return (
     <Dialogo abierto={abierto && lead !== null} titulo={`Mover a ${lead?.nombre ?? "lead"}`} alCerrar={cerrar}>
-      <p className="muted">Ahora está en: <strong>{actual?.nombre ?? "—"}</strong></p>
+      <p className="muted etapa-actual-dialogo">Ahora está en: <strong>{actual?.nombre ?? "—"}</strong></p>
       <form noValidate
         className="formulario"
         onSubmit={(e) => {
@@ -70,13 +70,13 @@ export function MoverEtapa({ lead, etapas, motivos, abierto, alCerrar, alMover }
         <CampoArea etiqueta={recupera ? "Nota (obligatoria)" : "Nota (opcional)"} value={nota} onChange={(e) => setNota(e.target.value)} maxLength={1000} requerido={recupera} />
         {accion.error?.esConflicto ? <Aviso tono="alerta">El lead cambió mientras lo veías. Cierra esta ventana: la lista se actualiza.</Aviso> : null}
         <ErrorDeAccion error={accion.error} />
+        {falta ? <p className="campo-ayuda">{falta}.</p> : null}
         <div className="formulario-acciones">
           <Boton type="submit" variante="primario" cargando={accion.ocupado} disabled={falta !== null}>
             Mover
           </Boton>
           <Boton onClick={cerrar}>Cancelar</Boton>
         </div>
-        {falta ? <p className="muted">{falta}.</p> : null}
       </form>
     </Dialogo>
   );

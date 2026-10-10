@@ -10,6 +10,7 @@ import { aEntero } from "../../lib/numeros.ts";
 import { Aviso, Boton, ErrorDeAccion, Insignia, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
 
 interface Disciplina {
@@ -108,10 +109,11 @@ function FormularioDeNino({ lead, editando, disciplinas, alGuardar, alCerrar }: 
       {agregados > 0 ? <Aviso tono="exito">Listo, ya está en la ficha. Puedes escribir al siguiente.</Aviso> : null}
       <CampoTexto etiqueta="Nombre" value={c.nombre} onChange={(e) => setC({ ...c, nombre: e.target.value })} autoFocus autoComplete="off" requerido error={errores["nombre"]} />
       <CampoTexto etiqueta="Apellidos (opcional)" value={c.apellidos} onChange={(e) => setC({ ...c, apellidos: e.target.value })} autoComplete="off" error={errores["apellidos"]} />
-      <CampoTexto etiqueta="Fecha de nacimiento" type="date" max={hoyLocal()} value={c.fecha} onChange={(e) => setC({ ...c, fecha: e.target.value, edad: e.target.value ? "" : c.edad })} error={errores["fecha_nacimiento"]} />
+      <CampoTexto etiqueta="Fecha de nacimiento" type="date" max={hoyLocal()} value={c.fecha} onChange={(e) => setC({ ...c, fecha: e.target.value, edad: e.target.value ? "" : c.edad })} error={errores["fecha_nacimiento"] ?? (fechaMala ? "Revisa la fecha de nacimiento: tiene que ser una fecha que ya pasó." : undefined)} />
       {c.fecha === "" ? <CampoTexto etiqueta="Edad (si no saben la fecha)" inputMode="numeric" value={c.edad} onChange={(e) => setC({ ...c, edad: e.target.value })} error={errores["edad"] ?? (edad === null && c.edad.trim() !== "" ? "Escribe un número" : undefined)} /> : null}
       {disciplinas.length > 1 ? <CampoSelect etiqueta="Disciplina de interés" value={c.vertical} onChange={(e) => setC({ ...c, vertical: e.target.value })} opciones={disciplinas.map((d) => ({ valor: d.id, texto: d.nombre }))} error={errores["vertical_id"]} /> : null}
       <ErrorDeAccion error={accion.error && Object.keys(errores).length === 0 ? accion.error : null} />
+      {falta && !fechaMala && !(edad === null && c.edad.trim() !== "") ? <p className="campo-ayuda">{falta}.</p> : null}
       <div className="formulario-acciones">
         <Boton type="submit" variante="primario" cargando={accion.ocupado} disabled={falta !== null}>
           {editando ? "Guardar cambios" : "Guardar"}
@@ -123,7 +125,6 @@ function FormularioDeNino({ lead, editando, disciplinas, alGuardar, alCerrar }: 
         ) : null}
         <Boton onClick={alCerrar}>{agregados > 0 ? "Terminar" : "Cancelar"}</Boton>
       </div>
-      {falta ? <p className="muted">{falta}.</p> : null}
     </form>
   );
 }
@@ -164,8 +165,8 @@ export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCo
   const variasDisciplinas = disciplinas.length > 1;
 
   return (
-    <Tarjeta titulo="Niños" acciones={puedeEscribir ? <Boton variante="primario" onClick={() => setFormulario({ editando: null })}>Agregar otro niño</Boton> : undefined}>
-      {lead.prospectos.length === 0 ? <Vacio titulo="Todavía no hay niños registrados">{puedeEscribir ? <p>Usa «Agregar otro niño» para anotar al primero.</p> : null}</Vacio> : null}
+    <Tarjeta titulo="Niños" acciones={puedeEscribir ? <Boton onClick={() => setFormulario({ editando: null })}>Agregar otro niño</Boton> : undefined}>
+      {lead.prospectos.length === 0 ? <Vacio icono="alumnos" titulo="Todavía no hay niños registrados">{puedeEscribir ? <p>Usa «Agregar otro niño» para anotar al primero.</p> : null}</Vacio> : null}
       {avisos.map((a) => (
         <Aviso key={a} tono="alerta">
           {a}
@@ -173,9 +174,9 @@ export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCo
       ))}
       <ul className="lista-tarjetas" data-prueba="ninos">
         {lead.prospectos.map((p) => (
-          <li key={p.id} className="tarjeta pila" data-prueba={`prospecto-${p.id}`}>
+          <li key={p.id} className="pila nino" data-prueba={`prospecto-${p.id}`}>
             <div className="fila fila-entre">
-              <span>
+              <span className="nino-nombre">
                 <strong>{nombreCompleto(p)}</strong>
                 {p.edad !== null ? ` · ${p.edad} ${p.edad === 1 ? "año" : "años"}` : ""}
                 {p.edad === null && p.fecha_nacimiento === null ? <span className="muted"> · falta la edad{puedeEscribir ? ": anótala en «Corregir»" : ""}</span> : null}
@@ -184,16 +185,18 @@ export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCo
               </span>
               {p.alumno_id ? <Insignia tono="exito">Ya es alumno</Insignia> : <Insignia>Por inscribir</Insignia>}
             </div>
-            {cotizadorEncendido && p.programa_sugerido ? <p className="muted" data-prueba={`programa-sugerido-${p.id}`}>Programa sugerido: {p.programa_sugerido.nombre}</p> : null}
+            {cotizadorEncendido && p.programa_sugerido ? <p className="muted dato-chico" data-prueba={`programa-sugerido-${p.id}`}>Programa sugerido: {p.programa_sugerido.nombre}</p> : null}
             {puedeEscribir && !p.alumno_id ? (
-              <div className="fila">
-                {cotizadorEncendido ? <Boton onClick={() => alCotizar(p.id)} aria-label={`Cotizar a ${p.nombre ?? "este niño"}`}>Cotizar</Boton> : null}
-                <Boton variante="fantasma" onClick={() => setFormulario({ editando: p })} aria-label={`Corregir los datos de ${p.nombre ?? "este niño"}`}>
-                  Corregir
-                </Boton>
-                <Boton variante="fantasma" onClick={() => setQuitando(p)} aria-label={`Quitar a ${p.nombre ?? "este niño"}`}>
-                  Quitar
-                </Boton>
+              <div className="nino-acciones">
+                {cotizadorEncendido ? <Boton variante="sutil" onClick={() => alCotizar(p.id)} aria-label={`Cotizar a ${p.nombre ?? "este niño"}`}>Cotizar</Boton> : <span />}
+                <span className="fila fila-fin">
+                  <button type="button" className="boton boton-icono" title="Corregir" onClick={() => setFormulario({ editando: p })} aria-label={`Corregir los datos de ${p.nombre ?? "este niño"}`}>
+                    <Icono nombre="lapiz" />
+                  </button>
+                  <button type="button" className="boton boton-icono boton-icono-peligro" title="Quitar" onClick={() => setQuitando(p)} aria-label={`Quitar a ${p.nombre ?? "este niño"}`}>
+                    <Icono nombre="papelera" />
+                  </button>
+                </span>
               </div>
             ) : null}
           </li>
