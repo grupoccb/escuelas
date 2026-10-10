@@ -1,6 +1,6 @@
 # Operación diaria (bloque K7)
 
-Para quien usa el sistema (administrador, asesor, maestro, recepción) y para quien lo mantiene. Las pantallas se llaman como en la barra de la interfaz. Todo lo que dice «el sistema manda…» pasa por `MessagingProvider`: respeta la ventana de 24 h (fuera de ella solo sale una plantilla aprobada), el horario de 09:00 a 20:00 de la sucursal, las bajas, el tope de frecuencia y la atención humana.
+Para quien usa el sistema (administrador, asesor, maestro, recepción) y para quien lo mantiene. **Guías de una página por rol, con capturas, para quien nunca vio el sistema: [`docs/guias/README.md`](guias/README.md)** (asesor, con Chatwoot; maestro, para el celular; recepción; administrador). Las pantallas se llaman como en la barra de la interfaz. Todo lo que dice «el sistema manda…» pasa por `MessagingProvider`: respeta la ventana de 24 h (fuera de ella solo sale una plantilla aprobada), el horario de 09:00 a 20:00 de la sucursal, las bajas, el tope de frecuencia y la atención humana.
 
 ## Módulos: qué tiene encendido la escuela (V1)
 

@@ -39,7 +39,9 @@
     "respaldo": "node scripts/respaldo.ts",
     "restaurar": "node scripts/restaurar.ts",
     "catalogo:plantillas": "node scripts/catalogo-plantillas.ts",
-    "catalogo:importar": "node --env-file-if-exists=.env scripts/catalogo-importar.ts"
+    "catalogo:importar": "node --env-file-if-exists=.env scripts/catalogo-importar.ts",
+    "guias:capturas": "GUIAS_ESCRIBIR=1 node scripts/test-navegador.ts -- e2e/v8-guias.spec.ts e2e/v8-impresion-guias.spec.ts",
+    "guias:validar": "node --test scripts/guias-validar.test.ts"
   },
   "license": "UNLICENSED",
   "dependencies": {
