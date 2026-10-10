@@ -7,8 +7,9 @@ import { cantidad } from "../../lib/cantidad.ts";
 import { aCentavos, formatear, normalizarCaptura } from "../../lib/dinero.ts";
 import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Tarjeta } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
 import { claveParaEnvio } from "../recepcion/reparto.ts";
@@ -35,25 +36,26 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
   const err = (k: string) => local[k] ?? servidor[k];
   return (
     <div className="pila">
-      <p>
+      <p className="gasto-campana">
         Campaña: <strong>{campana.nombre}</strong>
       </p>
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
       {lista.datos ? (
         <>
-          <p>
-            Gastado en total: <strong data-prueba="gasto-total">{formatear(lista.datos.total)}</strong>
+          <p className="gasto-resumen">
+            Gastado en total: <strong className="gasto-total numero" data-prueba="gasto-total">{formatear(lista.datos.total)}</strong>
           </p>
-          <ul data-prueba="gastos">
+          {lista.datos.datos.length === 0 ? <Vacio titulo="Esta campaña todavía no tiene gastos.">Captura el primero en el formulario de abajo.</Vacio> : null}
+          <ul className="gastos" data-prueba="gastos">
             {lista.datos.datos.map((g) => (
-              <li key={g.id} className="fila fila-entre">
+              <li key={g.id} className="gasto">
                 {confirmando === g.id ? (
                   <>
-                    <span>
+                    <span className="gasto-texto">
                       ¿Quitar el gasto de <strong>{formatear(g.monto)}</strong> del {formatearFecha(g.fecha)}?
                     </span>
-                    <span className="fila">
+                    <span className="gasto-acciones">
                       <Boton
                         variante="peligro"
                         disabled={quitar.ocupado}
@@ -74,11 +76,11 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
                   </>
                 ) : (
                   <>
-                    <span>
-                      {formatearFecha(g.fecha)} · <strong>{formatear(g.monto)}</strong>
+                    <span className="gasto-texto">
+                      {formatearFecha(g.fecha)} · <strong className="numero">{formatear(g.monto)}</strong>
                       {g.nota ? ` · ${g.nota}` : ""}
                     </span>
-                    <Boton variante="fantasma" disabled={quitar.ocupado} onClick={() => setConfirmando(g.id)}>
+                    <Boton variante="peligro" disabled={quitar.ocupado} onClick={() => setConfirmando(g.id)}>
                       Dar de baja
                     </Boton>
                   </>
@@ -121,10 +123,10 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
         <CampoTexto etiqueta="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
         <ErrorDeAccion error={guardar.error} enCampos={["fecha", "monto"]} />
         <div className="formulario-acciones">
-          <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
+          <Boton type="submit" variante="primario" grande cargando={guardar.ocupado}>
             Capturar el gasto
           </Boton>
-          <Boton onClick={alCerrar}>Cerrar</Boton>
+          <Boton grande onClick={alCerrar}>Cerrar</Boton>
         </div>
       </form>
     </div>
@@ -138,28 +140,33 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
   const r = carga.datos;
   return (
     <div className="pila" data-prueba="tablero-costo">
-      <Filtros valores={filtros} alCambiar={alCambiar} conSucursalYVertical={false} />
-      <div>
-        <a className="boton" href={`/api/reportes/costo-por-alumno${armarConsulta({ ...consulta, formato: "csv" })}`} download data-prueba="descargar-costo">
-          Descargar CSV
-        </a>
-      </div>
+      <Filtros
+        valores={filtros}
+        alCambiar={alCambiar}
+        conSucursalYVertical={false}
+        acciones={
+          <a className="boton" href={`/api/reportes/costo-por-alumno${armarConsulta({ ...consulta, formato: "csv" })}`} download data-prueba="descargar-costo">
+            <Icono nombre="descargar" tamano={18} />
+            Descargar CSV
+          </a>
+        }
+      />
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !r ? <Cargando /> : null}
       {r ? (
         <>
-          <div className="indicadores">
+          <div className="indicadores indicadores-tablero">
             <Indicador etiqueta="Gasto total" valor={formatear(r.total.gasto)} prueba="ind-gasto" />
             <Indicador etiqueta="Costo por lead" valor={texto(r.total.costo_por_lead_texto)} />
             <Indicador etiqueta="Costo por clase muestra" valor={texto(r.total.costo_por_clase_muestra_texto)} />
-            <Indicador etiqueta="Costo por alumno inscrito" valor={texto(r.total.costo_por_alumno_texto)} nota={`${cantidad(r.total.inscripciones_activas, "inscripción activa", "inscripciones activas")}${r.total.inscritos_a_mano > 0 ? ` y ${cantidad(r.total.inscritos_a_mano, "inscrito a mano", "inscritos a mano")}` : ""}`} prueba="ind-costo-alumno" />
+            <Indicador principal etiqueta="Costo por alumno inscrito" valor={texto(r.total.costo_por_alumno_texto)} nota={`${cantidad(r.total.inscripciones_activas, "inscripción activa", "inscripciones activas")}${r.total.inscritos_a_mano > 0 ? ` y ${cantidad(r.total.inscritos_a_mano, "inscrito a mano", "inscritos a mano")}` : ""}`} prueba="ind-costo-alumno" />
           </div>
           {r.filas.length === 0 ? (
             <Aviso tono="info">
               <span data-prueba="aviso-sin-campanas">Todavía no hay campañas. Se dan de alta en Administración → Campañas y códigos QR; luego aquí capturas lo que gastas en cada una.</span>
             </Aviso>
           ) : r.filas.some((f) => f.gasto === "0.00") ? (
-            <Aviso tono="info">
+            <Aviso tono="alerta">
               <span data-prueba="aviso-sin-gasto">
                 {(() => {
                   const sin = r.filas.filter((f) => f.gasto === "0.00");
@@ -170,13 +177,14 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
           ) : null}
           <Tarjeta>
             <Barras
+              serie={2}
               titulo="Gasto por campaña"
               filas={r.filas.map((f) => ({ clave: f.campana.id, etiqueta: f.campana.nombre, valor: aCentavos(f.gasto), texto: formatear(f.gasto), nota: `${cantidad(f.leads, "lead", "leads")} · ${cantidad(f.clases_muestra, "clase muestra", "clases muestra")} · ${cantidad(f.alumnos_inscritos, "alumno inscrito", "alumnos inscritos")}${f.inscritos_a_mano > 0 ? ` (${f.inscritos_a_mano} a mano)` : ""}` }))}
               vacio="Todavía no hay campañas."
             />
           </Tarjeta>
           <Tarjeta titulo="Costo por campaña">
-            <div className="tabla-scroll">
+            <div className="tabla-scroll tabla-apilada">
               <table className="tabla" data-prueba="tabla-de-costo">
                 <thead>
                   <tr>
@@ -185,19 +193,21 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
                     <th className="derecha">Por lead</th>
                     <th className="derecha">Por clase</th>
                     <th className="derecha">Por alumno</th>
-                    <th />
+                    <th>
+                      <span className="solo-lectores">Acciones</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {r.filas.map((f) => (
                     <tr key={f.campana.id} data-prueba={`costo-${f.campana.id}`}>
-                      <td>{f.campana.nombre}</td>
-                      <td className="derecha numero">{formatear(f.gasto)}</td>
-                      <td className="derecha numero">{texto(f.costo_por_lead_texto)}</td>
-                      <td className="derecha numero">{texto(f.costo_por_clase_muestra_texto)}</td>
-                      <td className="derecha numero">{texto(f.costo_por_alumno_texto)}</td>
-                      <td>
-                        <Boton onClick={() => setGastos(f.campana)}>Capturar o ver gastos</Boton>
+                      <td className="celda-titulo">{f.campana.nombre}</td>
+                      <td className="derecha numero" data-etiqueta="Gasto">{formatear(f.gasto)}</td>
+                      <td className="derecha numero" data-etiqueta="Por lead">{texto(f.costo_por_lead_texto)}</td>
+                      <td className="derecha numero" data-etiqueta="Por clase">{texto(f.costo_por_clase_muestra_texto)}</td>
+                      <td className="derecha numero" data-etiqueta="Por alumno">{texto(f.costo_por_alumno_texto)}</td>
+                      <td className="celda-accion">
+                        <Boton variante="sutil" onClick={() => setGastos(f.campana)}>Capturar o ver gastos</Boton>
                       </td>
                     </tr>
                   ))}

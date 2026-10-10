@@ -37,7 +37,9 @@ export default function Tableros() {
   const [mes, setMes] = useState(hoyLocal().slice(0, 7));
   return (
     <Pagina titulo="Tableros" subtitulo="Cómo va la escuela: captación, costo y números del mes.">
-      <Pestanas nombre="tableros" etiqueta="Tableros" pestanas={vistas} activa={vista} alCambiar={(id) => ponerParams({ vista: id })} />
+      <div className="tableros-pestanas">
+        <Pestanas nombre="tableros" etiqueta="Tableros" pestanas={vistas} activa={vista} alCambiar={(id) => ponerParams({ vista: id })} />
+      </div>
       <div {...propsDePanel("tableros", vista ?? "")}>
         {vista === "clases" ? <ClasesMuestra filtros={filtros} alCambiar={setFiltros} /> : null}
         {vista === "costo" ? <CostoPorCampana filtros={filtros} alCambiar={setFiltros} /> : null}

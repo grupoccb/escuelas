@@ -7,6 +7,7 @@ import { aCentavos, formatear } from "../../lib/dinero.ts";
 import { hoyLocal } from "../../lib/fechas.ts";
 import { Cargando, ErrorDeCarga, Insignia, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useCarga } from "../../ui/hooks.ts";
 import { Barras, Indicador } from "./Barras.tsx";
 import type { Ejecutivo as Datos } from "./tipos.ts";
@@ -25,38 +26,49 @@ export function Ejecutivo({ mes, alCambiarMes }: { mes: string; alCambiarMes: (m
   const csv = (seccion: string) => `/api/reportes/ejecutivo${armarConsulta({ mes, formato: "csv", seccion })}`;
   return (
     <div className="pila" data-prueba="tablero-ejecutivo">
-      <div className="filtros">
-        <CampoTexto etiqueta="Mes" type="month" max={hoyLocal().slice(0, 7)} value={mes} onChange={(e) => e.target.value && alCambiarMes(e.target.value)} ayuda="Altas, bajas y deserción son de este mes; lo demás es la foto de hoy." />
-      </div>
-      <div className="fila">
-        <a className="boton" href={csv("resumen")} download data-prueba="descargar-ejecutivo">Descargar resumen (CSV)</a>
-        <a className="boton" href={csv("activos")} download>Activos por disciplina (CSV)</a>
-        <a className="boton" href={csv("ocupacion")} download>Ocupación por grupo (CSV)</a>
+      <div className="filtros-tablero filtros-tablero-alto">
+        <div className="filtros">
+          <CampoTexto etiqueta="Mes" type="month" max={hoyLocal().slice(0, 7)} value={mes} onChange={(e) => e.target.value && alCambiarMes(e.target.value)} ayuda="Altas, bajas y deserción son de este mes; lo demás es la foto de hoy." />
+        </div>
+        <div className="filtros-acciones">
+          <a className="boton" href={csv("resumen")} download data-prueba="descargar-ejecutivo">
+            <Icono nombre="descargar" tamano={18} />
+            Descargar resumen (CSV)
+          </a>
+          <a className="boton" href={csv("activos")} download>
+            <Icono nombre="descargar" tamano={18} />
+            Activos por disciplina (CSV)
+          </a>
+          <a className="boton" href={csv("ocupacion")} download>
+            <Icono nombre="descargar" tamano={18} />
+            Ocupación por grupo (CSV)
+          </a>
+        </div>
       </div>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !r ? <Cargando /> : null}
       {r ? (
         <>
-          <div className="indicadores" data-prueba="indicadores-ejecutivo">
-            <Indicador etiqueta="Alumnos activos" valor={r.activos.total_alumnos} nota={cantidad(r.activos.total_inscripciones, "inscripción", "inscripciones")} prueba="ind-activos" />
+          <div className="indicadores indicadores-tablero" data-prueba="indicadores-ejecutivo">
+            <Indicador principal etiqueta="Alumnos activos" valor={r.activos.total_alumnos} nota={cantidad(r.activos.total_inscripciones, "inscripción", "inscripciones")} prueba="ind-activos" />
             <Indicador etiqueta="Altas del mes" valor={r.altas_del_mes} prueba="ind-altas" />
             <Indicador etiqueta="Bajas del mes" valor={r.bajas_del_mes} prueba="ind-bajas" />
             <Indicador etiqueta="Deserción" valor={r.desercion_texto} nota={`sobre ${r.base_al_inicio_del_mes} al inicio del mes`} prueba="ind-desercion" />
             <Indicador etiqueta="Ingreso mensual recurrente" valor={formatear(r.ingreso_mensual_recurrente)} prueba="ind-ingreso" />
-            <Indicador etiqueta="Cartera vencida" valor={formatear(r.cartera_vencida.total)} prueba="ind-cartera" />
+            <Indicador etiqueta="Cartera vencida" valor={formatear(r.cartera_vencida.total)} prueba="ind-cartera" {...(aCentavos(r.cartera_vencida.total) > 0n ? { alerta: { accion: "Ver antigüedad", destino: "#antiguedad-cartera" } } : {})} />
           </div>
           <Tarjeta>
-            <Barras titulo="Alumnos activos por disciplina y sucursal" filas={r.activos.por_vertical_y_sucursal.map((f) => ({ clave: `${f.vertical.id}|${f.sucursal.id}`, etiqueta: `${f.vertical.nombre} · ${f.sucursal.nombre}`, valor: BigInt(f.alumnos), texto: cantidad(f.alumnos, "alumno", "alumnos"), nota: `Ingreso mensual ${formatear(f.ingreso_mensual_recurrente)}` }))} vacio="Todavía no hay alumnos activos." />
+            <Barras serie={1} titulo="Alumnos activos por disciplina y sucursal" filas={r.activos.por_vertical_y_sucursal.map((f) => ({ clave: `${f.vertical.id}|${f.sucursal.id}`, etiqueta: `${f.vertical.nombre} · ${f.sucursal.nombre}`, valor: BigInt(f.alumnos), texto: cantidad(f.alumnos, "alumno", "alumnos"), nota: `Ingreso mensual ${formatear(f.ingreso_mensual_recurrente)}` }))} vacio="Todavía no hay alumnos activos." />
           </Tarjeta>
           <Tarjeta>
-            <Barras titulo="Antigüedad de la cartera vencida" filas={TRAMOS.map(([clave, etiqueta]) => ({ clave, etiqueta, valor: aCentavos(r.cartera_vencida.antiguedad[clave]), texto: formatear(r.cartera_vencida.antiguedad[clave]) }))} />
+            <Barras serie={3} id="antiguedad-cartera" titulo="Antigüedad de la cartera vencida" filas={TRAMOS.map(([clave, etiqueta]) => ({ clave, etiqueta, valor: aCentavos(r.cartera_vencida.antiguedad[clave]), texto: formatear(r.cartera_vencida.antiguedad[clave]) }))} />
           </Tarjeta>
           <Tarjeta>
-            <Barras titulo="Ocupación por grupo" filas={r.ocupacion_por_grupo.map((g) => ({ clave: g.grupo.id, etiqueta: `${g.grupo.nombre} · ${g.programa}`, valor: BigInt(g.ocupados), fondo: BigInt(g.cupo_maximo), texto: `${g.ocupados} de ${g.cupo_maximo} (${g.ocupacion} %)`, nota: `${ESTADO[g.estado].texto} · ${g.sucursal.nombre}` }))} vacio="Todavía no hay grupos activos." />
+            <Barras serie={1} leyenda={{ valor: "Ocupados", fondo: "Cupo" }} titulo="Ocupación por grupo" filas={r.ocupacion_por_grupo.map((g) => ({ clave: g.grupo.id, etiqueta: `${g.grupo.nombre} · ${g.programa}`, valor: BigInt(g.ocupados), fondo: BigInt(g.cupo_maximo), texto: `${g.ocupados} de ${g.cupo_maximo} (${g.ocupacion} %)`, nota: `${ESTADO[g.estado].texto} · ${g.sucursal.nombre}` }))} vacio="Todavía no hay grupos activos." />
             <p className="muted">Los grupos más llenos van primero. Cuándo un grupo cuenta como «a reventar» o como «vacío» se decide en Administración → Configuración.</p>
           </Tarjeta>
           <Tarjeta titulo="Ocupación en tabla">
-            <div className="tabla-scroll">
+            <div className="tabla-scroll tabla-apilada">
               <table className="tabla" data-prueba="tabla-de-ocupacion">
                 <thead>
                   <tr>
@@ -71,12 +83,12 @@ export function Ejecutivo({ mes, alCambiarMes }: { mes: string; alCambiarMes: (m
                 <tbody>
                   {r.ocupacion_por_grupo.map((g) => (
                     <tr key={g.grupo.id}>
-                      <td>{g.grupo.nombre}</td>
-                      <td>{g.sucursal.nombre}</td>
-                      <td className="derecha numero">{g.ocupados}</td>
-                      <td className="derecha numero">{g.cupo_maximo}</td>
-                      <td className="derecha numero">{g.ocupacion}</td>
-                      <td>
+                      <td className="celda-titulo">{g.grupo.nombre}</td>
+                      <td data-etiqueta="Sucursal">{g.sucursal.nombre}</td>
+                      <td className="derecha numero" data-etiqueta="Ocupados">{g.ocupados}</td>
+                      <td className="derecha numero" data-etiqueta="Cupo">{g.cupo_maximo}</td>
+                      <td className="derecha numero" data-etiqueta="%">{g.ocupacion}</td>
+                      <td data-etiqueta="Estado">
                         <Insignia tono={ESTADO[g.estado].tono}>{ESTADO[g.estado].texto}</Insignia>
                       </td>
                     </tr>
