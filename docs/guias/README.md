@@ -9,6 +9,8 @@ Cada guía cabe en una hoja carta, está escrita para alguien que nunca vio el s
 | [recepcion.md](recepcion.md) | Recepción: cobrar, repartir entre hermanos, cancelar, estado de cuenta, uniformes, ventas y cierre del día | 1 |
 | [administrador.md](administrador.md) | Administrador: «Para empezar», módulos, catálogo desde Excel, usuarios, configuración y tableros | 1 |
 
+Para practicar con cada una en una escuela de ejemplo con datos: `npm run demo:todo -- --si` levanta la demo con los cuatro usuarios y dice qué mirar primero en cada rol ([../DEMO-LOCAL.md](../DEMO-LOCAL.md)).
+
 Para imprimirlas o mandarlas, usa los PDF de [pdf/](pdf/) (hoja carta).
 
 Para el detalle de cada tarea del asesor y de cada rol: [../OPERACION.md](../OPERACION.md).

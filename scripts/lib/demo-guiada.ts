@@ -10,10 +10,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el relato lee, campo por campo, las respuestas JSON de la propia API; tiparlas todas sería repetir los esquemas del servidor */
 
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import type { Server } from "node:http";
-import pg from "pg";
 import { crearApp } from "../../src/http/app.ts";
 import { crearPrisma, type PrismaRaiz } from "../../src/datos/prisma.ts";
 import { conAlcance, type BaseDatos } from "../../src/datos/alcance.ts";
@@ -31,13 +28,13 @@ import { crearCifrador } from "../../src/sensibles/cifrado.ts";
 import { registrarTomaDeConversacion } from "../../src/captacion/toma.ts";
 import { crearManejadorDeInesperados } from "../../src/webhooks/inesperado.ts";
 import { listarOrganizaciones } from "../../src/datos/sistema.ts";
+import { recrearBaseDeDemo } from "./base-de-demo.ts";
 import { escucharServidor } from "./servidor-local.ts";
 
 export const SECRETO_WEBHOOK = "secreto-de-la-demo-guiada-0001";
 const CLAVE_DEMO = "Demo-local-2026!";
 /** Lunes 2 de noviembre de 2026, 12:00 en la Ciudad de México. Las clases de la demo caen en lunes y miércoles. */
 export const INICIO = new Date("2026-11-02T18:00:00Z");
-const SEEDS = ["demo.sql", "catalogo.sql", "catalogo-completo.sql", "clase-muestra.sql", "seguimiento.sql", "progresion.sql"];
 
 export interface OpcionesDeDemoGuiada {
   /** URL del servidor de Postgres (la base se cambia). */
@@ -112,23 +109,8 @@ function exigir<T>(r: Respuesta<T>, esperados: number[], que: string): T {
 // ── La base propia ──────────────────────────────────────────────────────────────────────────────────────────
 
 async function prepararBase(urlServidor: string, base: string, narrar: (l: string) => void): Promise<string> {
-  if (!/demo_guiada/.test(base) || !/^[a-z_][a-z0-9_]*$/.test(base)) throw new Error(`La base de la demo guiada debe llamarse con «demo_guiada» (recibí «${base}»): nunca toca otra.`);
-  const u = new URL(urlServidor);
-  u.pathname = "/postgres";
-  const admin = new pg.Client({ connectionString: u.toString() });
-  await admin.connect();
-  await admin.query(`DROP DATABASE IF EXISTS "${base}" WITH (FORCE)`);
-  await admin.query(`CREATE DATABASE "${base}"`);
-  await admin.end();
-  u.pathname = `/${base}`;
-  const url = u.toString();
-  execFileSync("npx", ["prisma", "migrate", "deploy"], { env: { ...process.env, DATABASE_URL: url }, stdio: ["ignore", "ignore", "inherit"] });
-  const c = new pg.Client({ connectionString: url });
-  await c.connect();
-  for (const s of SEEDS) await c.query(readFileSync(new URL(`../../prisma/seed/${s}`, import.meta.url), "utf8"));
-  // Las bandejas de Chatwoot no existen en la demo simulada: se les da una cuenta y una bandeja de mentira para que los webhooks las reconozcan.
-  await c.query("UPDATE bandeja_chatwoot SET chatwoot_account_id = 1, chatwoot_inbox_id = 100 + (SELECT count(*) FROM bandeja_chatwoot b2 WHERE b2.creado_en < bandeja_chatwoot.creado_en OR (b2.creado_en = bandeja_chatwoot.creado_en AND b2.id < bandeja_chatwoot.id))");
-  await c.end();
+  if (!/demo_guiada/.test(base)) throw new Error(`La base de la demo guiada debe llamarse con «demo_guiada» (recibí «${base}»): nunca toca otra.`);
+  const url = await recrearBaseDeDemo(urlServidor, base, /demo_guiada/);
   narrar(`Base propia «${base}» recreada: migraciones y datos de ejemplo del catálogo de la escuela.`);
   return url;
 }
@@ -269,7 +251,7 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   dato(`El administrador dio de alta la campaña «${campana.nombre}» (fuente ${campana.origen}); el anuncio es el ${anuncioId}.`);
   const telefono = "+5215512340001";
   const referral = { source_id: anuncioId, source_type: "ad", source_url: "https://fb.me/anuncio-simulado", headline: "Clase muestra gratis esta semana", ctwa_clid: "AFnDemoGuiadaClid0001" };
-  let respuesta = await hablar(CONVERSACION, telefono, "Rosa Mena", "Hola, vi su anuncio", { referral });
+  const respuesta = await hablar(CONVERSACION, telefono, "Rosa Mena", "Hola, vi su anuncio", { referral });
   dato(`Rosa Mena escribe «Hola, vi su anuncio» desde el anuncio «${referral.headline}».`);
   const lead = await db.lead.findFirstOrThrow({ where: { telefono: "+525512340001" }, include: { campana: true, etapa: true } });
   dato(`El sistema creó el lead y lo atribuyó a la campaña «${lead.campana?.nombre ?? "(sin campaña)"}»; etapa «${lead.etapa.nombre}».`);
@@ -301,23 +283,27 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   // ── 3. El bot ─────────────────────────────────────────────────────────────────────────────────────
   paso("El bot de tres preguntas (sin inteligencia artificial: una máquina de estados)");
   dato(`Bot: «${respuesta.replaceAll("\n", " ")}»`);
-  let turnos = 0;
-  const conversaciones = (): Promise<{ paso_captacion: string; estado: string }> => db.conversacion.findFirstOrThrow({ where: { chatwoot_conversacion_id: CONVERSACION }, select: { paso_captacion: true, estado: true } });
-  while (turnos++ < 12) {
-    const conv = await conversaciones();
-    if (conv.paso_captacion === "completo" || conv.estado === "en_atencion_humana") break;
-    let texto: string;
-    if (/c[oó]mo se llama/i.test(respuesta)) texto = "Mateo";
-    else if (/qu[eé] edad/i.test(respuesta)) texto = String(edad);
-    else if (/horarios? disponibles/i.test(respuesta) || /clase muestra en/i.test(respuesta)) texto = opcion(respuesta, null);
-    else if (/n[uú]mero/i.test(respuesta)) texto = /sucursal/i.test(respuesta) ? opcion(respuesta, sucursal.nombre) : /opciones|programa/i.test(respuesta) ? opcion(respuesta, programa.nombre) : opcion(respuesta, grupo.nombre);
-    else break;
-    // Entre las fechas de la clase muestra se elige la segunda, para que haya recordatorios de 24 h y 2 h por delante.
-    if (/clase muestra en/i.test(respuesta)) texto = opcion(respuesta, null) === "1" && /^\s*2\./m.test(respuesta) ? "2" : texto;
-    dato(`Mamá: «${texto}»`);
-    respuesta = await hablar(CONVERSACION, telefono, "Rosa Mena", texto);
-    dato(`Bot: «${respuesta.replaceAll("\n", " ").slice(0, 600)}»`);
-  }
+  /** La madre contesta lo que el bot pregunta (nombre, edad, sucursal, programa, horario…) hasta que la captura termina o una persona toma la conversación. */
+  const conversarConElBot = async (conversacion: number, telefonoMama: string, nombreMama: string, primera: string, hijo: string, quien: string, decir: boolean): Promise<string> => {
+    let ultima = primera;
+    for (let turnos = 0; turnos++ < 12; ) {
+      const c = await db.conversacion.findFirstOrThrow({ where: { chatwoot_conversacion_id: conversacion }, select: { paso_captacion: true, estado: true } });
+      if (c.paso_captacion === "completo" || c.estado === "en_atencion_humana") break;
+      let texto: string;
+      if (/c[oó]mo se llama/i.test(ultima)) texto = hijo;
+      else if (/qu[eé] edad/i.test(ultima)) texto = String(edad);
+      else if (/horarios? disponibles/i.test(ultima) || /clase muestra en/i.test(ultima)) texto = opcion(ultima, null);
+      else if (/n[uú]mero/i.test(ultima)) texto = /sucursal/i.test(ultima) ? opcion(ultima, sucursal.nombre) : /opciones|programa/i.test(ultima) ? opcion(ultima, programa.nombre) : opcion(ultima, grupo.nombre);
+      else break;
+      // Entre las fechas de la clase muestra se elige la segunda, para que haya recordatorios de 24 h y 2 h por delante.
+      if (/clase muestra en/i.test(ultima)) texto = opcion(ultima, null) === "1" && /^\s*2\./m.test(ultima) ? "2" : texto;
+      if (decir) dato(`${quien}: «${texto}»`);
+      ultima = await hablar(conversacion, telefonoMama, nombreMama, texto);
+      if (decir) dato(`Bot: «${ultima.replaceAll("\n", " ").slice(0, 600)}»`);
+    }
+    return ultima;
+  };
+  await conversarConElBot(CONVERSACION, telefono, "Rosa Mena", respuesta, "Mateo", "Mamá", true);
   const conv = await db.conversacion.findFirstOrThrow({ where: { chatwoot_conversacion_id: CONVERSACION }, include: { lead: { include: { etapa: true, prospectos: true } } } });
   const leadId = conv.lead_id;
   const prospecto = conv.lead.prospectos[0]!;
@@ -336,7 +322,7 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   paso("La clase muestra queda agendada y la conversación pasa a una persona");
   const clase = await db.clase_muestra.findFirstOrThrow({ where: { lead_id: leadId, estatus: "agendada" } });
   dato(`Clase muestra de ${prospecto.nombre} en «${grupo.nombre}»: ${cuando(clase.fecha_hora, zona)} (la agendó ${clase.agendada_por === "bot" ? "el bot" : "una persona"}).`);
-  const convFinal = await conversaciones();
+  const convFinal = await db.conversacion.findFirstOrThrow({ where: { chatwoot_conversacion_id: CONVERSACION }, select: { estado: true } });
   dato(`La conversación quedó «${convFinal.estado}»: el bot deja de contestar; los avisos de servicio sobre lo ya acordado (recordatorios) siguen saliendo.`);
   const estadoLead = await db.lead.findFirstOrThrow({ where: { id: leadId }, include: { etapa: true } });
   dato(`El lead avanzó a la etapa «${estadoLead.etapa.nombre}».`);
@@ -469,7 +455,74 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   const cuenta = exigir(await recepcion.get(`/api/tutores/${tutorId}/estado-cuenta`), [200], "estado de cuenta");
   dato(`Cargado ${dinero(cuenta.resumen?.total_cargado ?? cuenta.total_cargado ?? "0")} · pagado ${dinero(cuenta.resumen?.total_pagado ?? cuenta.total_pagado ?? "0")} · saldo ${dinero(cuenta.resumen?.saldo ?? cuenta.saldo ?? "0")}.`);
 
-  // ── 12. Cuadratura ────────────────────────────────────────────────────────────────────────────────
+  // ── 12 a 14. Los módulos ──────────────────────────────────────────────────────────────────────────
+  const nombresDeModulos = async (): Promise<Record<string, string>> => Object.fromEntries((exigir(await admin.get("/api/modulos"), [200], "módulos").modulos as { id: string; nombre: string }[]).map((m) => [m.id, m.nombre]));
+  const modulosDe = async (c: Cliente): Promise<Record<string, boolean>> => exigir(await c.get("/api/yo"), [200], "mi sesión").modulos;
+  const nombres = await nombresDeModulos();
+  const lista = (ids: string[]): string => ids.map((m) => `«${nombres[m] ?? m}»`).join(", ");
+
+  paso("Módulos: la escuela arranca solo con la captación y enciende el resto cuando está lista");
+  const antesPermisos = (exigir(await asesor.get("/api/yo"), [200], "mi sesión").permisos as string[]).length;
+  dato(`La demo trae todo encendido. El administrador ve los siete módulos en Administración → Módulos: ${lista(Object.keys(nombres))}.`);
+  const apagar = { cotizador: false, inscripcion: false, operacion: false, finanzas: false, tableros: false };
+  exigir(await admin.pedir("PUT", "/api/modulos", apagar), [200], "apagar módulos");
+  const quedan = Object.entries(await modulosDe(asesor)).filter(([, v]) => v).map(([k]) => k);
+  dato(`Apaga ${lista(Object.keys(apagar))} (de una sola vez: el sistema no deja apagar uno del que otro depende). Surte efecto en la siguiente petición, sin reiniciar nada: al asesor le quedan encendidos ${lista(quedan)}.`);
+  const despuesPermisos = (exigir(await asesor.get("/api/yo"), [200], "mi sesión").permisos as string[]).length;
+  dato(`Lo que el asesor puede hacer baja de ${antesPermisos} a ${despuesPermisos} permisos: desaparecen de su pantalla las secciones de lo apagado.`);
+  const ruta404 = await asesor.get(`/api/leads/${leadId}/conversion`);
+  const recepcion404 = await recepcion.get(`/api/tutores/${tutorId}/estado-cuenta`);
+  dato(`Lo apagado no existe para nadie: convertir o inscribir responde ${ruta404.estado} «${ruta404.cuerpo?.error?.mensaje ?? "no encontrada"}» y el estado de cuenta de recepción, ${recepcion404.estado}; ni siquiera el administrador las ve.`);
+
+  const CONVERSACION_2 = 880_002;
+  const telefono2 = "+5215512340003";
+  const respuesta2 = await hablar(CONVERSACION_2, telefono2, "Ernesto Lugo", "Hola, quiero informes");
+  dato(`Una familia nueva escribe «Hola, quiero informes» con el cotizador apagado. Bot: «${respuesta2.replaceAll("\n", " ")}»`);
+  await conversarConElBot(CONVERSACION_2, telefono2, "Ernesto Lugo", respuesta2, "Tomás", "Papá", true);
+  const conv2 = await db.conversacion.findFirstOrThrow({ where: { chatwoot_conversacion_id: CONVERSACION_2 }, include: { lead: { include: { prospectos: true, etapa: true } } } });
+  const lead3 = conv2.lead;
+  // Sin cotizar = el bot no guardó ninguna cotización de este lead (el texto de despedida sí menciona que el asesor le dará horarios y costos).
+  const sinCotizar = (await db.cotizacion.count({ where: { lead_id: lead3.id } })) === 0;
+  dato(`Con el cotizador apagado el bot solo toma nombre, edad y sucursal y pasa al asesor${sinCotizar ? ", SIN cotizar ni ofrecer horarios" : ""}: la conversación quedó «${conv2.estado}» y el lead, en la etapa «${lead3.etapa.nombre}».`);
+  const cotizaciones404 = await asesor.get(`/api/leads/${lead3.id}/cotizaciones`);
+  dato(`Las cotizaciones del lead (${cotizaciones404.estado}) tampoco existen mientras el módulo está apagado.`);
+
+  paso("Inscripción apagada: el asesor marca «inscrito a mano», con nota obligatoria y quedando quién lo hizo");
+  // La clase muestra no depende de la inscripción: el asesor agenda la de Tomás y la familia acepta el reglamento en persona (lo que después pedirá la inscripción de verdad).
+  const prospecto3 = lead3.prospectos[0]!;
+  const sesion3 = (exigir(await asesor.get(`/api/clases-muestra/sesiones?grupo_id=${grupo.id}&maximo=2`), [200], "sesiones del grupo").datos as { fecha_hora: string }[])[0]!;
+  const clase3 = exigir(await asesor.post("/api/clases-muestra", { prospecto_id: prospecto3.id, grupo_id: grupo.id, fecha_hora: sesion3.fecha_hora }), [201], "clase muestra de Tomás");
+  exigir(await asesor.post(`/api/clases-muestra/${clase3.id}/registro/aceptaciones`, { documento_id: dReglamento.id, version: dReglamento.version, resultado: "aceptada", aceptante: { nombre: "Ernesto Lugo", parentesco: "padre" }, canal: "presencial", evidencia: { tipo: "reglamento" } }), [200, 201], "reglamento de Tomás");
+  dato(`Con el módulo de clase muestra encendido el asesor agenda la de Tomás (${cuando(new Date(sesion3.fecha_hora), zona)}) y el padre acepta el reglamento en persona.`);
+  const etapas = exigir(await asesor.get("/api/etapas"), [200], "etapas").datos as { id: string; nombre: string; tipo_sistema: string | null }[];
+  const inscrita = etapas.find((e) => e.tipo_sistema === "inscrito")!;
+  const sinNota = await asesor.patch(`/api/leads/${lead3.id}/etapa`, { etapa_id: inscrita.id });
+  const notaCorta = await asesor.patch(`/api/leads/${lead3.id}/etapa`, { etapa_id: inscrita.id, nota: "ya pagó" });
+  dato(`Sin nota (${sinNota.estado}) o con una nota de menos de diez letras (${notaCorta.estado}) el sistema no lo deja: «${sinNota.cuerpo?.error?.mensaje ?? notaCorta.cuerpo?.error?.mensaje ?? "nota obligatoria"}».`);
+  exigir(await asesor.patch(`/api/leads/${lead3.id}/etapa`, { etapa_id: inscrita.id, nota: "Se inscribió en recepción con la maestra; pagó en efectivo y quedó en el grupo de la tarde." }), [200], "inscrito a mano");
+  const historial = exigir(await asesor.get(`/api/leads/${lead3.id}/historial`), [200], "historial del lead");
+  dato(`El lead queda en «${inscrita.nombre}» y el historial dice quién lo hizo: ${historial.inscrito_a_mano ? `«inscrito a mano por ${historial.inscrito_a_mano.por.nombre}»` : "(sin dato)"}. No crea alumno, inscripción ni cargos: por eso no cuenta en los alumnos activos del tablero ni inventa ingresos.`);
+  const reporteUno = exigir(await admin.get("/api/exportaciones/leads"), [200], "exportación de leads");
+  dato(`El reporte de leads lo cuenta aparte: ${typeof reporteUno === "string" && /A mano/.test(reporteUno) ? "la columna «Cómo se inscribió» dice «A mano»" : "se distingue de los inscritos por el sistema"}.`);
+
+  paso("Al encender la inscripción, ya no se marca a mano: se inscribe de verdad, y el lead cuenta una sola vez");
+  const encender = Object.fromEntries(Object.keys(apagar).map((m) => [m, true]));
+  exigir(await admin.pedir("PUT", "/api/modulos", encender), [200], "encender módulos");
+  dato(`El administrador vuelve a encender ${lista(Object.keys(encender))}: todo reaparece sin reiniciar.`);
+  const lead2Estado = await asesor.patch(`/api/leads/${lead2.id}/etapa`, { etapa_id: inscrita.id, nota: "Intento marcarlo a mano con la inscripción encendida." });
+  dato(`Con la inscripción encendida, marcar a mano ya no se puede (${lead2Estado.estado}): «${lead2Estado.cuerpo?.error?.mensaje ?? "inscríbela desde la ficha"}».`);
+  const nacimiento3 = `${2026 - edad}-04-20`;
+  const conversion3 = exigir(
+    await asesor.post(`/api/leads/${lead3.id}/convertir`, { tutor: { parentesco: "padre", nombre: "Ernesto", apellidos: "Lugo" }, prospectos: [{ prospecto_id: prospecto3.id, alumno: { nombre: "Tomás", apellidos: "Lugo", fecha_nacimiento: nacimiento3, sexo: "masculino" }, inscripcion: { grupo_id: grupo.id } }] }),
+    [200, 201],
+    "inscripción del lead marcado a mano",
+  );
+  const insc3 = conversion3.alumnos[0].inscripcion.id as string;
+  const historial3 = exigir(await asesor.get(`/api/leads/${lead3.id}/historial`), [200], "historial del lead");
+  dato(`El asesor inscribe de verdad a Tomás en «${grupo.nombre}» (ya con alumno, inscripción y cargos): ${historial3.inscripciones?.length ?? 0} inscripción real, y el lead YA NO figura como «a mano» (${historial3.inscrito_a_mano === null ? "cuenta una sola vez, por su inscripción" : "revisa: sigue a mano"}). La marca anterior queda en el historial.`);
+  void insc3;
+
+  // ── 15. Cuadratura ────────────────────────────────────────────────────────────────────────────────
   paso("Cuadratura: todo el dinero contra sí mismo");
   const cu = await cuadratura(db);
   dato(cu.ok ? `✓ cuadra — ${cu.resumen.cargos} cargos, ${cu.resumen.pagos} pagos, ${cu.resumen.aplicaciones} aplicaciones; cargado ${dinero(cu.resumen.totalCargado)}, pagado ${dinero(cu.resumen.totalPagado)}, saldo ${dinero(cu.resumen.saldoTotal)}.` : `✗ NO CUADRA: ${cu.discrepancias.length} discrepancias`);
@@ -479,7 +532,7 @@ async function recorrer(c: Contexto): Promise<Omit<ResultadoDeDemoGuiada, "servi
   narrar("══════════════════════════════════════════════════════════════════════════════");
   narrar(" Resumen");
   narrar("══════════════════════════════════════════════════════════════════════════════");
-  narrar(` Recorrido: anuncio simulado → landing y WhatsApp → bot → cotización → clase muestra → aviso al maestro y recordatorios → registro y asistencia → segundo hijo en la ficha → conversión de los dos hermanos en una operación → inscripción con promoción por hermanos → primer pago repartido → beneficio por entregar → estado de cuenta.`);
+  narrar(` Recorrido: anuncio simulado → landing y WhatsApp → bot → cotización → clase muestra → aviso al maestro y recordatorios → registro y asistencia → segundo hijo en la ficha → conversión de los dos hermanos en una operación → inscripción con promoción por hermanos → primer pago repartido → beneficio por entregar → estado de cuenta → módulos: apagar el cotizador (el bot pasa al asesor sin cotizar), «inscrito a mano» con la inscripción apagada, encender y inscribir de verdad.`);
   narrar(` Cuadratura: ${cu.ok ? "en verde" : "CON DISCREPANCIAS"}.`);
   const ligas = [
     `Interfaz:               ${origen}/            (usuarios de la demo: admin@demo.test, asesor@demo.test, maestro@demo.test, recepcion@demo.test; contraseña ${CLAVE_DEMO})`,

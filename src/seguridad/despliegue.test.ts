@@ -41,7 +41,8 @@ test("docker-compose: el backend y demo-preparar usan el objetivo «demo», se d
   const c = leer("docker-compose.yml");
   assert.match(c, /x-backend: &backend\n(?:\s*#.*\n)*\s*build:\n\s*context: \.\n\s*target: demo/);
   assert.match(c, /ENTORNO_DEMO: "si"/);
-  const puertos = [...c.matchAll(/^\s*- "([0-9.:]+:\d+:\d+)"$/gm)].map((m) => m[1]!);
+  // V12: el puerto del anfitrión puede venir de una variable con su valor de siempre por omisión (`${DEMO_PUERTO:-3000}`): otra demo aparte usa otros puertos. La IP sigue fija.
+  const puertos = [...c.matchAll(/^\s*- "([0-9.]+:[^"]*:\d+)"$/gm)].map((m) => m[1]!);
   assert.ok(puertos.length >= 3, `puertos: ${puertos.join(", ")}`);
   for (const p of puertos) assert.ok(p.startsWith("127.0.0.1:"), `el puerto ${p} se publica a toda la red`);
   assert.match(c, /TRUST_PROXY: "false"/);
@@ -59,13 +60,24 @@ test("V9 docker-compose: el ensayo es un perfil, no cambia la demo por omisión 
   for (const dominio of ["api", "messaging", "content", "media"]) {
     assert.ok(c.includes(`"\${ENSAYO_TWILIO_BLOQUEO_PREFIJO:-}${dominio}.twilio.com:127.0.0.1"`), `el bloqueo de ${dominio}.twilio.com se apaga solo con ENSAYO_TWILIO_BLOQUEO_PREFIJO`);
   }
-  assert.match(c, /FRONTEND_URL: \$\{ORIGEN_PUBLICO:-http:\/\/localhost:3001\}/);
-  assert.match(c, /ORIGEN_PUBLICO: \$\{ORIGEN_PUBLICO:-http:\/\/localhost:3000\}/);
+  assert.match(c, /FRONTEND_URL: \$\{ORIGEN_PUBLICO:-http:\/\/localhost:\$\{DEMO_PUERTO_CHATWOOT:-3001\}\}/);
+  assert.match(c, /ORIGEN_PUBLICO: \$\{ORIGEN_PUBLICO:-http:\/\/localhost:\$\{DEMO_PUERTO:-3000\}\}/);
   assert.match(c, /PUBLIC_BASE_URL: \$\{ORIGEN_PUBLICO:-\}/);
   assert.match(c, /TWILIO_AUTH_TOKEN: \$\{TWILIO_AUTH_TOKEN:-\}/);
   // Nada del ensayo viene fijo en el archivo (ni un token, ni la marca).
   assert.ok(!/ENSAYO_LOCAL: (?:si|"si")/.test(c));
   assert.ok(!/TWILIO_AUTH_TOKEN: [^$\s]/.test(c));
+});
+
+// V12: otra demo aparte (npm run demo:todo -- --proyecto …) cambia los tres puertos y la imagen por variables; sin ellas la demo principal es exactamente la de siempre.
+test("V12 docker-compose: los puertos y la imagen de la demo se pueden cambiar por variable y, sin ellas, son los de siempre", () => {
+  const c = leer("docker-compose.yml");
+  assert.ok(c.includes('"127.0.0.1:${DEMO_PUERTO:-3000}:3000"'), "interfaz");
+  assert.ok(c.includes('"127.0.0.1:${DEMO_PUERTO_CHATWOOT:-3001}:3000"'), "Chatwoot");
+  assert.ok(c.includes('"127.0.0.1:${DEMO_PUERTO_POSTGRES:-5432}:5432"'), "Postgres");
+  assert.match(c, /CHATWOOT_URL_PUBLICA: http:\/\/localhost:\$\{DEMO_PUERTO_CHATWOOT:-3001\}/);
+  assert.equal([...c.matchAll(/image: \$\{DEMO_IMAGEN:-inscripciones-backend:local\}/g)].length, 2, "el backend y el borde del ensayo comparten la imagen");
+  assert.ok(!/image: inscripciones-backend:local\b/.test(c), "ninguna imagen fija: otra demo aparte retocaría la de la principal");
 });
 
 test("V9: ningún archivo de infraestructura de AWS lleva variables del ensayo (el ensayo es solo local)", () => {

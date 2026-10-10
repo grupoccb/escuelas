@@ -1,19 +1,121 @@
-# Demo local (SPEC 0.5)
+# Demo local
 
-El loop de captación completo en tu máquina, sin Twilio: un contacto escribe a la bandeja de
-Chatwoot, el bot le hace tres preguntas, se crea el lead y la conversación pasa a los asesores.
-
-## Correrla
+## Quiero ver el sistema: un comando
 
 ```bash
-docker compose up -d --build --wait   # ~30 s desde cero; todo queda configurado
+npm run demo:todo -- --si
+```
+
+Reconstruye la demo desde cero y, al terminar, te deja **http://localhost:3000** con una escuela de ejemplo ya llena de datos: tres disciplinas, dos sucursales, unos 300 alumnos y seis meses de historia, más lo que cada persona necesita ver el primer día. Necesitas Docker abierto y Node 22.18 o más nuevo; nada más.
+
+- **Cuánto tarda:** unos 3 minutos con Docker ya caliente (imágenes descargadas y con caché; medido: 1.6 minutos conservando Chatwoot, 2.3 la primera vez en una máquina con las imágenes ya construidas); hasta unos 25 la primera vez en una máquina limpia (descarga unos 5 GB y construye las imágenes).
+- **Qué te imprime al final:** la dirección, los cuatro usuarios con su contraseña, qué mirar primero en cada rol, qué comprobó, cuánto tardó y cómo repetirlo.
+- **Sin `--si` no hace nada:** dice exactamente qué borraría y se detiene (código 2). Es a propósito: reconstruir borra la base de la demo.
+
+### Los cuatro usuarios
+
+La contraseña de los cuatro es **`Demo-local-2026!`** (el campo «Escuela» puede quedar vacío). Es pública, está en el repositorio y **solo sirve en esta demo**: la política de contraseñas la rechaza al crear o cambiar una contraseña, y el backend de una escuela real se niega a arrancar con ella (`docs/OPERACION.md`, «Variables y valores de demo»).
+
+| Correo | Rol | Qué ver primero |
+|---|---|---|
+| `admin@demo.test` | Administrador | **Administración**: «Módulos» (los siete encendidos), el catálogo, las plantillas y las automatizaciones; después **Tableros**. [Guía](guias/administrador.md) |
+| `asesor@demo.test` | Asesor | **Embudo**: leads nuevos y uno contactado en su sucursal, y una clase muestra ya asistida lista para inscribir. Abre una ficha y revisa **Tareas**. [Guía](guias/asesor.md) |
+| `maestro@demo.test` | Maestro | **Hoy**: las clases muestra del día (si hoy ninguno de sus grupos da clase, las del próximo día con clase) y el **Pase de lista**. Ideal en el celular. [Guía](guias/maestro.md) |
+| `recepcion@demo.test` | Recepción | **Registrar pago**: busca a *Marisol Vivanco Lozano* (teléfono 55 9901 0009); tiene la primera mensualidad y un uniforme por cobrar, y un solo pago se reparte entre los cargos. Después **Estado de cuenta**, **Uniformes** y **Cierre del día**. [Guía](guias/recepcion.md) |
+
+Las cuatro guías de una hoja con capturas están en [`docs/guias/`](guias/README.md).
+
+### Qué deja lista la reconstrucción
+
+1. **Revisa** Docker, Node y que los puertos estén libres (o sean de esta misma demo).
+2. **Borra y vuelve a crear** la demo: los contenedores de la aplicación y el volumen de su base. Chatwoot se conserva (ver abajo).
+3. **Construye y levanta** todo con `docker compose up -d --build --wait`: Postgres, Chatwoot y el backend con la interfaz. Al arrancar, compose aplica las migraciones y siembra la organización de la demo con **los siete módulos encendidos**, el catálogo de las tres disciplinas (programas, grupos, horarios, precios y promociones), las plantillas de mensaje, las automatizaciones y los cuatro usuarios (`prisma/seed/*.sql`, el servicio `demo-preparar`).
+4. **Deja Chatwoot listo** (`scripts/preparar-chatwoot.ts`): una bandeja por disciplina, conectada al bot. Se repite desde tu máquina porque es idempotente y confirma que quedó conectada.
+5. **Genera la historia** (`npm run demo:datos`): ~300 alumnos y seis meses, por los servicios reales del sistema, deterministas (misma semilla, misma historia).
+6. **Deja a la vista el primer día de cada rol** (`npm run demo:vivo`): leads para el asesor, clases muestra de **hoy** para el maestro (la hora sale del horario de sus grupos y del «ahora», no es fija) y una familia con cobros pendientes para recepción. Si la historia dejó la escuela llena, da de baja a un alumno de ejemplo para tener lugar.
+7. **Comprueba** (y lo informa): la aplicación lista, `http://localhost:3000` sirviendo la interfaz, el inicio de sesión de los cuatro roles con sus módulos, que el asesor, el maestro y recepción ven sus datos, la cuadratura del dinero y que el catálogo no tiene traslapes de edad ni choques de salón. Si algo falla, sale con código 1 y dice qué.
+
+**Chatwoot: se conserva por omisión** (decisión de V12). Las conversaciones de la bandeja no son parte de la historia de la escuela y reconstruir Chatwoot tarda varios minutos; si las quieres también limpias, agrega `--con-chatwoot` (borra todos los volúmenes del proyecto). En la primera vez no hay nada que conservar y se crea todo.
+
+### Repetirlo, cambiarlo, apagarlo
+
+```bash
+npm run demo:todo                          # sin --si: dice qué borraría y se detiene
+npm run demo:todo -- --simulacro           # imprime el plan paso a paso y termina, sin ejecutar nada
+npm run demo:todo -- --si                  # reconstruye (misma semilla: misma historia; vuelve a quedar igual)
+npm run demo:todo -- --si --con-chatwoot   # además borra y recrea Chatwoot
+npm run demo:todo -- --si --alumnos 150 --meses 3 --semilla 7 --hasta 2026-10-12   # otra historia, más chica o con otra fecha de corte
+npm run demo:todo -- --apagar              # detiene la demo y conserva los datos (volver a encender: docker compose up -d)
+npm run demo:todo -- --borrar --si         # quita el proyecto entero: contenedores y volúmenes
+DEMO_CONFIRMAR=si npm run demo:todo        # lo mismo que --si, por variable de entorno
+```
+
+**Una segunda demo aparte**, sin tocar la principal, con su propio proyecto de compose, puertos e imagen:
+
+```bash
+npm run demo:todo -- --si --proyecto otra --puerto 3300      # interfaz en :3300, Chatwoot en :3301 y Postgres en :3302 (se pueden cambiar con --puerto-chatwoot y --puerto-postgres)
+npm run demo:todo -- --apagar --proyecto otra --puerto 3300
+npm run demo:todo -- --borrar --si --proyecto otra --puerto 3300
+```
+
+**Lo que el comando nunca hace.** Solo toca el proyecto de compose que se le nombra (`--proyecto`, por omisión `inscripciones`); nunca toca las bases de pruebas (`*_pruebas`, `*_test`: `npm run test:int` y `npm run test:navegador` tienen las suyas y jamás corren contra la demo); no toca Chatwoot salvo con `--con-chatwoot`; y se niega a correr (código 2, aun con `--si`) con `NODE_ENV=production` o si ve una `DATABASE_URL` que no sea local. Nunca manda nada a Twilio ni a Meta: el transporte de mensajes de la demo es falso.
+
+### Para ver el recorrido narrado: `npm run demo:guiada`
+
+Cuenta, en español y paso a paso, el camino de una familia y lo que pasa al encender y apagar módulos. **No toca la demo**: usa una base propia (`inscripciones_demo_guiada`, se recrea en cada corrida) y mensajes simulados; solo necesita el Postgres de compose (`docker compose up -d postgres`). Es reproducible: dos corridas dan el mismo relato palabra por palabra.
+
+1. Un anuncio simulado, la landing por QR y el bot de tres preguntas; la cotización calculada por código con precios y promociones de las tablas.
+2. La clase muestra agendada, el aviso al maestro y los recordatorios de 24 h y 2 h; el registro del maestro (con la salud cifrada) y el pase de lista.
+3. **Hermanos:** el asesor agrega a la hermana desde la ficha; los dos niños se convierten en UNA operación, con la promoción por hermanos aplicada sola y la misma cotización previa.
+4. El primer pago repartido entre los cargos, el uniforme que se libera y el estado de cuenta.
+5. **Módulos:** el administrador apaga el cotizador y lo que depende de él. Se ve qué desaparece (las rutas dejan de existir para todos, el asesor pierde permisos) y que **el bot pasa al asesor sin cotizar**. Con la inscripción apagada, el asesor marca al lead **«inscrito a mano»**: nota obligatoria y queda quién lo hizo. Al encender, marcar a mano ya no se puede y el asesor **inscribe de verdad**; el lead cuenta una sola vez.
+6. La cuadratura del dinero y las ligas para recorrer la interfaz con esos datos.
+
+```bash
+npm run demo:guiada              # narra todo y termina con la cuadratura y las ligas
+npm run demo:guiada -- --servir  # además deja la interfaz en http://127.0.0.1:3100 con esos datos (Ctrl+C para terminar)
+```
+
+### Capturas de los cuatro usuarios
+
+```bash
+npm run demo:capturas                                       # contra http://localhost:3000
+npm run demo:capturas -- --url http://localhost:3300        # contra otra demo
+```
+
+Entra con cada usuario, comprueba su pantalla de inicio y sus secciones, y deja capturas de escritorio y celular en `docs/capturas/v1/v12-*.png`. Primera vez: `npx --prefix web playwright install chromium`.
+
+### Problemas comunes
+
+| Qué ves | Qué hacer |
+|---|---|
+| «Docker no responde» | Abre Docker Desktop, espera a que diga que está corriendo y repite. |
+| «El puerto 3000 lo usa otra cosa» | Otro programa (o una demo de otro proyecto) usa ese puerto. Ciérralo, o levanta esta demo en otros puertos: `--proyecto otra --puerto 3300`. Si es esta misma demo, no estorba: se reconstruye encima. |
+| El comando se detiene con «No se ejecutó nada» | Es la confirmación. Repite con `--si`. |
+| «Este comando se niega a correr» | Tienes `NODE_ENV=production` o una `DATABASE_URL` que no es local en tu terminal. Ábrela limpia (`env -u NODE_ENV -u DATABASE_URL …`). |
+| Se tardó más de 25 minutos construyendo | La primera vez descarga unos 5 GB de imágenes. Si se corta, repite el comando: reconstruye todo. |
+| Una comprobación falla pero la demo quedó arriba | El resumen dice cuál. Casi siempre es que el backend tardó en responder: espera un minuto y revisa `docker compose -p inscripciones logs backend`. Si persiste, repite. |
+| Entrar dice «Demasiados intentos» | La demo limita los intentos desde la misma IP. Espera unos minutos o repite el comando (reinicia la base de sesiones). |
+| El maestro no ve clases en «Hoy» | Hoy ninguno de sus grupos da clase (la demo trae grupos de lunes a sábado y un domingo): ve las del próximo día con clase en «Próximas». |
+| Quiero que Chatwoot también quede en blanco | `--con-chatwoot`. |
+| Quiero ver cómo se hizo | `docker compose -p inscripciones logs`, o `--simulacro` para ver el plan sin ejecutar. |
+
+---
+
+## Referencia para quien construye
+
+Lo de abajo es el detalle de lo que se construyó etapa por etapa (Chatwoot, bot, cotizador, conversión, cobro, interfaz y límites). Para solo ver el sistema no hace falta.
+
+### Correr los pedazos por separado
+
+```bash
+docker compose up -d --build --wait   # ~30 s desde cero; todo queda configurado (sin historia: solo catálogo)
 npm run demo:contacto                 # simula al contacto con un guion
 ```
 
 El simulador muestra la conversación en la terminal y al final imprime el enlace a Chatwoot.
 
-- Chatwoot: http://localhost:3001
-- Usuario: `asesor@demo.test` · contraseña `Demo-local-2026!`
+- Chatwoot: http://localhost:3001 · usuario `asesor@demo.test` · contraseña `Demo-local-2026!`
 
 Ver cuántos leads hay por campaña, sucursal y etapa:
 
@@ -29,7 +131,7 @@ npm run demo:contacto -- --respuestas "Hola|Ana|7|1"   # otro guion
 npm run demo:contacto -- --telefono +5215512345678     # número fijo (un lead por número)
 ```
 
-## Qué ver en Chatwoot
+### Qué ver en Chatwoot
 
 En la conversación nueva de la bandeja de la vertical:
 
@@ -41,7 +143,7 @@ En la conversación nueva de la bandeja de la vertical:
    pasa a atención humana y el bot ya no interviene. Estar **abierta** no basta: lo que cuenta es
    que una persona la tome.
 
-### Lead a medias (30 minutos)
+#### Lead a medias (30 minutos)
 
 Si el contacto deja de contestar a mitad de las tres preguntas, a los 30 minutos la conversación
 aparece en **Abiertas** con una nota privada "El contacto dejó de contestar…" y los datos
@@ -50,7 +152,7 @@ parciales. Todavía **nadie la atiende**: el bot sigue si el contacto vuelve a e
 el aviso sale en el siguiente barrido de un minuto después de que se cumplan los 30 minutos (para
 verlo sin esperar, ajusta `ultimo_mensaje_entrante_en` de la conversación en la base).
 
-### Cotizador por WhatsApp (C6 a C9)
+#### Cotizador por WhatsApp (C6 a C9)
 
 Las tres verticales de la demo traen **encendido** el cotizador de WhatsApp (`vertical.cotizador_whatsapp_activo`). Después de nombre, edad y sucursal, el bot consulta el catálogo: si la edad cae en
 varios programas (los marcados como alternativas) pregunta cuál; si la sucursal no tiene programa para la edad, ofrece la otra sucursal (o pasa al asesor, según
@@ -59,7 +161,7 @@ varios programas (los marcados como alternativas) pregunta cuál; si la sucursal
 `GET /api/leads/:id/cotizaciones`; la lista de espera, en `GET /api/lista-espera`. Para apagarlo en una vertical (vuelve la captura de tres preguntas):
 `UPDATE vertical SET cotizador_whatsapp_activo = false WHERE slug = '…'`. Precios, cupos y promociones del seed son **[SUPUESTO]**.
 
-### Del lead al alumno inscrito (F1 a F7)
+#### Del lead al alumno inscrito (F1 a F7)
 
 Con el lead que dejó el simulador y la sesión de un asesor (ver «Usuarios de la aplicación»), por la API:
 
@@ -79,7 +181,7 @@ asesor convierte; con `configuracion_organizacion.modo_cierre = 'maestro_en_siti
 El seed trae los motivos de baja de ejemplo `[SUPUESTO]` y la plantilla/automatización de **bienvenida de inscripción** (`bienvenida_inscripcion`, de servicio): con el
 motor corriendo, al inscribir sale a la conversación del tutor responsable (por el transporte configurado; sin Twilio real, solo se registra).
 
-### Cobrar, entregar y medir (H e I)
+#### Cobrar, entregar y medir (H e I)
 
 Con la sesión de **recepción** (o del administrador; ver «Usuarios de la aplicación»), todo por la API (`docs/API.md` tiene cada ruta):
 
@@ -103,7 +205,7 @@ El dinero siempre viaja como **texto** con dos decimales (`"1234.50"`): un núme
 `/uniformes-por-entregar` y `/leads`. El gasto de cada campaña lo captura el administrador: `POST /api/campanas/:id/gastos {"fecha":"2026-10-03","monto":"1000.00"}`.
 Por comando: `npm run reporte:clases-muestra`.
 
-### Datos de demo (~300 alumnos, seis meses)
+#### Datos de demo (~300 alumnos, seis meses)
 
 ```bash
 npm run demo:datos -- --confirmar-base-de-demo     # genera la historia en la base de DATABASE_URL (la de la demo exige la bandera)
@@ -117,7 +219,7 @@ hay, no hace nada). Tarda unos minutos y al terminar corre la cuadratura y las v
 Si se interrumpe a medias avisa y pide recrear la base de la demo (`docker compose down -v` y `up`): no hay borrado físico. **No** lo corras contra una base que no sea de demo o de
 pruebas. El comando necesita `CLAVE_DATOS_SENSIBLES` o, en local, `NODE_ENV=development` (lo pone el script de npm).
 
-## Interfaz web
+### Interfaz web
 
 Con `docker compose up -d --build --wait` el backend también sirve la interfaz en **http://localhost:3000** (la compila una etapa del `Dockerfile`; no hace falta instalar nada). Entra con
 cualquiera de los usuarios de abajo (la contraseña es `Demo-local-2026!`; el campo «Escuela» se deja vacío mientras haya una sola): cada rol ve solo sus secciones (el maestro, «Hoy» y «Pase de lista»; el asesor,
@@ -153,7 +255,7 @@ PRUEBAS_AHORA=2026-11-01T05:30:00Z npm run test:int
 La primera vez para las pruebas en navegador: `npx --prefix web playwright install chromium`. La ficha del lead abre su conversación en Chatwoot con `CHATWOOT_URL_PUBLICA`
 (en compose ya es `http://localhost:3001`). Las capturas de las pantallas (celular y escritorio, con datos de prueba) quedan en `docs/capturas/`.
 
-## Usuarios de la aplicación (API)
+### Usuarios de la aplicación (API)
 
 La API vive en `http://localhost:3000/api` (ver `docs/API.md`). El seed de la demo crea la
 organización `escuela-demo` y cuatro usuarios, todos con la contraseña **`Demo-local-2026!`**
@@ -185,12 +287,12 @@ curl -b /tmp/sesion-asesor.txt 'http://localhost:3000/api/conversaciones?asignad
 Datos de salud (solo administrador y maestro del grupo): `PUT/GET /api/salud/prospecto/:id` — ver `docs/API.md`.
 La clave de cifrado de la demo (`CLAVE_DATOS_SENSIBLES` en `docker-compose.yml`) es pública a propósito.
 
-### Límites de peticiones
+#### Límites de peticiones
 
 El backend limita por IP el inicio de sesión (10 por minuto), el resto de `/api` (600) y los webhooks con firma inválida (30); lo legítimo
 firmado no se ahoga. Detalle y variables en `docs/API.md`. En la demo local todo llega desde la misma IP: si pruebas contraseñas malas verás un `429`.
 
-## Cómo está armada
+### Cómo está armada
 
 | Pieza | Dónde |
 |---|---|
@@ -218,7 +320,7 @@ firmado no se ahoga. Detalle y variables en `docs/API.md`. En la demo local todo
 Todo es idempotente: `docker compose down -v && docker compose up -d --build --wait` deja la
 demo igual. Las credenciales son de desarrollo y están en `config/demo-local.env`.
 
-## Límites
+### Límites
 
 - Sin Twilio: la bandeja es tipo API y el "contacto" es el simulador. El borde de Twilio
   (`POST /webhooks/twilio/entrantes` y `/webhooks/twilio/estados`) existe pero **está apagado** en la
@@ -250,13 +352,6 @@ demo igual. Las credenciales son de desarrollo y están en `config/demo-local.en
 - Un contacto que vuelve a escribir en una conversación nueva reutiliza su lead y el bot le
   vuelve a preguntar.
 
-## Demo guiada con un solo comando (K8) y otras notas de la etapa K
+### Otras notas de la etapa K
 
-```bash
-npm run demo:guiada              # narra en español, del anuncio simulado al primer pago; termina con la cuadratura y las ligas
-npm run demo:guiada -- --servir  # además deja la interfaz encendida en http://127.0.0.1:3100 (usuarios de la demo; Ctrl+C para terminar)
-```
-
-Usa una base PROPIA (`inscripciones_demo_guiada`, se recrea en cada corrida, nunca toca la de la demo) y el transporte de mensajes FALSO: nada sale a Twilio ni a Chatwoot. Solo necesita el Postgres de compose (`docker compose up -d postgres`); para ver la interfaz en las ligas, `npm run web:build`. Es reproducible (reloj inyectado, datos fijos): dos corridas dan el mismo relato.
-
-Otras notas (K3, K4, K5): los puertos de compose se publican solo en `127.0.0.1`; el backend de la demo declara `ENTORNO_DEMO=si` (en producción se niega a arrancar con estos valores públicos); `/metricas` responde con `Authorization: Bearer demo-local-metricas-token-0001-solo-demo`; `/salud` es «vivo» y `/salud/lista` es «listo»; el respaldo local es `npm run respaldo` (usa el contenedor de Postgres de compose si no tienes `pg_dump`), ver `docs/RESPALDO.md`.
+(La demo guiada se explica arriba, en «Para ver el recorrido narrado».) Otras notas (K3, K4, K5): los puertos de compose se publican solo en `127.0.0.1`; el backend de la demo declara `ENTORNO_DEMO=si` (en producción se niega a arrancar con estos valores públicos); `/metricas` responde con `Authorization: Bearer demo-local-metricas-token-0001-solo-demo`; `/salud` es «vivo» y `/salud/lista` es «listo»; el respaldo local es `npm run respaldo` (usa el contenedor de Postgres de compose si no tienes `pg_dump`), ver `docs/RESPALDO.md`.

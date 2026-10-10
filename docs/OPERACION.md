@@ -125,6 +125,12 @@ La familia que escribe trae a un niño; muchas traen a dos o más. Cuando el ase
 
 Para probar la demo con un celular de verdad, sin AWS: `docs/ENSAYO-WHATSAPP-REAL.md` (pasos, comprobaciones, qué hacer si algo falla y cómo regresar al modo simulado). Comandos: `npm run ensayo:preparar` (crea la bandeja de Twilio en Chatwoot y apunta el canal; `--simulado` ensaya en seco, `--revertir` regresa), `npm run ensayo:diagnostico` (✔/✘ en 10 segundos) y `npm run ensayo:entrante` (un entrante firmado, para `+521`/`+52`). Compose: `docker compose --profile ensayo up -d --wait` agrega `ensayo-borde` (puerto 3100, la única puerta que se expone al túnel); lo único que se relaja es el bloqueo de los dominios de Twilio del Chatwoot local, por la variable `ENSAYO_TWILIO_BLOQUEO_PREFIJO` de `.env`. Cómo se firma contra la URL pública: `docs/DECISION-ATRIBUCION.md` (A7) y el log `webhook_twilio_rechazado`, que dice en español qué URL esperaba.
 
+## Reconstruir la demo local con un comando (V12)
+
+`npm run demo:todo -- --si` borra y recrea la demo local (la base de la aplicación y sus contenedores; Chatwoot se conserva salvo `--con-chatwoot`) y la deja en `http://localhost:3000` con la historia de ~300 alumnos y seis meses, los siete módulos encendidos y los cuatro usuarios (administrador, asesor, maestro y recepción; contraseña pública de demo `Demo-local-2026!`). Termina con una batería de comprobaciones (salud, la interfaz, el inicio de sesión de los cuatro roles, la cuadratura y el catálogo) y un resumen en español. Paso a paso, tiempos, opciones y problemas comunes: `docs/DEMO-LOCAL.md`; qué hace cada rol primero: las guías de `docs/guias/`.
+
+Es un comando **destructivo por diseño**, así que: sin `--si` (o `DEMO_CONFIRMAR=si`) imprime qué borraría y se detiene (código 2); solo toca el proyecto de compose que se le nombra; no toca nunca las bases de pruebas (`*_pruebas`, `*_test`); y se niega a correr con `NODE_ENV=production` o con una `DATABASE_URL` que no sea local. **No es una herramienta de operación de una escuela real**: no hay forma de usarlo contra AWS, y las contraseñas de los usuarios de la demo las rechaza la política de contraseñas y la revisión de producción (`src/seguridad/entorno.ts`). Para un ambiente real el primer administrador se crea con `scripts/crear-usuario.ts` y la escuela nace con `prisma/seed/plantilla-organizacion.sql`.
+
 ## Variables de producción
 
 El backend **se niega a arrancar** en producción si falta o es débil algo de esto (`src/seguridad/entorno.ts`; mensaje `entorno_inseguro` con el código de cada problema). En AWS las pone `infra/ecs.tf`; para otro despliegue:
@@ -167,4 +173,4 @@ NO existen en producción: `ENSAYO_LOCAL` y `ENSAYO_TWILIO_BLOQUEO_PREFIJO` (V9:
 
 ## Demo local frente a producción
 
-La demo (`docker compose up -d --build --wait`, `npm run demo:guiada`) usa contraseñas, tokens y claves PÚBLICAS, transporte de mensajes falso y puertos solo en 127.0.0.1. Es para enseñar y probar; nunca para datos reales. El backend de producción no arranca con esos valores.
+La demo (`npm run demo:todo`, `docker compose up -d --build --wait`, `npm run demo:guiada`) usa contraseñas, tokens y claves PÚBLICAS, transporte de mensajes falso y puertos solo en 127.0.0.1. Es para enseñar y probar; nunca para datos reales. El backend de producción no arranca con esos valores.

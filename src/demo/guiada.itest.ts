@@ -1,4 +1,4 @@
-// K8: `npm run demo:guiada` se ejecuta de verdad (el script real, contra servicios simulados y una base propia que crea y borra): recorre los doce pasos, termina con la
+// K8: `npm run demo:guiada` se ejecuta de verdad (el script real, contra servicios simulados y una base propia que crea y borra): recorre los quince pasos (con módulos y hermanos), termina con la
 // cuadratura en verde y es REPRODUCIBLE e IDEMPOTENTE (dos corridas seguidas dan el mismo relato palabra por palabra; la segunda recrea la base). Nada sale a Twilio ni a
 // Chatwoot (el transporte es falso) y la base de la demo normal no se toca.
 
@@ -41,14 +41,16 @@ after(async () => {
   await admin.end();
 });
 
-test("la demo guiada recorre los doce pasos, termina con la cuadratura en verde y dos corridas dan el MISMO relato", { timeout: 600_000 }, () => {
+test("la demo guiada recorre los quince pasos (con módulos y hermanos), termina con la cuadratura en verde y dos corridas dan el MISMO relato", { timeout: 600_000 }, () => {
   const una = correr();
   assert.equal(una.codigo, 0, una.salida.slice(-1500));
-  for (const paso of ["Paso 0.", "Paso 1.", "Paso 2.", "Paso 3.", "Paso 4.", "Paso 5.", "Paso 6.", "Paso 7.", "Paso 8.", "Paso 9.", "Paso 10.", "Paso 11.", "Paso 12."]) assert.ok(una.salida.includes(paso), `falta el ${paso}`);
+  for (const paso of ["Paso 0.", "Paso 1.", "Paso 2.", "Paso 3.", "Paso 4.", "Paso 5.", "Paso 6.", "Paso 7.", "Paso 8.", "Paso 9.", "Paso 10.", "Paso 11.", "Paso 12.", "Paso 13.", "Paso 14.", "Paso 15."]) assert.ok(una.salida.includes(paso), `falta el ${paso}`);
   assert.match(una.salida, /✓ cuadra — \d+ cargos/);
   assert.match(una.salida, /Cuadratura: en verde\./);
   // Los hitos del recorrido, dichos con lo que salió de las tablas:
-  for (const hito of [/atribuyó a la campaña/, /bot de tres preguntas/i, /Cotización vigente/, /clase muestra de .* en «/i, /plantilla «aviso_maestro_agendada»/, /plantilla «recordatorio_clase_muestra»/, /asistió/, /precio CONGELADO/, /agrega a Valentina/, /ya estaba \(no la duplica\)/, /La promoción por hermanos se aplicó sola a Valentina/, /Coincide con la cotización previa/, /dos alumnos y dos inscripciones/, /repartido entre los cargos|propone el reparto/, /Por entregar: /, /Estado de cuenta/]) assert.match(una.salida, hito);
+  for (const hito of [/atribuyó a la campaña/, /bot de tres preguntas/i, /Cotización vigente/, /clase muestra de .* en «/i, /plantilla «aviso_maestro_agendada»/, /plantilla «recordatorio_clase_muestra»/, /asistió/, /precio CONGELADO/, /agrega a Valentina/, /ya estaba \(no la duplica\)/, /La promoción por hermanos se aplicó sola a Valentina/, /Coincide con la cotización previa/, /dos alumnos y dos inscripciones/, /repartido entre los cargos|propone el reparto/, /Por entregar: /, /Estado de cuenta/,
+    // V12: los módulos. Apagar el cotizador (el bot pasa al asesor sin cotizar), marcar a mano con la inscripción apagada y, al encender, inscribir de verdad.
+    /Apaga «Cotizador»/, /el bot solo toma nombre, edad y sucursal y pasa al asesor, SIN cotizar ni ofrecer horarios/, /Sin nota \(400\) o con una nota de menos de diez letras \(400\)/, /inscrito a mano por Asesor demo/, /Cómo se inscribió.*A mano/, /marcar a mano ya no se puede \(409\): «Para marcar a la familia como inscrita, inscríbela desde la ficha»/, /el lead YA NO figura como «a mano»/, /1 inscripción real/]) assert.match(una.salida, hito);
   assert.match(una.salida, /Interfaz: +http:\/\/127\.0\.0\.1:\d+\//, "el resumen trae las ligas locales a la interfaz");
   assert.match(una.salida, /Estado de cuenta: +http:\/\/127\.0\.0\.1:\d+\/cuenta\//);
   // Sin términos que dependan de la escuela en el código: todo lo nombrado sale de las tablas, así que el relato cambia con el catálogo, no con el script.

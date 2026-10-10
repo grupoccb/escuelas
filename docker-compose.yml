@@ -2,7 +2,8 @@
 #
 #   docker compose up -d --build --wait
 #
-# Puertos: backend :3000 · Chatwoot :3001 · Postgres de la app :5432. Publicados SOLO en 127.0.0.1 (K3, EB-20): la demo trae contraseñas públicas y no debe
+# Puertos: backend :3000 · Chatwoot :3001 · Postgres de la app :5432 (otra demo aparte, con `npm run demo:todo -- --proyecto <nombre> --puerto <n>`, los cambia con DEMO_PUERTO, DEMO_PUERTO_CHATWOOT y DEMO_PUERTO_POSTGRES;
+# ahí DEMO_IMAGEN le da su propia imagen para no retocar la de la demo principal). Publicados SOLO en 127.0.0.1 (K3, EB-20): la demo trae contraseñas públicas y no debe
 # quedar al alcance de otra máquina de la red.
 # Chatwoot trae su propio Postgres (con pgvector, que exige) y Redis; no comparte base con la app.
 #
@@ -18,7 +19,7 @@ x-chatwoot-env: &chatwoot-env
   SECRET_KEY_BASE: solo-desarrollo-local-cambiar-en-produccion-0123456789abcdef
   # Ensayo con WhatsApp real (V9): Chatwoot pone este FRONTEND_URL en el `status_callback` de cada mensaje que manda por Twilio, así que en el ensayo tiene
   # que ser la URL pública del túnel (ORIGEN_PUBLICO de .env). Sin esa variable, es el de siempre.
-  FRONTEND_URL: ${ORIGEN_PUBLICO:-http://localhost:3001}
+  FRONTEND_URL: ${ORIGEN_PUBLICO:-http://localhost:${DEMO_PUERTO_CHATWOOT:-3001}}
   ENABLE_ACCOUNT_SIGNUP: "false"
   POSTGRES_HOST: chatwoot-postgres
   POSTGRES_USERNAME: chatwoot
@@ -48,7 +49,7 @@ x-backend: &backend
   build:
     context: .
     target: demo
-  image: inscripciones-backend:local
+  image: ${DEMO_IMAGEN:-inscripciones-backend:local}
   env_file: config/demo-local.env
 
 services:
@@ -59,7 +60,7 @@ services:
       POSTGRES_PASSWORD: inscripciones
       POSTGRES_DB: inscripciones
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${DEMO_PUERTO_POSTGRES:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -84,12 +85,12 @@ services:
       METRICAS_TOKEN: demo-local-metricas-token-0001-solo-demo
       # Ensayo con WhatsApp real (V9): ORIGEN_PUBLICO de .env es la URL https del túnel; entonces es también la URL con la que Twilio firma sus llamadas
       # (PUBLIC_BASE_URL) y el borde de Twilio se enciende con TWILIO_AUTH_TOKEN. Sin ellas (lo normal) todo queda apagado y la demo no cambia.
-      ORIGEN_PUBLICO: ${ORIGEN_PUBLICO:-http://localhost:3000}
+      ORIGEN_PUBLICO: ${ORIGEN_PUBLICO:-http://localhost:${DEMO_PUERTO:-3000}}
       PUBLIC_BASE_URL: ${ORIGEN_PUBLICO:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       ENSAYO_LOCAL: ${ENSAYO_LOCAL:-}
       # Interfaz web (J3): la ficha del lead arma el enlace a su conversación con esta URL pública de Chatwoot (la que abre el navegador).
-      CHATWOOT_URL_PUBLICA: http://localhost:3001
+      CHATWOOT_URL_PUBLICA: http://localhost:${DEMO_PUERTO_CHATWOOT:-3001}
       # IP real de los clientes (EB-04). En la demo el puerto 3000 se publica directamente (no hay balanceador):
       # ningún salto de confianza. Detrás de un balanceador de AWS (ALB) se pone `1`; con `false` explícito el
       # backend no avisa. Sin ningún valor y con NODE_ENV=production el backend loguea una alerta fuerte al arrancar.
@@ -98,7 +99,7 @@ services:
       # con `openssl rand -base64 32` y vive en el gestor de secretos.
       CLAVE_DATOS_SENSIBLES: "I4YAELLXaPYTGc2hPt5pVkQ8r0G5MpudNuv0u31Zp28="
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${DEMO_PUERTO:-3000}:3000"
     # El cierre ordenado del backend (src/cierre.ts) espera hasta LIMITE_CIERRE_MS (30 s) a que termine
     # el barrido en curso; compose manda SIGKILL a los 10 s por defecto. Este plazo tiene que ser mayor
     # (un test lo comprueba).
@@ -124,7 +125,7 @@ services:
     build:
       context: .
       target: demo
-    image: inscripciones-backend:local
+    image: ${DEMO_IMAGEN:-inscripciones-backend:local}
     command: ["node", "scripts/ensayo-borde.ts"]
     environment:
       PORT: "3100"
@@ -183,7 +184,7 @@ services:
     entrypoint: docker/entrypoints/rails.sh
     command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
     ports:
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:${DEMO_PUERTO_CHATWOOT:-3001}:3000"
     depends_on:
       chatwoot-prepare:
         condition: service_completed_successfully
