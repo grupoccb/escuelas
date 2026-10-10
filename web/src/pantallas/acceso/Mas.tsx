@@ -78,10 +78,10 @@ export function Mas() {
         </Aviso>
       ) : null}
       <Tarjeta titulo="Secciones">
-        <ul className="lista-tarjetas">
+        <ul className="lista-enlaces">
           {secciones.map((s) => (
             <li key={s.id}>
-              <Link className="fila enlace-tactil" to={s.ruta}>
+              <Link className="enlace-seccion" to={s.ruta}>
                 <Icono nombre={s.icono} /> {s.etiqueta}
               </Link>
             </li>
@@ -99,7 +99,7 @@ export function Mas() {
           <dt>Sucursales</dt>
           <dd>{yo.sucursales.map((s) => s.nombre).join(", ") || "—"}</dd>
         </dl>
-        <div className="fila">
+        <div className="formulario-acciones">
           <Boton onClick={() => setCambiando(true)}>Cambiar mi contraseña</Boton>
           <Boton variante="peligro" onClick={() => void salir()}>
             Cerrar sesión
