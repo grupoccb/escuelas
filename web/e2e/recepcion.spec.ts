@@ -105,7 +105,7 @@ test.describe("registrar pago", () => {
   test("un pago repartido a mano entre los cargos de DOS hijos: cuadra al centavo y los saldos lo reflejan", async ({ page }) => {
     await elegirFamilia(page);
     await page.getByLabel(/^Monto recibido/).fill("1500");
-    await page.getByLabel("Método de pago").selectOption("transferencia");
+    await page.getByRole("radio", { name: "Transferencia" }).check();
     await page.getByLabel("Referencia (opcional)").fill("TRANS-0001");
     await page.getByRole("button", { name: "Ajustar el reparto a mano" }).click();
     const ajuste = page.getByTestId("ajuste");

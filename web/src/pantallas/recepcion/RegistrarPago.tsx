@@ -2,18 +2,20 @@
 // entre los cargos de varios hijos, pago parcial, y UNA clave de idempotencia por envío (un doble clic o un reintento tras un corte de red no duplica el pago).
 // Todos los importes son texto decimal exacto del servidor; aquí no hay ni un número flotante.
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
-import { aCentavos, formatear, normalizarCaptura } from "../../lib/dinero.ts";
+import { aCentavos, formatear, normalizarCaptura, restar } from "../../lib/dinero.ts";
 import { formatearFecha, hoyLocal, mensajeDeFechaDePago } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
-import { CampoArea, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { CampoArea, CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { BuscadorDeFamilia } from "./BuscadorDeFamilia.tsx";
+import { FamiliaElegida } from "./FamiliaElegida.tsx";
 import { claveParaEnvio, firmaDelPago, mensajeDeCaptura, validarReparto } from "./reparto.ts";
 import { METODOS, nombreDeCargo, type CargoDeCuenta, type EstadoDeCuenta, type Pago, type Propuesta } from "./tipos.ts";
 
@@ -25,28 +27,78 @@ const abiertos = (e: EstadoDeCuenta): { cargo: CargoDeCuenta; hijo: string }[] =
 
 function DeudaDeLaFamilia({ estado }: { estado: EstadoDeCuenta }) {
   const lista = abiertos(estado);
+  const hayVencido = aCentavos(estado.resumen.vencido) > 0n;
   return (
-    <Tarjeta titulo="Lo que adeuda">
-      <dl className="datos">
-        <dt>Saldo total</dt>
-        <dd data-prueba="saldo-total">{formatear(estado.resumen.saldo)}</dd>
-        <dt>Vencido</dt>
-        <dd data-prueba="saldo-vencido">{formatear(estado.resumen.vencido)}</dd>
-      </dl>
+    <section className="tarjeta cobro-deuda">
+      <div className="deuda-cifra">
+        <div className="deuda-total">
+          <h2 className="etiqueta-panel">Lo que adeuda</h2>
+          <p className="cifra-principal numero" data-prueba="saldo-total">
+            {formatear(estado.resumen.saldo)}
+          </p>
+        </div>
+        {hayVencido ? (
+          <span className="insignia insignia-peligro insignia-con-icono">
+            <Icono nombre="alerta" tamano={14} />
+            Vencido <span className="numero" data-prueba="saldo-vencido">{formatear(estado.resumen.vencido)}</span>
+          </span>
+        ) : lista.length > 0 ? (
+          <span className="insignia insignia-exito insignia-con-icono">
+            <Icono nombre="exito" tamano={14} />
+            Nada vencido
+          </span>
+        ) : null}
+      </div>
       {lista.length === 0 ? <Aviso tono="exito">Esta familia no debe nada.</Aviso> : null}
-      <ul className="lista-tarjetas">
+      <ul className="lista-filas">
         {lista.map(({ cargo, hijo }) => (
-          <li key={cargo.id} className="fila-monto" data-prueba={`cargo-${cargo.id}`}>
-            <span>
-              <strong>{hijo}</strong> · {nombreDeCargo(cargo)}
-              <br />
-              <span className="muted">Vence {formatearFecha(cargo.fecha_vencimiento)}</span> {cargo.estatus_efectivo === "vencido" ? <Insignia tono="peligro">Vencido {cargo.dias_de_atraso} d</Insignia> : null}
+          <li key={cargo.id} className="fila-dato" data-prueba={`cargo-${cargo.id}`}>
+            <span className="fila-dato-texto">
+              <strong className="fila-titulo">{nombreDeCargo(cargo)}</strong>
+              <span className="muted">
+                {hijo} · Vence {formatearFecha(cargo.fecha_vencimiento)}
+              </span>
+              {cargo.estatus_efectivo === "vencido" ? <Insignia tono="peligro">Vencido {cargo.dias_de_atraso} d</Insignia> : null}
             </span>
-            <strong className="numero">{formatear(cargo.saldo)}</strong>
+            <strong className="numero fila-importe">{formatear(cargo.saldo)}</strong>
           </li>
         ))}
       </ul>
-    </Tarjeta>
+    </section>
+  );
+}
+
+/** El importe del cobro: la cifra que se teclea es la más grande del formulario. «Todo el saldo» lo llena con lo que la familia adeuda. */
+function CampoMonto({ valor, alCambiar, error, ayuda, saldo }: { valor: string; alCambiar: (v: string) => void; error: string | undefined; ayuda: string; saldo: string }) {
+  const id = useId();
+  const describe = [`${id}-ayuda`, error ? `${id}-error` : ""].filter(Boolean).join(" ");
+  return (
+    <div className={`campo${error ? " campo-con-error" : ""}`}>
+      <label htmlFor={id}>
+        Monto recibido
+        <span className="requerido" aria-hidden="true"> *</span>
+        <span className="solo-lectores"> (obligatorio)</span>
+      </label>
+      <div className="monto-fila">
+        <div className="monto-caja">
+          <span className="monto-signo" aria-hidden="true">
+            $
+          </span>
+          <input id={id} inputMode="decimal" autoComplete="off" required value={valor} onChange={(e) => alCambiar(e.target.value)} aria-invalid={error ? true : undefined} aria-describedby={describe} />
+        </div>
+        <Boton variante="sutil" onClick={() => alCambiar(saldo)}>
+          Todo el saldo
+        </Boton>
+      </div>
+      <p className="campo-ayuda" id={`${id}-ayuda`}>
+        {ayuda}
+      </p>
+      {error ? (
+        <p className="campo-error" id={`${id}-error`}>
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -108,8 +160,10 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
     }
   }
 
+  const saldoDespues = hayMonto && propuesta.datos?.ok ? restar(estado.resumen.saldo, montoOk) : null;
+
   return (
-    <Tarjeta titulo="Registrar un pago" className="cobro-formulario no-imprimir">
+    <Tarjeta titulo="Nuevo pago" className="cobro-formulario no-imprimir">
       <form noValidate
         className="formulario"
         onSubmit={(e) => {
@@ -117,10 +171,12 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
           if (puedeEnviar) void registrar();
         }}
       >
-        <CampoTexto etiqueta="Monto recibido" inputMode="decimal" autoComplete="off" value={monto} onChange={(e) => setMonto(e.target.value)} error={mensajeDeCaptura(monto)} ayuda={`Se muestra como ${hayMonto ? formatear(montoOk) : "$0.00"}`} requerido />
-        <CampoSelect etiqueta="Método de pago" value={metodo} onChange={(e) => setMetodo(e.target.value)} opciones={METODOS.map((m) => ({ valor: m.valor, texto: m.texto }))} />
-        <CampoTexto etiqueta="Referencia (opcional)" autoComplete="off" value={referencia} onChange={(e) => setReferencia(e.target.value)} ayuda="Folio del voucher o de la transferencia." maxLength={120} />
-        <CampoTexto etiqueta="Fecha del pago (opcional)" type="date" max={hoyLocal()} value={fecha} onChange={(e) => setFecha(e.target.value)} ayuda="Si la dejas vacía, es hoy." {...(problemaDeFecha ? { error: problemaDeFecha } : {})} />
+        <CampoMonto valor={monto} alCambiar={setMonto} error={mensajeDeCaptura(monto)} ayuda={`Se muestra como ${hayMonto ? formatear(montoOk) : "$0.00"}`} saldo={estado.resumen.saldo} />
+        <GrupoDeOpciones segmentado etiqueta="Método de pago" valor={metodo} alCambiar={setMetodo} opciones={METODOS.map((m) => ({ valor: m.valor, texto: m.texto }))} />
+        <div className="rejilla rejilla-2 campos-pago">
+          <CampoTexto etiqueta="Referencia (opcional)" autoComplete="off" value={referencia} onChange={(e) => setReferencia(e.target.value)} ayuda="Folio del voucher o de la transferencia." maxLength={120} />
+          <CampoTexto etiqueta="Fecha del pago (opcional)" type="date" max={hoyLocal()} value={fecha} onChange={(e) => setFecha(e.target.value)} ayuda="Si la dejas vacía, es hoy." {...(problemaDeFecha ? { error: problemaDeFecha } : {})} />
+        </div>
 
         {hayMonto && propuesta.cargando ? <Cargando texto="Calculando el reparto…" /> : null}
         {hayMonto && propuesta.error ? <ErrorDeCarga error={propuesta.error} alReintentar={propuesta.recargar} /> : null}
@@ -132,32 +188,42 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
           </Aviso>
         ) : null}
         {hayMonto && propuesta.datos?.ok && !ajuste ? (
-          <div className="pila" data-prueba="propuesta">
-            <h3>Así se repartiría</h3>
-            <ul>
+          <div className="resumen-reparto" data-prueba="propuesta">
+            <h3 className="etiqueta-panel">Así se va a repartir</h3>
+            <ul className="lista-reparto">
               {propuesta.datos.aplicaciones.map((a) => {
                 const l = lista.find((x) => x.cargo.id === a.cargo_id);
                 return (
                   <li key={a.cargo_id}>
-                    {l ? `${l.hijo} · ${nombreDeCargo(l.cargo)}` : "Cargo"}: <strong>{formatear(a.monto)}</strong>
-                    {l && aCentavos(a.monto) < aCentavos(l.cargo.saldo) ? <Insignia tono="alerta">Pago parcial</Insignia> : null}
+                    <span>{l ? `${l.hijo} · ${nombreDeCargo(l.cargo)}` : "Cargo"}</span>
+                    <span className="solo-lectores">: </span>
+                    <span className="reparto-monto">
+                      <strong className="numero">{formatear(a.monto)}</strong>
+                      {l && aCentavos(a.monto) < aCentavos(l.cargo.saldo) ? <Insignia tono="alerta">Pago parcial</Insignia> : null}
+                    </span>
                   </li>
                 );
               })}
             </ul>
+            {saldoDespues !== null ? (
+              <p className={`reparto-saldo${aCentavos(saldoDespues) === 0n ? " reparto-saldo-cero" : ""}`}>
+                <span>Saldo después del pago</span>
+                <strong className="numero">{formatear(saldoDespues)}</strong>
+              </p>
+            ) : null}
             <div>
               <Boton onClick={iniciarAjuste}>Ajustar el reparto a mano</Boton>
             </div>
           </div>
         ) : null}
         {ajuste && hayMonto ? (
-          <div className="pila" data-prueba="ajuste">
-            <h3>Reparto a mano</h3>
+          <div className="resumen-reparto" data-prueba="ajuste">
+            <h3 className="etiqueta-panel">Reparto a mano</h3>
             <p className="muted">Escribe cuánto va a cada cargo; deben sumar exactamente {formatear(montoOk)} y ninguno puede pasar de su saldo.</p>
             {lista.map(({ cargo, hijo }) => (
               <CampoTexto key={cargo.id} etiqueta={`${hijo} · ${nombreDeCargo(cargo)} (saldo ${formatear(cargo.saldo)})`} inputMode="decimal" autoComplete="off" value={ajuste[cargo.id] ?? ""} onChange={(e) => setAjuste((a) => ({ ...(a ?? {}), [cargo.id]: e.target.value }))} error={reparto?.errores[cargo.id]} />
             ))}
-            <p role="status" data-prueba="suma-del-reparto">
+            <p role="status" data-prueba="suma-del-reparto" className="reparto-suma">
               Suma: <strong>{formatear(reparto?.suma ?? "0.00")}</strong> de {formatear(montoOk)}
               {reparto && reparto.diferencia !== "0.00" ? ` · ${reparto.diferencia.startsWith("-") ? "sobran" : "faltan"} ${formatear(reparto.diferencia.replace("-", ""))}` : " · cuadra"}
             </p>
@@ -168,7 +234,7 @@ function FormularioDePago({ tutor, estado, alRegistrar }: { tutor: Tutor; estado
         ) : null}
         <ErrorDeAccion error={envio.error} />
         {envio.error?.codigo === "sin_red" ? <Aviso>Si el pago llegó a registrarse, al volver a pulsar «Registrar pago» el servidor reconoce la misma clave y NO lo duplica.</Aviso> : null}
-        <Boton type="submit" variante="primario" cargando={envio.ocupado} disabled={!puedeEnviar}>
+        <Boton type="submit" variante="primario" grande ancho cargando={envio.ocupado} disabled={!puedeEnviar}>
           Registrar pago
         </Boton>
       </form>
@@ -183,15 +249,24 @@ function PagosRecientes({ tutorId, version, alCambiar }: { tutorId: string; vers
   const [motivo, setMotivo] = useState("");
   const accion = useAccion();
   return (
-    <Tarjeta titulo="Pagos recientes">
+    <Tarjeta titulo="Pagos recientes" className="cobro-recientes">
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
-      {carga.datos && carga.datos.datos.length === 0 ? <p className="muted">Todavía no hay pagos.</p> : null}
-      <ul className="lista-tarjetas">
+      {carga.datos && carga.datos.datos.length === 0 ? (
+        <Vacio icono="cuenta" titulo="Todavía no hay pagos de esta familia.">
+          El primero que registres aparecerá aquí.
+        </Vacio>
+      ) : null}
+      <ul className="lista-filas">
         {(carga.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="fila fila-entre" data-prueba={`pago-${p.id}`}>
-            <span>
-              <strong>{formatear(p.monto)}</strong> · {METODOS.find((m) => m.valor === p.metodo)?.texto ?? p.metodo} · {formatearFecha(p.fecha)} <Insignia tono={p.estatus === "aplicado" ? "exito" : "neutro"}>{p.estatus === "aplicado" ? "Aplicado" : "Cancelado"}</Insignia>
-              {p.motivo_cancelacion ? <span className="muted"> · {p.motivo_cancelacion}</span> : null}
+          <li key={p.id} className="fila-dato" data-prueba={`pago-${p.id}`}>
+            <span className="fila-dato-texto">
+              <span className="fila-pago-monto">
+                <strong className="numero fila-titulo">{formatear(p.monto)}</strong> <Insignia tono={p.estatus === "aplicado" ? "exito" : "neutro"}>{p.estatus === "aplicado" ? "Aplicado" : "Cancelado"}</Insignia>
+              </span>
+              <span className="muted">
+                {METODOS.find((m) => m.valor === p.metodo)?.texto ?? p.metodo} · {formatearFecha(p.fecha)}
+                {p.motivo_cancelacion ? ` · ${p.motivo_cancelacion}` : ""}
+              </span>
             </span>
             {p.estatus === "aplicado" && puede("pagos:cancelar") ? <Boton variante="peligro" className="no-imprimir" onClick={() => setCancelando(p)}>Cancelar pago</Boton> : null}
           </li>
@@ -237,7 +312,7 @@ export default function RegistrarPago() {
   const estado = useCarga((senal) => api.get<EstadoDeCuenta>(`/api/tutores/${tutor?.id ?? ""}/estado-cuenta`, undefined, senal), [tutor?.id, version], tutor !== null);
 
   return (
-    <Marco titulo="Registrar pago" subtitulo={tutor ? `${tutor.nombre} ${tutor.apellidos ?? ""} · ${tutor.telefono}` : "Busca a la familia"} acciones={tutor ? <Boton className="no-imprimir" onClick={() => { setTutor(null); setPago(null); ponerParams({}); }}>Cambiar de familia</Boton> : undefined}>
+    <Marco titulo="Registrar pago" subtitulo={tutor ? <FamiliaElegida tutor={tutor} /> : "Busca a la familia"} acciones={tutor ? <Boton className="no-imprimir" onClick={() => { setTutor(null); setPago(null); ponerParams({}); }}><Icono nombre="buscar" tamano={18} />Cambiar de familia</Boton> : undefined}>
       {!tutor ? <BuscadorDeFamilia alElegir={(t) => { setTutor(t); setPago(null); }} /> : null}
       {tutor && estado.error ? <ErrorDeCarga error={estado.error} alReintentar={estado.recargar} /> : null}
       {tutor && estado.cargando && !estado.datos ? <Cargando /> : null}
@@ -245,12 +320,14 @@ export default function RegistrarPago() {
         <>
           {pago ? (
             <Aviso tono="exito" titulo={pago.repetido ? "Este pago ya estaba registrado: no se duplicó" : "Pago registrado"}>
-              <div data-prueba="pago-registrado" className="pila">
-                <p>
-                  <strong>{formatear(pago.monto)}</strong> · {METODOS.find((m) => m.valor === pago.metodo)?.texto ?? pago.metodo} · {formatearFecha(pago.fecha)}
+              <div data-prueba="pago-registrado" className="pila recibo-pago">
+                <h2 className="solo-impresion recibo-titulo">Recibo de pago</h2>
+                <p className="cifra-principal recibo-monto numero">{formatear(pago.monto)}</p>
+                <p className="recibo-detalle">
+                  {METODOS.find((m) => m.valor === pago.metodo)?.texto ?? pago.metodo} · {formatearFecha(pago.fecha)}
                   {pago.referencia ? ` · ref. ${pago.referencia}` : ""}
                 </p>
-                <ul>
+                <ul className="recibo-reparto">
                   {pago.aplicaciones.map((a) => (
                     <li key={a.id}>
                       {a.alumno.nombre} · {nombreDeCargo(a)}: {formatear(a.monto)}
@@ -274,7 +351,7 @@ export default function RegistrarPago() {
               </div>
             </Aviso>
           ) : null}
-          <div className="cobro">
+          <div className={`cobro${pago ? " cobro-con-recibo" : ""}`}>
             <DeudaDeLaFamilia estado={estado.datos} />
             {!pago ? (
               abiertos(estado.datos).length === 0 ? (
@@ -291,8 +368,8 @@ export default function RegistrarPago() {
                 />
               )
             ) : null}
+            <PagosRecientes tutorId={tutor.id} version={version} alCambiar={() => setVersion((v) => v + 1)} />
           </div>
-          <PagosRecientes tutorId={tutor.id} version={version} alCambiar={() => setVersion((v) => v + 1)} />
         </>
       ) : null}
     </Marco>

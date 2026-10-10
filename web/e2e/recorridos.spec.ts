@@ -263,7 +263,7 @@ for (const vista of Object.keys(VISTAS) as Vista[]) {
       await expect(r.getByTestId("saldo-total")).toHaveText("$3,000.00");
       await cap(r, "recorrido-4-cobro-01-lo-que-adeuda-la-familia");
       await r.getByLabel(/^Monto recibido/).fill("2000");
-      await r.getByLabel("Método de pago").selectOption("efectivo");
+      await r.getByRole("radio", { name: "Efectivo" }).check();
       await r.getByRole("button", { name: "Ajustar el reparto a mano" }).click();
       const ajuste = r.getByTestId("ajuste");
       for (const campo of await ajuste.getByRole("textbox").all()) await campo.fill("");

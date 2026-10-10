@@ -9,6 +9,7 @@ import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import type { BeneficioPorEntregar, Producto } from "./tipos.ts";
 
@@ -83,12 +84,16 @@ export default function Uniformes() {
     <Marco titulo="Uniformes por entregar" subtitulo="Lo que se liberó al saldar la primera mensualidad">
       {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
       {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <Vacio titulo="No hay nada por entregar">Cuando una familia salde su primera mensualidad, lo que le toca aparecerá aquí.</Vacio> : null}
-      <ul className="lista-tarjetas">
+      {lista.datos && lista.datos.datos.length === 0 ? (
+        <Vacio icono="uniforme" titulo="No hay nada por entregar">
+          Cuando una familia salde su primera mensualidad, lo que le toca aparecerá aquí.
+        </Vacio>
+      ) : null}
+      <ul className="lista-tarjetas rejilla-tarjetas">
         {(lista.datos?.datos ?? []).map((b) => (
-          <li key={b.id} className="tarjeta pila" data-prueba={`beneficio-${b.id}`}>
+          <li key={b.id} className="tarjeta-beneficio" data-prueba={`beneficio-${b.id}`}>
             <div className="fila fila-entre">
-              <strong>
+              <strong className="nombre-tarjeta">
                 {b.alumno.nombre} {b.alumno.apellidos}
               </strong>
               <Insignia tono="info">{b.descripcion ?? "Producto"}</Insignia>
@@ -99,15 +104,16 @@ export default function Uniformes() {
               <br />
               Familia: {b.tutor ? `${b.tutor.nombre} ${b.tutor.apellidos ?? ""} (${b.tutor.telefono})` : "—"} · liberado {formatearInstante(b.liberado_en)}
             </p>
-            <div>
+            <div className="tarjeta-pie">
               <Boton
-                variante="primario"
+                variante="sutil"
                 onClick={() => {
                   // La lista puede estar vieja (otra persona ya lo entregó): se refresca al abrir y, si ya no está, el diálogo lo dice.
                   setEntregando(b);
                   lista.recargar();
                 }}
               >
+                <Icono nombre="exito" tamano={18} />
                 Marcar entregado
               </Boton>
             </div>
@@ -115,12 +121,26 @@ export default function Uniformes() {
         ))}
       </ul>
       <Tarjeta titulo="Existencia">
+        {stock.datos && stock.datos.datos.length === 0 ? (
+          <Vacio icono="uniforme" titulo="No hay piezas registradas.">
+            Avisa a quien administra el sistema para que dé de alta las piezas.
+          </Vacio>
+        ) : null}
         {stock.datos ? (
-          <ul data-prueba="existencia">
+          <ul className="lista-filas" data-prueba="existencia">
             {stock.datos.datos.map((p) => (
-              <li key={p.id}>
-                {p.nombre}
-                {p.talla ? ` · talla ${p.talla}` : ""} · {formatear(p.precio)}: <strong>{p.stock}</strong> {p.stock === 1 ? "pieza" : "piezas"}
+              <li key={p.id} className="fila-dato">
+                <span>
+                  {p.nombre}
+                  {p.talla ? ` · talla ${p.talla}` : ""} · {formatear(p.precio)}
+                </span>
+                <span className="solo-lectores">: </span>
+                <span className="existencia-cantidad">
+                  <span className="existencia-texto">
+                    <strong className="numero">{p.stock}</strong> {p.stock === 1 ? "pieza" : "piezas"}
+                  </span>
+                  {p.stock === 0 ? <Insignia tono="peligro">Agotado</Insignia> : p.stock === 1 ? <Insignia tono="alerta">Última pieza</Insignia> : null}
+                </span>
               </li>
             ))}
           </ul>

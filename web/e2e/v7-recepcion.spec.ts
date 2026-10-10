@@ -380,7 +380,7 @@ test.describe("la mañana de Rita", () => {
     const aInes = saldoDe("Inés", "mensualidad");
     const reparto = sumar(aAngel, aInes);
     await monto(page).fill(pesos(reparto).slice(1));
-    await page.getByLabel("Método de pago").selectOption("transferencia");
+    await page.getByRole("radio", { name: "Transferencia" }).check();
     await page.getByLabel("Referencia (opcional)").fill("TRANS-V7-1");
     await page.getByRole("button", { name: "Ajustar el reparto a mano" }).click();
     paso(2);
@@ -405,7 +405,7 @@ test.describe("la mañana de Rita", () => {
     const resto = (await cuentaDe(F.baez.tutorId)).resumen.saldo;
     await page.getByRole("button", { name: "Registrar otro pago" }).click();
     await monto(page).fill(resto);
-    await page.getByLabel("Método de pago").selectOption("tarjeta");
+    await page.getByRole("radio", { name: "Tarjeta" }).check();
     await expect(page.getByTestId("propuesta")).toBeVisible();
     await foto(page, "pago-completo-propuesta");
     await page.getByRole("button", { name: "Registrar pago" }).click();

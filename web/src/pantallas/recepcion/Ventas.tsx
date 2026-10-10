@@ -8,8 +8,8 @@ import { formatear, multiplicar } from "../../lib/dinero.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { aEntero } from "../../lib/numeros.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
-import { CampoArea, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { CampoArea, CampoBusqueda, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { claveParaEnvio } from "./reparto.ts";
@@ -66,16 +66,19 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
   };
 
   return (
-    <Tarjeta titulo="Nueva venta">
+    <Tarjeta titulo="Nueva venta" className="area-b">
       <form noValidate className="formulario" onSubmit={vender}>
-        <div className="rejilla rejilla-2">
-          {/* Enter en este campo BUSCA (antes mandaba el formulario de la venta y no pasaba nada). */}
-          <CampoTexto etiqueta="Buscar al alumno por nombre" autoComplete="off" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarAlumno(); } }} ayuda={busqueda.trim().length === 1 ? "Escribe al menos dos letras." : "No importan los acentos ni las mayúsculas."} />
-          <div className="fila">
+        <div className="campo">
+          <div className="busqueda-fila">
+            {/* Enter en este campo BUSCA (antes mandaba el formulario de la venta y no pasaba nada). */}
+            <CampoBusqueda etiqueta="Buscar al alumno por nombre" placeholder="Nombre del alumno" autoComplete="off" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarAlumno(); } }} aria-describedby="venta-busqueda-ayuda" />
             <Boton disabled={busqueda.trim().length < 2} onClick={buscarAlumno}>
               Buscar
             </Boton>
           </div>
+          <p className={busqueda.trim().length === 1 ? "campo-error" : "campo-ayuda"} id="venta-busqueda-ayuda">
+            {busqueda.trim().length === 1 ? "Escribe al menos dos letras." : "No importan los acentos ni las mayúsculas."}
+          </p>
         </div>
         {alumnos.cargando ? <Cargando texto="Buscando…" /> : null}
         {alumnos.error ? <ErrorDeCarga error={alumnos.error} alReintentar={alumnos.recargar} /> : null}
@@ -83,13 +86,15 @@ function NuevaVenta({ productos, alVender, alFallar }: { productos: Producto[]; 
         {alumnos.datos && alumnos.datos.datos.length > 0 ? <CampoSelect etiqueta="Alumno" value={alumno?.id ?? ""} onChange={(e) => setAlumnoId(e.target.value)} opciones={alumnos.datos.datos.map((a) => ({ valor: a.id, texto: `${a.nombre} ${a.apellidos}` }))} /> : null}
         {disponibles.length === 0 ? <Aviso tono="alerta">No hay ningún producto con existencia para vender. Revisa la lista de arriba o avisa al administrador.</Aviso> : null}
         <CampoSelect etiqueta="Producto" value={producto?.id ?? ""} onChange={(e) => setProductoId(e.target.value)} opciones={disponibles.map((p) => ({ valor: p.id, texto: `${textoDeProducto(p)} · ${p.stock} en existencia` }))} />
-        <CampoTexto etiqueta="Cantidad" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} error={n === null || n < 1 ? "Escribe un número entero de piezas" : excede ? `Solo hay ${producto?.stock} en existencia` : undefined} />
-        <p role="status" data-prueba="total-de-la-venta">
-          Total: <strong>{formatear(total)}</strong>
+        <div className="campo-cantidad">
+          <CampoTexto etiqueta="Cantidad" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} error={n === null || n < 1 ? "Escribe un número entero de piezas" : excede ? `Solo hay ${producto?.stock} en existencia` : undefined} />
+        </div>
+        <p role="status" data-prueba="total-de-la-venta" className="resumen-total">
+          <span>Total:</span> <strong className="cifra-principal numero">{formatear(total)}</strong>
         </p>
         <ErrorDeAccion error={accion.error} />
         {!alumno ? <p className="muted">Para vender, primero busca al alumno por su nombre.</p> : null}
-        <Boton type="submit" variante="primario" cargando={accion.ocupado} disabled={!alumno || !producto || n === null || n < 1 || excede === true}>
+        <Boton type="submit" variante="primario" grande ancho cargando={accion.ocupado} disabled={!alumno || !producto || n === null || n < 1 || excede === true}>
           Registrar venta
         </Boton>
       </form>
@@ -121,61 +126,76 @@ export default function Ventas() {
           </p>
           {/* V7: vender y cobrar eran dos pantallas sin camino de una a otra. */}
           <p>
-            <Link className="boton boton-primario" to={`/pagos?tutor=${hecha.tutor_id}`} data-prueba="cobrar-la-venta">
+            <Link className="boton boton-sutil" to={`/pagos?tutor=${hecha.tutor_id}`} data-prueba="cobrar-la-venta">
               Cobrar ahora
             </Link>
           </p>
         </Aviso>
       ) : null}
-      <Tarjeta titulo="Existencia">
-        {productos.error ? <ErrorDeCarga error={productos.error} alReintentar={productos.recargar} /> : null}
-        {productos.cargando && !productos.datos ? <Cargando /> : null}
-        <ul className="lista-tarjetas" data-prueba="productos">
-          {(productos.datos?.datos ?? []).map((p) => (
-            <li key={p.id} className="fila fila-entre" data-prueba={`producto-${p.id}`}>
-              <span>{textoDeProducto(p)}</span>
-              <span className="fila">
-                <strong className="numero" data-prueba="existencia-del-producto">
-                  {p.stock}
-                </strong>
-                {p.stock === 0 ? <Insignia tono="peligro">Agotado</Insignia> : p.stock === 1 ? <Insignia tono="alerta">Última pieza</Insignia> : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Tarjeta>
-      {puede("ventas:registrar") && productos.datos ? (
-        <NuevaVenta
-          productos={productos.datos.datos}
-          alVender={(v) => {
-            setHecha(v);
-            refrescar();
-          }}
-          alFallar={() => {
-            setHecha(null);
-            productos.recargar();
-          }}
-        />
-      ) : null}
-      <Tarjeta titulo="Ventas recientes">
-        {ventas.error ? <ErrorDeCarga error={ventas.error} alReintentar={ventas.recargar} /> : null}
-        <ul className="lista-tarjetas" data-prueba="ventas-recientes">
-          {(ventas.datos?.datos ?? []).map((v) => (
-            <li key={v.id} className="fila fila-entre" data-prueba={`venta-${v.id}`}>
-              <span>
-                {v.cantidad} × {v.producto.nombre}
-                {v.producto.talla ? ` (${v.producto.talla})` : ""} · {v.alumno.nombre} · <strong>{formatear(v.total)}</strong> · {formatearFecha(v.fecha)}{" "}
-                <Insignia tono={v.estatus === "registrada" ? "exito" : "neutro"}>{v.estatus === "registrada" ? (v.es_promocional ? "Entrega de promoción" : "Registrada") : "Anulada"}</Insignia>
-              </span>
-              {v.estatus === "registrada" && !v.es_promocional && puede("ventas:anular") ? (
-                <Boton variante="peligro" onClick={() => setAnulando(v)}>
-                  Anular
-                </Boton>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </Tarjeta>
+      <div className="ventas-rejilla">
+        <Tarjeta titulo="Existencia" className="area-a">
+          {productos.error ? <ErrorDeCarga error={productos.error} alReintentar={productos.recargar} /> : null}
+          {productos.cargando && !productos.datos ? <Cargando /> : null}
+          {productos.datos && productos.datos.datos.length === 0 ? (
+            <Vacio icono="ventas" titulo="No hay productos registrados.">
+              Avisa a quien administra el sistema para que dé de alta los productos.
+            </Vacio>
+          ) : null}
+          <ul className="lista-filas" data-prueba="productos">
+            {(productos.datos?.datos ?? []).map((p) => (
+              <li key={p.id} className="fila-dato" data-prueba={`producto-${p.id}`}>
+                <span>{textoDeProducto(p)}</span>
+                <span className="existencia-cantidad">
+                  {p.stock === 0 ? <Insignia tono="peligro">Agotado</Insignia> : p.stock === 1 ? <Insignia tono="alerta">Última pieza</Insignia> : null}
+                  <strong className="numero" data-prueba="existencia-del-producto">
+                    {p.stock}
+                  </strong>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Tarjeta>
+        {puede("ventas:registrar") && productos.datos ? (
+          <NuevaVenta
+            productos={productos.datos.datos}
+            alVender={(v) => {
+              setHecha(v);
+              refrescar();
+            }}
+            alFallar={() => {
+              setHecha(null);
+              productos.recargar();
+            }}
+          />
+        ) : null}
+        <Tarjeta titulo="Ventas recientes" className="area-c">
+          {ventas.error ? <ErrorDeCarga error={ventas.error} alReintentar={ventas.recargar} /> : null}
+          {ventas.datos && ventas.datos.datos.length === 0 ? <Vacio icono="ventas" titulo="Todavía no hay ventas." /> : null}
+          <ul className="lista-filas" data-prueba="ventas-recientes">
+            {(ventas.datos?.datos ?? []).map((v) => (
+              <li key={v.id} className="fila-dato" data-prueba={`venta-${v.id}`}>
+                <span className="fila-dato-texto">
+                  <span className="fila-pago-monto">
+                    <strong className="fila-titulo">
+                      {v.cantidad} × {v.producto.nombre}
+                      {v.producto.talla ? ` (${v.producto.talla})` : ""}
+                    </strong>{" "}
+                    <Insignia tono={v.estatus === "registrada" ? "exito" : "neutro"}>{v.estatus === "registrada" ? (v.es_promocional ? "Entrega de promoción" : "Registrada") : "Anulada"}</Insignia>
+                  </span>
+                  <span className="muted">
+                    {v.alumno.nombre} · <strong className="numero">{formatear(v.total)}</strong> · {formatearFecha(v.fecha)}
+                  </span>
+                </span>
+                {v.estatus === "registrada" && !v.es_promocional && puede("ventas:anular") ? (
+                  <Boton variante="peligro" onClick={() => setAnulando(v)}>
+                    Anular
+                  </Boton>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Tarjeta>
+      </div>
       <Dialogo abierto={anulando !== null} titulo="Anular la venta" alCerrar={() => { setAnulando(null); setMotivo(""); anular.limpiar(); }}>
         <p>Se cancela su cargo y las piezas regresan a la existencia. Venta: <strong>{anulando ? formatear(anulando.total) : ""}</strong></p>
         <CampoArea etiqueta="Motivo de la anulación" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={300} requerido />

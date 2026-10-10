@@ -6,8 +6,9 @@ import { api, type Pagina } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, AvisoDeBusquedaIncompleta, Boton, Cargando, ErrorDeCarga, Vacio } from "../../ui/basicos.tsx";
-import { CampoTexto } from "../../ui/campos.tsx";
+import { CampoBusqueda } from "../../ui/campos.tsx";
 import { useCarga } from "../../ui/hooks.ts";
+import { FamiliaElegida } from "./FamiliaElegida.tsx";
 import { pareceTelefono, soloTelefono } from "./telefono.ts";
 
 export { pareceTelefono };
@@ -36,15 +37,20 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
     if (escrito.trim().length >= 2) setBusqueda(escrito);
   };
 
+  const ayuda = escrito.trim().length === 1 ? "Escribe al menos dos letras para buscar." : "Escribe el teléfono (con o sin +52, con espacios o guiones) o el nombre de la mamá o del niño. No importan los acentos ni las mayúsculas.";
+
   return (
-    <div className="pila" data-prueba="buscador-de-familia">
-      <form noValidate className="formulario" onSubmit={buscar} role="search">
-        <CampoTexto etiqueta="Teléfono o nombre de la familia" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} ayuda={escrito.trim().length === 1 ? "Escribe al menos dos letras para buscar." : "Escribe el teléfono (con o sin +52, con espacios o guiones) o el nombre de la mamá o del niño. No importan los acentos ni las mayúsculas."} />
-        <div>
+    <div className="pila buscador-familia" data-prueba="buscador-de-familia">
+      <form noValidate className="tarjeta" onSubmit={buscar} role="search">
+        <div className="busqueda-fila">
+          <CampoBusqueda etiqueta="Teléfono o nombre de la familia" placeholder="Teléfono o nombre" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} aria-describedby="buscador-familia-ayuda" />
           <Boton type="submit" variante="primario" disabled={escrito.trim().length < 2}>
             Buscar
           </Boton>
         </div>
+        <p className={escrito.trim().length === 1 ? "campo-error" : "campo-ayuda"} id="buscador-familia-ayuda">
+          {ayuda}
+        </p>
       </form>
       {resultados.cargando ? <Cargando texto="Buscando…" /> : null}
       {telefonoIncompleto ? (
@@ -54,21 +60,17 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
       ) : resultados.error ? (
         <ErrorDeCarga error={resultados.error} alReintentar={resultados.recargar} />
       ) : null}
-      {busqueda !== null && !telefonoIncompleto && datos && datos.datos.length === 0 ? <Vacio titulo="No encontré a esa familia">Revisa el teléfono o prueba con otro nombre.</Vacio> : null}
+      {busqueda !== null && !telefonoIncompleto && datos && datos.datos.length === 0 ? (
+        <Vacio titulo="No encontré a esa familia" icono="buscar">
+          Revisa el teléfono o prueba con otro nombre.
+        </Vacio>
+      ) : null}
       <AvisoDeBusquedaIncompleta paginacion={datos?.paginacion} />
       <ul className="lista-tarjetas">
         {(datos?.datos ?? []).map((t) => (
-          <li key={t.id} className="tarjeta fila fila-entre" data-prueba={`familia-${t.id}`}>
-            <span>
-              <strong>
-                {t.nombre} {t.apellidos ?? ""}
-              </strong>
-              <br />
-              <span className="muted">
-                {t.telefono} · {t.alumnos.length === 0 ? "sin alumnos" : t.alumnos.map((a) => a.nombre).join(", ")}
-              </span>
-            </span>
-            <Boton variante="primario" onClick={() => alElegir(t)}>
+          <li key={t.id} className="fila fila-entre resultado-familia" data-prueba={`familia-${t.id}`}>
+            <FamiliaElegida tutor={t} />
+            <Boton variante="sutil" onClick={() => alElegir(t)}>
               Elegir
             </Boton>
           </li>

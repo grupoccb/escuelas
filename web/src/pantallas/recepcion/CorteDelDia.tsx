@@ -1,12 +1,13 @@
 // Cierre del día (V7): cuánto se cobró hoy, por quien lo cobró y por forma de pago, para contar el efectivo y cuadrar la caja. Solo lee. Los importes salen tal cual del
 // servidor (texto exacto); aquí solo se les da formato. El «día» es el de la sucursal (lo decide el servidor), no el de la computadora.
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { formatear } from "../../lib/dinero.ts";
 import { formatearFecha, formatearFechaLarga } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
 import { useCarga, useTitulo } from "../../ui/hooks.ts";
 import { METODOS } from "./tipos.ts";
@@ -52,24 +53,25 @@ const FORMAS = [
 const textoDeMetodo = (m: string): string => METODOS.find((x) => x.valor === m)?.texto ?? m;
 const hora = (iso: string, zona: string): string => new Intl.DateTimeFormat("es-MX", { timeZone: zona, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
-function Cifras({ d }: { d: Desglose }) {
+/** Las cifras de una caja: el total arriba (lo más grande) y debajo cada forma de pago, para compararla con lo que se cuenta. */
+function Cifras({ d, nivel = "normal" }: { d: Desglose; nivel?: "normal" | "menor" | "neto" }) {
   return (
-    <dl className="datos">
-      {FORMAS.map((f) => (
-        <Fragment key={f.clave}>
-          <dt>{f.texto}</dt>
-          <dd className="numero" data-prueba={f.clave}>
-            {formatear(d[f.clave])}
-          </dd>
-        </Fragment>
-      ))}
-      <dt>
-        <strong>Total</strong>
-      </dt>
-      <dd className="numero">
-        <strong>{formatear(d.total)}</strong>
-      </dd>
-    </dl>
+    <div className={`cifras cifras-${nivel}`}>
+      <p className="cifras-total">
+        <span className="etiqueta-panel">Total</span>
+        <strong className="cifra-principal numero">{formatear(d.total)}</strong>
+      </p>
+      <dl className="cifras-formas">
+        {FORMAS.map((f) => (
+          <div key={f.clave}>
+            <dt>{f.texto}</dt>
+            <dd className="numero" data-prueba={f.clave}>
+              {formatear(d[f.clave])}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -83,17 +85,18 @@ export default function CorteDelDia() {
   const miId = yo?.usuario.id;
 
   return (
-    <Marco titulo="Cierre del día" subtitulo={c ? `${formatearFechaLarga(c.fecha)} · ${formatearFecha(c.fecha)}${esHoy ? " (hoy)" : ""}` : undefined} acciones={c ? <Boton className="no-imprimir" onClick={() => window.print()} data-prueba="imprimir-corte">Imprimir el cierre</Boton> : undefined}>
-      <div className="no-imprimir">
+    <Marco titulo="Cierre del día" subtitulo={c ? `${formatearFechaLarga(c.fecha)} · ${formatearFecha(c.fecha)}${esHoy ? " (hoy)" : ""}` : undefined} acciones={c ? <Boton className="no-imprimir" onClick={() => window.print()} data-prueba="imprimir-corte"><Icono nombre="imprimir" tamano={18} />Imprimir el cierre</Boton> : undefined}>
+      <div className="no-imprimir campo-dia">
         <CampoTexto etiqueta="Día" type="date" value={dia || (c?.fecha ?? "")} max={c?.hoy} onChange={(e) => setDia(e.target.value)} ayuda="Por omisión es hoy. Para ver un día anterior, elígelo aquí." />
       </div>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !c ? <Cargando texto="Sumando lo cobrado…" /> : null}
       {c ? (
         <>
-          <p className="muted no-imprimir">Para cuadrar la caja: cuenta el efectivo que tienes y compáralo con la línea «Efectivo» de tu caja. La tarjeta se compara con el reporte de la terminal y las transferencias con el banco.</p>
           {c.cobrado.pagos === 0 && c.cancelados.length === 0 ? (
-            <Aviso>{esHoy ? "Hoy todavía no se ha registrado ningún cobro." : "Ese día no se registró ningún cobro."}</Aviso>
+            <Vacio icono="corte" titulo={esHoy ? "Hoy todavía no se ha registrado ningún cobro." : "Ese día no se registró ningún cobro."}>
+              {esHoy ? "Cuando se registre un pago aparecerá aquí." : "Elige otro día para ver sus cobros."}
+            </Vacio>
           ) : null}
           <div className="rejilla rejilla-2" data-prueba="cajas">
             {/* La caja de quien está mirando va primero: es la que va a contar. */}
@@ -114,26 +117,34 @@ export default function CorteDelDia() {
                 Cobrado en total: {c.cobrado.pagos} {c.cobrado.pagos === 1 ? "pago" : "pagos"}.
               </p>
               <div data-prueba="cobrado-total">
-                <Cifras d={c.cobrado} />
+                <Cifras d={c.cobrado} nivel={c.devoluciones.pagos > 0 ? "menor" : "normal"} />
               </div>
               {c.devoluciones.pagos > 0 ? (
                 <>
-                  <h3>Se devolvió hoy un pago de días anteriores</h3>
-                  <p className="muted">Ese dinero sale de la caja de hoy: se resta.</p>
-                  <div data-prueba="devoluciones">
-                    <Cifras d={c.devoluciones} />
-                  </div>
-                  <h3>Neto del día</h3>
-                  <div data-prueba="neto">
-                    <Cifras d={c.neto} />
-                  </div>
+                  <section className="corte-bloque">
+                    <h3>Se devolvió hoy un pago de días anteriores</h3>
+                    <p className="muted">Ese dinero sale de la caja de hoy: se resta.</p>
+                    <div data-prueba="devoluciones">
+                      <Cifras d={c.devoluciones} nivel="menor" />
+                    </div>
+                  </section>
+                  <section className="corte-bloque corte-neto">
+                    <h3>Neto del día</h3>
+                    <div data-prueba="neto">
+                      <Cifras d={c.neto} nivel="neto" />
+                    </div>
+                  </section>
                 </>
               ) : null}
             </Tarjeta>
           ) : null}
+          <p className="muted no-imprimir">Para cuadrar la caja: cuenta el efectivo que tienes y compáralo con la línea «Efectivo» de tu caja. La tarjeta se compara con el reporte de la terminal y las transferencias con el banco.</p>
           {c.pagos.length > 0 ? (
-            <Tarjeta titulo="Pagos del día">
-              <div className="tabla-scroll">
+            <section className="seccion-tabla">
+              <header className="seccion-tabla-cabecera">
+                <h2>Pagos del día</h2>
+              </header>
+              <div className="tabla-scroll tabla-apilada">
                 <table className="tabla" data-prueba="pagos-del-dia">
                   <thead>
                     <tr>
@@ -148,28 +159,29 @@ export default function CorteDelDia() {
                   <tbody>
                     {c.pagos.map((p) => (
                       <tr key={p.id}>
-                        <td>{hora(p.hora, c.zona_horaria)}</td>
-                        <td>{p.familia}</td>
-                        <td>{textoDeMetodo(p.metodo)}</td>
-                        <td>{p.referencia ?? ""}</td>
-                        <td>{p.registrado_por?.nombre ?? "—"}</td>
-                        <td className="derecha numero">{formatear(p.monto)}</td>
+                        <td className="numero" data-etiqueta="Hora">{hora(p.hora, c.zona_horaria)}</td>
+                        <td data-etiqueta="Familia">{p.familia}</td>
+                        <td data-etiqueta="Forma de pago">{textoDeMetodo(p.metodo)}</td>
+                        <td data-etiqueta="Referencia">{p.referencia ?? ""}</td>
+                        <td data-etiqueta="Cobró">{p.registrado_por?.nombre ?? "—"}</td>
+                        <td className="derecha numero" data-etiqueta="Importe">{formatear(p.monto)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </Tarjeta>
+            </section>
           ) : null}
           {c.cancelados.length > 0 ? (
             <Tarjeta titulo="Pagos cancelados este día">
-              <ul className="lista-tarjetas" data-prueba="cancelados">
+              <ul className="lista-filas" data-prueba="cancelados">
                 {c.cancelados.map((p) => (
-                  <li key={p.id} className="fila fila-entre">
-                    <span>
-                      <strong className="numero">{formatear(p.monto)}</strong> · {textoDeMetodo(p.metodo)} · {p.familia}{" "}
-                      {p.de_otro_dia ? <Insignia tono="alerta">Cobrado otro día: sale de la caja de hoy</Insignia> : <Insignia>Cobrado y cancelado hoy: no cuenta</Insignia>}
-                      <br />
+                  <li key={p.id} className="fila-dato">
+                    <span className="fila-dato-texto">
+                      <span className="fila-pago-monto">
+                        <strong className="numero fila-titulo">{formatear(p.monto)}</strong> · {textoDeMetodo(p.metodo)} · {p.familia}
+                      </span>
+                      <span>{p.de_otro_dia ? <Insignia tono="alerta">Cobrado otro día: sale de la caja de hoy</Insignia> : <Insignia>Cobrado y cancelado hoy: no cuenta</Insignia>}</span>
                       <span className="muted">
                         Cobró {p.registrado_por?.nombre ?? "—"}, canceló {p.cancelado_por?.nombre ?? "—"}
                         {p.motivo ? ` · ${p.motivo}` : ""}
