@@ -5,12 +5,15 @@
 //   npm run test:navegador -- e2e/acceso.spec.ts (un archivo; lo que sigue a `--` va a Playwright)
 //   DATABASE_URL_NAVEGADOR=postgresql://…/otra_navegador_pruebas npm run test:navegador
 //
+//   PRUEBAS_AHORA=2026-10-10T06:30:00Z npm run test:navegador   (todo el mundo de pruebas vive en ese «ahora»: servidor, siembra, specs y navegador; ver scripts/lib/reloj-simulado.ts)
+//
 // Primera vez: `npm run web:instalar` y `npx --prefix web playwright install chromium` (la única descarga de navegador).
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import pg from "pg";
+import { entornoConRelojSimulado } from "./lib/reloj-simulado.ts";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
@@ -39,5 +42,6 @@ execFileSync("npx", ["prisma", "migrate", "deploy"], { env, stdio: ["ignore", "i
 
 // 3. Playwright.
 const extra = process.argv.slice(2).filter((a) => a !== "--");
-const r = spawnSync("npx", ["playwright", "test", ...extra], { cwd: "web", env, stdio: "inherit" });
+// V10b-fix: con PRUEBAS_AHORA, el servidor de pruebas, la siembra, los specs y (por la fixtura) el navegador viven en ese «ahora». Solo Playwright y lo que él lanza: ni npm ni prisma.
+const r = spawnSync("npx", ["playwright", "test", ...extra], { cwd: "web", env: entornoConRelojSimulado(env, resolve("scripts/lib/reloj-simulado-import.ts")), stdio: "inherit" });
 process.exit(r.status ?? 1);

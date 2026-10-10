@@ -12,6 +12,7 @@ export const mundo = cargarMundo();
  */
 export const test = base.extend({
   context: async ({ context, baseURL }, use) => {
+    await relojDelNavegador(context);
     const externas: string[] = [];
     const origen = new URL(baseURL ?? "http://127.0.0.1").origin;
     await context.route(
@@ -30,6 +31,22 @@ export const test = base.extend({
     expect(externas, "peticiones a servicios externos (prohibidas)").toEqual([]);
   },
 });
+
+/**
+ * V10b-fix: con el reloj simulado (PRUEBAS_AHORA, ver scripts/lib/reloj-simulado.ts) el navegador vive en el MISMO «ahora» que el servidor de pruebas: la pantalla decide
+ * «hoy» y «ya empezó» con su propio reloj, y si fuera el real, la prueba volvería a depender de la hora de la máquina. `Date` de este proceso ya es la simulada; desde ahí
+ * el reloj del navegador corre solo. Sin PRUEBAS_AHORA no hace nada. Todo contexto creado a mano (`browser.newContext`) pasa por `contextoConReloj`.
+ */
+export async function relojDelNavegador(context: BrowserContext): Promise<void> {
+  if (process.env["PRUEBAS_DESFASE_MS"]) await context.clock.install({ time: new Date() });
+}
+
+/** Un contexto nuevo del navegador (con la sesión que se le pase) que vive en el mismo «ahora» que el servidor de pruebas. */
+export async function contextoConReloj(browser: Browser, opciones?: Parameters<Browser["newContext"]>[0]): Promise<BrowserContext> {
+  const context = await browser.newContext(opciones);
+  await relojDelNavegador(context);
+  return context;
+}
 
 export type Rol = "administrador" | "asesor" | "maestro" | "recepcion";
 
@@ -81,7 +98,7 @@ export type Vista = keyof typeof VISTAS;
  */
 export async function contextoNuevo(browser: Browser, baseURL: string, vista: Vista, rol: Rol | null): Promise<{ context: BrowserContext; page: Page; cerrar: () => Promise<void> }> {
   const v = VISTAS[vista];
-  const context = await browser.newContext({
+  const context = await contextoConReloj(browser, {
     baseURL,
     locale: "es-MX",
     timezoneId: "America/Mexico_City",

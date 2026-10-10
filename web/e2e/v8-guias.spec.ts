@@ -15,11 +15,12 @@
 import { test as libre, expect as esperar, type APIRequestContext, type APIResponse, type Locator, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { apiComo, haceDiasEnMexico, json } from "./ayudas.ts";
+import { apiComo, haceDiasEnMexico, hoyEnMexico, json } from "./ayudas.ts";
 import { comoRol, expect, mundo, test } from "./fixtura.ts";
 import { DIR_NAVEGADOR, RAIZ } from "./mundo.ts";
 import { sembrarAlumno, sembrarFamilia, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../../src/testutil/semilla.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
+import { HORARIO_DE_CLASE_YA_EMPEZADA } from "../../scripts/navegador/horarios.ts";
 
 test.describe.configure({ mode: "serial" });
 test.setTimeout(90_000);
@@ -127,7 +128,8 @@ async function sembrarMaestro(docs: DocumentosLegalesSembrados): Promise<void> {
     data: { organizacion_id: org, lead_id: familia.leadId, prospecto_id: familia.prospectoId, grupo_id: mundo.grupos.a.id, fecha_hora: cuando, estatus: "agendada", agendada_por: "usuario", agendada_por_usuario_id: mundo.usuarios.administrador.id },
   });
   const g = await prisma.grupo.create({ data: { organizacion_id: org, programa_id: mundo.programaId, nombre: "Grupo de la tarde", cupo_maximo: 30, instructor_id: mundo.instructorId } });
-  for (const dia of [0, 1, 2, 3, 4, 5, 6]) await prisma.grupo_horario.create({ data: { organizacion_id: org, grupo_id: g.id, dia_semana: dia, hora_inicio_min: 1080, hora_fin_min: 1140 } });
+  // La guía pasa lista de HOY: la clase tiene que haber empezado a cualquier hora en que se corra la prueba (V10b-fix: con 18:00 fallaba antes de esa hora, p. ej. de madrugada).
+  for (const dia of [0, 1, 2, 3, 4, 5, 6]) await prisma.grupo_horario.create({ data: { organizacion_id: org, grupo_id: g.id, dia_semana: dia, ...HORARIO_DE_CLASE_YA_EMPEZADA } });
   const alumnos: { id: string; nombre: string }[] = [];
   for (const [nombre, apellidos] of [["Ana", "Ruiz"], ["Beto", "Gómez"], ["Cira", "López"]] as const) {
     const a = await sembrarAlumno(prisma, orgDePrueba(), { docs, sucursalId: norte, nombre, telefono: `+52${telefonoUnico()}` });
@@ -135,6 +137,9 @@ async function sembrarMaestro(docs: DocumentosLegalesSembrados): Promise<void> {
     await ok(admin.post("/api/inscripciones", { data: { alumno_id: a.alumnoId, grupo_id: g.id } }), `inscribir a ${nombre}`);
     alumnos.push({ id: a.alumnoId, nombre });
   }
+  // Precondición explícita (si falla, el defecto es del fixture, no de la pantalla): el pase de hoy se puede tomar.
+  const hoyDelPase = await json<{ problema: string | null; puede_registrar: boolean }>(admin, `/api/grupos/${g.id}/pase?fecha=${hoyEnMexico()}`);
+  expect(hoyDelPase, "el pase de hoy del grupo sembrado debe poder tomarse a cualquier hora").toMatchObject({ problema: null, puede_registrar: true });
   F.maestro = { claseId: clase.id, grupoPase: g.id, alumnos };
   deshacer.push(() => prisma.grupo.update({ where: { id: g.id }, data: { activo: false } }));
 }

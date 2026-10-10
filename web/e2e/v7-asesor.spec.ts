@@ -8,7 +8,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomInt } from "node:crypto";
 import { apiComo, json } from "./ayudas.ts";
-import { comoRol, contextoNuevo, expect, mundo, test, VISTA_ESCRITORIO } from "./fixtura.ts";
+import { comoRol, contextoNuevo, expect, mundo, test, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
 import { RAIZ } from "./mundo.ts";
 import { CONTRASENA_DE_PRUEBA, sembrarUsuario } from "../../src/testutil/api.ts";
 import { fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion } from "../../src/testutil/semilla.ts";
@@ -526,7 +526,7 @@ test.describe("un día de Alba", () => {
     await prisma.lead.update({ where: { id: f.leadId }, data: { nombre_contacto: "Familia Captación" } });
     const api = await request.newContext({ baseURL: mundo.base, extraHTTPHeaders: { "x-requested-with": "prueba" } });
     expect((await api.post("/api/sesion", { data: { organizacion: org.slug, correo: u.correo, contrasena: u.contrasena } })).status()).toBe(201);
-    const context = await browser.newContext({ baseURL: mundo.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: VISTA_ESCRITORIO, storageState: await api.storageState() });
+    const context = await contextoConReloj(browser, { baseURL: mundo.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: VISTA_ESCRITORIO, storageState: await api.storageState() });
     const page = await context.newPage();
     try {
       cuenta("14. solo captación");

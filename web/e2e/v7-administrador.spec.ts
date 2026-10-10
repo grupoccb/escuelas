@@ -9,7 +9,7 @@ import { request, type APIRequestContext, type Locator, type Page } from "@playw
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { apiComo, json, mananaEnMexico } from "./ayudas.ts";
-import { comoRol, contextoNuevo as contextoNuevoBase, expect as expectBase, mundo, test, VISTA_ESCRITORIO } from "./fixtura.ts";
+import { comoRol, contextoNuevo as contextoNuevoBase, expect as expectBase, mundo, test, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
 import { RAIZ } from "./mundo.ts";
 import { hashContrasena, PARAMETROS_PRUEBA } from "../../src/auth/contrasena.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
@@ -1088,7 +1088,7 @@ test.describe("otros días", () => {
 
   test("18. tableta (768×1024) y celular (390): las pantallas más usadas caben, sin desborde y con botones de 44 px", async ({ browser, baseURL }) => {
     for (const vista of [{ nombre: "tableta", ancho: 768, alto: 1024 }, { nombre: "celular", ancho: 390, alto: 844 }] as const) {
-      const contexto = await browser.newContext({ baseURL: baseURL!, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: { width: vista.ancho, height: vista.alto }, hasTouch: true, isMobile: true, storageState: comoRol("administrador").storageState });
+      const contexto = await contextoConReloj(browser, { baseURL: baseURL!, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: { width: vista.ancho, height: vista.alto }, hasTouch: true, isMobile: true, storageState: comoRol("administrador").storageState });
       const p = await contexto.newPage();
       const externas: string[] = [];
       await contexto.route((u) => u.protocol.startsWith("http") && u.origin !== new URL(baseURL!).origin, (r) => { externas.push(r.request().url()); return r.abort("blockedbyclient"); });

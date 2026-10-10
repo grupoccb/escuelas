@@ -3,7 +3,7 @@
 
 import type { APIRequestContext } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
-import { capturar, comoRol, expect, mundo, test } from "./fixtura.ts";
+import { capturar, comoRol, expect, mundo, test, contextoConReloj } from "./fixtura.ts";
 
 test.use(comoRol("recepcion"));
 test.describe.configure({ mode: "serial" });
@@ -226,7 +226,7 @@ test.describe("estado de cuenta", () => {
   });
 
   test("un asesor puede leerlo, pero no registra pagos (ni ve esa sección ni entra por URL)", async ({ browser }) => {
-    const contexto = await browser.newContext({ storageState: comoRol("asesor").storageState });
+    const contexto = await contextoConReloj(browser, { storageState: comoRol("asesor").storageState });
     const page = await contexto.newPage();
     await page.goto(`/cuenta/${gomez.tutorId}`);
     await expect(page.getByTestId("saldo")).toBeVisible();

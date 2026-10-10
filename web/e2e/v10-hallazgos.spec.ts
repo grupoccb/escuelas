@@ -10,7 +10,7 @@
 
 import type { APIRequestContext, Page } from "@playwright/test";
 import { abrirSeccion, apiComo, json } from "./ayudas.ts";
-import { comoRol, expect, mundo, test, VISTA_CELULAR } from "./fixtura.ts";
+import { comoRol, expect, mundo, test, VISTA_CELULAR, contextoConReloj } from "./fixtura.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 
 test.setTimeout(45_000);
@@ -172,7 +172,7 @@ test.describe("orden de los títulos · pantallas con un identificador", () => {
   test("registro del alumno (maestro, con todas las secciones abiertas), ficha del lead y conversión (asesor), expediente y ficha de la familia (administrador)", async ({ browser, baseURL }) => {
     const problemas: string[] = [];
     const revisar = async (rol: "administrador" | "asesor" | "maestro", ruta: string, abrir?: (p: Page) => Promise<void>): Promise<void> => {
-      const context = await browser.newContext({ baseURL: baseURL!, storageState: comoRol(rol).storageState, viewport: VISTA_CELULAR });
+      const context = await contextoConReloj(browser, { baseURL: baseURL!, storageState: comoRol(rol).storageState, viewport: VISTA_CELULAR });
       const page = await context.newPage();
       await page.goto(ruta);
       await page.waitForLoadState("networkidle");

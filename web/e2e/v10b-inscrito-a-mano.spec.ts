@@ -5,7 +5,7 @@
 import { request, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, mundo, test, VISTA_CELULAR, VISTA_ESCRITORIO } from "./fixtura.ts";
+import { expect, mundo, test, VISTA_CELULAR, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
 import { RAIZ } from "./mundo.ts";
 import { CONTRASENA_DE_PRUEBA, sembrarUsuario } from "../../src/testutil/api.ts";
 import { fijarConfiguracion, sembrarEmbudo, sembrarFamilia, sembrarOrganizacion, type OrganizacionDePrueba } from "../../src/testutil/semilla.ts";
@@ -35,7 +35,7 @@ async function foto(page: Page, nombre: string, vista: "escritorio" | "celular",
 async function abrir(browser: import("@playwright/test").Browser, correo: string, vista: typeof VISTA_ESCRITORIO | typeof VISTA_CELULAR): Promise<{ page: Page; context: BrowserContext; api: APIRequestContext }> {
   const api = await request.newContext({ baseURL: mundo.base, extraHTTPHeaders: { "x-requested-with": "prueba" } });
   expect((await api.post("/api/sesion", { data: { organizacion: org.slug, correo, contrasena: CONTRASENA_DE_PRUEBA } })).status()).toBe(201);
-  const context = await browser.newContext({ baseURL: mundo.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: vista, storageState: await api.storageState(), extraHTTPHeaders: { "x-requested-with": "prueba" } });
+  const context = await contextoConReloj(browser, { baseURL: mundo.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: vista, storageState: await api.storageState(), extraHTTPHeaders: { "x-requested-with": "prueba" } });
   return { page: await context.newPage(), context, api };
 }
 

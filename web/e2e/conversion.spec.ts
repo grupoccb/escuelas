@@ -3,7 +3,7 @@
 
 import type { APIRequestContext } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
-import { capturar, comoRol, expect, mundo, test } from "./fixtura.ts";
+import { capturar, comoRol, expect, mundo, test, contextoConReloj } from "./fixtura.ts";
 
 test.use(comoRol("asesor"));
 test.describe.configure({ mode: "serial" });
@@ -175,7 +175,7 @@ test.describe("familia Zeta: casi todo falta, y sin clase muestra", () => {
   });
 
   test("un maestro no entra al asistente (con el modo de cierre por omisión) ni por URL directa", async ({ browser }) => {
-    const contexto = await browser.newContext({ storageState: comoRol("maestro").storageState });
+    const contexto = await contextoConReloj(browser, { storageState: comoRol("maestro").storageState });
     const page = await contexto.newPage();
     await page.goto(`/leads/${zeta.leadId}/convertir`);
     await expect(page.getByRole("heading", { name: "Sin acceso" })).toBeVisible();

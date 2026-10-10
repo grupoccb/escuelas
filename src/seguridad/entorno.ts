@@ -60,6 +60,9 @@ export function revisarEntorno(env: NodeJS.ProcessEnv = process.env): HallazgoDe
   if (esEnsayoLocal(env)) grave("ensayo_en_produccion", "ENSAYO_LOCAL=si es solo para el ensayo con WhatsApp real en la máquina de Eduardo (docs/ENSAYO-WHATSAPP-REAL.md): relaja el bloqueo de Twilio y usa un túnel público. Quítalo.");
   if (env["ENSAYO_TWILIO_BLOQUEO_PREFIJO"]) grave("ensayo_sin_bloqueo_en_produccion", "ENSAYO_TWILIO_BLOQUEO_PREFIJO solo existe para el ensayo local. Quítalo.");
 
+  // V10b-fix: el reloj simulado de las pruebas (scripts/lib/reloj-simulado.ts) desplaza el «ahora» de la aplicación; una instalación real nunca puede traerlo.
+  if ((env["PRUEBAS_AHORA"] ?? "").trim() || (env["PRUEBAS_DESFASE_MS"] ?? "").trim()) grave("reloj_de_pruebas_en_produccion", "PRUEBAS_AHORA / PRUEBAS_DESFASE_MS desplazan el reloj y son solo para las pruebas. Quítalos.");
+
   const bd = env["DATABASE_URL"];
   if (bd) {
     try {

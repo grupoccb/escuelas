@@ -5,7 +5,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import type { APIRequestContext } from "@playwright/test";
 import { apiComo, json } from "./ayudas.ts";
-import { entrarPorPantalla, expect, mundo, test } from "./fixtura.ts";
+import { entrarPorPantalla, expect, mundo, test, contextoConReloj } from "./fixtura.ts";
 import { RAIZ } from "./mundo.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -26,7 +26,7 @@ test.afterAll(async () => {
 
 for (const e of ENTRADAS) {
   test(`entrar por http://${e.nombre}:${puerto}: iniciar sesión, guardar una cotización y cerrar sesión funcionan igual`, async ({ browser }) => {
-    const context = await browser.newContext({ baseURL: e.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: { width: 1280, height: 800 } });
+    const context = await contextoConReloj(browser, { baseURL: e.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
       const u = mundo.usuarios.asesor;
@@ -58,7 +58,7 @@ for (const e of ENTRADAS) {
 }
 
 test("un origen ajeno NO pasa aunque lleve una sesión válida: el servidor lo rechaza con 403 y no guarda nada", async ({ browser }) => {
-  const context = await browser.newContext({ baseURL: mundo.base });
+  const context = await contextoConReloj(browser, { baseURL: mundo.base });
   const page = await context.newPage();
   try {
     const u = mundo.usuarios.asesor;

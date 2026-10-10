@@ -22,6 +22,11 @@ export async function abrirSeccion(page: Page, id: string): Promise<Locator> {
   return s;
 }
 
+/** La fecha de calendario de hoy en la zona de las sucursales de prueba (Ciudad de México), `AAAA-MM-DD`. Usa el reloj de la prueba (el simulado, si hay PRUEBAS_AHORA). */
+export function hoyEnMexico(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
 /** La fecha de calendario de ayer en la zona de las sucursales de prueba (Ciudad de México), `AAAA-MM-DD`. */
 export function ayerEnMexico(): string {
   const ayer = new Date(Date.now() - 86_400_000);

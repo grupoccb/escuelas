@@ -140,6 +140,16 @@ npm run web:build        # el build que sirve el backend (web/dist)
 npm run test:navegador   # pruebas en Chromium contra el backend real y una base PROPIA (nunca la de la demo)
 ```
 
+**Correr las pruebas a otra hora (V10b-fix).** Una prueba que depende de la hora del día o del día del mes se descubre corriéndola en otro «ahora». `PRUEBAS_AHORA` (instante ISO con zona,
+por ejemplo `2026-10-10T06:30:00Z` = las 00:30 del sábado 10 en la Ciudad de México) hace que la aplicación bajo prueba, la siembra, los specs y el navegador vivan en ese instante (el reloj
+corre desde ahí; no se congela). Sirve igual con `npm run test:int` y con una prueba suelta (`node --import ./scripts/lib/reloj-simulado-import.ts --test <archivo>`). Postgres conserva su `now()`
+real; solo se mueve la aplicación. Es solo para pruebas: `src/` no lo lee y el arranque de producción se niega a iniciar si encuentra `PRUEBAS_AHORA` o `PRUEBAS_DESFASE_MS`.
+
+```bash
+PRUEBAS_AHORA=2026-10-10T06:30:00Z npm run test:navegador
+PRUEBAS_AHORA=2026-11-01T05:30:00Z npm run test:int
+```
+
 La primera vez para las pruebas en navegador: `npx --prefix web playwright install chromium`. La ficha del lead abre su conversación en Chatwoot con `CHATWOOT_URL_PUBLICA`
 (en compose ya es `http://localhost:3001`). Las capturas de las pantallas (celular y escritorio, con datos de prueba) quedan en `docs/capturas/`.
 

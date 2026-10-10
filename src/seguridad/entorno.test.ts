@@ -83,3 +83,14 @@ test("V9: el ensayo local (ENSAYO_LOCAL=si, sin el bloqueo de Twilio) impide arr
 test("V9: la demo local declarada (ENTORNO_DEMO=si) sí puede ensayar: es la máquina de quien prueba", () => {
   assert.deepEqual(impedimentosParaArrancar({ ...buena(), ENSAYO_LOCAL: "si", ENTORNO_DEMO: "si" }), []);
 });
+
+test("V10b-fix: el reloj simulado de las pruebas (PRUEBAS_AHORA / PRUEBAS_DESFASE_MS) impide arrancar en una instalación real, pero no estorba en desarrollo ni en la demo", () => {
+  for (const variable of ["PRUEBAS_AHORA", "PRUEBAS_DESFASE_MS"]) {
+    const conReloj = { ...buena(), [variable]: variable === "PRUEBAS_AHORA" ? "2026-10-10T06:30:00Z" : "-3600000" };
+    assert.ok(codigos(conReloj).includes("reloj_de_pruebas_en_produccion"), variable);
+    assert.ok(impedimentosParaArrancar(conReloj).some((h) => h.codigo === "reloj_de_pruebas_en_produccion"), variable);
+    assert.deepEqual(impedimentosParaArrancar({ ...conReloj, ENTORNO_DEMO: "si" }), [], "la demo local es la máquina de quien prueba");
+    assert.deepEqual(revisarEntorno({ ...conReloj, NODE_ENV: "development" }), [], "fuera de producción no se revisa");
+  }
+  assert.ok(!codigos({ ...buena(), PRUEBAS_AHORA: "  " }).includes("reloj_de_pruebas_en_produccion"));
+});

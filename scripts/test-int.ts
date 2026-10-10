@@ -4,10 +4,13 @@
 //
 //   npm run test:int
 //   DATABASE_URL_PRUEBAS=postgresql://… npm run test:int
+//   PRUEBAS_AHORA=2026-10-10T06:30:00Z npm run test:int   (la aplicación bajo prueba vive en ese «ahora»; Postgres conserva su now() real. Ver scripts/lib/reloj-simulado.ts)
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import pg from "pg";
+import { entornoConRelojSimulado } from "./lib/reloj-simulado.ts";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
@@ -33,5 +36,5 @@ await cliente.end();
 const env = { ...process.env, DATABASE_URL: url.toString() };
 execFileSync("npx", ["prisma", "migrate", "deploy"], { env, stdio: ["ignore", "ignore", "inherit"] });
 
-const r = spawnSync(process.execPath, ["--test", "--test-concurrency=1", "src/**/*.itest.ts"], { env, stdio: "inherit" });
+const r = spawnSync(process.execPath, ["--test", "--test-concurrency=1", "src/**/*.itest.ts"], { env: entornoConRelojSimulado(env, resolve("scripts/lib/reloj-simulado-import.ts")), stdio: "inherit" });
 process.exit(r.status ?? 1);

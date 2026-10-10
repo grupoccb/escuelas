@@ -8,7 +8,9 @@ import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { exigirBaseDePruebas } from "../testutil/prisma-pruebas.ts";
 
-const BASE = "inscripciones_demo_guiada_pruebas";
+// Una base de la demo guiada POR cada base de pruebas (V10b-fix): dos corridas de `test:int` a la vez (cada una con su `DATABASE_URL_PRUEBAS`, p. ej. para correr la suite a otra hora)
+// no se pisan. Con la base por omisión (`inscripciones_pruebas`) el nombre es el de siempre.
+const BASE = `${new URL(process.env["DATABASE_URL"] ?? "postgresql://x/inscripciones_pruebas").pathname.slice(1).replace(/_pruebas$/, "")}_demo_guiada_pruebas`;
 const servidor = (): string => {
   exigirBaseDePruebas(process.env["DATABASE_URL"]);
   const u = new URL(process.env["DATABASE_URL"]!);

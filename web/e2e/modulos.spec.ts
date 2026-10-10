@@ -9,7 +9,7 @@ import { CONTRASENA_DE_PRUEBA, sembrarUsuario } from "../../src/testutil/api.ts"
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
 import { sembrarEmbudo, sembrarFamilia, sembrarOrganizacion } from "../../src/testutil/semilla.ts";
 import { RAIZ } from "./mundo.ts";
-import { expect, mundo, test, VISTA_CELULAR, VISTA_ESCRITORIO, type Rol } from "./fixtura.ts";
+import { expect, mundo, test, VISTA_CELULAR, VISTA_ESCRITORIO, type Rol, contextoConReloj } from "./fixtura.ts";
 
 // La organización de módulos NO vive en el mundo compartido: con una segunda escuela viva, «la escuela es opcional» (el inicio de sesión sin escribirla) y la landing de la
 // vertical dejarían de resolver a una sola. Se siembra aquí, se usa y al terminar se da de baja (soft delete, invariante 3): para las demás pruebas nunca existió.
@@ -46,7 +46,7 @@ async function sesionDe(rol: Rol) {
 }
 async function paginaDe(browser: Browser, rol: Rol, vista: { width: number; height: number } = VISTA_ESCRITORIO): Promise<{ context: BrowserContext; page: Page }> {
   const { estado } = await sesionDe(rol);
-  const context = await browser.newContext({ baseURL: mundo.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: vista, storageState: estado });
+  const context = await contextoConReloj(browser, { baseURL: mundo.base, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: vista, storageState: estado });
   return { context, page: await context.newPage() };
 }
 

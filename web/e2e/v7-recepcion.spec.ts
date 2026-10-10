@@ -9,7 +9,7 @@ import type { APIRequestContext, APIResponse, Locator, Page } from "@playwright/
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { apiComo, haceDiasEnMexico, json } from "./ayudas.ts";
-import { comoRol, contextoNuevo, expect, mundo, test, VISTA_ESCRITORIO } from "./fixtura.ts";
+import { comoRol, contextoNuevo, expect, mundo, test, VISTA_ESCRITORIO, contextoConReloj } from "./fixtura.ts";
 import { RAIZ } from "./mundo.ts";
 import { sembrarAlumno, sembrarFamilia, type DocumentosLegalesSembrados, type OrganizacionDePrueba } from "../../src/testutil/semilla.ts";
 import { crearPrismaDePruebas, type PrismaPruebas } from "../../src/testutil/prisma-pruebas.ts";
@@ -752,7 +752,7 @@ test.describe("la mañana de Rita", () => {
 
   test("12. tableta (768×1024) y celular (390): cobro, cuenta, uniformes, ventas y cierre caben, sin desborde y con botones de 44 px", async ({ browser, baseURL }) => {
     for (const vista of [{ nombre: "tableta", ancho: 768, alto: 1024, tactil: true }, { nombre: "celular", ancho: 390, alto: 844, tactil: true }] as const) {
-      const contexto = await browser.newContext({ baseURL: baseURL!, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: { width: vista.ancho, height: vista.alto }, hasTouch: vista.tactil, isMobile: true, storageState: comoRol("recepcion").storageState });
+      const contexto = await contextoConReloj(browser, { baseURL: baseURL!, locale: "es-MX", timezoneId: "America/Mexico_City", viewport: { width: vista.ancho, height: vista.alto }, hasTouch: vista.tactil, isMobile: true, storageState: comoRol("recepcion").storageState });
       const p = await contexto.newPage();
       const externas: string[] = [];
       await contexto.route((u) => u.protocol.startsWith("http") && u.origin !== new URL(baseURL!).origin, (r) => { externas.push(r.request().url()); return r.abort("blockedbyclient"); });

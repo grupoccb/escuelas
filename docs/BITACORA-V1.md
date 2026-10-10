@@ -15,7 +15,7 @@ Sesión del 9 de octubre de 2026. Rama `v1-escuela` (desde `noche-2`). Plan: `do
 | V8 | HECHO (parcial: el aviso de 24 h y el selector de plantillas de Chatwoot con WhatsApp real quedan en texto, sin captura) | ver `git log` (`V8:`) | Cuatro guías de una página por rol con capturas reales (`docs/guias/`), PDF carta y celular, prueba que falla si un botón citado ya no existe (`npm run guias:validar`), capturas regenerables (`npm run guias:capturas`) y lector fresco que las siguió en la pantalla |
 | V9 | HECHO (parcial: nada probado contra Twilio ni Chatwoot reales —lo corre Eduardo—; crear la bandeja por la API de Chatwoot se verificó leyendo su código, no ejecutándolo) | ver `git log` (`V9:`) | Ensayo con WhatsApp real preparado: perfil `ensayo` con puerta pública propia, `ensayo:preparar` / `:diagnostico` / `:entrante`, firma contra la URL pública con diagnóstico en el log, `/twilio/delivery_status` (EA-02 b), Twilio y Chatwoot falsos, guía `docs/ENSAYO-WHATSAPP-REAL.md` |
 | V10 | HECHO (pendiente de que Eduardo marque los gates) | ver `git log` (`V10`) | Hallazgos abiertos: tabla única en `docs/HALLAZGOS-ABIERTOS-V1.md`, todo lo corregible corregido con prueba; incluye la causa raíz de la prueba intermitente de pagos parciales (instrucción de Eduardo: prueba que falle siempre sin el arreglo, sin reintentos ni relajar la aserción) |
-| V10b | HECHO (parcial: `test:navegador` sale con exit 1 por una prueba ajena a este bloque, `v8-guias.spec.ts` del maestro, que depende de la hora del día; las 7 de este bloque y todas las demás pasan) | ver `git log` (`V10b:`) | Inscrito a mano: con la inscripción apagada el asesor o el administrador marca «Inscrito» con nota obligatoria y queda quién lo hizo; con la inscripción encendida solo se llega inscribiendo (mensaje que dice qué hacer). El reporte de leads, el costo por campaña y la conversión de clases muestra cuentan los dos casos y los distinguen |
+| V10b | HECHO | ver `git log` (`V10b:`, `V10b-fix:`) | Inscrito a mano: con la inscripción apagada el asesor o el administrador marca «Inscrito» con nota obligatoria y queda quién lo hizo; con la inscripción encendida solo se llega inscribiendo (mensaje que dice qué hacer). El reporte de leads, el costo por campaña y la conversión de clases muestra cuentan los dos casos y los distinguen. V10b-fix: las pruebas ya no dependen de la hora ni del día (`PRUEBAS_AHORA` corre la suite a otro instante; `test:navegador` 255 de 255 en 16 instantes, `test:int` 1410 de 1410 en 7) |
 | V11 | PENDIENTE | | Decisiones para Eduardo |
 | V12 | PENDIENTE | | Demo de un solo comando |
 | V13 | PENDIENTE | | Auditoría final |
@@ -759,7 +759,7 @@ Decisión de Eduardo (textual): «Con el módulo de inscripción apagado, el ase
 **Verificación** (logs completos sin filtrar en el scratchpad de la sesión; bases `v10c_inscripciones_pruebas` y `v10c_inscripciones_navegador_pruebas`, puerto 4398)
 - `npm run validar` → **exit 0** (`ℹ tests 915 / ℹ pass 915 / ℹ fail 0` de backend; `ℹ tests 101 / ℹ pass 101` de la interfaz; lint, tsc y las cinco guardas `check:*` en verde, ninguna relajada). `npm run guias:validar` → exit 0 (21 de 21).
 - `npm run test:int` → **exit 0** (`ℹ tests 1410 / ℹ pass 1410 / ℹ fail 0`; antes 1386). La primera corrida falló 2 pruebas que fijaban las columnas de los CSV (`exportacion.itest.ts`): se actualizaron a las columnas nuevas y la segunda corrida completa quedó en verde.
-- `npm run test:navegador` → **exit 1**: `252 passed, 1 failed, 3 did not run (9.4m)`. Las 7 pruebas de `v10b-inscrito-a-mano.spec.ts` y la de `v7-asesor.spec.ts` (solo captación) pasan. La que falla es `e2e/v8-guias.spec.ts:254` (maestro, pase de lista: no aparece «Marcar presentes a todos…») y las 3 que no corren son las que le siguen en su bloque serial. **No es de este bloque:** el pase de lista del fixture usa un grupo que da clase a las 16:00 y la pantalla responde «La clase de ese día todavía no empieza» antes de esa hora; la máquina estaba en las 00:36 hora local del sábado 10 de octubre. Falló igual en la corrida de `guias:capturas` de esta noche y en V10 (9 de octubre, de día) había pasado. Pendiente: que el fixture del maestro no dependa de la hora del día (o que la prueba la fije); no lo toqué por no ser de V10b. Base `v10c_inscripciones_navegador_pruebas`, puerto 4398.
+- `npm run test:navegador` → **exit 1**: `252 passed, 1 failed, 3 did not run (9.4m)`. Las 7 pruebas de `v10b-inscrito-a-mano.spec.ts` y la de `v7-asesor.spec.ts` (solo captación) pasan. La que falla es `e2e/v8-guias.spec.ts:254` (maestro, pase de lista: no aparece «Marcar presentes a todos…») y las 3 que no corren son las que le siguen en su bloque serial. **No es de este bloque:** el pase de lista del fixture usa un grupo que da clase a las 16:00 y la pantalla responde «La clase de ese día todavía no empieza» antes de esa hora; la máquina estaba en las 00:36 hora local del sábado 10 de octubre. Falló igual en la corrida de `guias:capturas` de esta noche y en V10 (9 de octubre, de día) había pasado. Pendiente (resuelto en V10b-fix, abajo): que el fixture del maestro no dependa de la hora del día (o que la prueba la fije); no lo toqué por no ser de V10b. Base `v10c_inscripciones_navegador_pruebas`, puerto 4398.
 - `npm run cuadratura` sobre las seis organizaciones que crearon las pruebas de este bloque: las seis «✓ cuadra». Sobre TODA la base de pruebas sale exit 1 por los descuadres que otras pruebas (EG-02, hermanos…) siembran a propósito para probar la propia cuadratura; no tienen relación con este bloque.
 
 **Decisiones que tomé**
@@ -777,4 +777,68 @@ Decisión de Eduardo (textual): «Con el módulo de inscripción apagado, el ase
 - Un inscrito a mano NO genera alumno, inscripción ni cargos: no cuenta en «alumnos activos», «altas» ni ingreso del tablero ejecutivo; cuando la escuela encienda la inscripción tendrá que inscribir de verdad a esas familias para que existan sus alumnos y sus cargos (el sistema lo permite sin choques).
 - Decide si la nota debe copiarse también al registro de cambios (hoy no, por salud).
 - Migración nueva: `20261030000000_v10b_inscrito_a_mano`.
-- `e2e/v8-guias.spec.ts` (maestro, pase de lista) falla si se corre antes de las 16:00 hora local (el grupo del fixture da clase a esa hora): es previa a V10b y conviene arreglarla antes de la auditoría final (V13).
+- `e2e/v8-guias.spec.ts` (maestro, pase de lista) fallaba si se corría antes de la hora de clase del fixture (resuelto en V10b-fix, abajo).
+
+### V10b-fix — pruebas que dependían de la hora del día
+
+Instrucción de Eduardo (la misma que para la prueba intermitente de pagos de V10): causa raíz, una prueba que la demuestre, sin reintentos ni aserciones relajadas. Falla que la motivó: `npm run test:navegador` de madrugada (00:36 del sábado 10 de octubre, hora de México) → `web/e2e/v8-guias.spec.ts:254`, maestro, pase de lista: no aparece «Marcar presentes a todos…».
+
+**Causa raíz (medida, no supuesta).**
+- La pantalla responde «La clase de ese día todavía no empieza» mientras la primera sesión del día del grupo no haya empezado (`problemaDePase`, `src/asistencia/pase.ts`: `primera > ahora` → `fecha_futura`). Es la regla correcta de producción y no se tocó.
+- El fixture de la guía del maestro (`sembrarMaestro`, `web/e2e/v8-guias.spec.ts`) creaba «Grupo de la tarde» con clase **todos los días a las 18:00** y la prueba pasa lista de **hoy**. Con la hora real de la máquina antes de las 18:00 (no «las 16:00» como se anotó en V10b: ese es el horario de los grupos del mundo de pruebas, que ya usaban fechas pasadas) el pase de hoy no se puede tomar. Era la única prueba con ese defecto: las demás que pasan lista usan `ayerEnMexico()` / `haceDiasEnMexico(n)`.
+- «Hoy» y «ahora» venían del **reloj real** en los cuatro lugares: el servidor de pruebas (`reloj = () => new Date()` en `scripts/navegador/servidor.ts`), la siembra (`scripts/navegador/mundo.ts`, ~20 `Date.now()`), los specs de Playwright y el navegador (`hoyLocal()` en `web/src/lib/fechas.ts`). Nada permitía correr la suite a otro instante, así que nadie podía comprobar qué dependía de la hora.
+- Sin el arreglo, el spec del maestro falla a las 00:30, 12:00 y 15:59 y pasa a las 18:01 y 23:30 (tabla abajo).
+
+**Qué se hizo.**
+1. **Un reloj simulado para TODAS las corridas de pruebas** (`scripts/lib/reloj-simulado.ts` y `reloj-simulado-import.ts`; nada de `src/` lo importa). `PRUEBAS_AHORA=<instante ISO con zona>` (p. ej. `2026-10-10T06:30:00Z`) hace que `Date` del proceso arranque en ese instante y siga corriendo; el lanzador fija el desfase UNA vez en `PRUEBAS_DESFASE_MS` y agrega el `--import` a `NODE_OPTIONS`, así que servidor de pruebas, siembra, specs y trabajadores de Playwright coinciden al milisegundo. Funciona con `npm run test:navegador`, `npm run test:int` y una prueba suelta (`node --import ./scripts/lib/reloj-simulado-import.ts --test <archivo>`). Se exige zona en el instante (sin ella dependería de la zona de la máquina). Postgres conserva su `now()` real: se mueve la aplicación, no la base. No hay `faketime` en esta Mac (`which faketime` vacío); se eligió un shim de `Date` en Node.
+2. **El navegador vive en el mismo «ahora»** (`web/e2e/fixtura.ts`: `relojDelNavegador` / `contextoConReloj`, con `context.clock.install`). Todo contexto de Playwright (el de cada prueba y los `browser.newContext` de los specs, ahora `contextoConReloj`) lo recibe; sin `PRUEBAS_AHORA` no hace nada.
+3. **El fixture ya no depende de la hora**: `scripts/navegador/horarios.ts` (`HORARIO_DE_CLASE_YA_EMPEZADA`, clase de 00:00 a 01:00) para el grupo cuyo pase de HOY se toma. Una clase que empieza a las 00:00 ya empezó a cualquier hora, también si la corrida cruza la medianoche (un horario «relativo a ahora» fallaría pasada la medianoche). Además la siembra del spec comprueba por la API que el pase de hoy del grupo se puede tomar (`problema: null`) con un mensaje que dice que el defecto es del fixture.
+4. **Producción niega el reloj de pruebas**: `revisarEntorno` (`src/seguridad/entorno.ts`) agrega el grave `reloj_de_pruebas_en_produccion` si hay `PRUEBAS_AHORA` o `PRUEBAS_DESFASE_MS` con `NODE_ENV=production` (no en la demo local `ENTORNO_DEMO=si`); el backend no arranca. El propio shim también se niega en producción real. Test en `src/seguridad/entorno.test.ts`.
+5. **Aislamiento para correr varias suites a la vez**: `src/demo/guiada.itest.ts` usaba una base de nombre fijo (`inscripciones_demo_guiada_pruebas`), así que dos `test:int` simultáneos se la pisaban (lo descubrió el barrido); ahora cuelga del nombre de la base de pruebas en uso (con la base por omisión el nombre es el de siempre).
+
+**Pruebas deterministas nuevas** (corren siempre en `npm run validar`: `scripts/lib/reloj-simulado.test.ts`, 13, y 1 en `src/seguridad/entorno.test.ts`)
+- El desfase sale de `PRUEBAS_AHORA` con zona, `PRUEBAS_DESFASE_MS` manda, y los valores malos se rechazan.
+- Prueba de humo del arnés: un proceso de Node arranca en el instante pedido, sigue corriendo y se lo hereda a sus hijos; sin variable es el reloj real; en producción real ni arranca.
+- Los siete instantes críticos (00:30, 06:00, 12:00, 15:59, 16:01 y 23:30 del sábado —ya domingo en UTC—, y 23:30 de fin de mes): «hoy» en México es el día correcto y la clase de las 16:00 «ya empezó / aún no» según corresponde, con el reloj simulado de verdad (proceso aparte).
+- La causa raíz: el horario fijo de las 18:00 NO había empezado a la 01:36 (`fecha_futura`) y `HORARIO_DE_CLASE_YA_EMPEZADA` sí, en los siete instantes.
+- En Playwright, sin el arreglo, `v8-guias.spec.ts` (con la precondición) falla siempre a ciertas horas (tabla).
+
+**Sin el arreglo vs con el arreglo — `v8-guias.spec.ts` + `maestro`** (misma base y puerto propios, `PRUEBAS_AHORA` fijado; hora de México)
+| Instante | Sin arreglo (horario 18:00) | Con arreglo |
+|---|---|---|
+| 00:30 sáb 10 oct | falla | pasa |
+| 12:00 sáb 10 oct | falla | pasa |
+| 15:59 mar 13 oct | falla | pasa |
+| 18:01 mar 13 oct | pasa | pasa |
+| 23:30 sáb 10 oct (domingo en UTC) | pasa | pasa |
+
+**Barrido de dependencias de la hora y del día** (qué se corrió, con `PRUEBAS_AHORA`)
+- *Pruebas unitarias* (`npm test`, 929): **23 instantes** — 00:30, 06:00, 12:00, 15:59, 16:01, 23:30 (sábado y UTC ya domingo), días 1, 10, 12, 13, 19, 20, 21, 28, 29, 30, 31, fin de mes (31 oct y 30 nov a las 23:30), 1 de enero 2027, 28 de febrero y 1 de marzo (2027 y 2028 bisiesto) y los cambios de horario de marzo/abril de 2026: **929 de 929 en los 23**. Insensibles (usan relojes inyectados o fechas fijas).
+- *Pruebas de integración* (`npm run test:int`, 1410), una base propia por corrida: 00:30 sáb 10 oct; 23:30 del 31 oct (fin de mes, ya 1 nov en UTC); 15:59 lun 12 (día de corte); 16:01 mar 20 (día de corte); 12:00 dom 11; 23:30 del 30 nov: **1410 de 1410 en las 6**, más la corrida en el reloj real de madrugada (abajo). Insensibles.
+- *Pruebas en navegador* (255): 00:30 sáb 10; 06:00 dom 11; 12:00 lun 12; 15:59 mar 13; 16:01 lun 19; 12:00 mar 20; 23:30 mar 20 (21 en UTC); 00:30 dom 1 nov; 23:30 del 31 oct; 12:00 mié 21; 12:00 mié 28; 00:30 jue 29; 16:01 vie 30; 23:30 del 30 nov; 23:30 del 31 dic (año nuevo); 23:30 del 28 feb 2027: **255 de 255 en cada una** (más mediodía y 23:30 en el cierre, abajo). Con el reloj real las 255 pasan en la corrida de cierre.
+- Único defecto sensible a la hora: el de `v8-guias.spec.ts`. No se encontró otro (ni día de corte 12/20, ni domingo, ni fin de mes, ni el cambio de día UTC contra México).
+- *Lo que NO era hora*: las dos primeras rondas del barrido, con **4 y 5 suites a la vez** contra el mismo Postgres, dieron fallos aislados (`v7-asesor` «reprograma y cancela», `v3-segundo-hijo` «sin lugar», `primeros-pasos` 500 en la prueba de inyección, las carreras de pagos y cupo por «too many clients» con `max_connections=100`, y la demo guiada por el nombre de base fijo). Se descartaron como causa de la hora: los mismos instantes corridos con 2–3 suites a la vez pasan completos y las pruebas sueltas pasan en el mismo instante. Quedan anotados abajo como observación (carga), no se tocaron.
+
+**Cómo correr la suite a un instante dado** (también en `docs/DEMO-LOCAL.md`)
+```
+PRUEBAS_AHORA=2026-10-10T06:30:00Z npm run test:navegador      # 00:30 del sábado 10 de octubre en México
+PRUEBAS_AHORA=2026-11-01T05:30:00Z npm run test:int            # 23:30 del 31 de octubre (ya 1 de noviembre en UTC)
+PRUEBAS_AHORA=… node --import ./scripts/lib/reloj-simulado-import.ts --test <archivo>
+```
+
+**Cierre** (reloj real, madrugada del sábado 10 de octubre: ~03:00 hora de México; logs sin filtrar en el scratchpad; bases `v10d_…` y puertos propios)
+- `npm run validar` → **exit 0** (`ℹ tests 929 / pass 929 / fail 0` de backend —+14 sobre los 915 de V10b—; `ℹ tests 101 / pass 101` de la interfaz; lint, tsc y las cinco guardas `check:*` en verde).
+- `npm run test:int` → **exit 0** (`ℹ tests 1410 / pass 1410 / fail 0`).
+- `npm run test:navegador` → **exit 0** (`255 passed (7.8m)`; antes `252 passed, 1 failed, 3 did not run`). Se quita la salvedad «parcial» de V10b.
+- `npm run test:navegador` con `PRUEBAS_AHORA` a mediodía (`2026-10-10T18:00:00Z`) y a las 23:30 (`2026-10-11T05:30:00Z`): **exit 0 las dos** (`255 passed (8.1m)` a mediodía y `255 passed (8.1m)` a las 23:30 —ya domingo en UTC—, con servidor, siembra, specs y navegador en ese instante).
+
+**Decisiones que tomé**
+- Shim de `Date` por `--import` en vez de `faketime` (no existe aquí) y en vez de inyectar el reloj a mano en cada prueba (cientos de `new Date()`): una sola pieza mueve servidor, siembra, specs y navegador. Alternativa descartada: congelar el reloj; correría con la hora parada y escondería defectos de duración.
+- El horario del fixture es de 00:00 a 01:00 y no «relativo a ahora»: el relativo se rompe si la corrida cruza la medianoche. Alternativa descartada: ayer en lugar de hoy (la guía muestra el pase de hoy).
+- Postgres no se desplaza (`now()` real): las dos fuentes de «ahora» solo divergen en columnas con `DEFAULT now()`, y ninguna prueba resultó depender de eso en los instantes recorridos.
+- El shim y el guardia de producción viven en `scripts/` y `src/seguridad/entorno.ts`; `src/` no importa el shim.
+
+**Para Eduardo**
+- Variable nueva de pruebas: `PRUEBAS_AHORA` (y `PRUEBAS_DESFASE_MS`, que fija el lanzador). Quedan prohibidas en producción (el backend no arranca con ellas).
+- Observación (no hora): `test:navegador` corrido **4 veces a la vez** en la misma máquina deja fallar de forma intermitente `v7-asesor` («7. reprograma y cancela», la tarjeta de la clase se pulsa antes de que la lista se refresque: «La clase ya no está agendada») y `v3-segundo-hijo` («sin lugar»). Con 1–3 corridas a la vez no pasa nunca. No se arregló porque no es de la hora ni de producción; si quieres suites más robustas bajo carga, habría que esperar a que la lista se refresque antes de pulsar.
+- `test:int` con más de ~3 corridas simultáneas contra el mismo Postgres de la demo agota `max_connections=100`.

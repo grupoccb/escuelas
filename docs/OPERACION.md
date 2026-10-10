@@ -139,7 +139,7 @@ El backend **se niega a arrancar** en producción si falta o es débil algo de e
 | `METRICAS_TOKEN` | Para leer `/metricas` (sin él, la ruta no existe) |
 | `LIMITE_*` | Límites por IP (valores por omisión sensatos; `docs/API.md`) |
 
-NO existen en producción: `ENSAYO_LOCAL` y `ENSAYO_TWILIO_BLOQUEO_PREFIJO` (V9: son solo del ensayo con WhatsApp real en la Mac de Eduardo, `docs/ENSAYO-WHATSAPP-REAL.md`; el backend se niega a arrancar con ellas), `ENTORNO_DEMO`, `config/demo-local.env` ni ningún valor que contenga «demo-local». Los usuarios de la demo (`admin@demo.test`… con la contraseña pública `Demo-local-2026!`) solo se crean con el seed de la demo: **nunca corras `prisma/seed/demo.sql` en la base de una escuela real** (usa `prisma/seed/plantilla-organizacion.sql`; `docs/ALTA-DE-CLIENTE.md`).
+NO existen en producción: `ENSAYO_LOCAL` y `ENSAYO_TWILIO_BLOQUEO_PREFIJO` (V9: son solo del ensayo con WhatsApp real en la Mac de Eduardo, `docs/ENSAYO-WHATSAPP-REAL.md`; el backend se niega a arrancar con ellas), `PRUEBAS_AHORA` y `PRUEBAS_DESFASE_MS` (V10b-fix: desplazan el reloj para correr las pruebas a otra hora, `docs/DEMO-LOCAL.md`; el backend se niega a arrancar con ellas), `ENTORNO_DEMO`, `config/demo-local.env` ni ningún valor que contenga «demo-local». Los usuarios de la demo (`admin@demo.test`… con la contraseña pública `Demo-local-2026!`) solo se crean con el seed de la demo: **nunca corras `prisma/seed/demo.sql` en la base de una escuela real** (usa `prisma/seed/plantilla-organizacion.sql`; `docs/ALTA-DE-CLIENTE.md`).
 
 ## Rutina
 
