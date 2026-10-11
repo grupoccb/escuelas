@@ -2,7 +2,7 @@
 //
 //   · La landing pública `/l/<identificador>` (src/http/landing.ts + landing-html.ts): HTML con su propio CSS en línea, sin React ni base.css. Es lo más expuesto al público
 //     (la familia llega desde un anuncio), así que se inventaría completa: vacía, con parámetros de anuncio, con cada error de validación, con el aviso abierto, «Enviando…»,
-//     gracias, error y en modo oscuro.
+//     gracias y error. (No hay modo oscuro: el sistema tiene un solo tema, claro; las tres filas «en modo oscuro» se retiraron.)
 //   · El ícono de la pestaña (`/favicon.svg`) y las respuestas «crudas» del servidor (404 de assets, 404 JSON de `/api/...`, `/salud`, el QR de una campaña).
 //
 // Qué se simula y qué es real:
@@ -127,19 +127,6 @@ const ESCENAS_ANONIMAS: Escena[] = [
     ir: (c) => irA(c, rutaLanding(c)),
   },
   {
-    id: "fuera-landing-oscuro",
-    rol: "anonimo",
-    grupo: GRUPO,
-    titulo: "Landing pública con el celular o la compu en modo oscuro (`prefers-color-scheme: dark`)",
-    tipo: "fuera-de-react",
-    ruta: "/l/:vertical",
-    fuentes: [LANDING_HTML],
-    ir: async (c) => {
-      await c.page.emulateMedia({ colorScheme: "dark" });
-      await irA(c, rutaLanding(c));
-    },
-  },
-  {
     id: "fuera-landing-anuncio",
     rol: "anonimo",
     grupo: GRUPO,
@@ -189,7 +176,7 @@ const ESCENAS_ANONIMAS: Escena[] = [
       const color = "#7b2d8b";
       await reescribirLanding(
         c,
-        (html) => html.replace(/--marca: #[0-9a-fA-F]{6}; --sobre-marca: #[0-9a-fA-F]{6};/, `--marca: ${color}; --sobre-marca: ${colorSobre(color)};`).replace("<header>", `<header><img src="/logo-simulado.svg" alt="">`),
+        (html) => html.replace(/--marca: #[0-9a-fA-F]{6}; --sobre-marca: #[0-9a-fA-F]{6};/, `--marca: ${color}; --sobre-marca: ${colorSobre(color)};`).replace(/<header><span class="monograma"[^>]*>[^<]*<\/span>/, `<header><img src="/logo-simulado.svg" alt="">`),
         (csp) => csp.replace("img-src https:", "img-src 'self' https:"),
       );
       await irA(c, rutaLanding(c));
@@ -305,19 +292,6 @@ const ESCENAS_ANONIMAS: Escena[] = [
     ruta: "/l/:vertical",
     fuentes: [LANDING_HTML, LANDING],
     ir: (c) => enviarConErrores(c, { ...completo(c), alumno: "Visita www.ejemplo.com", contacto: "<b>Hola</b>" }),
-  },
-  {
-    id: "fuera-landing-errores-oscuro",
-    rol: "anonimo",
-    grupo: GRUPO,
-    titulo: "Landing con errores de validación en modo oscuro (el rojo de error cambia a un rosa claro)",
-    tipo: "fuera-de-react",
-    ruta: "/l/:vertical",
-    fuentes: [LANDING_HTML],
-    ir: async (c) => {
-      await c.page.emulateMedia({ colorScheme: "dark" });
-      await enviarConErrores(c, {});
-    },
   },
   {
     id: "fuera-landing-error-general-aviso-cambio",
@@ -439,19 +413,6 @@ const ESCENAS_ANONIMAS: Escena[] = [
     ir: (c) => irA(c, "/l/Mala_Direccion!"),
   },
   {
-    id: "fuera-landing-error-oscuro",
-    rol: "anonimo",
-    grupo: GRUPO,
-    titulo: "Landing: página de error en modo oscuro",
-    tipo: "fuera-de-react",
-    ruta: "/l/:vertical",
-    fuentes: [LANDING_HTML],
-    ir: async (c) => {
-      await c.page.emulateMedia({ colorScheme: "dark" });
-      await irA(c, "/l/inexistente");
-    },
-  },
-  {
     id: "fuera-landing-error-origen",
     rol: "anonimo",
     grupo: GRUPO,
@@ -525,13 +486,30 @@ const ESCENAS_ANONIMAS: Escena[] = [
     ir: async (c) => {
       await irA(c, "/");
       const titulo = await c.page.title();
-      // Una página mínima del mismo origen que muestra el favicon real en los tamaños de una pestaña y el título que la aplicación le puso.
-      await c.page.setContent(
-        `<!doctype html><meta charset="utf-8"><title>${titulo}</title><body style="margin:0;font:16px system-ui;display:grid;gap:16px;padding:24px">` +
-          `<div style="display:flex;gap:16px;align-items:center;padding:16px;background:#fff;color:#111"><img src="/favicon.svg" width="16" height="16" alt=""><img src="/favicon.svg" width="32" height="32" alt=""><img src="/favicon.svg" width="64" height="64" alt=""><span>${titulo}</span></div>` +
-          `<div style="display:flex;gap:16px;align-items:center;padding:16px;background:#202124;color:#eee"><img src="/favicon.svg" width="16" height="16" alt=""><img src="/favicon.svg" width="32" height="32" alt=""><img src="/favicon.svg" width="64" height="64" alt=""><span>${titulo}</span></div></body>`,
+      // Una página mínima del mismo origen que muestra el favicon real en los tamaños de una pestaña y el título que la aplicación le puso. Se sirve con su propia política de
+      // seguridad (la de la aplicación no deja estilos en línea): Figtree desde el propio origen, la escala de espacios y los colores del sistema (la fila clara es la superficie;
+      // la oscura es el color de la barra lateral, que hace de pestaña oscura del navegador).
+      const nonce = "bm9uY2UtZGUtcHJ1ZWJh";
+      const fila = (clase: string): string => `<div class="fila ${clase}"><img src="/favicon.svg" width="16" height="16" alt=""><img src="/favicon.svg" width="32" height="32" alt=""><img src="/favicon.svg" width="64" height="64" alt=""><span>${titulo}</span></div>`;
+      await c.page.route(
+        (u) => u.pathname === "/pestana-simulada",
+        (r: Route) =>
+          r.fulfill({
+            status: 200,
+            contentType: "text/html; charset=utf-8",
+            headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; font-src 'self'; img-src 'self'; base-uri 'none'`, "Cache-Control": "no-store" },
+            body:
+              `<!doctype html><html lang="es"><meta charset="utf-8"><title>${titulo}</title><style nonce="${nonce}">` +
+              `@font-face { font-family: "Figtree"; font-weight: 300 900; src: url("/fuentes/figtree-latin-wght-normal.woff2") format("woff2-variations"); }` +
+              `:root { --fondo: #f3f4f8; --superficie: #ffffff; --texto: #171a2c; --lateral: #171a2c; --primario-texto: #ffffff; }` +
+              `body { margin: 0; padding: 32px; display: grid; gap: 16px; background: var(--fondo); color: var(--texto); font: 500 16px/22px "Figtree", sans-serif; }` +
+              `.fila { display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 12px; } .clara { background: var(--superficie); color: var(--texto); } .oscura { background: var(--lateral); color: var(--primario-texto); }` +
+              `</style><body>${fila("clara")}${fila("oscura")}</body></html>`,
+          }),
       );
+      await c.page.goto("/pestana-simulada");
       await c.page.locator("img").last().evaluate((img) => (img as HTMLImageElement).decode());
+      await c.page.evaluate(() => document.fonts.ready);
       await quieta(c);
     },
   },

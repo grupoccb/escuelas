@@ -4,7 +4,7 @@
 // parchando la respuesta real de la API, así el estado no depende de lo que otras escenas hayan hecho.
 
 import type { Page, Route } from "@playwright/test";
-import { conCargando, conError, conMuchosDatos, conVacio, cortarLaRed, esperarListo, fallarLaSiguienteEscritura, irA, type Contexto, type Escena } from "./escenas.ts";
+import { ventanaDelAltoDeLaPagina, conCargando, conError, conMuchosDatos, conVacio, cortarLaRed, esperarListo, fallarLaSiguienteEscritura, irA, type Contexto, type Escena } from "./escenas.ts";
 
 const G = "Maestro";
 const HOY = ["web/src/pantallas/maestro/Hoy.tsx", "web/src/pantallas/maestro/BotonesDeAsistencia.tsx"];
@@ -1316,6 +1316,8 @@ const ESCENAS_BASE: Escena[] = [
       await c.page.getByRole("button", { name: "Guardar pase de lista" }).click();
       await c.page.getByTestId("resultado-pase").waitFor();
       await reposo(c.page);
+      // La barra de guardado es pegajosa: en la captura de página completa taparía el aviso. La ventana se alarga hasta el alto de la página para que quede en su lugar.
+      await ventanaDelAltoDeLaPagina(c.page);
     },
   },
   {

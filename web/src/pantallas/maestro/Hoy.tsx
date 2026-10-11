@@ -68,11 +68,16 @@ function Avisos() {
   );
 }
 
+/** ¿La tarjeta muestra el cierre en sitio («Inscribir a mi alumno»)? Entonces esa es su acción principal y «Registro del alumno» pasa a secundario. */
+function tieneCierre(clase: ClaseMuestra, { yo, puede, moduloEncendido }: ReturnType<typeof useSesion>): boolean {
+  return clase.estatus === "asistio" && puede("clases_muestra:listo_para_cerrar") && moduloEncendido("inscripcion") && yo?.configuracion.modo_cierre === "maestro_en_sitio" && puede("conversion:ejecutar");
+}
+
 function TarjetaDeClase({ clase, alCambiar, principal }: { clase: ClaseMuestra; alCambiar: () => void; principal: boolean }) {
-  const { yo, puede, moduloEncendido } = useSesion();
+  const sesion = useSesion();
+  const { puede, moduloEncendido } = sesion;
   const accion = useAccion();
-  // Con el cierre en sitio a la vista, la acción principal de la tarjeta es «Inscribir a mi alumno»: «Registro del alumno» pasa a secundario (un solo primario por tarjeta).
-  const hayCierre = clase.estatus === "asistio" && puede("clases_muestra:listo_para_cerrar") && moduloEncendido("inscripcion") && yo?.configuracion.modo_cierre === "maestro_en_sitio" && puede("conversion:ejecutar");
+  const hayCierre = tieneCierre(clase, sesion);
   const [listo, setListo] = useState<string | null>(null);
   const estatus = ESTATUS_DE_CLASE[clase.estatus] ?? { texto: clase.estatus, tono: "neutro" as const };
   // La API no deja marcar antes de la hora de la clase (409): el botón lo dice de antemano.
@@ -132,7 +137,7 @@ function TarjetaDeClase({ clase, alCambiar, principal }: { clase: ClaseMuestra; 
               Listo para cerrar la inscripción
             </Boton>
             {listo ? <Aviso tono="exito">{listo}</Aviso> : null}
-            <CierreEnSitio leadId={clase.lead_id} claseId={clase.id} alumno={clase.prospecto} />
+            <CierreEnSitio leadId={clase.lead_id} claseId={clase.id} alumno={clase.prospecto} principal={principal} />
           </div>
         ) : null}
         <ErrorDeAccion error={accion.error} />
@@ -143,7 +148,8 @@ function TarjetaDeClase({ clase, alCambiar, principal }: { clase: ClaseMuestra; 
 
 export default function Hoy() {
   useTitulo("Hoy");
-  const { puede } = useSesion();
+  const sesion = useSesion();
+  const { puede } = sesion;
   const hoy = hoyLocal();
   const carga = useCarga((senal) => api.get<PaginaDeApi<ClaseMuestra>>("/api/maestro/clases-muestra", { limite: 100 }, senal), []);
 
@@ -153,9 +159,10 @@ export default function Hoy() {
     porDia.set(dia, [...(porDia.get(dia) ?? []), c]);
   }
   const dias = [...porDia.keys()].sort();
-  // La acción principal de la pantalla es la de la próxima clase por registrar (la primera agendada); si ninguna lo está, la de la primera de la lista. Las demás, la secundaria.
+  // Una sola acción principal por pantalla: la del cierre en sitio de la primera clase que lo muestra («Inscribir a mi alumno»); si ninguna lo muestra, la de la próxima clase
+  // por registrar (la primera agendada) o, si ninguna lo está, la de la primera de la lista. Las demás, la secundaria.
   const todas = dias.flatMap((d) => porDia.get(d) ?? []);
-  const primera = (todas.find((c) => c.estatus === "agendada") ?? todas[0])?.id;
+  const primera = (todas.find((c) => tieneCierre(c, sesion)) ?? todas.find((c) => c.estatus === "agendada") ?? todas[0])?.id;
 
   return (
     <Pagina titulo="Hoy" subtitulo="Clases muestra de ayer, hoy y los próximos 14 días">

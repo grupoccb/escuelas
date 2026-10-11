@@ -100,6 +100,8 @@ export default function FichaLead() {
   const [marcando, setMarcando] = useState(false);
   // V3: el niño al que se le abre el formulario de cotizar (desde su fila en «Niños»).
   const [cotizandoA, setCotizandoA] = useState<{ id: string; vez: number } | null>(null);
+  // Con el formulario de cotizar abierto, «Guardar cotización» es la acción principal: lo de la cabecera baja a secundario.
+  const [cotizando, setCotizando] = useState(false);
   const d = lead.datos;
   useTitulo(d?.nombre_contacto ?? "Lead");
   const escribir = puede("leads:escribir");
@@ -130,7 +132,7 @@ export default function FichaLead() {
         <>
           <EnlaceAChatwoot lead={d} />
           {hayConvertir ? (
-            <EnlaceBoton to={`/leads/${d.id}/convertir`} variante="primario">
+            <EnlaceBoton to={`/leads/${d.id}/convertir`} variante={cotizando ? "secundario" : "primario"}>
               {d.prospectos.filter((p) => p.alumno_id === null).length > 1 ? "Inscribir a los niños" : "Convertir e inscribir"}
             </EnlaceBoton>
           ) : null}
@@ -148,7 +150,7 @@ export default function FichaLead() {
         acciones={
           escribir ? (
             <div className="fila fila-fin">
-              {puedeMarcarInscrito ? <Boton variante={hayConvertir ? "sutil" : "primario"} onClick={() => setMarcando(true)} data-prueba="marcar-como-inscrito">Marcar como inscrito</Boton> : null}
+              {puedeMarcarInscrito ? <Boton variante={hayConvertir || cotizando ? "sutil" : "primario"} onClick={() => setMarcando(true)} data-prueba="marcar-como-inscrito">Marcar como inscrito</Boton> : null}
               <Boton onClick={() => setMoviendo(true)}>Mover de etapa</Boton>
             </div>
           ) : undefined
@@ -208,7 +210,7 @@ export default function FichaLead() {
         </dl>
       </Tarjeta>
 
-      {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} cotizarA={cotizandoA} /> : null}
+      {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} cotizarA={cotizandoA} alCambiarFormulario={setCotizando} /> : null}
       {moduloEncendido("clase_muestra") ? <ClasesMuestraDeLead lead={d} puedeEscribir={puede("clases_muestra:escribir")} alCambiar={recargar} /> : null}
 
       {tareas.datos && tareas.datos.datos.length > 0 ? (

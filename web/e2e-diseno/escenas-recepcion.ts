@@ -157,6 +157,14 @@ async function llenarReparto(c: Contexto, valores: string[]): Promise<void> {
   await esperarListo(c.page);
 }
 
+/** Escribe un importe en el primer cargo de cada hijo que se nombra (el campo se llama «<hijo> · <cargo> (saldo …)»): así el reparto cae entre hijos distintos sin depender del orden de los cargos. */
+async function repartirEntreHijos(c: Contexto, partes: [string, string][]): Promise<void> {
+  const campos = c.page.getByTestId("ajuste").getByRole("textbox");
+  for (let i = 0; i < (await campos.count()); i++) await campos.nth(i).fill("");
+  for (const [hijo, importe] of partes) await c.page.getByTestId("ajuste").getByRole("textbox", { name: new RegExp(`^${hijo} ·`) }).first().fill(importe);
+  await esperarListo(c.page);
+}
+
 /** Abre el diálogo «Cancelar el pago» sobre el pago de la familia del uniforme (no se cancela nada). */
 async function abrirCancelarPago(c: Contexto): Promise<void> {
   await irA(c, rutaPago(uniforme(c).tutorId));
@@ -624,7 +632,7 @@ const LISTA: Escena[] = [
     fuentes: [PAGO],
     ir: async (c) => {
       await abrirReparto(c, "1500");
-      await llenarReparto(c, ["500", "999.99", "", ""]);
+      await llenarReparto(c, ["800", "500", "199.99", "", ""]);
     },
   },
   {
@@ -648,7 +656,7 @@ const LISTA: Escena[] = [
     fuentes: [PAGO],
     ir: async (c) => {
       await abrirReparto(c, "1500");
-      await llenarReparto(c, ["500", "1000", "300", ""]);
+      await llenarReparto(c, ["800", "500", "400", "", ""]);
     },
   },
   {
@@ -1400,7 +1408,10 @@ const LISTA: Escena[] = [
       await c.page.getByTestId("propuesta").waitFor();
       await c.page.getByRole("button", { name: "Ajustar el reparto a mano" }).click();
       await c.page.getByTestId("ajuste").waitFor();
-      await llenarReparto(c, ["150", "250", "", ""]);
+      await repartirEntreHijos(c, [
+        [propia(c).hijos[0]!.nombre, "150"],
+        [propia(c).hijos[1]!.nombre, "250"],
+      ]);
       await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
       await c.page.getByTestId("pago-registrado").waitFor();
       await c.page.getByTestId("saldo-despues-del-pago").waitFor();

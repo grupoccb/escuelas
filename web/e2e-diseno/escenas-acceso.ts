@@ -544,8 +544,19 @@ export const ESCENAS: Escena[] = [
     fuentes: [SHELL],
     ir: async (c) => {
       await conVacio(c, "/tareas");
+      // El foco puede haber quedado ya dentro de la pantalla (al navegar la aplicación lo mueve): se vuelve al inicio del documento para que el primer Tab caiga en el enlace de salto.
+      await c.page.evaluate(() => {
+        // Chrome parte del último lugar tocado (el enlace de la sección actual, que la barra lateral deja a la vista): se le da el foco al cuerpo y se suelta, y el siguiente Tab empieza de nuevo.
+        document.body.tabIndex = -1;
+        document.body.focus();
+        document.body.blur();
+        document.body.removeAttribute("tabindex");
+        window.scrollTo(0, 0);
+      });
       await c.page.keyboard.press("Tab");
-      await c.page.getByRole("link", { name: "Saltar al contenido" }).waitFor();
+      const salto = c.page.getByRole("link", { name: "Saltar al contenido" });
+      await salto.waitFor();
+      await c.page.waitForFunction(() => document.activeElement?.classList.contains("salto") === true, undefined, { timeout: 3000 });
       await c.page.waitForTimeout(150);
     },
   },

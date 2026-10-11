@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1017**.
+Filas: **1014**.
 
 ## Acceso y cuenta (47)
 
@@ -70,7 +70,7 @@ Filas: **1017**.
 | `adminc-inicio-busqueda-sin-resultados` | administrador | estado | Inicio de Administración con una búsqueda sin resultados: «No hay ninguna pantalla con…» | `/admin` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-inicio-muchos` | administrador | estado | Inicio de Administración con muchos datos (la lista de pasos repetida) | `/admin` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-inicio-vacio` | administrador | estado | Inicio de Administración con la respuesta de los primeros pasos vacía | `/admin` | ✔ · ✔ | ✔ · ✔ |
-| `adminc-inicio-cargando` | administrador | estado | Inicio de Administración mientras carga «Para empezar» (el menú ya se ve) | `/admin` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-inicio-cargando` | administrador | estado | Inicio de Administración mientras llegan los primeros pasos (el menú ya se ve y «Para empezar» todavía no aparece: la pantalla no pinta «Cargando…» ahí) | `/admin` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-inicio-error` | administrador | estado | Inicio de Administración con error al cargar los primeros pasos (500): el menú sigue funcionando y no sale «Para empezar» | `/admin` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-aviso-primeros-pasos-embudo` | administrador | estado | Aviso «Para empezar» arriba del embudo del administrador (van 3 de 8 pasos; botón «Ver los pasos») |  | ✔ · ✔ | ✔ · ✔ |
 | `adminc-verticales-con-datos` | administrador | pantalla | Disciplinas, con datos | `/admin/verticales` | ✔ · ✔ | ✔ · ✔ |
@@ -194,7 +194,7 @@ Filas: **1017**.
 | `adminc-catalogo-con-datos` | administrador | pantalla | Cargar catálogo al abrir: paso 1 con «Descargar todas las plantillas», paso 2 sin archivos («Todavía no elegiste archivos») y «Revisar» deshabilitado | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-catalogo-plantillas-una-por-una` | administrador | estado | Cargar catálogo con «Descargar una por una» abierto (la lista de plantillas con su descripción) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-catalogo-muchos` | administrador | estado | Cargar catálogo con muchos datos (la lista de plantillas repetida, abierta) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
-| `adminc-catalogo-vacio` | administrador | estado | Cargar catálogo con la lista de plantillas vacía | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-catalogo-vacio` | administrador | estado | Cargar catálogo con la lista de plantillas vacía (abierto «Descargar una por una»: sin ninguna) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-catalogo-cargando` | administrador | estado | Cargar catálogo mientras cargan las plantillas | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-catalogo-error` | administrador | estado | Cargar catálogo con error al cargar las plantillas (500) y «Reintentar» | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-catalogo-archivos-elegidos` | administrador | estado | Cargar catálogo con los ocho archivos CSV elegidos (nombre y tamaño de cada uno, «Quitar», «Revisar» habilitado) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
@@ -755,12 +755,11 @@ Filas: **1017**.
 | `familia-ficha-hijos-en-baja` | recepcion | estado | Ficha de la familia con los dos hijos ya en baja (tras las bajas de arriba) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-bajas-reales` | recepcion | estado | Alumnos filtrada por «Bajas», con los dos hijos que se dieron de baja | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 
-## Fuera de React (42)
+## Fuera de React (39)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
 | `fuera-landing-vacio` | anonimo | fuera-de-react | Landing pública `/l/<vertical>`: formulario vacío (con dos sucursales: aparece el selector «¿En qué sucursal…?») | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
-| `fuera-landing-oscuro` | anonimo | fuera-de-react | Landing pública con el celular o la compu en modo oscuro (`prefers-color-scheme: dark`) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-anuncio` | anonimo | fuera-de-react | Landing que llega desde un anuncio (`?c=` código, `utm_*` y `s=` sucursal sugerida): la sucursal ya viene elegida; el código y los utm viajan ocultos | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-anuncio-sucursal-invalida` | anonimo | fuera-de-react | Landing con una `s=` que no es de la vertical y un `c=` con basura: se ignoran en silencio y el selector queda en «Elige una sucursal» | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-una-sucursal` | anonimo | fuera-de-react | Landing de una vertical con UNA sola sucursal (SIMULADO: el mundo tiene dos; se quita el selector de la respuesta real, como lo arma el servidor: la sucursal viaja oculta) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
@@ -774,14 +773,12 @@ Filas: **1017**.
 | `fuera-landing-errores-edad` | anonimo | fuera-de-react | Landing con la edad fuera de rango (150): error «de 1 a 99» solo en la edad | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-errores-sin-aviso` | anonimo | fuera-de-react | Landing sin aceptar el aviso de privacidad: error «Para continuar necesitamos que aceptes…» bajo la casilla | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-errores-nombre-con-direccion` | anonimo | fuera-de-react | Landing con un nombre que lleva una dirección web (rechazado): error del nombre y del nombre de contacto con símbolos raros | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
-| `fuera-landing-errores-oscuro` | anonimo | fuera-de-react | Landing con errores de validación en modo oscuro (el rojo de error cambia a un rosa claro) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-general-aviso-cambio` | anonimo | fuera-de-react | Landing con error GENERAL sin errores por campo: «El aviso de privacidad cambió…» (el aviso vigente cambió mientras se llenaba el formulario) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-general-inesperado` | anonimo | fuera-de-react | Landing con el error general de un dato inesperado (422): «No pudimos registrar tu solicitud. Escríbenos por WhatsApp…» (SIMULADO con el mismo HTML del servidor) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-enviando` | anonimo | fuera-de-react | Landing con el botón en «Enviando…» y deshabilitado (el servidor tarda en responder; se cancela la navegación del formulario para dejarlo en ese estado, no se envía nada) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-gracias` | anonimo | fuera-de-react | Página de gracias de la landing (cuando la vertical no tiene número de WhatsApp: «¡Gracias! Recibimos tus datos…»; SIMULADA con `paginaDeGracias`, porque el mundo siempre tiene número y el envío bueno termina en un 303 a wa.me) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-no-existe` | anonimo | fuera-de-react | Landing: «Página no encontrada» (404) para una vertical que no existe, sin aviso vigente o ambigua (la misma página para las tres, sin revelar cuál) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-enlace-malo` | anonimo | fuera-de-react | Landing: «Página no encontrada» con un enlace mal escrito (mayúsculas y símbolos: no pasa el filtro del identificador) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
-| `fuera-landing-error-oscuro` | anonimo | fuera-de-react | Landing: página de error en modo oscuro | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-origen` | anonimo | fuera-de-react | Landing: «No se pudo enviar» (403) cuando el envío no viene de la propia página (se reenvía la petición real con `Sec-Fetch-Site: cross-site`) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-demasiadas-solicitudes` | anonimo | fuera-de-react | Landing: «Demasiadas solicitudes» (429, límite por IP; SIMULADA con `paginaDeError`, para no agotar el límite del servidor de pruebas) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-error-no-disponible` | anonimo | fuera-de-react | Landing: «No disponible por ahora» (503, falla transitoria de la base; SIMULADA con `paginaDeError`) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |

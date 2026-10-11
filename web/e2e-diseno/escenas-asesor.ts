@@ -1470,6 +1470,8 @@ export const ESCENAS: Escena[] = conVentana([
     ir: async (c) => {
       await editarGet(c, enApi(`/api/leads/${c.mundo.asesor.alfa.leadId}`), (l) => ({ ...l, prospectos: [l.prospectos[0], { ...l.prospectos[0], id: "prospecto-2", nombre: "Hermano Alfa", edad: 9 }] }));
       await abrirAgendar(c);
+      await dlg(c).getByLabel("Alumno").selectOption({ label: "Hermano Alfa" });
+      await c.page.waitForTimeout(150);
     },
   }),
   e({

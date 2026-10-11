@@ -59,9 +59,11 @@ export async function irA(c: Contexto, ruta: string): Promise<void> {
 }
 
 /** Las peticiones GET a la API (menos `/api/yo`) nunca terminan: se ve el estado «cargando». */
-export async function conCargando(c: Contexto, ruta: string): Promise<void> {
+export async function conCargando(c: Contexto, ruta: string, titulo?: string | RegExp): Promise<void> {
   await c.page.route((u) => esApi(u) && !esYo(u), (r: Route) => (r.request().method() === "GET" ? new Promise<void>(() => undefined) : r.continue()));
   await c.page.goto(ruta);
+  // Las pantallas se cargan perezosas: antes de ellas se ve el «Cargando…» del marco (sin título). Con `titulo`, se espera a que la pantalla ya haya pintado su encabezado y se capture SU «Cargando…».
+  if (titulo !== undefined) await c.page.getByRole("heading", { level: 1, name: titulo }).first().waitFor({ timeout: 8000 }).catch(() => undefined);
   await c.page.locator(".giro, .cargando").first().waitFor({ timeout: 8000 }).catch(() => undefined);
   await c.page.waitForTimeout(150);
 }
@@ -174,4 +176,12 @@ export async function fallarLaSiguienteEscritura(c: Contexto, estado: number, me
 /** Responde 401 a la siguiente petición a la API: la aplicación vuelve al acceso con el aviso de sesión vencida. */
 export async function vencerLaSesion(c: Contexto): Promise<void> {
   await c.page.route((u) => esApi(u) && !esYo(u), (r: Route) => r.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { codigo: "no_autenticado", mensaje: "Tu sesión terminó. Inicia sesión de nuevo." } }) }));
+}
+
+/** Para las capturas de página completa con un elemento fijo (barra pegajosa al pie): se alarga la ventana hasta el alto del documento (tope 4000 px) para que la barra quede en su lugar y no encima del contenido. */
+export async function ventanaDelAltoDeLaPagina(page: Page): Promise<void> {
+  const ancho = page.viewportSize()?.width ?? 1366;
+  const alto = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width: ancho, height: Math.min(Math.max(alto, 100), 4000) });
+  await page.waitForTimeout(200);
 }

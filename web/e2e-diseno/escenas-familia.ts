@@ -100,6 +100,15 @@ async function abrirAccion(c: Contexto, boton: "Cambiar de grupo" | "Congelar" |
 
 const dialogo = (c: Contexto) => c.page.locator("dialog[open]");
 
+/** Un `<select>` nativo cerrado no deja ver sus opciones en la captura (el desplegable es del sistema): se muestra como lista abierta (`size`) solo en el arnés, para que se lean todas las opciones, también las apagadas. */
+async function mostrarOpciones(c: Contexto, etiqueta: string | RegExp): Promise<void> {
+  await dialogo(c).getByLabel(etiqueta).evaluate((el) => {
+    const s = el as HTMLSelectElement;
+    s.size = Math.max(s.options.length, 3);
+  });
+  await c.page.waitForTimeout(150);
+}
+
 /** Escritura que el servidor rechaza con un 409 (un rechazo de negocio): el mensaje sale dentro del cuadro. */
 async function rechazo(c: Contexto, mensaje: string): Promise<void> {
   await fallarLaSiguienteEscritura(c, 409, mensaje);
@@ -330,7 +339,7 @@ const escenasDeAlumnos: Escena[] = [
       await esperarListo(c.page);
     },
   }),
-  esc({ id: "familia-alumnos-lista-cargando", rol: "recepcion", titulo: "Alumnos: cargando", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conCargando(c, "/alumnos") }),
+  esc({ id: "familia-alumnos-lista-cargando", rol: "recepcion", titulo: "Alumnos: cargando", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conCargando(c, "/alumnos", "Alumnos") }),
   esc({ id: "familia-alumnos-lista-error", rol: "recepcion", titulo: "Alumnos: error de carga con «Reintentar»", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conError(c, "/alumnos") }),
   esc({
     id: "familia-alumnos-lista-sin-conexion",
@@ -505,7 +514,7 @@ const escenasDeExpediente: Escena[] = [
       }),
     ];
   }),
-  esc({ id: "familia-expediente-cargando", rol: "recepcion", titulo: "Expediente: cargando", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conCargando(c, rutaExpediente(mayor(c).alumnoId)) }),
+  esc({ id: "familia-expediente-cargando", rol: "recepcion", titulo: "Expediente: cargando", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conCargando(c, rutaExpediente(mayor(c).alumnoId), "Expediente") }),
   esc({ id: "familia-expediente-error", rol: "recepcion", titulo: "Expediente: error de carga con «Reintentar»", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conError(c, rutaExpediente(mayor(c).alumnoId)) }),
   esc({ id: "familia-expediente-no-encontrado", rol: "recepcion", titulo: "Expediente de un alumno que no existe (404)", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conError(c, rutaExpediente(mayor(c).alumnoId), 404) }),
 ];
@@ -551,6 +560,7 @@ const escenasDeAcciones: Escena[] = [
       await editarGet(c, esRuta("/api/reportes/ocupacion"), (b) => ({ ...b, datos: b.datos.map((f: Json) => (f.grupo.id === lleno ? { ...f, ocupados: f.cupo_maximo } : f)) }));
       await expediente(c);
       await abrirAccion(c, "Cambiar de grupo");
+      await mostrarOpciones(c, "Grupo nuevo");
     },
   }),
   esc({
@@ -731,6 +741,7 @@ const escenasDeAcciones: Escena[] = [
       await editarGet(c, esRuta("/api/motivos-baja"), (b) => ({ ...b, datos: [] }));
       await expediente(c);
       await abrirAccion(c, "Dar de baja");
+      await mostrarOpciones(c, /Motivo de la baja/);
     },
   }),
   esc({
@@ -966,7 +977,7 @@ const escenasDeFamilias: Escena[] = [
       await esperarListo(c.page);
     },
   }),
-  esc({ id: "familia-familias-lista-cargando", rol: "recepcion", titulo: "Familias: cargando", tipo: "estado", ruta: "/familias", fuentes: [FAMILIAS], ir: (c) => conCargando(c, "/familias") }),
+  esc({ id: "familia-familias-lista-cargando", rol: "recepcion", titulo: "Familias: cargando", tipo: "estado", ruta: "/familias", fuentes: [FAMILIAS], ir: (c) => conCargando(c, "/familias", "Familias") }),
   esc({ id: "familia-familias-lista-error", rol: "recepcion", titulo: "Familias: error de carga con «Reintentar»", tipo: "estado", ruta: "/familias", fuentes: [FAMILIAS], ir: (c) => conError(c, "/familias") }),
   esc({
     id: "familia-familias-lista-sin-conexion",
@@ -1088,7 +1099,7 @@ const escenasDeFicha: Escena[] = [
       await irA(c, rutaFicha(c));
     },
   }),
-  esc({ id: "familia-ficha-cargando", rol: "recepcion", titulo: "Ficha de la familia: cargando", tipo: "estado", ruta: "/familias/:tutorId", fuentes: [FICHA], ir: (c) => conCargando(c, rutaFicha(c)) }),
+  esc({ id: "familia-ficha-cargando", rol: "recepcion", titulo: "Ficha de la familia: cargando", tipo: "estado", ruta: "/familias/:tutorId", fuentes: [FICHA], ir: (c) => conCargando(c, rutaFicha(c), "Familia") }),
   esc({ id: "familia-ficha-error", rol: "recepcion", titulo: "Ficha de la familia: error de carga con «Reintentar»", tipo: "estado", ruta: "/familias/:tutorId", fuentes: [FICHA], ir: (c) => conError(c, rutaFicha(c)) }),
   esc({ id: "familia-ficha-no-encontrada", rol: "recepcion", titulo: "Ficha de una familia que no existe (404)", tipo: "estado", ruta: "/familias/:tutorId", fuentes: [FICHA], ir: (c) => conError(c, rutaFicha(c), 404) }),
 ];

@@ -1,7 +1,7 @@
 // Cotizaciones de un lead: lo que se le cotizó a la familia (por el bot o a mano), congelado con precios, promociones y horarios de ESE día, y el formulario para
 // cotizar a mano. Todos los importes son texto del servidor (nunca se recalculan aquí).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { LeadDetalle, ProgramaCotizado } from "../../api/tipos.ts";
 import { formatear } from "../../lib/dinero.ts";
@@ -138,11 +138,15 @@ function CotizarAMano({ lead, alCotizar, prospectoInicial }: { lead: LeadDetalle
   );
 }
 
-export function Cotizaciones({ lead, puedeEscribir, cotizarA }: { lead: LeadDetalle; puedeEscribir: boolean; cotizarA: { id: string; vez: number } | null }) {
+export function Cotizaciones({ lead, puedeEscribir, cotizarA, alCambiarFormulario }: { lead: LeadDetalle; puedeEscribir: boolean; cotizarA: { id: string; vez: number } | null; alCambiarFormulario?: (abierto: boolean) => void }) {
   const carga = useCarga((senal) => api.get<Pagina<Cotizacion>>(`/api/leads/${lead.id}/cotizaciones`, { limite: 20 }, senal), [lead.id]);
   const [formulario, setFormulario] = useState(false);
   // «Cotizar» en la fila de un niño abre el formulario ya con ese niño elegido.
   const [vistoVez, setVistoVez] = useState(0);
+  // Con el formulario abierto, «Guardar cotización» es la acción principal de la ficha: la ficha lo sabe para bajar «Convertir e inscribir» a secundario.
+  useEffect(() => {
+    alCambiarFormulario?.(formulario);
+  }, [formulario, alCambiarFormulario]);
   if (cotizarA && cotizarA.vez !== vistoVez) {
     setVistoVez(cotizarA.vez);
     setFormulario(true);

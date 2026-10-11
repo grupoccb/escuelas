@@ -52,7 +52,7 @@ const FUENTES = `
 
 /** Las variables de color del sistema visual (docs/diseno/SISTEMA-VISUAL.md) y la de marca de la escuela, que sale de la tabla. */
 const VARIABLES = (marca: string, sobre: string): string =>
-  `:root { color-scheme: light; --marca: ${marca}; --sobre-marca: ${sobre}; --texto: #171a2c; --texto-suave: #5a6074; --texto-medio: #454b60; --fondo: #f3f4f8; --superficie: #ffffff; --borde: #dee1ea; --borde-campo: #8e95aa; --error: #b3261e; --error-suave: #fdecea; --foco: #3a32d1; --fuente-texto: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --fuente-titulo: "Bricolage Grotesque", "Figtree", system-ui, sans-serif; }`;
+  `:root { color-scheme: light; --marca: ${marca}; --sobre-marca: ${sobre}; --texto: #171a2c; --texto-suave: #5a6074; --texto-medio: #454b60; --fondo: #f3f4f8; --superficie: #ffffff; --borde: #dee1ea; --borde-campo: #8e95aa; --error: #b3261e; --error-suave: #fdecea; --deshabilitado-texto: #6b7085; --foco: #3a32d1; --fuente-texto: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --fuente-titulo: "Bricolage Grotesque", "Figtree", system-ui, sans-serif; }`;
 
 const ESTILOS = (marca: string, sobre: string): string => `${FUENTES}
 ${VARIABLES(marca, sobre)}
@@ -65,6 +65,7 @@ header img { max-height: 3rem; max-width: 8rem; object-fit: contain; }
 .monograma { flex: none; display: flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; border-radius: .75rem; background: var(--marca); color: var(--sobre-marca); font-family: var(--fuente-titulo); font-weight: 700; }
 h1 { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; letter-spacing: -.01em; margin: 0; }
 p.lead { margin: 0; font-family: var(--fuente-titulo); font-weight: 700; font-size: 2.125rem; line-height: 2.375rem; letter-spacing: -.01em; }
+@media (min-width: 640px) { p.lead { font-size: 1.875rem; line-height: 2.125rem; } }
 .panel { background: var(--superficie); border: 1px solid var(--borde); border-radius: 1rem; padding: 1.25rem; }
 form { display: grid; gap: 1rem; }
 label, legend { display: block; font-size: .8125rem; line-height: 1.125rem; font-weight: 600; color: var(--texto-suave); margin-bottom: .375rem; }
@@ -73,17 +74,22 @@ input[type=text], input[type=tel], input[type=number], select { width: 100%; min
 input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
 .campo.con-error input, .campo.con-error select { border: 2px solid var(--error); padding: 0 calc(.75rem - 1px); }
 .error { color: var(--error); font-size: .78125rem; line-height: 1rem; margin: .375rem 0 0; font-weight: 600; }
-.resumen-errores { border: 1px solid var(--error); border-left-width: 4px; background: var(--error-suave); border-radius: .75rem; padding: .75rem 1rem; color: var(--error); }
+.resumen-errores { border: 1px solid var(--error); background: var(--error-suave); border-radius: .75rem; padding: .75rem 1rem; color: var(--error); }
+.resumen-errores:focus { outline: none; }
+.resumen-errores:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
 .resumen-errores h2 { font-size: 1rem; line-height: 1.375rem; margin: 0 0 .25rem; }
 .resumen-errores ul { margin: 0; padding-left: 1.2rem; }
 .resumen-errores a { color: inherit; font-weight: 700; }
 details { background: var(--fondo); border-radius: .75rem; padding: .25rem .875rem; }
-details summary { cursor: pointer; font-weight: 700; min-height: 2.75rem; display: flex; align-items: center; }
+details summary { cursor: pointer; font-weight: 700; min-height: 2.75rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; list-style: none; }
+details summary::-webkit-details-marker { display: none; }
+details summary::after { content: ""; flex: none; width: .5rem; height: .5rem; margin: -.25rem .25rem 0 0; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+details[open] summary::after { margin-top: .25rem; transform: rotate(-135deg); }
 details .texto { white-space: pre-wrap; margin: 0 0 .75rem; max-height: 14rem; overflow: auto; }
-.acepto { display: flex; gap: .625rem; align-items: flex-start; font-weight: 500; font-size: inherit; line-height: inherit; color: var(--texto); }
-.acepto input { width: 1.25rem; height: 1.25rem; margin: .125rem 0 0; flex: none; accent-color: var(--marca); }
+.acepto { display: flex; gap: .625rem; align-items: center; min-height: 2.75rem; font-weight: 500; font-size: inherit; line-height: inherit; color: var(--texto); }
+.acepto input { width: 1.25rem; height: 1.25rem; margin: 0; flex: none; accent-color: var(--marca); }
 button { min-height: 3.25rem; padding: 0 1.25rem; font: inherit; font-size: 1rem; font-weight: 700; color: var(--sobre-marca); background: var(--marca); border: 0; border-radius: .75rem; cursor: pointer; width: 100%; }
-button[disabled] { opacity: .6; cursor: progress; }
+button[disabled] { background: var(--fondo); color: var(--deshabilitado-texto); border: 1px solid var(--borde); cursor: progress; }
 .trampa { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 `;

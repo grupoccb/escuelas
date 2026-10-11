@@ -107,21 +107,6 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
           </li>
         ))}
       </ul>
-      {resultado ? (
-        <Aviso tono="exito" titulo="Pase guardado">
-          <p>Quedó guardada la asistencia de {resultado.lista.filter((f) => f.activa && f.estatus !== null).length} {resultado.lista.filter((f) => f.activa && f.estatus !== null).length === 1 ? "alumno" : "alumnos"}{resultado.actualizadas > 0 ? `; corregiste ${resultado.actualizadas}` : ""}. Si lo guardas otra vez, no se duplica nada.</p>
-          <p className="muted" data-prueba="resultado-pase">
-            Detalle: {resultado.creadas} nuevas, {resultado.actualizadas} corregidas, {resultado.sin_cambio} sin cambio.
-          </p>
-          {resultado.alertas
-            .filter((a) => a.racha_de_faltas >= a.umbral)
-            .map((a) => (
-              <p key={a.inscripcion_id}>
-                {pase.lista.find((f) => f.inscripcion_id === a.inscripcion_id)?.alumno ?? "Un alumno"} lleva {a.racha_de_faltas} faltas seguidas{a.accion === "tarea_creada" ? ": se avisó al asesor." : "."}
-              </p>
-            ))}
-        </Aviso>
-      ) : null}
       {!bloqueado ? (
         <div className="barra-guardado barra-guardado-columna">
           {/* El aviso de un fallo vive DENTRO de la barra fija: debajo de ella la barra lo tapaba y quien tocaba «Guardar» sin señal no veía nada (V7). */}
@@ -141,6 +126,22 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
             </Boton>
           </div>
         </div>
+      ) : null}
+      {/* Debajo de la barra fija, no encima: con la barra pegada al borde de la ventana tapaba el detalle del aviso. */}
+      {resultado ? (
+        <Aviso tono="exito" titulo="Pase guardado">
+          <p>Quedó guardada la asistencia de {resultado.lista.filter((f) => f.activa && f.estatus !== null).length} {resultado.lista.filter((f) => f.activa && f.estatus !== null).length === 1 ? "alumno" : "alumnos"}{resultado.actualizadas > 0 ? `; corregiste ${resultado.actualizadas}` : ""}. Si lo guardas otra vez, no se duplica nada.</p>
+          <p className="muted" data-prueba="resultado-pase">
+            Detalle: {resultado.creadas} nuevas, {resultado.actualizadas} corregidas, {resultado.sin_cambio} sin cambio.
+          </p>
+          {resultado.alertas
+            .filter((a) => a.racha_de_faltas >= a.umbral)
+            .map((a) => (
+              <p key={a.inscripcion_id}>
+                {pase.lista.find((f) => f.inscripcion_id === a.inscripcion_id)?.alumno ?? "Un alumno"} lleva {a.racha_de_faltas} faltas seguidas{a.accion === "tarea_creada" ? ": se avisó al asesor." : "."}
+              </p>
+            ))}
+        </Aviso>
       ) : null}
     </div>
   );

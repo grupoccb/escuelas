@@ -203,6 +203,7 @@ export default function Ventas() {
         <div className="formulario-acciones">
           <Boton
             variante="peligro"
+            grande
             disabled={motivo.trim().length < 3}
             cargando={anular.ocupado}
             onClick={() =>

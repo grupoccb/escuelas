@@ -113,7 +113,7 @@
   --e4: 16px;
   --e5: 20px;
   --e6: 32px;
-  --alto-barra: 62px;
+  --alto-barra: 72px;
   --ancho-lateral: 232px;
   --alto-toque: 44px;
   --alto-accion: 52px;
@@ -178,8 +178,9 @@ strong { font-weight: 700; }
 .lateral-columna { display: none; }
 .solo-escritorio { display: none; }
 
-.barra-inferior { position: fixed; inset: auto 0 0 0; z-index: 10; display: flex; background: var(--superficie); border-top: 1px solid var(--borde); padding: 6px var(--e2) calc(10px + env(safe-area-inset-bottom)); }
-.barra-inferior a { flex: 1 1 0; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e1); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; color: var(--texto-medio); text-decoration: none; text-align: center; border-radius: var(--radio); transition: color var(--t-rapido) var(--curva), background-color var(--t-rapido) var(--curva); }
+.barra-inferior { position: fixed; inset: auto 0 0 0; z-index: 10; display: flex; background: var(--superficie); border-top: 1px solid var(--borde); padding: var(--e1) var(--e2) calc(var(--e2) + env(safe-area-inset-bottom)); }
+/* Alto fijo: el ícono va siempre a la misma altura y hay lugar para una etiqueta de dos renglones («Estado de cuenta»), así que la barra no cambia de alto de una pantalla a otra. */
+.barra-inferior a { flex: 1 1 0; min-width: 0; height: 64px; padding-top: var(--e1); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--e1); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; color: var(--texto-medio); text-decoration: none; text-align: center; border-radius: var(--radio); transition: color var(--t-rapido) var(--curva), background-color var(--t-rapido) var(--curva); }
 .barra-inferior a:hover { color: var(--texto); }
 .barra-inferior a[aria-current="page"] { color: var(--primario); font-weight: 700; }
 
@@ -192,7 +193,12 @@ strong { font-weight: 700; }
   .lateral { display: flex; flex-direction: column; gap: var(--e4); flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; }
   .lateral::-webkit-scrollbar { display: none; }
   /* Hay más secciones abajo: el último tramo se desvanece (una máscara, no un color). */
-  .lateral.lateral-con-mas { mask-image: linear-gradient(to bottom, black calc(100% - 36px), transparent); }
+  .lateral.lateral-con-mas { mask-image: linear-gradient(to bottom, black calc(100% - var(--e4)), transparent); }
+  /* Pantalla baja (1366 × 768): el ritmo vertical se aprieta para que las 13 secciones del administrador quepan enteras y el último enlace se lea completo; el desvanecido queda para cuando de verdad hay desborde. */
+  @media (max-height: 820px) {
+    .lateral-interior { padding-block: var(--e3); gap: var(--e3); }
+    .lateral { gap: var(--e3); }
+  }
   .marca-lateral { display: flex; align-items: center; gap: var(--e3); padding: 0 6px; }
   .monograma { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--radio-tarjeta); background: var(--primario); color: var(--primario-texto); font-family: var(--fuente-titulo); font-weight: 700; font-size: 1rem; }
   .marca-textos { min-width: 0; display: flex; flex-direction: column; flex: 1; }
@@ -244,6 +250,11 @@ strong { font-weight: 700; }
 .lista-tarjetas > li:not(.ficha-lead) { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); padding: 14px; box-shadow: var(--sombra); }
 .fila { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2) var(--e3); }
 .fila-entre { justify-content: space-between; }
+/* Paginador en celular: el contador arriba, centrado, y «Anterior» y «Siguiente» en una fila de dos botones iguales. */
+@media (max-width: 639px) {
+  nav[aria-label="Páginas"] { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e2); }
+  nav[aria-label="Páginas"] > span { grid-column: 1 / -1; order: -1; text-align: center; }
+}
 .pila { display: flex; flex-direction: column; gap: var(--e3); min-width: 0; }
 .rejilla { display: grid; gap: var(--e4); grid-template-columns: 1fr; align-items: end; }
 @media (min-width: 640px) { .rejilla-2 { grid-template-columns: 1fr 1fr; } .rejilla-3 { grid-template-columns: repeat(3, 1fr); } }
@@ -264,7 +275,7 @@ dl.datos + .boton { margin-top: var(--e3); }
 .boton-sutil, .boton-fantasma { background: var(--primario-suave); border-color: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
 .boton-sutil:hover:not(:disabled), .boton-fantasma:hover:not(:disabled) { background: var(--columna); border-color: var(--columna); color: var(--primario-fuerte); }
 .boton-peligro { background: var(--superficie); border-color: var(--peligro); color: var(--peligro); font-weight: 700; }
-.boton-peligro:hover:not(:disabled) { background: var(--peligro-suave); border-color: var(--peligro); color: var(--peligro); }
+.boton-peligro:hover:not(:disabled) { background: var(--fondo); border-color: var(--peligro); color: var(--peligro); }
 .boton-ancho { width: 100%; }
 /* En celular la acción principal mide 52 px (SISTEMA-VISUAL.md). */
 @media (max-width: 899px) { .boton-primario { min-height: var(--alto-accion); border-radius: var(--radio-tarjeta); } }
@@ -431,7 +442,7 @@ table.tabla tbody tr:hover { background: var(--fondo); }
 .ficha-lead a.titulo { color: var(--texto); font-weight: 700; font-size: 0.9375rem; line-height: 1.375rem; text-decoration: none; }
 .ficha-lead a.titulo:hover { color: var(--primario); }
 .ficha-lead-nombre { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--e2); }
-.ficha-lead-pie { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); margin-top: var(--e1); }
+.ficha-lead-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e1) var(--e2); margin-top: var(--e1); }
 .ficha-lead-pie .fila { gap: 6px; }
 .ficha-lead-acciones { display: flex; flex-wrap: wrap; gap: var(--e1); margin-top: var(--e1); }
 @media (max-width: 899px) { .columna { flex: 0 0 min(18rem, 82vw); min-width: 0; } }
@@ -471,7 +482,7 @@ html { scroll-padding-top: 4.5rem; scroll-padding-bottom: 9rem; }
 @media (max-height: 500px) and (max-width: 899px) {
   :root { --alto-barra: 44px; }
   .barra-inferior { padding-top: 0; padding-bottom: 0; }
-  .barra-inferior a { flex-direction: row; gap: var(--e2); min-height: 44px; }
+  .barra-inferior a { flex-direction: row; justify-content: center; gap: var(--e2); height: auto; min-height: 44px; padding-top: 0; }
   .barra-guardado { padding: var(--e2) var(--e3); }
 }
 
@@ -508,7 +519,7 @@ html { scroll-padding-top: 4.5rem; scroll-padding-bottom: 9rem; }
 .barra-nota { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
 /* Indicador: panel pequeño con la etiqueta arriba y la cifra de 28 debajo; el principal (lo que se vino a ver) lleva 36; el que pide atención lleva el par de alerta, su ícono y su acción. */
 .indicadores { display: flex; flex-wrap: wrap; gap: var(--e3); }
-.indicadores-tablero { align-items: flex-start; }
+.indicadores-tablero { align-items: stretch; }
 .indicador { flex: 1 1 170px; display: flex; flex-direction: column; gap: 6px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-indicador); padding: 14px var(--e4); }
 .indicador > :first-child { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
 .indicador-valor { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.75rem; line-height: 2rem; font-variant-numeric: tabular-nums; }
@@ -555,6 +566,8 @@ table.tabla td.celda-accion .boton, .gasto .boton { white-space: nowrap; }
 .tabla-grupo table.tabla { table-layout: fixed; }
 .tabla-grupo table.tabla th { white-space: normal; overflow-wrap: anywhere; }
 .tabla-grupo table.tabla th:first-child { width: 28%; }
+.tabla-grupo table.tabla th:last-child { width: auto; }
+table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 @media (max-width: 899px) {
   .tarjeta .tabla-apilada table.tabla tr { background: var(--fondo); box-shadow: none; border-color: transparent; }
   .tabla-apilada table.tabla td.celda-titulo { justify-content: flex-start; text-align: left; font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; padding-bottom: var(--e2); }
@@ -572,6 +585,7 @@ table.tabla td.celda-accion .boton, .gasto .boton { white-space: nowrap; }
 .gasto .boton { min-width: 7.5rem; }
 @media (max-width: 899px) {
   .gasto { flex-direction: column; align-items: stretch; }
+  .gasto-texto { flex: 0 0 auto; }
   .gasto > .boton { width: 100%; }
   .gasto-acciones > .boton { flex: 1 1 0; }
 }
@@ -596,6 +610,8 @@ table.tabla td.celda-accion .boton, .gasto .boton { white-space: nowrap; }
 .insignia-con-icono { display: inline-flex; align-items: center; gap: 6px; }
 .aviso a.boton-sutil { color: var(--primario-fuerte); }
 .aviso a.boton-primario { color: var(--primario-texto); }
+/* El enlace con forma de botón secundario dentro de un aviso (p. ej. «Ir a mi inicio» en un error) se lee como el secundario normal, no con el color del aviso. */
+.aviso a.boton-secundario { color: var(--texto); font-weight: 600; }
 .solo-impresion { display: none; }
 
 /* La familia con la que se trabaja: monograma, nombre, teléfono y alumnos. */
@@ -695,7 +711,7 @@ table.tabla td.celda-accion .boton, .gasto .boton { white-space: nowrap; }
 .cifras-formas > div { display: flex; flex-direction: column; gap: 2px; padding: 10px var(--e3); background: var(--fondo); border-radius: var(--radio); }
 .cifras-formas dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
 .cifras-formas dd { margin: 0; font-weight: 700; font-size: 1rem; line-height: 1.375rem; }
-.cifras-menor .cifra-principal { font-size: 1.375rem; line-height: 1.75rem; }
+.cifras-menor .cifra-principal { font-size: 1.75rem; line-height: 2rem; }
 .corte-bloque { display: flex; flex-direction: column; gap: var(--e2); padding-top: var(--e4); margin-top: var(--e1); border-top: 1px solid var(--borde); }
 .corte-bloque p { margin: 0; }
 .corte-neto { padding: var(--e4); background: var(--primario-suave); border: 1px solid var(--primario); border-radius: var(--radio-tarjeta); }
@@ -969,7 +985,7 @@ table.tabla td.celda-accion .boton, .gasto .boton { white-space: nowrap; }
 /* ───────── Asesor ───────── */
 .fila-fin { justify-content: flex-end; }
 .dato-chico { font-size: 0.78125rem; line-height: 1rem; margin: 0; }
-.boton-icono-peligro:hover:not(:disabled) { background: var(--peligro-suave); color: var(--peligro); }
+.boton-icono-peligro:hover:not(:disabled) { background: var(--columna); color: var(--peligro); }
 table.tabla td.celda-acciones { text-align: right; }
 table.tabla-leads td { vertical-align: middle; }
 table.tabla-leads td.celda-acciones { padding-top: var(--e1); padding-bottom: var(--e1); }
@@ -984,6 +1000,7 @@ table.tabla th:last-child { width: 1%; }
 .ficha-telefono { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; letter-spacing: -0.01em; }
 .datos-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--e4); margin: 0; padding-top: var(--e4); border-top: 1px solid var(--borde); }
 .datos-rejilla > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.datos-rejilla > div:has([data-prueba="elegir-sucursal"]) { grid-column: 1 / -1; }
 .datos-rejilla dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
 .datos-rejilla dd { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
 .historial-linea { list-style: none; padding-left: 0; gap: 0; }
@@ -1005,13 +1022,13 @@ table.tabla th:last-child { width: 1%; }
 /* Formularios dentro de una tarjeta (cotizar a mano): un recuadro de fondo para separarlo de la lista. */
 .formulario-incrustado { padding: var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .etapa-actual-dialogo { margin: 0; }
-.cita-nota { margin: 0; padding: var(--e3) var(--e4); background: var(--fondo); border-left: 4px solid var(--primario); border-radius: var(--radio); color: var(--texto); overflow-wrap: anywhere; }
+.cita-nota { margin: 0; padding: var(--e3) var(--e4); background: var(--fondo); border: 1px solid var(--borde); border-radius: var(--radio); color: var(--texto); overflow-wrap: anywhere; }
 @media (max-width: 639px) { .ficha-telefono { font-size: 1.25rem; } }
 
 /* ───────── Administración: catálogo, precios y carga ───────── */
 /* Tarjeta de catálogo (disciplina, sucursal, programa, grupo, instructor, salón, promoción): nombre y acciones de solo ícono arriba, etiquetas y datos debajo. */
 .boton-icono-peligro { color: var(--peligro); }
-.boton-icono-peligro:hover:not(:disabled) { background: var(--peligro-suave); color: var(--peligro); }
+.boton-icono-peligro:hover:not(:disabled) { background: var(--columna); color: var(--peligro); }
 .item-catalogo { display: flex; flex-direction: column; gap: var(--e2); min-width: 0; }
 .item-catalogo-cabeza { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
 .item-catalogo-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--e2); min-width: 0; overflow-wrap: anywhere; }
@@ -1054,7 +1071,7 @@ table.tabla tbody tr.fila-vigente { background: var(--primario-suave); }
 .archivo-nombre { display: flex; align-items: center; gap: var(--e2); min-width: 0; overflow-wrap: anywhere; }
 .archivo-nombre > svg { flex: none; color: var(--texto-suave); }
 .lista-detalle li { padding: var(--e1) 0; }
-.lista-errores li { padding: 10px var(--e3); background: var(--fondo); border-left: 4px solid var(--peligro); border-radius: var(--radio); }
+.lista-errores li { padding: var(--e2) var(--e3); background: var(--fondo); border: 1px solid var(--peligro); border-radius: var(--radio); }
 /* Inicio de Administración: el avance de los primeros pasos (la cifra es lo más grande), lo que sigue y las áreas como tarjetas que se tocan enteras. */
 .avance-pasos { display: flex; flex-direction: column; gap: var(--e3); }
 .avance-texto { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--e2); }
@@ -1090,6 +1107,9 @@ table.tabla tbody tr.fila-vigente { background: var(--primario-suave); }
 .item-admin-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e1); margin-left: auto; }
 .item-admin-detalle { flex: 1 0 100%; min-width: 0; margin: 0; }
 .item-admin-bandeja, .item-admin-plantilla { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); color: var(--texto-suave); }
+.item-admin-bandeja { flex-wrap: nowrap; align-items: flex-start; }
+.item-admin-bandeja > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+.item-admin-bandeja svg { margin-top: 2px; }
 .item-admin-bandeja svg { flex: none; }
 .item-admin-acciones .boton-icono:disabled { background: transparent; border-color: transparent; }
 .boton-icono-peligro { color: var(--peligro); }
@@ -1128,7 +1148,8 @@ table.tabla tbody tr.fila-vigente { background: var(--primario-suave); }
 .config-formulario .barra-guardado { justify-content: flex-end; }
 .barra-guardado-estado { margin: 0 auto 0 0; display: flex; align-items: center; gap: var(--e2); font-weight: 600; color: var(--texto-medio); }
 .barra-guardado-estado-ok { color: var(--exito); }
-.ficha-lead-botones { flex: none; flex-wrap: nowrap; gap: 0; margin-right: -10px; }
+.barra-guardado-estado > svg { flex: none; }
+.ficha-lead-botones { flex: none; flex-wrap: nowrap; gap: 0; margin-right: -12px; margin-left: auto; }
 table.tabla-leads .ficha-lead-botones { margin-right: 0; }
 .formulario-incrustado .rejilla { align-items: start; }
 /* Un estado vacío suelto sobre el fondo de la página: recuadro blanco con borde discontinuo (el recuadro --fondo no se vería). Una lista sin filas no deja hueco. */
@@ -1202,7 +1223,14 @@ table.tabla-leads td a { color: var(--texto); font-weight: 700; font-size: 0.937
 table.tabla-leads td a:hover { color: var(--primario); }
 .enlace-volver { display: inline-flex; align-items: center; min-height: var(--alto-toque); }
 .enlaces-chatwoot { display: contents; }
-.enlaces-chatwoot-muchos { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--e2); order: 2; flex: 1 1 100%; }
+.enlaces-chatwoot-muchos { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: var(--e2); order: 2; flex: 1 1 100%; }
+.enlaces-chatwoot-muchos > .boton { white-space: nowrap; }
+.pagina-acciones:has(.enlaces-chatwoot-muchos) { flex: 1 1 100%; margin-left: 0; }
+.pagina-acciones:has(.enlaces-chatwoot-muchos) > .boton-primario { flex: 0 0 auto; }
+@media (max-width: 899px) {
+  .enlaces-chatwoot-muchos { display: flex; flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: var(--e1); }
+  .enlaces-chatwoot-muchos > .boton { flex: none; scroll-snap-align: start; }
+}
 .pagina-acciones:has(.enlaces-chatwoot-muchos) > .boton-primario { order: 1; }
 .sesiones .grupo-opciones legend { padding: 0; }
 .sesiones .grupo-opciones-rejilla { grid-template-columns: 1fr; }
@@ -1210,7 +1238,15 @@ table.tabla-leads td a:hover { color: var(--primario); }
 @media (max-width: 899px) {
   .pagina:has(.ficha-resumen) .pagina-acciones .boton-primario, .dialogo .boton-primario, .formulario-incrustado .boton-primario { min-height: var(--alto-accion); font-size: 1rem; }
 }
-.cotizacion-precio .muted { font-family: var(--fuente-texto); font-size: 0.8125rem; line-height: 1.125rem; font-weight: 500; letter-spacing: 0; }
+.cotizacion-precio .muted { display: block; margin-top: var(--e1); font-family: var(--fuente-texto); font-size: 0.78125rem; line-height: 1rem; font-weight: 500; letter-spacing: 0; }
+/* Cotizador: el precio de cada programa va completo; la lista crece y parte el texto en dos renglones donde el navegador lo permite. */
+@supports (appearance: base-select) {
+  .formulario-incrustado select, .formulario-incrustado select::picker(select) { appearance: base-select; }
+  .formulario-incrustado select { height: auto; padding-block: 10px; white-space: normal; text-align: left; line-height: 1.25rem; }
+  .formulario-incrustado select::picker(select) { border: 1px solid var(--borde-campo); border-radius: var(--radio); padding: var(--e1); background: var(--superficie); box-shadow: var(--sombra-flotante); }
+  .formulario-incrustado select option { min-height: var(--alto-toque); padding: var(--e2) var(--e3); white-space: normal; border-radius: var(--radio-etiqueta); }
+  .formulario-incrustado select option:checked { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
+}
 /* Las cuatro secciones del expediente caben en 390 px: el texto de cada pestaña se parte en dos líneas en vez de cortarse. */
 @media (max-width: 639px) {
   .expediente-pestanas .pestanas { overflow-x: visible; }
@@ -1248,11 +1284,18 @@ table.tabla-leads td a:hover { color: var(--primario); }
 .horario-con-error select, .horario-con-error input:not([type="checkbox"]):not([type="radio"]) { border: 2px solid var(--peligro); padding-left: 11px; padding-right: 11px; }
 .tarjeta-precios .tarjeta-cabecera { flex-wrap: wrap; }
 .tarjeta-precios .tarjeta-cabecera .boton { white-space: nowrap; }
-/* El aviso de «ya quedó» no tapa el pie de un diálogo: con uno abierto sube a la parte de arriba y, en pantallas anchas, se va al lado libre. */
-body:has(dialog.dialogo[open]) .avisos-vivos { top: var(--e4); bottom: auto; }
+/* El aviso de «ya quedó» va abajo, como siempre (SISTEMA-VISUAL: los avisos entran desde abajo). Con un diálogo abierto, en celular y pantallas medianas el diálogo se sube y se acorta lo justo para que el aviso no le tape ni el título ni los botones; en pantallas anchas el aviso se va al lado libre. */
+body:has(dialog.dialogo[open]) .avisos-vivos { bottom: var(--e4); }
+@media (max-width: 1199px) {
+  body:has(dialog.dialogo[open] .dialogo-cuerpo):has(.aviso-global) dialog.dialogo[open] { margin-block: var(--e4) auto; max-height: calc(100dvh - var(--e4) - 6rem); }
+}
 @media (min-width: 1200px) {
   body:has(dialog.dialogo[open]) .avisos-vivos { top: auto; bottom: var(--e4); justify-content: flex-end; padding-right: var(--e5); }
   body:has(dialog.dialogo[open]) .aviso-global { max-width: calc((100vw - 32rem) / 2 - var(--e6)); }
 }
 /* Una lista desplegable cuyo texto no cabe lo corta con puntos suspensivos (la letra no baja de 16 px en celular: menos provoca zoom automático). */
 select { text-overflow: ellipsis; }
+/* Aviso de `<noscript>` de index.html (sin JavaScript no hay interfaz): con el relleno del contenido, 16 en celular y 32 en escritorio. */
+.sin-javascript { padding: var(--e4); }
+@media (min-width: 900px) { .sin-javascript { padding: var(--e6); } }
+.sin-javascript .aviso { margin: 0; }

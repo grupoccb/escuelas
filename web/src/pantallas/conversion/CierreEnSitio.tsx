@@ -26,7 +26,8 @@ function etiquetaParaElMaestro(campo: string): string {
   return (resto ? FALTA_PARA_EL_MAESTRO[resto] : undefined) ?? etiquetaDeFalta(campo);
 }
 
-export function CierreEnSitio({ leadId, claseId, alumno }: { leadId: string; claseId: string; alumno: string | null }) {
+/** `principal`: esta tarjeta lleva la única acción principal de «Hoy»; si no, «Inscribir a mi alumno» sale como secundario. */
+export function CierreEnSitio({ leadId, claseId, alumno, principal = true }: { leadId: string; claseId: string; alumno: string | null; principal?: boolean }) {
   const { yo, puede } = useSesion();
   const activo = yo?.configuracion.modo_cierre === "maestro_en_sitio" && puede("conversion:ejecutar");
   const vista = useCarga((senal) => api.get<Vista>(`/api/leads/${leadId}/conversion`, undefined, senal), [leadId], activo);
@@ -83,6 +84,7 @@ export function CierreEnSitio({ leadId, claseId, alumno }: { leadId: string; cla
           ) : (
             <Boton
               ancho
+              variante={principal ? "primario" : "secundario"}
               cargando={aviso.ocupado}
               onClick={() =>
                 void aviso.ejecutar(async () => {
@@ -97,7 +99,7 @@ export function CierreEnSitio({ leadId, claseId, alumno }: { leadId: string; cla
         </div>
       ) : null}
       <Boton
-        variante={v.listo ? "primario" : "secundario"}
+        variante={v.listo && principal && !rechazado ? "primario" : "secundario"}
         grande
         ancho
         disabled={!v.listo}

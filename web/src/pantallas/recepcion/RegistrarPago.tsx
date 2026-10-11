@@ -279,6 +279,7 @@ function PagosRecientes({ tutorId, version, alCambiar }: { tutorId: string; vers
         <div className="formulario-acciones">
           <Boton
             variante="peligro"
+            grande
             disabled={motivo.trim().length < 3}
             cargando={accion.ocupado}
             onClick={() =>

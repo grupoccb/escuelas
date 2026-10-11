@@ -246,7 +246,7 @@ export const ESCENAS: Escena[] = [
     titulo: "«Clases muestra» cargando (filtros y descarga ya puestos; el reporte todavía no llega)",
     tipo: "estado",
     fuentes: [CLASES, BASICOS],
-    ir: (c) => conCargando(c, RUTA_CLASES),
+    ir: (c) => conCargando(c, RUTA_CLASES, "Tableros"),
   },
   {
     id: "tabl-clases-error",
@@ -380,7 +380,7 @@ export const ESCENAS: Escena[] = [
     titulo: "«Costo por campaña» cargando",
     tipo: "estado",
     fuentes: [COSTO, BASICOS],
-    ir: (c) => conCargando(c, RUTA_COSTO),
+    ir: (c) => conCargando(c, RUTA_COSTO, "Tableros"),
   },
   {
     id: "tabl-costo-error",
@@ -475,7 +475,7 @@ export const ESCENAS: Escena[] = [
     titulo: "«Ejecutivo» cargando",
     tipo: "estado",
     fuentes: [EJECUTIVO, BASICOS],
-    ir: (c) => conCargando(c, RUTA_EJECUTIVO),
+    ir: (c) => conCargando(c, RUTA_EJECUTIVO, "Tableros"),
   },
   {
     id: "tabl-ejecutivo-error",
@@ -610,7 +610,15 @@ export const ESCENAS: Escena[] = [
       await abrirGastos(c, (x) => simularGastos(x, GASTOS_DE_EJEMPLO));
       await dialogo(c).getByLabel("Monto (MXN)").fill("12.345");
       await capturarElGasto(c);
-      await dialogo(c).getByText("Escribe un importe válido").waitFor();
+      const mensaje = dialogo(c).getByText("Escribe un importe válido");
+      await mensaje.waitFor();
+      // El cuadro es largo (tres gastos): se baja hasta el final para que el campo y su mensaje queden sobre el pie, no tapados por él.
+      await mensaje.evaluate((el) => {
+        let nodo: HTMLElement | null = el.parentElement;
+        while (nodo && !(/auto|scroll/.test(getComputedStyle(nodo).overflowY) && nodo.scrollHeight > nodo.clientHeight)) nodo = nodo.parentElement;
+        if (nodo) nodo.scrollTop = nodo.scrollHeight;
+      });
+      await c.page.waitForTimeout(250);
       await esperarListo(c.page);
     },
   },

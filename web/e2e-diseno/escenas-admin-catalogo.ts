@@ -454,7 +454,16 @@ export const ESCENAS: Escena[] = [
     tipo: "estado",
     ruta: "/admin",
     fuentes: [ADMIN],
-    ir: (c) => conMuchosDatos(c, "/admin"),
+    ir: async (c) => {
+      // Faltan pasos (el detalle queda abierto) y la lista se repite seis veces: 8 pasos × 6.
+      await editarGet(c, PASOS, (cuerpo) => {
+        const base = conPasos(3)(cuerpo) as Json;
+        const pasos = Array.from({ length: 6 }, (_, i) => (base.pasos as { id: string; hecho: boolean }[]).map((p) => (i === 0 ? p : { ...p, id: `${p.id}-copia-${i}` }))).flat();
+        return { ...base, pasos, total: pasos.length, hechos: pasos.filter((p) => p.hecho).length };
+      });
+      await irA(c, "/admin");
+      await c.page.getByTestId("primeros-pasos").waitFor();
+    },
   },
   {
     id: "adminc-inicio-vacio",
@@ -470,11 +479,17 @@ export const ESCENAS: Escena[] = [
     id: "adminc-inicio-cargando",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "Inicio de Administración mientras carga «Para empezar» (el menú ya se ve)",
+    titulo: "Inicio de Administración mientras llegan los primeros pasos (el menú ya se ve y «Para empezar» todavía no aparece: la pantalla no pinta «Cargando…» ahí)",
     tipo: "estado",
     ruta: "/admin",
     fuentes: [ADMIN],
-    ir: (c) => conCargando(c, "/admin"),
+    ir: async (c) => {
+      await colgarGet(c, PASOS);
+      await c.page.goto("/admin");
+      await c.page.getByRole("heading", { level: 1, name: "Administración" }).waitFor();
+      await c.page.getByRole("heading", { level: 2 }).first().waitFor();
+      await c.page.waitForTimeout(300);
+    },
   },
   {
     id: "adminc-inicio-error",
@@ -1881,11 +1896,15 @@ export const ESCENAS: Escena[] = [
     id: "adminc-catalogo-vacio",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "Cargar catálogo con la lista de plantillas vacía",
+    titulo: "Cargar catálogo con la lista de plantillas vacía (abierto «Descargar una por una»: sin ninguna)",
     tipo: "estado",
     ruta: "/admin/catalogo",
     fuentes: [CATALOGO],
-    ir: (c) => conVacio(c, "/admin/catalogo"),
+    ir: async (c) => {
+      await conVacio(c, "/admin/catalogo");
+      await c.page.getByText("Descargar una por una", { exact: true }).click();
+      await c.page.waitForTimeout(150);
+    },
   },
   {
     id: "adminc-catalogo-cargando",

@@ -144,7 +144,7 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
       <div className="barra-guardado">
         {guardado ? (
           <p className="barra-guardado-estado barra-guardado-estado-ok" role="status">
-            <Icono nombre="exito" tamano={18} />
+            <Icono nombre="exito" tamano={20} />
             Configuración guardada.
           </p>
         ) : null}
