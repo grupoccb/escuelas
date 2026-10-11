@@ -7,7 +7,7 @@ Rama `diseno-v2` (desde `diseno-v1`). Especificación: `design_handoff_rediseno_
 | R1 | HECHO | 471ddc5 | Tokens y marco: variables, barra lateral agrupada, aviso global, diálogos como hoja inferior en celular |
 | R2 | HECHO | 42751f0 | Embudo: arrastrar y soltar, selección en lote, columnas plegables, ficha lateral, diálogos, celular |
 | R3 | HECHO | 27ac856 | Tableros: página narrativa de 8 secciones con gráficas propias |
-| R4 | HECHO | (ver git log) | Registrar pago, Hoy del maestro, Pase de lista, Registro del alumno |
+| R4 | HECHO | b4a6456 | Registrar pago, Hoy del maestro, Pase de lista, Registro del alumno |
 | R5 | PENDIENTE | | Tareas, Ficha del lead, Conversión, Estado de cuenta, Uniformes, Ventas, Cierre del día |
 | R6 | PENDIENTE | | Alumnos, Expediente, Familias, Ficha de familia |
 | R7 | PENDIENTE | | Administración: inicio, patrón de catálogo, sistema, precios, cargar catálogo |
