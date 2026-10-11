@@ -358,7 +358,7 @@ Todo se probó con servicios simulados. Lo que **no se puede comprobar sin crede
 
 La lista única está en [`docs/DECISIONES-PARA-EDUARDO.md`](docs/DECISIONES-PARA-EDUARDO.md) (cada decisión con sus opciones y una recomendación). Los **gates** de cada fase del [`SPEC.md`](SPEC.md) los marca Eduardo, no quien implementa: los que aparecen sin marcar siguen pendientes de su revisión.
 
-> Nota: el texto de `SPEC.md` para las fases 2 y 3 dice «sin construir». Ya está construido (ver las bitácoras `docs/BITACORA-NOCHE-2.md` y `docs/BITACORA-V1.md`); lo que falta marcar son los gates.
+> Las fases 1 a 3 del `SPEC.md` están construidas contra simuladores (ver las bitácoras `docs/BITACORA-NOCHE-2.md` y `docs/BITACORA-V1.md`). Lo que falta es que Eduardo marque los gates.
 
 ### 8.4 Pendientes técnicos conocidos
 

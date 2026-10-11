@@ -1,6 +1,6 @@
 # SPEC.md — Plan por fases
 
-Versión 1 · 7 de octubre de 2026
+Versión 1 · 7 de octubre de 2026 · estado actualizado el 11 de octubre de 2026 (las fases 1 a 3 están construidas contra simuladores; los gates siguen sin marcar). Para probarlo: `README.md`.
 
 Fase 0 está detallada. Fase 1 está en borrador: se detalla al cerrar Fase 0, porque su arquitectura depende del resultado del gate G0.3.
 
@@ -114,7 +114,7 @@ Construida en `docs/PLAN-NOCHE.md` (rama `noche-fase1`) y ajustada en `docs/PLAN
 
 ## Fase 2 — Cotizador, clase muestra, recordatorios
 
-**Planeada** (detallada en `docs/PLAN-NOCHE-2.md`, rama `noche-2`; los bloques B–K siguen **sin construir**). Se construirá contra simuladores y sin gates marcados. Los datos que la escuela aún no da (precios, cupos, duraciones, direcciones, edades, salones) van como valores de ejemplo `[SUPUESTO]` en los seeds y se editan desde administración; ninguno vive en código.
+**Construida contra simuladores** (plan en `docs/PLAN-NOCHE-2.md`, bitácora en `docs/BITACORA-NOCHE-2.md`, rama `noche-2`; ajustes y puesta en marcha en `docs/PLAN-V1.md` y `docs/BITACORA-V1.md`, rama `v1-escuela`). **Ningún gate está marcado**: los marca Eduardo, y lo que depende de Twilio, Meta o AWS reales sigue sin probarse (`docs/PENDIENTES-CREDENCIALES-REALES.md`). Los datos que la escuela aún no da (precios, cupos, duraciones, direcciones, edades, salones) van como valores de ejemplo `[SUPUESTO]` en los seeds y se editan desde administración; ninguno vive en código.
 
 Decisiones de producto tomadas (ver el plan): el bot pregunta cuál programa cuando una edad cae en más de uno; si la sucursal no tiene el programa se ofrece la otra (configurable); el cotizador por WhatsApp se enciende o apaga por vertical; el aviso al maestro sale por plantilla del `MessagingProvider` y también queda en una lista dentro de la aplicación.
 
@@ -138,7 +138,7 @@ Decisiones de producto tomadas (ver el plan): el bot pregunta cuál programa cua
 
 ## Fase 3 — Alumnos, CRM, cobranza, tableros
 
-**Detallada**, sin construir todavía (mismo plan). Se construirá contra simuladores y sin gates marcados. Pagos en registro manual (sin pasarela). Usuarios con correo y contraseña y roles (administrador, asesor, maestro, recepción). Quién cierra la inscripción es configuración de la organización: por defecto el asesor por WhatsApp, y el maestro marca "listo para cerrar".
+**Construida contra simuladores** (mismo plan y bitácoras que la Fase 2). La interfaz web (3.6) se rediseñó después, en la rama `diseno-v2` (`docs/BITACORA-REDISENO-V2.md`). **Ningún gate está marcado**: los marca Eduardo. Pagos en registro manual (sin pasarela). Usuarios con correo y contraseña y roles (administrador, asesor, maestro, recepción). Quién cierra la inscripción es configuración de la organización: por defecto el asesor por WhatsApp, y el maestro marca "listo para cerrar".
 
 ### Bloques
 
