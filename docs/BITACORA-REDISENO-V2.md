@@ -11,7 +11,7 @@ Rama `diseno-v2` (desde `diseno-v1`). Especificación: `design_handoff_rediseno_
 | R5 | HECHO | 4d9b419 | Tareas, Ficha del lead, Conversión, Estado de cuenta, Uniformes, Ventas, Cierre del día |
 | R6 | HECHO | 6cb9d80 | Alumnos, Expediente, Familias, Ficha de familia |
 | R7 | HECHO | 6cb9d80 | Administración: inicio, patrón de catálogo, sistema, precios, cargar catálogo |
-| R8 | HECHO | (ver git log) | Acceso, Mi cuenta, estados de error, página pública de captación |
+| R8 | HECHO | 5541b96 | Acceso, Mi cuenta, estados de error, página pública de captación |
 
 ## Decisiones tomadas
 
