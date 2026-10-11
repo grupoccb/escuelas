@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes velo{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="tareas" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Tareas</h1>
+<div style="color: #5A6074">Lo que el sistema no pudo resolver solo y necesita que una persona decida.</div>
+</div>
+<div role="tablist" aria-label="Estado de las tareas" style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px">
+<sc-for list="{{ pestanas }}" as="t" hint-placeholder-count="2">
+<button type="button" role="tab" aria-selected="{{ t.activa }}" onClick="{{ t.alElegir }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; background: {{ t.fondo }}; color: #171A2C; border: 0; border-radius: 9px; font-weight: {{ t.peso }}; box-shadow: {{ t.sombra }}; cursor: pointer">{{ t.nombre }}<span style="min-width: 24px; padding: 1px 7px; border-radius: 999px; background: {{ t.fondoCuenta }}; color: {{ t.tintaCuenta }}; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums">{{ t.cuenta }}</span></button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px">
+
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<aside aria-label="Filtrar por tipo" style="flex: 0 0 260px; position: sticky; top: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 2px">
+<div style="padding: 6px 10px 8px; color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Por tipo</div>
+<sc-for list="{{ tipos }}" as="t" hint-placeholder-count="8">
+<button type="button" aria-pressed="{{ t.activo }}" onClick="{{ t.alElegir }}" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; background: {{ t.fondo }}; color: {{ t.tinta }}; border: 0; border-radius: 10px; font-weight: {{ t.peso }}; text-align: left; cursor: pointer" style-hover="background: #F3F4F8">
+<span aria-hidden="true" style="flex: none; width: 8px; height: 8px; border-radius: 999px; background: {{ t.punto }}"></span>
+<span style="flex: 1; min-width: 0">{{ t.nombre }}</span>
+<span style="font-variant-numeric: tabular-nums; font-weight: 700; color: #454B60">{{ t.cuenta }}</span>
+</button>
+</sc-for>
+</aside>
+</sc-if>
+
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{ movil }}">
+<label for="tipo-movil" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Tipo de tarea</label>
+<select id="tipo-movil" value="{{ tipo }}" onChange="{{ alTipo }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 15px">
+<sc-for list="{{ tipos }}" as="t" hint-placeholder-count="0"><option value="{{ t.id }}">{{ t.nombre }} ({{ t.cuenta }})</option></sc-for>
+</select>
+</sc-if>
+
+<sc-if value="{{ vacio }}">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 18px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; color: #5A6074">
+<svg aria-hidden="true" width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M6 3h8a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z M6.5 10l2.5 2.5 4.5-5"></path></svg>
+<div><div style="font-weight: 700; color: #171A2C">{{ vacioTitulo }}</div><div>{{ vacioTexto }}</div></div>
+</div>
+</sc-if>
+
+<sc-for list="{{ tareas }}" as="t" hint-placeholder-count="5">
+<article style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 16px; display: flex; gap: 14px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<span aria-hidden="true" style="flex: none; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: {{ t.fondoIcono }}; color: {{ t.tintaIcono }}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.icono }}"></path></svg></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ t.titulo }}</span><sc-if value="{{ t.urgente }}"><span style="padding: 1px 8px; background: #FFF0D2; color: #6B4100; border: 1px solid #F0C56A; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 700">Atiéndela hoy</span></sc-if></div>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ t.cuando }}</span>
+</div>
+<a href="Ficha-lead.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-weight: 700">{{ t.lead }}<span style="color: #5A6074; font-weight: 500">· {{ t.sucursal }}</span></a>
+<div style="color: #454B60; text-wrap: pretty">{{ t.texto }}</div>
+<sc-if value="{{ t.pendiente }}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px">
+<button type="button" onClick="{{ t.alResolver }}" style="min-height: 40px; padding: 0 16px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer" style-hover="background: #DAD8FA">{{ t.accion }}</button>
+<button type="button" onClick="{{ t.alDescartar }}" style="min-height: 40px; padding: 0 14px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8">Descartar</button>
+<button type="button" onClick="{{ t.alChat }}" aria-label="{{ t.chatEtiqueta }}" title="Abrir conversación" style="margin-left: auto; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h12a1 1 0 011 1v7.5a1 1 0 01-1 1H9l-4 3v-3H4a1 1 0 01-1-1V5.5a1 1 0 011-1z"></path></svg></button>
+</div>
+</sc-if>
+<sc-if value="{{ t.resuelta }}"><div style="display: inline-flex; align-items: center; gap: 6px; color: {{ t.tintaCierre }}; font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>{{ t.cierre }}</div></sc-if>
+</div>
+</article>
+</sc-for>
+</div>
+</div>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="asesor" activa="tareas" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+
+<sc-if value="{{ hayDialogo }}">
+<div style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="dlg-titulo" style="width: {{ dlgAncho }}; max-width: 100%; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); display: flex; flex-direction: column; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 id="dlg-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px">Descartar la tarea</h2>
+<div style="color: #454B60">{{ dlgTexto }}</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="dlg-nota" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Por qué se descarta (opcional)</label>
+<textarea id="dlg-nota" value="{{ nota }}" onChange="{{ alNota }}" rows="3" placeholder="Por ejemplo: la familia ya respondió por teléfono" style="width: 100%; min-height: 84px; padding: 10px 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px; resize: vertical"></textarea>
+</div>
+</div>
+<div style="display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding: 12px 20px; border-top: 1px solid #DEE1EA">
+<button type="button" onClick="{{ alConfirmar }}" style="min-height: 48px; padding: 0 20px; background: #3A32D1; color: #FFFFFF; border: 1px solid #3A32D1; border-radius: 12px; font-weight: 700; cursor: pointer">Descartar</button>
+<button type="button" onClick="{{ alCerrar }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28)">
+<span style="min-width: 0">{{ toast }}</span>
+<button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  TIPOS = {
+    listo_para_cerrar: ['Listo para cerrar', 'exito', 'Inscribir'],
+    lead_frio: ['Lead sin movimiento', 'neutro', 'Ya lo retomé'],
+    llamar_no_asistio: ['Llamar a quien no llegó', 'neutro', 'Ya llamé'],
+    entrega_fallida: ['Mensaje no entregado', 'alerta', 'Ya lo contacté'],
+    sin_plantilla_apta: ['Sin plantilla apta', 'neutro', 'Ya lo contacté'],
+    lista_espera_lugar_liberado: ['Lugar liberado', 'exito', 'Ya lo ofrecí'],
+    baja_volvio_a_escribir: ['Dado de baja volvió a escribir', 'alerta', 'Ya decidí'],
+    avisar_cambio_de_clase: ['Avisar el cambio de una clase', 'alerta', 'Ya avisé'],
+    faltas_consecutivas: ['Faltas seguidas', 'neutro', 'Ya hablé con la familia'],
+  };
+  ICONOS = { exito: 'M4.5 10.5l3.5 3.5 7.5-8', neutro: 'M5 8.5a5 5 0 0110 0c0 3.5 1.5 4.5 1.5 4.5h-13S5 12 5 8.5z M8.5 16a1.6 1.6 0 003 0', alerta: 'M10 3l8 14H2L10 3z M10 8.5v3.5M10 14.5h.01' };
+  crudas = [
+    ['t1', 'listo_para_cerrar', 'Natalia Fuentes', 'Águilas', 'Hace 25 min', 'El maestro marcó que Sofía (5 años, Ballet Infantil 5-8) quedó lista para inscribirse.'],
+    ['t2', 'entrega_fallida', 'Héctor Lozano', 'Norte', 'Hace 1 h', 'WhatsApp reportó que el mensaje de bienvenida no llegó (código 63016). Revisa el número o escríbele por otro medio.'],
+    ['t3', 'avisar_cambio_de_clase', 'Ricardo Salas', 'Norte', 'Hace 2 h', 'Se cambió la clase muestra de Luciana al martes 13 a las 5:00 pm y el aviso no salió a tiempo: llama y avísale.'],
+    ['t4', 'lead_frio', 'Rubén Quiroz', 'Águilas', 'Hace 3 h', 'Lleva 14 días sin movimiento en Nuevo. El reenganche ya salió dos veces: decide cómo retomarlo.'],
+    ['t5', 'llamar_no_asistio', 'Arturo Peña', 'Norte', 'Hoy, 9:10 am', 'Iker no llegó a su clase muestra del sábado 10: ofrécele otra fecha.'],
+    ['t6', 'lista_espera_lugar_liberado', 'Paola Guerrero', 'Águilas', 'Ayer', 'Se liberó un lugar en Ballet Baby 3-4 (Lun y Mié 4:00 pm). Isabella es la primera de la lista de espera.'],
+    ['t7', 'sin_plantilla_apta', 'Alejandra Pineda', 'Norte', 'Ayer', 'Pasaron más de 24 h desde su último mensaje y no hay una plantilla aprobada para escribirle: contáctala tú.'],
+    ['t8', 'baja_volvio_a_escribir', 'Adriana Paredes', 'Norte', 'Hace 2 días', 'Pidió no recibir mensajes y volvió a escribir. El sistema no le contesta: decide una persona.'],
+    ['t9', 'faltas_consecutivas', 'Marisol Vivanco', 'Águilas', 'Hace 2 días', 'Santino lleva 3 faltas seguidas en Karate Infantil 3-5.'],
+    ['r1', 'listo_para_cerrar', 'Carmen Ibáñez', 'Águilas', 'Hace 4 días', 'El maestro marcó que Nicolás quedó listo para inscribirse.', 'Resuelta por Daniela Ortiz'],
+    ['r2', 'lead_frio', 'Diana Castillo', 'Norte', 'Hace 6 días', 'Llevaba 5 días sin movimiento en Contactado.', 'Descartada por Daniela Ortiz: eligió otro horario'],
+  ];
+  state = { movil: false, pestana: 'pendientes', tipo: '', tareas: this.crudas.map(([id, tipo, lead, sucursal, cuando, texto, cierre]) => ({ id, tipo, lead, sucursal, cuando, texto, cierre: cierre || null })), dlg: null, nota: '', toast: null };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  cerrar(id, cierre, texto) { this.setState((s) => ({ tareas: s.tareas.map((t) => (t.id === id ? { ...t, cierre, cuando: 'Ahora' } : t)), dlg: null, nota: '' })); this.aviso(texto); }
+  renderVals() {
+    const s = this.state, movil = s.movil;
+    const pend = s.tareas.filter((t) => !t.cierre), res = s.tareas.filter((t) => t.cierre);
+    const base = s.pestana === 'pendientes' ? pend : res;
+    const tono = { exito: ['#E1F3E7', '#17603A'], neutro: ['#ECEBFC', '#2B2699'], alerta: ['#FFF0D2', '#6B4100'] };
+    const tipos = [{ id: '', nombre: 'Todas', cuenta: base.length, punto: '#171A2C' }].concat(Object.keys(this.TIPOS).map((k) => ({ id: k, nombre: this.TIPOS[k][0], cuenta: base.filter((t) => t.tipo === k).length, punto: tono[this.TIPOS[k][1]][1] })).filter((t) => t.cuenta > 0))
+      .map((t) => { const a = s.tipo === t.id; return { ...t, activo: a, fondo: a ? '#ECEBFC' : 'transparent', tinta: a ? '#2B2699' : '#171A2C', peso: a ? 700 : 500, alElegir: () => this.setState({ tipo: t.id }) }; });
+    const lista = base.filter((t) => !s.tipo || t.tipo === s.tipo).map((t) => { const [titulo, tn, accion] = this.TIPOS[t.tipo]; return {
+      titulo, accion, lead: t.lead, sucursal: t.sucursal, cuando: t.cuando, texto: t.texto, urgente: tn === 'alerta' && !t.cierre, icono: this.ICONOS[tn], fondoIcono: tono[tn][0], tintaIcono: tono[tn][1],
+      pendiente: !t.cierre, resuelta: !!t.cierre, cierre: t.cierre, tintaCierre: t.cierre && t.cierre.startsWith('Descartada') ? '#5A6074' : '#17603A', chatEtiqueta: `Abrir la conversación con ${t.lead}`,
+      alResolver: () => this.cerrar(t.id, 'Resuelta por Adela Ramírez', t.tipo === 'listo_para_cerrar' ? `Se abrió la inscripción de la familia ${t.lead.split(' ')[1]}.` : 'Tarea resuelta. Queda en «Resueltas».'),
+      alDescartar: () => this.setState({ dlg: t.id, nota: '' }), alChat: () => this.aviso(`Se abrió la conversación con ${t.lead} en Chatwoot.`) }; });
+    const seg = (a) => ({ fondo: a ? '#FFFFFF' : 'transparent', peso: a ? 700 : 600, sombra: a ? '0 1px 2px rgba(23,26,44,0.16)' : 'none', fondoCuenta: a ? '#3A32D1' : '#FFFFFF', tintaCuenta: a ? '#FFFFFF' : '#171A2C' });
+    const dt = s.dlg ? s.tareas.find((t) => t.id === s.dlg) : null;
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      pestanas: [['pendientes', 'Pendientes', pend.length], ['resueltas', 'Resueltas', res.length]].map(([id, nombre, cuenta]) => ({ nombre, cuenta, activa: s.pestana === id, ...seg(s.pestana === id), alElegir: () => this.setState({ pestana: id, tipo: '' }) })),
+      tipos, tipo: s.tipo, alTipo: (e) => this.setState({ tipo: e.target.value }), tareas: lista,
+      vacio: lista.length === 0, vacioTitulo: s.pestana === 'pendientes' ? 'No tienes tareas pendientes' : 'Todavía no hay tareas resueltas', vacioTexto: s.pestana === 'pendientes' ? 'Cuando el sistema necesite que alguien decida, aparecerá aquí.' : 'Lo que resuelvas o descartes queda aquí, con quién lo hizo.',
+      hayDialogo: !!dt, dlgTexto: dt ? `«${this.TIPOS[dt.tipo][0]}» de ${dt.lead}. Pasa a «Resueltas» como descartada.` : '', nota: s.nota, alNota: (e) => this.setState({ nota: e.target.value }),
+      alCerrar: () => this.setState({ dlg: null }), alConfirmar: () => dt && this.cerrar(dt.id, 'Descartada por Adela Ramírez' + (s.nota.trim() ? ': ' + s.nota.trim() : ''), 'Tarea descartada.'),
+      dlgAlinear: movil ? 'flex-end' : 'center', dlgRelleno: movil ? '0' : '24px', dlgAncho: movil ? '100%' : '480px', dlgRadio: movil ? '20px 20px 0 0' : '16px',
+      hayToast: !!s.toast, toast: s.toast || '', toastAbajo: movil ? '84px' : '24px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

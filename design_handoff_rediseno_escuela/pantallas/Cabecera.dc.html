@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 2px; font-family: 'Figtree', system-ui, sans-serif">
+<span style="min-width: 0; color: #5A6074; font-size: 13px; line-height: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ texto }}</span>
+<a href="Mas.dc.html" aria-label="{{ cuenta }}" style="flex: none; width: 44px; height: 44px; border-radius: 999px; background: #171A2C; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; text-decoration: none">{{ iniciales }}</a>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;texto&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Academia Nova · Todas mis sucursales&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;iniciales&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;AR&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;nombre&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Adela Ramírez&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:62}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { texto: this.props.texto ?? 'Academia Nova · Todas mis sucursales', iniciales: this.props.iniciales ?? 'AR', cuenta: `Mi cuenta (${this.props.nombre ?? 'Adela Ramírez'})` };
+  }
+}
+</script>
+</body>
+</html>

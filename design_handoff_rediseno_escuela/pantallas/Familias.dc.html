@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="familias" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 16px">
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Familias</h1>
+<div style="color: #5A6074">248 familias con al menos un alumno activo</div>
+</div>
+<label style="flex: 1 1 260px; max-width: 360px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; color: #5A6074"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11z M13.5 13.5L17 17"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Buscar familia</span><input type="search" value="{{ q }}" onChange="{{ alQ }}" placeholder="Adulto, alumno o teléfono" style="flex: 1; min-width: 0; min-height: 42px; border: 0; outline: 0; background: transparent; color: #171A2C; font-size: 14px"></label>
+</div>
+<div role="tablist" aria-label="Vista" style="flex: none; align-self: flex-start; display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px">
+<sc-for list="{{ vistas }}" as="t" hint-placeholder-count="2"><button type="button" role="tab" aria-selected="{{ t.activa }}" onClick="{{ t.alElegir }}" style="min-height: 40px; padding: 0 16px; background: {{ t.fondo }}; color: #171A2C; border: 0; border-radius: 9px; font-weight: {{ t.peso }}; box-shadow: {{ t.sombra }}; cursor: pointer">{{ t.nombre }}</button></sc-for>
+</div>
+<sc-if value="{{ unSolo }}"><div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 16px; background: #ECEBFC; border: 1px solid #3A32D1; border-radius: 14px; color: #2B2699"><span><strong>112 familias tienen un solo hijo inscrito.</strong> La promoción «Hermanos» da 10 % en la mensualidad del segundo.</span><button type="button" style="min-height: 40px; padding: 0 14px; background: #FFFFFF; color: #2B2699; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">Descargar la lista (CSV)</button></div></sc-if>
+<div style="flex: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px">
+<sc-for list="{{ familias }}" as="f" hint-placeholder-count="8">
+<a href="Ficha-familia.dc.html" style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px; color: #171A2C" style-hover="border-color: #8E95AA; box-shadow: 0 10px 24px -14px rgba(23,26,44,0.35)">
+<div style="display: flex; align-items: center; gap: 12px"><span aria-hidden="true" style="flex: none; width: 42px; height: 42px; border-radius: 999px; background: #DAD8FA; color: #2B2699; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px">{{ f.iniciales }}</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ f.nombre }}</span><span style="color: #5A6074; font-variant-numeric: tabular-nums">{{ f.tel }}</span></span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{ f.hijos }}" as="h" hint-placeholder-count="2"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: {{ h.suave }}; color: {{ h.tinta }}; font-size: 12px; line-height: 16px; font-weight: 700"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: {{ h.color }}"></span>{{ h.nombre }}</span></sc-for></div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span style="color: #5A6074; font-size: 13px">{{ f.sucursal }}</span><span style="padding: 2px 9px; border-radius: 999px; background: {{ f.fondoSaldo }}; color: {{ f.tintaSaldo }}; font-size: 12px; line-height: 16px; font-weight: 700">{{ f.saldo }}</span></div>
+</a>
+</sc-for>
+</div>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="admin" activa="familias" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  D = { k: ['oklch(0.6 0.16 35)', 'oklch(0.95 0.035 35)', 'oklch(0.44 0.13 35)'], b: ['oklch(0.6 0.16 355)', 'oklch(0.95 0.035 355)', 'oklch(0.44 0.13 355)'], s: ['oklch(0.6 0.11 190)', 'oklch(0.95 0.03 190)', 'oklch(0.42 0.08 190)'] };
+  DATOS = [['Marisol Vivanco Lozano', '55 9901 0009', 'Santino:k|Valentina:b', 'Águilas', 'vencido'], ['Patricia Núñez Arce', '55 9901 0090', 'Diego:k', 'Norte', 'vencido'], ['Jorge Salinas Ruiz', '55 9901 0052', 'Martina:b', 'Norte', 'ok'], ['Carmen Ibáñez Ortiz', '55 9901 0061', 'Nicolás:k', 'Águilas', 'ok'], ['Alberto Ramos Cano', '55 9901 0062', 'Carlota:b', 'Norte', 'pendiente'], ['Rosa Delgado Peña', '55 9901 0063', 'Rosa (adulta):s', 'Águilas', 'ok'], ['Silvia Carranza Mena', '55 9901 0023', 'Andrea:k|Tomás:k', 'Águilas', 'ok'], ['Francisco Mejía Luna', '55 9901 0064', 'Ivana:b', 'Norte', 'pendiente']];
+  state = { movil: false, q: '', vista: 'todas' };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  renderVals() {
+    const s = this.state, movil = s.movil, q = s.q.trim().toLowerCase();
+    const sal = { vencido: ['Con vencido', '#FFF0D2', '#6B4100'], pendiente: ['Por pagar', '#ECEDF3', '#3A3F52'], ok: ['Al corriente', '#E1F3E7', '#17603A'] };
+    const lista = this.DATOS.filter(([n, t, h]) => (s.vista !== 'uno' || h.split('|').length === 1) && (!q || `${n} ${t} ${h}`.toLowerCase().includes(q))).map(([nombre, tel, h, sucursal, sa]) => { const p = nombre.split(' '); return { nombre, tel, sucursal, iniciales: p[0][0] + p[1][0], saldo: sal[sa][0], fondoSaldo: sal[sa][1], tintaSaldo: sal[sa][2], hijos: h.split('|').map((x) => { const [n, d] = x.split(':'); return { nombre: n, color: this.D[d][0], suave: this.D[d][1], tinta: this.D[d][2] }; }) }; });
+    const seg = (a) => ({ fondo: a ? '#FFFFFF' : 'transparent', peso: a ? 700 : 600, sombra: a ? '0 1px 2px rgba(23,26,44,0.16)' : 'none' });
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      q: s.q, alQ: (e) => this.setState({ q: e.target.value }), unSolo: s.vista === 'uno',
+      vistas: [['todas', 'Todas'], ['uno', 'Con un solo hijo inscrito']].map(([id, nombre]) => ({ nombre, activa: s.vista === id, ...seg(s.vista === id), alElegir: () => this.setState({ vista: id }) })),
+      familias: lista,
+    };
+  }
+}
+</script>
+</body>
+</html>

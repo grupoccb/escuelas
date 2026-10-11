@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<nav aria-label="Secciones" style="flex: 0 0 232px; width: 232px; height: 100%; overflow-y: auto; scrollbar-width: none; background: #171A2C; color: #C9CDE0; display: flex; flex-direction: column; gap: 14px; padding: 16px 14px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 0 6px">
+<div aria-hidden="true" style="flex: none; width: 40px; height: 40px; border-radius: 12px; background: #3A32D1; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 16px">AN</div>
+<div style="min-width: 0; color: #FFFFFF; font-weight: 700; font-size: 15px; line-height: 20px">Academia Nova</div>
+</div>
+<div style="padding: 0 6px">
+<label for="sucursal-lateral" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Sucursal</label>
+<select id="sucursal-lateral" value="{{ suc }}" onChange="{{ alSucursal }}" style="width: 100%; min-height: 44px; padding: 0 12px; background: transparent; color: #C9CDE0; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; font-size: 12.5px; cursor: pointer">
+<option value="" style="color: #171A2C; background: #FFFFFF">Todas mis sucursales</option>
+<option value="Águilas" style="color: #171A2C; background: #FFFFFF">Águilas</option>
+<option value="Norte" style="color: #171A2C; background: #FFFFFF">Norte</option>
+</select>
+</div>
+<div style="display: flex; flex-direction: column">
+<div style="padding: 6px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Clases</div>
+<a href="Hoy-maestro.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>Hoy</a>
+<a href="Pase-de-lista.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Captación</div>
+<a href="Embudo.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4L3 4z"></path></svg>Embudo</a>
+<a href="Tareas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z"></path><path d="M6.5 10l2.5 2.5 4.5-5"></path></svg>Tareas</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Cobranza</div>
+<a href="Registrar-pago.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h11a2 2 0 012 2v7a2 2 0 01-2 2h-11a2 2 0 01-2-2v-7a2 2 0 012-2z"></path><path d="M2.5 8.5h15M5.5 12.5h3"></path></svg>Registrar pago</a>
+<a href="Estado-de-cuenta.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5v-15z"></path><path d="M8 7h4M8 10.5h4"></path></svg>Estado de cuenta</a>
+<a href="Uniformes.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3L3 5.5l1.5 3L6.5 8v9h7V8l2 .5 1.5-3L13 3c-.4 1.3-1.5 2-3 2s-2.6-.7-3-2z"></path></svg>Uniformes</a>
+<a href="Ventas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h2l2 9h8.5l1.5-6H6"></path><path d="M7.5 16.7a.7.7 0 100-1.4.7.7 0 000 1.4zM14 16.7a.7.7 0 100-1.4.7.7 0 000 1.4z"></path></svg>Ventas</a>
+<a href="Cierre-del-dia.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2v-11a2 2 0 012-2z"></path><path d="M7 6.5h6M7 10h6M7 13.5h3"></path></svg>Cierre del día</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Escuela</div>
+<a href="Tableros.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; background: rgba(255,255,255,0.12); color: #FFFFFF; font-weight: 700"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h14M6 14V9M10 14V5M14 14v-3"></path></svg>Tableros</a>
+<a href="Alumnos.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 10a3 3 0 100-6 3 3 0 000 6z"></path><path d="M2.5 16.5c.6-2.8 2.5-4.2 5-4.2s4.4 1.4 5 4.2"></path><path d="M13 4.3a3 3 0 010 5.4M15 12.6c1.4.6 2.2 1.9 2.5 3.9"></path></svg>Alumnos</a>
+<a href="Familias.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L10 3l7 6.5"></path><path d="M5 8.5V17h10V8.5"></path><path d="M8.5 17v-4.5h3V17"></path></svg>Familias</a>
+<a href="Administracion.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"></path><path d="M16.2 10l1.3.8-1.3 2.2-1.5-.4a5.5 5.5 0 01-1.3.8l-.4 1.6H10.3l-.4-1.6a5.5 5.5 0 01-1.3-.8l-1.5.4-1.3-2.2L7 10a5.6 5.6 0 010-1.6l-1.3-.8 1.3-2.2 1.5.4a5.5 5.5 0 011.3-.8l.4-1.6h2.4l.4 1.6a5.5 5.5 0 011.3.8l1.5-.4 1.3 2.2-1.3.8c.1.5.1 1.1 0 1.6z"></path></svg>Administración</a>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 4px; padding: 10px 0 0 6px; border-top: 1px solid rgba(255,255,255,0.14)">
+<a href="Mas.dc.html" aria-label="Mi cuenta (Adela Ramírez)" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; color: #FFFFFF; font-weight: 600">
+<span aria-hidden="true" style="flex: none; width: 36px; height: 36px; border-radius: 999px; background: #2B3050; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700">AR</span>
+<span style="min-width: 0; display: flex; flex-direction: column"><span>Adela Ramírez</span><span style="color: #A9AEC6; font-size: 12.5px; line-height: 16px; font-weight: 500">Administración</span></span>
+</a>
+<a href="Acceso.dc.html" aria-label="Salir" title="Salir" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 10px; color: #A9AEC6; cursor: pointer" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5H5.5a1 1 0 00-1 1v11a1 1 0 001 1H8"></path><path d="M12.5 6.5L16 10l-3.5 3.5M16 10H8"></path></svg></a>
+</div>
+</nav>
+</sc-if>
+
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}">
+<header style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 2px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="color: #5A6074; font-size: 13px; line-height: 18px; font-weight: 600">Academia Nova</span>
+<label for="sucursal-cabecera" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Sucursal</label>
+<select id="sucursal-cabecera" value="{{ suc }}" onChange="{{ alSucursal }}" style="min-height: 36px; max-width: 14rem; padding: 0 8px; margin-left: -8px; background: transparent; color: #171A2C; border: 0; border-radius: 10px; font-weight: 700">
+<option value="">Todas mis sucursales</option>
+<option value="Águilas">Águilas</option>
+<option value="Norte">Norte</option>
+</select>
+</div>
+<a href="Mas.dc.html" aria-label="Mi cuenta (Adela Ramírez)" style="flex: none; width: 44px; height: 44px; border-radius: 999px; background: #171A2C; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px">AR</a>
+</header>
+</sc-if>
+
+<main ref="{{ principal }}" onScroll="{{ alDesplazar }}" style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 22px; scroll-behavior: smooth">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Tableros</h1>
+<div style="color: #5A6074">Cómo va la escuela: captación, costo y números del mes.</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-weight: 600">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>
+Septiembre 2026</div>
+<button type="button" onClick="{{ alDescargar }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8; border-color: #8E95AA"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9M6.5 8.5L10 12l3.5-3.5M4 15.5h12"></path></svg>Descargar resumen (CSV)</button>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{ c.activo }}" onClick="{{ c.alElegir }}" style="flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid {{ c.borde }}; background: {{ c.fondo }}; color: {{ c.tinta }}; font-weight: 600; cursor: pointer; white-space: nowrap">
+<sc-if value="{{ c.hayPunto }}"><span aria-hidden="true" style="width: 9px; height: 9px; border-radius: 999px; background: {{ c.punto }}; box-shadow: 0 0 0 2px {{ c.anillo }}"></span></sc-if>{{ c.nombre }}</button>
+</sc-for>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 16px; margin-left: 4px">Altas, bajas y deserción son de este mes; lo demás es la foto de hoy.</span>
+</div>
+
+<div role="tablist" aria-label="Secciones del tablero" style="flex: none; position: sticky; top: {{ topPestanas }}; z-index: 5; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; background: #F3F4F8; border-bottom: 1px solid #DEE1EA; margin: 0 -4px; padding: 0 4px">
+<sc-for list="{{ pestanas }}" as="tab" hint-placeholder-count="8">
+<button type="button" role="tab" aria-selected="{{ tab.activa }}" onClick="{{ tab.alIr }}" style="flex: none; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid {{ tab.linea }}; background: none; color: {{ tab.tinta }}; font-weight: {{ tab.peso }}; white-space: nowrap; cursor: pointer">{{ tab.nombre }}</button>
+</sc-for>
+</div>
+
+<section data-seccion="resumen" aria-label="Resumen del mes" style="background: #171A2C; color: #FFFFFF; border-radius: 20px; padding: {{ rellenoHero }}; display: flex; flex-wrap: wrap; gap: 28px; box-shadow: 0 18px 40px -20px rgba(23,26,44,0.6)">
+<div style="flex: 1.2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+<div style="color: #A9AEC6; font-size: 12.5px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase">Septiembre 2026 · {{ alcance }}</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: {{ tamTitular }}; line-height: 1.08; letter-spacing: -0.02em; text-wrap: balance">{{ titular }}</div>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ frases }}" as="f" hint-placeholder-count="3">
+<li style="display: flex; gap: 10px; color: #C9CDE0; font-size: 15px; line-height: 22px"><span aria-hidden="true" style="flex: none; width: 6px; height: 6px; margin-top: 8px; border-radius: 999px; background: {{ f.color }}"></span><span style="text-wrap: pretty">{{ f.texto }}</span></li>
+</sc-for>
+</ul>
+</div>
+<div style="flex: 1 1 320px; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-content: start">
+<sc-for list="{{ heroKpis }}" as="k" hint-placeholder-count="6">
+<div style="background: {{ k.fondo }}; border: 1px solid {{ k.borde }}; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<div style="color: {{ k.tintaEtiqueta }}; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ k.etiqueta }}</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; line-height: 32px; color: {{ k.tinta }}; font-variant-numeric: tabular-nums; white-space: nowrap">{{ k.valor }}</div>
+<div style="color: {{ k.tintaNota }}; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ k.nota }}</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section data-seccion="captacion" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">01</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">¿Dónde se caen los leads?</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">{{ fraseEmbudo }}</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+<figure style="margin: 0; flex: 2 1 460px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 4px">
+<figcaption style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px"><span style="font-size: 16px; line-height: 22px; font-weight: 700">Del primer mensaje a la inscripción</span><span style="color: #5A6074; font-size: 12.5px; line-height: 22px">Leads que llegaron en septiembre</span></figcaption>
+<sc-for list="{{ embudo }}" as="e" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<sc-if value="{{ e.hayCaida }}">
+<div style="display: grid; grid-template-columns: {{ colsEmbudo }}; gap: 12px; align-items: center">
+<span></span>
+<span style="display: inline-flex; align-items: center; gap: 6px; color: {{ e.tintaCaida }}; font-size: 12.5px; line-height: 16px; font-weight: {{ e.pesoCaida }}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v11.5M5.5 11L10 15.5 14.5 11"></path></svg>{{ e.caidaTexto }}</span>
+<span></span>
+</div>
+</sc-if>
+<div style="display: grid; grid-template-columns: {{ colsEmbudo }}; gap: 12px; align-items: center">
+<span style="font-weight: 600; text-wrap: pretty">{{ e.nombre }}</span>
+<div style="height: 36px; background: #F3F4F8; border-radius: 8px; position: relative; overflow: hidden">
+<div style="position: absolute; inset: 0 auto 0 0; width: {{ e.ancho }}; background: {{ e.color }}; border-radius: 8px; display: flex; align-items: center; justify-content: flex-end; padding: 0 10px; transition: width 180ms cubic-bezier(.2,.8,.2,1)"><span style="color: #FFFFFF; font-weight: 700; font-variant-numeric: tabular-nums">{{ e.valor }}</span></div>
+</div>
+<span style="text-align: right; color: #454B60; font-weight: 700; font-variant-numeric: tabular-nums">{{ e.pct }}</span>
+</div>
+</div>
+</sc-for>
+</figure>
+<figure style="margin: 0; flex: 1 1 280px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; line-height: 22px; font-weight: 700">Por qué se pierden</span><span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ perdidosTexto }}</span></figcaption>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{ motivos }}" as="m" hint-placeholder-count="6">
+<li style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; gap: 12px"><span style="font-weight: 600">{{ m.nombre }}</span><strong style="font-variant-numeric: tabular-nums">{{ m.valor }}</strong></div>
+<div style="height: 10px; border-radius: 5px; background: #E7E9F1; overflow: hidden"><div style="height: 100%; width: {{ m.ancho }}; background: #454B60; border-radius: 5px"></div></div>
+</li>
+</sc-for>
+</ul>
+</figure>
+</div>
+</section>
+
+<section data-seccion="fuentes" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">02</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">¿Qué fuente trae alumnos y a qué costo?</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">{{ fraseFuentes }}</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<sc-for list="{{ kpisFuentes }}" as="k" hint-placeholder-count="3">
+<div style="flex: 1 1 180px; background: {{ k.fondo }}; border: 1px solid {{ k.borde }}; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="color: {{ k.tintaEtiqueta }}; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ k.etiqueta }}</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 28px; line-height: 32px; color: {{ k.tinta }}; font-variant-numeric: tabular-nums">{{ k.valor }}</div>
+<div style="color: {{ k.tintaEtiqueta }}; font-size: 12.5px; line-height: 16px">{{ k.nota }}</div>
+</div>
+</sc-for>
+</div>
+<div role="table" aria-label="Fuentes y campañas" style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; overflow-x: auto">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<div role="row" style="min-width: 860px; display: grid; grid-template-columns: minmax(200px, 1.4fr) minmax(170px, 1.2fr) 90px 110px 100px minmax(170px, 1.2fr); border-bottom: 1px solid #DEE1EA; color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<span role="columnheader" style="padding: 12px 16px">Fuente y campaña</span><span role="columnheader" style="padding: 12px 16px">Leads</span><span role="columnheader" style="padding: 12px 16px; text-align: right">Inscritos</span><span role="columnheader" style="padding: 12px 16px; text-align: right">Conversión</span><span role="columnheader" style="padding: 12px 16px; text-align: right">Gasto</span><span role="columnheader" style="padding: 12px 16px">Costo por alumno inscrito</span>
+</div>
+</sc-if>
+<sc-for list="{{ fuentes }}" as="f" hint-placeholder-count="7">
+<div role="row" style="min-width: {{ minFila }}; display: grid; grid-template-columns: {{ colsFuente }}; align-items: center; border-bottom: 1px solid #DEE1EA; padding: {{ rellenoFila }}; gap: {{ huecoFila }}">
+<span role="cell" style="padding: {{ rellenoCelda }}; display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ f.nombre }}</span><span style="color: #5A6074">{{ f.campana }}</span></span>
+<span role="cell" style="padding: {{ rellenoCelda }}; display: flex; align-items: center; gap: 10px"><span style="flex: 1; height: 10px; border-radius: 5px; background: #E7E9F1; overflow: hidden"><span style="display: block; height: 100%; width: {{ f.anchoLeads }}; background: #3A32D1; border-radius: 5px"></span></span><span style="width: 32px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{ f.leads }}</span></span>
+<span role="cell" style="padding: {{ rellenoCelda }}; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{ f.inscritosTexto }}</span>
+<span role="cell" style="padding: {{ rellenoCelda }}; text-align: right"><span style="display: inline-block; padding: 2px 10px; border-radius: 999px; background: {{ f.fondoConv }}; color: {{ f.tintaConv }}; font-weight: 700; font-variant-numeric: tabular-nums">{{ f.conversion }}</span></span>
+<span role="cell" style="padding: {{ rellenoCelda }}; text-align: right; font-variant-numeric: tabular-nums">{{ f.gasto }}</span>
+<span role="cell" style="padding: {{ rellenoCelda }}; display: flex; align-items: center; gap: 10px"><sc-if value="{{ f.cuesta }}"><span style="flex: 1; height: 10px; border-radius: 5px; background: #E7E9F1; overflow: hidden"><span style="display: block; height: 100%; width: {{ f.anchoCosto }}; background: {{ f.colorCosto }}; border-radius: 5px"></span></span></sc-if><span style="font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap">{{ f.costo }}</span><sc-if value="{{ f.masBarato }}"><span style="padding: 2px 8px; border-radius: 999px; background: #E1F3E7; color: #17603A; font-size: 12px; line-height: 16px; font-weight: 700; white-space: nowrap">Lo más barato</span></sc-if></span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section data-seccion="clases" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">03</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">Clases muestra: quién llega y quién se queda</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">{{ fraseClases }}</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<sc-for list="{{ clases }}" as="c" hint-placeholder-count="3">
+<figure style="margin: 0; flex: 1 1 260px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column">
+<div aria-hidden="true" style="height: 6px; background: {{ c.color }}"></div>
+<div style="padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 17px; line-height: 22px; font-weight: 700">{{ c.nombre }}</span><span style="color: #5A6074; font-size: 12.5px">{{ c.agendadas }} agendadas</span></figcaption>
+<div style="display: flex; gap: 20px">
+<div style="display: flex; flex-direction: column"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 34px; color: {{ c.tinta }}; font-variant-numeric: tabular-nums">{{ c.asistencia }}</span><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">llegaron a su clase</span></div>
+<div style="display: flex; flex-direction: column"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 34px; color: {{ c.tinta }}; font-variant-numeric: tabular-nums">{{ c.cierre }}</span><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">de ellos se inscribió</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{ c.barras }}" as="b" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 112px 1fr 34px; gap: 10px; align-items: center">
+<span style="color: #454B60; font-size: 13px">{{ b.nombre }}</span>
+<span style="height: 14px; border-radius: 7px; background: #F3F4F8; overflow: hidden"><span style="display: block; height: 100%; width: {{ b.ancho }}; background: {{ b.fondo }}; box-shadow: inset 0 0 0 1.5px {{ b.borde }}; border-radius: 7px"></span></span>
+<strong style="text-align: right; font-variant-numeric: tabular-nums">{{ b.valor }}</strong>
+</div>
+</sc-for>
+</div>
+</div>
+</figure>
+</sc-for>
+</div>
+</section>
+
+<section data-seccion="alumnos" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">04</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">Altas, bajas y alumnos activos</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">{{ fraseTendencia }}</p>
+</div>
+<figure onMouseLeave="{{ alSalirMes }}" style="margin: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px">
+<span style="font-size: 16px; line-height: 22px; font-weight: 700">Últimos 12 meses</span>
+<span aria-live="polite" style="display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; line-height: 18px">
+<strong>{{ mesSel.nombre }}</strong>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 3px; background: #3A32D1"></span>Altas <strong style="font-variant-numeric: tabular-nums">{{ mesSel.altas }}</strong></span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 3px; background: #C4544A"></span>Bajas <strong style="font-variant-numeric: tabular-nums">{{ mesSel.bajas }}</strong></span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 14px; height: 0; border-top: 2.5px solid #171A2C"></span>Activos <strong style="font-variant-numeric: tabular-nums">{{ mesSel.activos }}</strong></span>
+</span>
+</figcaption>
+<div style="position: relative; height: 110px">
+<svg aria-hidden="true" viewBox="0 0 1200 110" preserveAspectRatio="none" width="100%" height="110" style="position: absolute; inset: 0; overflow: visible">
+<polyline points="{{ lineaActivos }}" fill="none" stroke="#171A2C" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>
+</svg>
+<sc-for list="{{ meses }}" as="m" hint-placeholder-count="0">
+<span aria-hidden="true" style="position: absolute; left: {{ m.x }}; top: {{ m.yActivo }}; width: {{ m.punto }}; height: {{ m.punto }}; transform: translate(-50%, -50%); border-radius: 999px; background: #FFFFFF; border: 2.5px solid #171A2C"></span>
+</sc-for>
+</div>
+<div role="img" aria-label="{{ tendenciaEtiqueta }}" style="display: flex; height: 170px; position: relative">
+<span aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 100px; height: 1px; background: #C5CAD8"></span>
+<sc-for list="{{ meses }}" as="m" hint-placeholder-count="12">
+<div onMouseEnter="{{ m.alEntrar }}" onClick="{{ m.alEntrar }}" style="flex: 1 1 0; position: relative; border-radius: 8px; background: {{ m.fondo }}; cursor: default">
+<span style="position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); font-size: 12px; line-height: 14px; font-weight: 700; color: #2B2699; font-variant-numeric: tabular-nums; margin-bottom: {{ m.hAlta }}; display: {{ m.verCifras }}">{{ m.altas }}</span>
+<span style="position: absolute; left: 24%; right: 24%; bottom: 70px; height: {{ m.hAlta }}; background: #3A32D1; border-radius: 4px 4px 0 0"></span>
+<span style="position: absolute; left: 24%; right: 24%; top: 101px; height: {{ m.hBaja }}; background: #C4544A; border-radius: 0 0 4px 4px"></span>
+<span style="position: absolute; left: 50%; top: 104px; transform: translateX(-50%); font-size: 12px; line-height: 14px; font-weight: 700; color: #9A3A31; font-variant-numeric: tabular-nums; margin-top: {{ m.hBaja }}; display: {{ m.verCifras }}">{{ m.bajas }}</span>
+<span style="position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 12.5px; line-height: 16px; font-weight: {{ m.peso }}; color: {{ m.tinta }}">{{ m.corto }}</span>
+</div>
+</sc-for>
+</div>
+</figure>
+</section>
+
+<section data-seccion="retencion" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">05</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">¿Cuántos siguen después de inscribirse?</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">De cada 10 alumnos que se inscriben, 7 siguen a los 3 meses y 6 a los 6. El primer mes es el más delicado: ahí se va 1 de cada 10.</p>
+</div>
+<figure style="margin: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-x: auto">
+<figcaption style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px"><span style="font-size: 16px; line-height: 22px; font-weight: 700">Siguen activos, por mes de inscripción</span><span style="color: #5A6074; font-size: 12.5px; line-height: 22px">{{ notaCohortes }}</span></figcaption>
+<div role="table" aria-label="Retención por cohortes" style="min-width: 560px; display: grid; grid-template-columns: 110px 70px repeat(6, minmax(0, 1fr)); gap: 4px">
+<span role="columnheader" style="color: #5A6074; font-size: 12.5px; font-weight: 600; padding: 4px 0">Se inscribieron</span>
+<span role="columnheader" style="color: #5A6074; font-size: 12.5px; font-weight: 600; padding: 4px 0; text-align: right">Alumnos</span>
+<sc-for list="{{ mesesCohorte }}" as="h" hint-placeholder-count="6"><span role="columnheader" style="color: #5A6074; font-size: 12.5px; font-weight: 600; padding: 4px 0; text-align: center">{{ h }}</span></sc-for>
+<sc-for list="{{ cohortes }}" as="c" hint-placeholder-count="7">
+<span role="rowheader" style="font-weight: {{ c.peso }}; padding: 10px 0; display: flex; align-items: center">{{ c.nombre }}</span>
+<span role="cell" style="padding: 10px 0; text-align: right; font-variant-numeric: tabular-nums; color: #454B60; display: flex; align-items: center; justify-content: flex-end">{{ c.altas }}</span>
+<sc-for list="{{ c.celdas }}" as="x" hint-placeholder-count="6"><span role="cell" title="{{ x.titulo }}" style="min-height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: {{ x.fondo }}; color: {{ x.tinta }}; font-weight: 700; font-variant-numeric: tabular-nums; border: {{ x.borde }}">{{ x.texto }}</span></sc-for>
+</sc-for>
+</div>
+</figure>
+</section>
+
+<section data-seccion="dinero" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">06</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">Ingreso recurrente y cartera vencida</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">{{ fraseDinero }}</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+<figure style="margin: 0; flex: 1.6 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 16px; line-height: 22px; font-weight: 700">Ingreso mensual recurrente</span><span style="display: flex; align-items: baseline; gap: 8px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; line-height: 30px; font-variant-numeric: tabular-nums">{{ mrrActual }}</span><span style="padding: 2px 8px; border-radius: 999px; background: #E1F3E7; color: #17603A; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ mrrDelta }}</span></span></figcaption>
+<div style="position: relative; height: 190px">
+<svg aria-hidden="true" viewBox="0 0 1200 190" preserveAspectRatio="none" width="100%" height="190" style="position: absolute; inset: 0; overflow: visible">
+<line x1="0" y1="180" x2="1200" y2="180" stroke="#DEE1EA" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+<path d="{{ areaMrr }}" fill="#3A32D1" fill-opacity="0.10"></path>
+<polyline points="{{ lineaMrr }}" fill="none" stroke="#3A32D1" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>
+</svg>
+<span aria-hidden="true" style="position: absolute; left: {{ mrrUltimoX }}; top: {{ mrrUltimoY }}; width: 12px; height: 12px; transform: translate(-50%, -50%); border-radius: 999px; background: #3A32D1; box-shadow: 0 0 0 4px #ECEBFC"></span>
+<span style="position: absolute; left: 0; top: 0; color: #5A6074; font-size: 12px; font-variant-numeric: tabular-nums">{{ mrrMax }}</span>
+<span style="position: absolute; left: 0; bottom: 14px; color: #5A6074; font-size: 12px; font-variant-numeric: tabular-nums">{{ mrrMin }}</span>
+</div>
+<div aria-hidden="true" style="display: flex">
+<sc-for list="{{ meses }}" as="m" hint-placeholder-count="12"><span style="flex: 1 1 0; text-align: center; font-size: 12.5px; line-height: 16px; color: {{ m.tinta }}; font-weight: {{ m.peso }}">{{ m.corto }}</span></sc-for>
+</div>
+</figure>
+<figure style="margin: 0; flex: 1 1 300px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; flex-direction: column; gap: 6px">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 16px; line-height: 22px; font-weight: 700">Cartera vencida</span>
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 34px; color: #4A2D00; font-variant-numeric: tabular-nums">{{ carteraTotal }}</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ carteraNota }}</span>
+</figcaption>
+<div aria-hidden="true" style="display: flex; height: 18px; border-radius: 9px; overflow: hidden; gap: 2px">
+<sc-for list="{{ cartera }}" as="c" hint-placeholder-count="4"><span style="width: {{ c.ancho }}; background: {{ c.color }}"></span></sc-for>
+</div>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ cartera }}" as="c" hint-placeholder-count="4">
+<li style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="flex: none; width: 12px; height: 12px; border-radius: 4px; background: {{ c.color }}"></span><span style="flex: 1; min-width: 0">{{ c.nombre }} <span style="color: #5A6074">· {{ c.familias }}</span></span><strong style="font-variant-numeric: tabular-nums">{{ c.monto }}</strong></li>
+</sc-for>
+</ul>
+<button type="button" onClick="{{ alVerCartera }}" style="align-self: flex-start; min-height: 44px; padding: 0 16px; background: #FFF0D2; color: #4A2D00; border: 1px solid #F0C56A; border-radius: 10px; font-weight: 700; cursor: pointer" style-hover="background: #FFE6B3">Ver las familias con atraso</button>
+</figure>
+</div>
+</section>
+
+<section data-seccion="ocupacion" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">07</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">¿Cuándo están llenos los salones?</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">Lunes y miércoles de 4 a 6 pm están a reventar; los viernes y el sábado a mediodía sobran lugares. Ahí conviene mover o promover grupos.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+<figure style="margin: 0; flex: 1.6 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px"><span style="font-size: 16px; line-height: 22px; font-weight: 700">Ocupación por día y hora</span><span style="color: #5A6074; font-size: 12.5px; line-height: 22px">{{ notaMapa }}</span></figcaption>
+<div role="table" aria-label="Ocupación por día y hora" style="display: grid; grid-template-columns: 52px repeat(6, minmax(0, 1fr)); gap: 4px">
+<span></span>
+<sc-for list="{{ dias }}" as="d" hint-placeholder-count="6"><span role="columnheader" style="text-align: center; color: #5A6074; font-size: 12.5px; font-weight: 700; padding-bottom: 2px">{{ d }}</span></sc-for>
+<sc-for list="{{ mapa }}" as="r" hint-placeholder-count="9">
+<span role="rowheader" style="display: flex; align-items: center; color: #5A6074; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums">{{ r.hora }}</span>
+<sc-for list="{{ r.celdas }}" as="x" hint-placeholder-count="6"><span role="cell" title="{{ x.titulo }}" style="min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 3px; border-radius: 8px; background: {{ x.fondo }}; color: {{ x.tinta }}; border: {{ x.borde }}; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums">{{ x.texto }}</span></sc-for>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<sc-for list="{{ leyendaMapa }}" as="g" hint-placeholder-count="5"><span style="display: inline-flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 16px; height: 12px; border-radius: 3px; background: {{ g.fondo }}; border: {{ g.borde }}"></span>{{ g.texto }}</span></sc-for>
+</div>
+</figure>
+<div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 22px; font-weight: 700"><span style="color: #6B4100; display: flex"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg></span>A reventar: abrir otro grupo</div>
+<sc-for list="{{ llenos }}" as="g" hint-placeholder-count="3"><div style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #FFF0D2; border-radius: 10px"><span style="min-width: 0"><span style="font-weight: 700">{{ g.nombre }}</span><br><span style="color: #6B4100">{{ g.detalle }}</span></span><strong style="flex: none; color: #4A2D00; font-variant-numeric: tabular-nums">{{ g.cupo }}</strong></div></sc-for>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 16px; line-height: 22px; font-weight: 700">Con lugares: promoverlos</div>
+<sc-for list="{{ vacios }}" as="g" hint-placeholder-count="2"><div style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #F3F4F8; border-radius: 10px"><span style="min-width: 0"><span style="font-weight: 700">{{ g.nombre }}</span><br><span style="color: #5A6074">{{ g.detalle }}</span></span><strong style="flex: none; font-variant-numeric: tabular-nums">{{ g.cupo }}</strong></div></sc-for>
+</div>
+</div>
+</div>
+</section>
+
+<section data-seccion="comparativo" style="display: flex; flex-direction: column; gap: 14px; padding-bottom: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: #3A32D1">08</span><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 30px; letter-spacing: -0.01em">Por disciplina y sucursal</h2></div>
+<p style="margin: 0; color: #454B60; max-width: 72ch; text-wrap: pretty">Karate en Norte es el programa más grande y está casi lleno. Salsa en Norte tiene la deserción más alta: vale la pena preguntar a quienes se fueron.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px">
+<sc-for list="{{ comparativo }}" as="c" hint-placeholder-count="6">
+<div style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 999px; background: {{ c.color }}"></span>{{ c.disciplina }}</span>
+<span style="padding: 2px 8px; background: #ECEDF3; color: #3A3F52; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 600">{{ c.sucursal }}</span>
+</div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 34px; font-variant-numeric: tabular-nums">{{ c.alumnos }}</span><span style="color: #5A6074">alumnos · {{ c.ingreso }} al mes</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: #454B60">Ocupación</span><strong style="font-variant-numeric: tabular-nums">{{ c.ocupacion }}</strong></div>
+<div style="height: 10px; border-radius: 5px; background: #E7E9F1; overflow: hidden"><div style="height: 100%; width: {{ c.ocupacion }}; background: {{ c.color }}; border-radius: 5px"></div></div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px"><span style="color: #454B60">Deserción del mes</span><span style="padding: 2px 8px; border-radius: 999px; background: {{ c.fondoDes }}; color: {{ c.tintaDes }}; font-weight: 700; font-variant-numeric: tabular-nums">{{ c.desercion }}</span></div>
+</div>
+</sc-for>
+</div>
+</section>
+
+</main>
+
+<sc-if value="{{ movil }}">
+<nav aria-label="Secciones" style="flex: none; display: flex; background: #FFFFFF; border-top: 1px solid #DEE1EA; padding: 4px 8px 8px">
+<a href="Hoy-maestro.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>Hoy</a>
+<a href="Pase-de-lista.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<a href="Embudo.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4L3 4z"></path></svg>Embudo</a>
+<a href="Tareas.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z"></path><path d="M6.5 10l2.5 2.5 4.5-5"></path></svg>Tareas</a>
+<a href="Mas.dc.html" aria-current="page" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #3A32D1; font-size: 12.5px; line-height: 16px; font-weight: 700; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10.8a.8.8 0 100-1.6.8.8 0 000 1.6zM4.5 10.8a.8.8 0 100-1.6.8.8 0 000 1.6zM15.5 10.8a.8.8 0 100-1.6.8.8 0 000 1.6z"></path></svg>Más</a>
+</nav>
+</sc-if>
+</div>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28)">
+<span style="min-width: 0">{{ toast }}</span>
+<button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  principal = React.createRef();
+  DISC = {
+    karate: { nombre: 'Karate', color: 'oklch(0.6 0.16 35)', suave: 'oklch(0.95 0.035 35)', medio: 'oklch(0.82 0.08 35)', tinta: 'oklch(0.44 0.13 35)' },
+    ballet: { nombre: 'Ballet clásico', color: 'oklch(0.6 0.16 355)', suave: 'oklch(0.95 0.035 355)', medio: 'oklch(0.82 0.08 355)', tinta: 'oklch(0.44 0.13 355)' },
+    salsa: { nombre: 'Salsa', color: 'oklch(0.6 0.11 190)', suave: 'oklch(0.95 0.03 190)', medio: 'oklch(0.83 0.06 190)', tinta: 'oklch(0.42 0.08 190)' },
+  };
+  W = { karate: { 'Águilas': 61, 'Norte': 99 }, ballet: { 'Águilas': 55, 'Norte': 40 }, salsa: { 'Águilas': 43, 'Norte': 28 } };
+  EMBUDO = [['Llegaron', 236], ['Los contactamos', 189], ['Agendaron clase muestra', 104], ['Asistieron a su clase', 79], ['Recibieron cotización', 56], ['Se inscribieron', 41]];
+  MOTIVOS = [['No contestó', 41], ['Horario', 29], ['Precio', 24], ['Distancia', 14], ['Eligió otra escuela', 11], ['Otro', 9]];
+  FUENTES = [
+    ['Facebook', 'Regreso a clases — Karate', 72, 12, 6840, { karate: 0.7, ballet: 0.2, salsa: 0.1 }],
+    ['Instagram', 'Ballet clásico — temporada', 48, 7, 5180, { karate: 0.2, ballet: 0.7, salsa: 0.1 }],
+    ['TikTok', 'Salsa sin pareja', 39, 6, 2460, { karate: 0.15, ballet: 0.15, salsa: 0.7 }],
+    ['Google', 'Búsqueda local', 22, 3, 2850, { karate: 0.5, ballet: 0.3, salsa: 0.2 }],
+    ['Referido', 'De boca en boca', 26, 8, 0, { karate: 0.45, ballet: 0.35, salsa: 0.2 }],
+    ['En sucursal (QR)', 'Cartel en recepción', 17, 4, 0, { karate: 0.4, ballet: 0.4, salsa: 0.2 }],
+    ['Página de captación', 'Sin campaña', 12, 1, 0, { karate: 0.4, ballet: 0.35, salsa: 0.25 }],
+  ];
+  CLASES = { karate: [46, 37, 22], ballet: [33, 24, 11], salsa: [25, 18, 8] };
+  CORTOS = ['Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep'];
+  LARGOS = ['Octubre 2025', 'Noviembre 2025', 'Diciembre 2025', 'Enero 2026', 'Febrero 2026', 'Marzo 2026', 'Abril 2026', 'Mayo 2026', 'Junio 2026', 'Julio 2026', 'Agosto 2026', 'Septiembre 2026'];
+  ALTAS = [24, 19, 11, 38, 26, 21, 16, 14, 12, 8, 22, 41];
+  BAJAS = [9, 11, 18, 10, 9, 12, 14, 13, 19, 26, 18, 17];
+  ACTIVOS = [251, 259, 252, 280, 297, 306, 308, 309, 302, 284, 288, 312];
+  MRR = [177500, 183100, 178200, 198000, 210000, 216400, 217800, 218500, 213500, 200800, 203600, 220700];
+  COHORTES = [['Marzo', 21, [90, 86, 76, 71, 67, 62]], ['Abril', 16, [88, 81, 75, 69, 63]], ['Mayo', 14, [93, 86, 79, 71]], ['Junio', 12, [83, 75, 67]], ['Julio', 8, [88, 75]], ['Agosto', 22, [91]], ['Septiembre', 41, []]];
+  CARTERA = [['1 a 30 días', 10900, 14, '#F0C56A'], ['31 a 60 días', 4350, 6, '#D9962B'], ['61 a 90 días', 2100, 3, '#A86412'], ['Más de 90 días', 1300, 2, '#6B4100']];
+  HORAS = ['9:00', '10:00', '11:00', '12:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+  DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  OCUP = {
+    'Águilas': [[0, 0, 0, 0, 0, 72], [0, 0, 0, 0, 0, 80], [0, 0, 0, 0, 0, 55], [0, 0, 0, 0, 0, 31], [96, 62, 98, 60, 45, 0], [100, 75, 97, 71, 52, 0], [85, 80, 88, 77, 44, 0], [68, 84, 66, 82, 50, 0], [41, 56, 38, 61, 0, 0]],
+    'Norte': [[0, 0, 0, 0, 0, 80], [0, 0, 0, 0, 0, 86], [0, 0, 0, 0, 0, 61], [0, 0, 0, 0, 0, 37], [88, 66, 92, 62, 51, 0], [100, 81, 99, 77, 58, 0], [91, 84, 94, 81, 48, 0], [74, 88, 72, 86, 54, 0], [47, 60, 44, 65, 0, 0]],
+  };
+  LLENOS = [['Karate Infantil 6-8', 'Lun y Mié 5:00 pm · Norte', '20 de 20', 'Norte'], ['Ballet Baby 3-4', 'Lun y Mié 4:00 pm · Águilas', '12 de 12', 'Águilas'], ['Karate Infantil 3-5', 'Lun y Mié 4:00 pm · Águilas', '14 de 14', 'Águilas']];
+  VACIOS = [['Salsa Adultos Principiantes', 'Vie 7:00 pm · Norte', '6 de 16', 'Norte'], ['Ballet Infantil 9-12', 'Sáb 12:00 pm · Águilas', '5 de 14', 'Águilas']];
+  COMP = [['karate', 'Águilas', 61, 39650, 78, 4.1], ['karate', 'Norte', 99, 64350, 93, 3.2], ['ballet', 'Águilas', 55, 42900, 88, 5.2], ['ballet', 'Norte', 40, 31200, 71, 6.8], ['salsa', 'Águilas', 43, 25800, 74, 6.1], ['salsa', 'Norte', 28, 16800, 52, 9.4]];
+  SECCIONES = [['resumen', 'Resumen'], ['captacion', 'Captación'], ['fuentes', 'Fuentes y costo'], ['clases', 'Clases muestra'], ['alumnos', 'Altas y bajas'], ['retencion', 'Retención'], ['dinero', 'Dinero'], ['ocupacion', 'Ocupación'], ['comparativo', 'Comparativo']];
+
+  state = { movil: false, suc: '', disc: '', mes: 11, activa: 'resumen', toast: null };
+
+  componentDidMount() {
+    const el = this.raiz.current;
+    if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); }
+    this.medir();
+  }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  peso(x) { return '$' + Math.round(x).toLocaleString('es-MX'); }
+  pct(x) { return (Math.round(x * 10) / 10).toLocaleString('es-MX') + ' %'; }
+  factor() { const s = this.state; let t = 0, tot = 0; for (const d in this.W) for (const su in this.W[d]) { tot += this.W[d][su]; if ((!s.disc || s.disc === d) && (!s.suc || s.suc === su)) t += this.W[d][su]; } return t / tot; }
+  factorIngreso() { const s = this.state; let t = 0, tot = 0; for (const c of this.COMP) { tot += c[3]; if ((!s.disc || s.disc === c[0]) && (!s.suc || s.suc === c[1])) t += c[3]; } return t / tot; }
+  ir(id) {
+    const m = this.principal.current, el = m && m.querySelector(`[data-seccion="${id}"]`);
+    if (!m || !el) return;
+    this.setState({ activa: id });
+    m.scrollTo({ top: Math.max(0, el.offsetTop - m.offsetTop - 64), behavior: 'smooth' });
+  }
+  desplazar() {
+    const m = this.principal.current; if (!m) return;
+    let activa = 'resumen';
+    m.querySelectorAll('[data-seccion]').forEach((el) => { if (el.offsetTop - m.offsetTop - 90 <= m.scrollTop) activa = el.getAttribute('data-seccion'); });
+    if (m.scrollTop + m.clientHeight >= m.scrollHeight - 4) activa = 'comparativo';
+    if (activa !== this.state.activa) this.setState({ activa });
+  }
+
+  renderVals() {
+    const s = this.state, D = this.DISC, movil = s.movil, f = this.factor(), fi = this.factorIngreso();
+    const r = (x) => Math.round(x * f);
+    const alcance = [s.disc ? D[s.disc].nombre : 'Todas las disciplinas', s.suc || 'todas las sucursales'].join(' · ');
+    const activos = this.ACTIVOS.map(r), altas = this.ALTAS.map(r), bajas = this.BAJAS.map(r), mrr = this.MRR.map((x) => x * fi);
+    const neto = activos[11] - activos[10], base = activos[10], desercion = base ? (bajas[11] / base) * 100 : 0;
+    const cartera = this.CARTERA.map(([n, m, fam, c]) => [n, m * f, Math.max(1, Math.round(fam * f)), c]);
+    const carteraTotal = cartera.reduce((a, c) => a + c[1], 0);
+    const mrrDelta = ((mrr[11] - mrr[10]) / mrr[10]) * 100;
+    // embudo
+    const emb = this.EMBUDO.map(([n, v]) => [n, r(v)]);
+    let peor = 1;
+    emb.forEach((e, i) => { if (i > 0 && emb[i - 1][1] - e[1] > emb[peor - 1][1] - emb[peor][1]) peor = i; });
+    const embudo = emb.map(([nombre, valor], i) => {
+      const caida = i > 0 ? emb[i - 1][1] - valor : 0, esPeor = i === peor;
+      return { nombre, valor, ancho: Math.max(8, (valor / emb[0][1]) * 100) + '%', pct: Math.round((valor / emb[0][1]) * 100) + ' %', color: i === emb.length - 1 ? '#17603A' : '#3A32D1',
+        hayCaida: i > 0, caidaTexto: i > 0 ? `${caida} no avanzaron (${Math.round((caida / emb[i - 1][1]) * 100)} %)${esPeor ? ' · la mayor caída' : ''}` : '', tintaCaida: esPeor ? '#6B4100' : '#5A6074', pesoCaida: esPeor ? 700 : 600 };
+    });
+    const motivosMax = Math.max(...this.MOTIVOS.map((m) => m[1]));
+    const motivos = this.MOTIVOS.map(([nombre, v]) => ({ nombre, valor: r(v), ancho: (v / motivosMax) * 100 + '%' }));
+    const perdidos = motivos.reduce((a, m) => a + m.valor, 0);
+    // fuentes
+    const sucShare = s.suc ? Object.keys(this.W).reduce((a, d) => a + this.W[d][s.suc], 0) / 326 : 1;
+    const fu = this.FUENTES.map(([nombre, campana, leads, insc, gasto, mix]) => { const k = (s.disc ? mix[s.disc] : 1) * sucShare; return { nombre, campana, leads: Math.max(1, Math.round(leads * k)), insc: Math.round(insc * k), gasto: gasto * k }; });
+    const maxLeads = Math.max(...fu.map((x) => x.leads));
+    const pagadas = fu.filter((x) => x.gasto > 0 && x.insc > 0).map((x) => ({ ...x, costo: x.gasto / x.insc }));
+    const maxCosto = Math.max(1, ...pagadas.map((x) => x.costo)), minCosto = Math.min(...pagadas.map((x) => x.costo));
+    const mejorConv = Math.max(...fu.map((x) => x.insc / x.leads));
+    const fuentes = fu.map((x) => { const costo = x.gasto > 0 && x.insc > 0 ? x.gasto / x.insc : null, conv = x.insc / x.leads; return {
+      nombre: x.nombre, campana: x.campana, leads: x.leads, anchoLeads: (x.leads / maxLeads) * 100 + '%', inscritosTexto: movil ? `${x.insc} inscritos` : x.insc,
+      conversion: Math.round(conv * 100) + ' %', fondoConv: conv === mejorConv ? '#E1F3E7' : '#ECEDF3', tintaConv: conv === mejorConv ? '#17603A' : '#3A3F52',
+      gasto: x.gasto > 0 ? this.peso(x.gasto) : 'Sin gasto', cuesta: costo !== null, costo: costo === null ? (x.gasto > 0 ? 'Sin inscritos' : 'Sin costo') : this.peso(costo),
+      anchoCosto: costo ? (costo / maxCosto) * 100 + '%' : '0%', colorCosto: costo === maxCosto ? '#B3261E' : '#454B60', masBarato: costo !== null && costo === minCosto }; });
+    const gastoTotal = fu.reduce((a, x) => a + x.gasto, 0), inscTotal = fu.reduce((a, x) => a + x.insc, 0), inscPagados = fu.filter((x) => x.gasto > 0).reduce((a, x) => a + x.insc, 0);
+    const ref = fu.find((x) => x.nombre === 'Referido'), barata = pagadas.find((x) => x.costo === minCosto);
+    // clases
+    const discs = s.disc ? [s.disc] : Object.keys(D);
+    const clases = discs.map((d) => { const k = s.suc ? this.W[d][s.suc] / (this.W[d]['Águilas'] + this.W[d]['Norte']) : 1; const [ag, as, ins] = this.CLASES[d].map((v) => Math.round(v * k));
+      return { nombre: D[d].nombre, color: D[d].color, tinta: D[d].tinta, agendadas: ag, asistencia: Math.round((as / ag) * 100) + ' %', cierre: Math.round((ins / as) * 100) + ' %',
+        barras: [['Agendadas', ag, D[d].suave, D[d].color], ['Asistieron', as, D[d].medio, D[d].medio], ['Se inscribieron', ins, D[d].color, D[d].color]].map(([nombre, valor, fondo, borde]) => ({ nombre, valor, fondo, borde, ancho: (valor / ag) * 100 + '%' })) }; });
+    const totC = discs.reduce((a, d) => { const k = s.suc ? this.W[d][s.suc] / (this.W[d]['Águilas'] + this.W[d]['Norte']) : 1; const v = this.CLASES[d]; return [a[0] + v[0] * k, a[1] + v[1] * k, a[2] + v[2] * k]; }, [0, 0, 0]);
+    // tendencia
+    const maxAB = Math.max(...altas, ...bajas, 1), minA = Math.min(...activos), maxA = Math.max(...activos);
+    const yA = (v) => 96 - ((v - minA) / Math.max(1, maxA - minA)) * 82;
+    const sel = s.mes;
+    const meses = activos.map((v, i) => ({
+      corto: movil ? this.CORTOS[i][0] : this.CORTOS[i], x: ((i + 0.5) / 12) * 100 + '%', yActivo: yA(v) + 'px', punto: i === sel ? '12px' : '8px',
+      altas: altas[i], bajas: bajas[i], hAlta: (altas[i] / maxAB) * 82 + 'px', hBaja: (bajas[i] / maxAB) * 52 + 'px',
+      fondo: i === sel ? '#F3F4F8' : 'transparent', peso: i === sel ? 700 : 500, tinta: i === sel ? '#171A2C' : '#5A6074', verCifras: movil && i !== sel ? 'none' : 'block',
+      alEntrar: () => this.state.mes !== i && this.setState({ mes: i }),
+    }));
+    const lineaActivos = activos.map((v, i) => `${(i + 0.5) * 100},${yA(v)}`).join(' ');
+    const minM = Math.min(...mrr) * 0.96, maxM = Math.max(...mrr) * 1.01, yM = (v) => 180 - ((v - minM) / (maxM - minM)) * 165;
+    const ptsM = mrr.map((v, i) => [(i + 0.5) * 100, yM(v)]);
+    const lineaMrr = ptsM.map((p) => p.join(',')).join(' ');
+    const areaMrr = `M${ptsM[0][0]},180 ` + ptsM.map((p) => `L${p[0]},${p[1]}`).join(' ') + ` L${ptsM[11][0]},180 Z`;
+    // ocupación
+    const grid = s.suc ? this.OCUP[s.suc] : this.OCUP['Águilas'].map((fila, i) => fila.map((v, j) => (v && this.OCUP['Norte'][i][j] ? Math.round((v + this.OCUP['Norte'][i][j]) / 2) : 0)));
+    const celda = (v) => (!v ? { fondo: 'repeating-linear-gradient(135deg, #F3F4F8 0 6px, #ECEDF3 6px 12px)', tinta: '#8E95AA', borde: '0', texto: '' } : v >= 95 ? { fondo: '#2B2699', tinta: '#FFFFFF', borde: '2px solid #F0C56A', texto: v + '%' } : v >= 80 ? { fondo: '#3A32D1', tinta: '#FFFFFF', borde: '0', texto: v + '%' } : v >= 60 ? { fondo: '#8C87E6', tinta: '#171A2C', borde: '0', texto: v + '%' } : v >= 40 ? { fondo: '#CFCDF6', tinta: '#2B2699', borde: '0', texto: v + '%' } : { fondo: '#ECEBFC', tinta: '#2B2699', borde: '0', texto: v + '%' });
+    const mapa = this.HORAS.map((hora, i) => ({ hora, celdas: grid[i].map((v, j) => ({ ...celda(v), titulo: v ? `${this.DIAS[j]} ${hora}: ${v} % ocupado` : `${this.DIAS[j]} ${hora}: sin clases` })) }));
+    const cohortes = this.COHORTES.map(([nombre, al, vals]) => ({ nombre, altas: r(al), peso: 600, celdas: [0, 1, 2, 3, 4, 5].map((k) => { const v = vals[k]; if (v === undefined) return { texto: '', fondo: 'transparent', tinta: '#5A6074', borde: '1px dashed #DEE1EA', titulo: 'Todavía no pasa ese tiempo' }; const a = Math.max(0, Math.min(1, (v - 55) / 40)); return { texto: v + '%', fondo: `color-mix(in oklch, #3A32D1 ${Math.round(18 + a * 82)}%, #FFFFFF)`, tinta: a > 0.76 ? '#FFFFFF' : '#171A2C', borde: '0', titulo: `${nombre}: ${v} % sigue al mes ${k + 1}` }; }) }));
+    const prom = [0, 1, 2, 3, 4, 5].map((k) => { const v = this.COHORTES.map((c) => c[2][k]).filter((x) => x !== undefined); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; });
+    cohortes.push({ nombre: 'Promedio', altas: '', peso: 800, celdas: prom.map((v, k) => ({ texto: v ? v + '%' : '', fondo: '#FFFFFF', tinta: '#171A2C', borde: '2px solid #171A2C', titulo: `En promedio, ${v} % sigue al mes ${k + 1}` })) });
+    const comparativo = this.COMP.filter((c) => (!s.disc || c[0] === s.disc) && (!s.suc || c[1] === s.suc)).map(([d, su, al, ing, oc, de]) => ({ disciplina: D[d].nombre, color: D[d].color, sucursal: su, alumnos: al, ingreso: this.peso(ing), ocupacion: oc + '%', desercion: this.pct(de), fondoDes: de >= 8 ? '#FDECEA' : de >= 6 ? '#FFF0D2' : '#E1F3E7', tintaDes: de >= 8 ? '#B3261E' : de >= 6 ? '#6B4100' : '#17603A' }));
+    const chipEstilo = (a) => (a ? { fondo: '#171A2C', tinta: '#FFFFFF', borde: '#171A2C', anillo: '#171A2C' } : { fondo: '#FFFFFF', tinta: '#171A2C', borde: '#C5CAD8', anillo: '#FFFFFF' });
+    const chips = [{ id: '', nombre: 'Todas las disciplinas' }].concat(Object.keys(D).map((k) => ({ id: k, nombre: D[k].nombre, punto: D[k].color }))).map((c) => ({ ...c, ...chipEstilo(s.disc === c.id), activo: s.disc === c.id, hayPunto: !!c.id, alElegir: () => this.setState({ disc: c.id }) }));
+    const kpiOscuro = (etiqueta, valor, nota, tono) => tono === 'alerta' ? { etiqueta, valor, nota, fondo: '#FFF0D2', borde: '#F0C56A', tinta: '#4A2D00', tintaEtiqueta: '#6B4100', tintaNota: '#6B4100' } : { etiqueta, valor, nota, fondo: 'rgba(255,255,255,0.06)', borde: 'rgba(255,255,255,0.14)', tinta: '#FFFFFF', tintaEtiqueta: '#A9AEC6', tintaNota: tono === 'bien' ? '#8FD8A8' : '#C9CDE0' };
+    const pe = emb[peor - 1][0].toLowerCase(), pd = emb[peor][0].toLowerCase(), caidaPeor = emb[peor - 1][1] - emb[peor][1];
+    const mesS = { nombre: this.LARGOS[sel], altas: altas[sel], bajas: bajas[sel], activos: activos[sel] };
+    return {
+      raiz: this.raiz, principal: this.principal, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      topPestanas: movil ? '-8px' : '-28px', rellenoHero: movil ? '22px 20px' : '28px 30px', tamTitular: movil ? '32px' : '42px',
+      suc: s.suc, alSucursal: (e) => this.setState({ suc: e.target.value }), chips, alcance,
+      alDescargar: () => this.aviso('Se descargó el resumen de septiembre (CSV para Excel).'),
+      pestanas: this.SECCIONES.map(([id, nombre]) => { const a = s.activa === id; return { nombre, activa: a, linea: a ? '#3A32D1' : 'transparent', tinta: a ? '#2B2699' : '#454B60', peso: a ? 700 : 600, alIr: () => this.ir(id) }; }),
+      alDesplazar: () => this.desplazar(),
+      titular: `${activos[11]} alumnos activos, ${neto >= 0 ? neto + ' más' : Math.abs(neto) + ' menos'} que en agosto`,
+      frases: [
+        { texto: `Entraron ${altas[11]} alumnos y se fueron ${bajas[11]}: el mejor mes del año, por el regreso a clases.`, color: '#8FD8A8' },
+        { texto: `La mayor caída del embudo está entre «${pe}» y «${pd}»: ${caidaPeor} familias no avanzaron.`, color: '#F0C56A' },
+        { texto: `Lunes y miércoles de 4 a 6 pm están llenos: conviene abrir otro grupo de Karate Infantil.`, color: '#A9AEC6' },
+      ],
+      heroKpis: [
+        kpiOscuro('Ingreso mensual recurrente', this.peso(mrr[11]), `${mrrDelta >= 0 ? '+' : ''}${this.pct(mrrDelta)} frente a agosto`, 'bien'),
+        kpiOscuro('Deserción', this.pct(desercion), `sobre ${base} al inicio del mes`),
+        kpiOscuro('Altas del mes', String(altas[11]), `${emb[0][1]} leads llegaron`, 'bien'),
+        kpiOscuro('Bajas del mes', String(bajas[11]), 'motivo más común: horario'),
+        kpiOscuro('Conversión del embudo', Math.round((emb[5][1] / emb[0][1]) * 100) + ' %', 'de lead a alumno inscrito'),
+        kpiOscuro('Cartera vencida', this.peso(carteraTotal), `${cartera.reduce((a, c) => a + c[2], 0)} familias con atraso`, 'alerta'),
+      ],
+      colsEmbudo: movil ? '96px 1fr 44px' : '190px 1fr 52px', embudo, motivos, perdidosTexto: `${perdidos} leads perdidos en septiembre`,
+      fraseEmbudo: `De ${emb[0][1]} familias que escribieron, ${emb[5][1]} se inscribieron. El punto más débil es entre «${pe}» y «${pd}»: ahí se quedan ${caidaPeor}. «No contestó» y «Horario» explican la mitad de las pérdidas.`,
+      fraseFuentes: ref && barata ? `Los referidos convierten ${Math.round((ref.insc / ref.leads) * 100)} % de sus leads y no cuestan nada. De lo pagado, ${barata.nombre} es lo más barato por alumno (${this.peso(barata.costo)}).` : 'Con este filtro no hay suficientes datos de campañas pagadas.',
+      kpisFuentes: [
+        { etiqueta: 'Gasto en campañas', valor: this.peso(gastoTotal), nota: 'capturado en Costo por campaña', fondo: '#FFFFFF', borde: '#DEE1EA', tinta: '#171A2C', tintaEtiqueta: '#5A6074' },
+        { etiqueta: 'Costo por alumno inscrito', valor: inscPagados ? this.peso(gastoTotal / inscPagados) : '—', nota: 'solo lo que vino de campañas pagadas', fondo: '#ECEBFC', borde: '#3A32D1', tinta: '#2B2699', tintaEtiqueta: '#2B2699' },
+        { etiqueta: 'Inscritos del mes', valor: String(inscTotal), nota: `${inscTotal - inscPagados} sin costo (referidos, QR y página)`, fondo: '#FFFFFF', borde: '#DEE1EA', tinta: '#171A2C', tintaEtiqueta: '#5A6074' },
+      ],
+      fuentes, colsFuente: movil ? '1fr 1fr' : 'minmax(200px, 1.4fr) minmax(170px, 1.2fr) 90px 110px 100px minmax(170px, 1.2fr)', minFila: movil ? '0' : '860px', rellenoFila: movil ? '12px 14px' : '0', huecoFila: movil ? '6px 12px' : '0', rellenoCelda: movil ? '0' : '12px 16px',
+      clases, fraseClases: `${Math.round((totC[1] / totC[0]) * 100)} % de quienes agendan llega a su clase muestra y ${Math.round((totC[2] / totC[1]) * 100)} % de ellos se inscribe. Karate cierra mejor; en ballet y salsa conviene llamar el mismo día de la clase.`,
+      meses, lineaActivos, mesSel: mesS, alSalirMes: () => this.setState({ mes: 11 }), tendenciaEtiqueta: `Altas y bajas por mes. ${mesS.nombre}: ${mesS.altas} altas, ${mesS.bajas} bajas, ${mesS.activos} activos.`,
+      fraseTendencia: `En un año los alumnos activos pasaron de ${activos[0]} a ${activos[11]}. Septiembre trajo ${altas[11]} altas, el mejor mes; julio perdió ${bajas[9]} por vacaciones. Pasa el cursor por un mes para ver sus cifras.`,
+      mesesCohorte: ['Mes 1', 'Mes 2', 'Mes 3', 'Mes 4', 'Mes 5', 'Mes 6'], cohortes, notaCohortes: s.disc || s.suc ? 'Toda la escuela: la retención todavía no se separa por filtro' : 'Toda la escuela',
+      mrrActual: this.peso(mrr[11]), mrrDelta: `${mrrDelta >= 0 ? '+' : ''}${this.pct(mrrDelta)} vs agosto`, lineaMrr, areaMrr, mrrUltimoX: (11.5 / 12) * 100 + '%', mrrUltimoY: yM(mrr[11]) + 'px', mrrMax: this.peso(maxM), mrrMin: this.peso(minM),
+      fraseDinero: `El ingreso recurrente creció ${this.pct(mrrDelta)} en septiembre. De lo vencido, ${Math.round((cartera[0][1] / carteraTotal) * 100)} % tiene menos de 30 días: todavía se recupera con un recordatorio.`,
+      carteraTotal: this.peso(carteraTotal), carteraNota: 'Antigüedad de lo que ya venció', cartera: cartera.map(([nombre, m, fam, color]) => ({ nombre, monto: this.peso(m), familias: fam === 1 ? '1 familia' : `${fam} familias`, color, ancho: (m / carteraTotal) * 100 + '%' })),
+      alVerCartera: () => this.aviso('Se abrió Estado de cuenta con las familias con atraso.'),
+      dias: this.DIAS, mapa, notaMapa: s.suc ? `Sucursal ${s.suc}` : 'Promedio de las dos sucursales',
+      leyendaMapa: [['Menos de 40 %', '#ECEBFC', '0'], ['40 a 59 %', '#CFCDF6', '0'], ['60 a 79 %', '#8C87E6', '0'], ['80 a 94 %', '#3A32D1', '0'], ['95 % o más', '#2B2699', '2px solid #F0C56A'], ['Sin clases', 'repeating-linear-gradient(135deg, #F3F4F8 0 4px, #ECEDF3 4px 8px)', '0']].map(([texto, fondo, borde]) => ({ texto, fondo, borde })),
+      llenos: this.LLENOS.filter((g) => !s.suc || g[3] === s.suc).map(([nombre, detalle, cupo]) => ({ nombre, detalle, cupo })),
+      vacios: this.VACIOS.filter((g) => !s.suc || g[3] === s.suc).map(([nombre, detalle, cupo]) => ({ nombre, detalle, cupo })),
+      comparativo,
+      hayToast: !!s.toast, toast: s.toast || '', toastAbajo: movil ? '84px' : '24px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

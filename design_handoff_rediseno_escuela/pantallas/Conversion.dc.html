@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="embudo" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+
+<div style="flex: none; display: flex; flex-direction: column; gap: 6px">
+<a href="Ficha-lead.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-weight: 700"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg>Volver a la ficha de Gabriela Mora</a>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">{{ titulo }}</h1>
+<div style="color: #5A6074">Lo que ya capturaron el asistente, la página o el maestro se muestra y no se vuelve a pedir.</div>
+</div>
+
+<sc-if value="{{ enCurso }}" hint-placeholder-val="{{ true }}">
+<ol aria-label="Pasos" style="flex: none; margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ pasos }}" as="p" hint-placeholder-count="4">
+<li aria-current="{{ p.actual }}" style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<span aria-hidden="true" style="height: 6px; border-radius: 3px; background: {{ p.barra }}"></span>
+<span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="flex: none; width: 24px; height: 24px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: {{ p.fondo }}; color: {{ p.tinta }}; font-size: 12px; font-weight: 700">{{ p.marca }}</span><span style="min-width: 0; font-weight: {{ p.peso }}; color: {{ p.color }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: {{ p.verTexto }}">{{ p.nombre }}</span></span>
+</li>
+</sc-for>
+</ol>
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px">
+<section style="flex: 1.6 1 440px; min-width: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 16px">
+
+<sc-if value="{{ paso1 }}" hint-placeholder-val="{{ true }}">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 700">La familia</h2>
+<div style="color: #454B60">Salió del registro que llenó el maestro en la clase muestra.</div>
+<sc-for list="{{ familia }}" as="c" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #F3F4F8; border-radius: 12px">
+<span style="min-width: 0; display: flex; flex-direction: column"><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ c.etiqueta }}</span><strong style="font-size: 15px; line-height: 22px">{{ c.valor }}</strong></span>
+<span style="flex: none; display: flex; align-items: center; gap: 8px"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 700"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>Capturado</span><button type="button" onClick="{{ alCorregir }}" style="min-height: 36px; padding: 0 10px; background: transparent; color: #2B2699; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer" style-hover="background: #ECEBFC">Corregir</button></span>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ paso2 }}">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 700">Los alumnos</h2>
+<sc-for list="{{ alumnos }}" as="a" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #DEE1EA; border-radius: 14px">
+<div style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 999px; background: {{ a.color }}"></span><strong style="font-size: 16px">{{ a.nombre }}</strong><span style="color: #5A6074">· {{ a.disciplina }}</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{ a.datos }}" as="x" hint-placeholder-count="3"><span style="padding: 6px 10px; background: #F3F4F8; border-radius: 10px"><span style="color: #5A6074">{{ x.etiqueta }}: </span><strong>{{ x.valor }}</strong></span></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="{{ a.campoId }}" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Apellidos de {{ a.nombre }} <span style="color: #B3261E">*</span></label>
+<input id="{{ a.campoId }}" value="{{ a.apellidos }}" onChange="{{ a.alApellidos }}" placeholder="Como aparecen en el acta" style="width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 2px solid {{ a.borde }}; border-radius: 10px; font-size: 14px">
+<button type="button" onClick="{{ a.alCopiar }}" style="align-self: flex-start; min-height: 32px; padding: 0 8px; margin-left: -8px; background: transparent; color: #2B2699; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer">Usar «Mora Lagos», los del adulto</button>
+</div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ paso3 }}">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 700">Grupo de cada alumno</h2>
+<div style="color: #454B60">Con los lugares reales de hoy. El recomendado es el que eligió el maestro en la clase muestra.</div>
+<sc-for list="{{ grupos }}" as="g" hint-placeholder-count="2">
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+<legend style="padding: 0; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px"><span aria-hidden="true" style="width: 10px; height: 10px; border-radius: 999px; background: {{ g.color }}"></span>{{ g.nombre }} · {{ g.programa }}</legend>
+<sc-for list="{{ g.opciones }}" as="o" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{ o.elegido }}" disabled="{{ o.lleno }}" onClick="{{ o.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 10px 14px; background: {{ o.fondo }}; color: {{ o.tinta }}; border: {{ o.borde }}; border-radius: 12px; text-align: left; cursor: pointer">
+<span style="font-weight: 700">{{ o.horario }}</span>
+<span style="display: flex; align-items: center; gap: 8px"><sc-if value="{{ o.recomendado }}"><span style="padding: 2px 8px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 700">Lo recomendó el maestro</span></sc-if><span style="font-weight: 700; font-variant-numeric: tabular-nums">{{ o.lugares }}</span></span>
+</button>
+</sc-for>
+</fieldset>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ paso4 }}">
+<h2 style="margin: 0; font-size: 18px; line-height: 24px; font-weight: 700">Confirmar</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="inicio" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Primer día de clases</label><select id="inicio" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px"><option>Lunes 19 de octubre</option><option>Martes 13 de octubre</option><option>Lunes 26 de octubre</option></select></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="corte" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Día de pago de cada mes</label><select id="corte" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px"><option>Día 15</option><option>Día 1</option><option>Día 5</option></select></div>
+</div>
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: #F3F4F8; border-radius: 12px; cursor: pointer"><input type="checkbox" checked="{{ reglamento }}" onChange="{{ alReglamento }}" style="width: 20px; height: 20px; margin: 0; flex: none; accent-color: #3A32D1"><span><strong>La familia acepta el reglamento</strong><br><span style="color: #5A6074">Ya lo firmó en la clase muestra el sábado 10 de octubre; puedes volver a confirmarlo aquí.</span></span></label>
+<div style="color: #5A6074">La familia recibe la bienvenida por WhatsApp con el grupo, la sucursal y el primer día de cada alumno.</div>
+</sc-if>
+
+<sc-if value="{{ hayFalta }}"><div style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ falta }}</div></sc-if>
+<div style="display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding-top: 14px; border-top: 1px solid #DEE1EA">
+<button type="button" disabled="{{ bloqueado }}" onClick="{{ alSiguiente }}" style="min-height: 52px; padding: 0 22px; background: {{ fondoBoton }}; color: {{ tintaBoton }}; border: 1px solid {{ fondoBoton }}; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer">{{ textoBoton }}</button>
+<sc-if value="{{ hayAtras }}"><button type="button" onClick="{{ alAtras }}" style="min-height: 52px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Atrás</button></sc-if>
+</div>
+</section>
+
+<aside aria-label="Resumen" style="flex: 1 1 280px; min-width: 0; position: sticky; top: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Resumen</h2>
+<sc-for list="{{ resumen }}" as="r" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid #DEE1EA">
+<div style="display: flex; align-items: center; gap: 8px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: {{ r.color }}"></span><strong>{{ r.alumno }}</strong></div>
+<span style="color: #454B60">{{ r.grupo }}</span>
+<div style="display: flex; justify-content: space-between; color: #454B60"><span>Inscripción</span><span style="font-variant-numeric: tabular-nums">{{ r.inscripcion }}</span></div>
+<div style="display: flex; justify-content: space-between; color: #454B60"><span>Mensualidad</span><span style="font-variant-numeric: tabular-nums">{{ r.mensualidad }}</span></div>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: space-between; color: #17603A; font-weight: 600"><span>Promoción «Hermanos»</span><span>−10 % mensualidad</span></div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px"><span style="font-weight: 700">Primer pago</span><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; line-height: 30px; font-variant-numeric: tabular-nums">{{ total }}</span></div>
+</aside>
+</div>
+</sc-if>
+
+<sc-if value="{{ listo }}">
+<section role="status" style="flex: none; max-width: 640px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 16px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<span aria-hidden="true" style="width: 60px; height: 60px; border-radius: 999px; background: #E1F3E7; color: #17603A; display: flex; align-items: center; justify-content: center"><svg width="30" height="30" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></span>
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 28px; line-height: 32px">Julián y Paula quedaron inscritos</h2>
+<sc-for list="{{ resumen }}" as="r" hint-placeholder-count="2"><div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #F3F4F8; border-radius: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: {{ r.color }}"></span><span><strong>{{ r.alumno }}</strong> · {{ r.grupo }} · empieza el lunes 19 de octubre</span></div></sc-for>
+<div style="color: #454B60">La familia ya recibió la bienvenida por WhatsApp. El lead pasó a «Inscrito» y el primer pago quedó como cargo.</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<a href="Registrar-pago.dc.html" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 20px; background: #3A32D1; color: #FFFFFF; border-radius: 12px; font-size: 16px; font-weight: 700">Registrar el primer pago de {{ total }}</a>
+<a href="Ficha-familia.dc.html" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600">Ver la ficha de la familia</a>
+</div>
+</section>
+</sc-if>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="asesor" activa="embudo" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  NINOS = [{ id: 'j', n: 'Julián', e: 7, nac: '22/03/2019', d: 'Karate', color: 'oklch(0.6 0.16 35)', programa: 'Karate Infantil 6-8', precio: [500, 650], grupos: [['Mar y Jue 4:00 pm', 6, true], ['Lun y Mié 5:00 pm', 3, false], ['Sáb 10:00 am', 0, false]] },
+    { id: 'p', n: 'Paula', e: 5, nac: '04/11/2020', d: 'Ballet clásico', color: 'oklch(0.6 0.16 355)', programa: 'Ballet Infantil 5-8', precio: [600, 780], grupos: [['Lun y Mié 4:00 pm', 2, true], ['Mar y Jue 5:00 pm', 5, false], ['Sáb 9:00 am', 0, false]] }];
+  state = { movil: false, paso: 1, apellidos: { j: '', p: '' }, grupo: { j: 0, p: 0 }, reglamento: true, listo: false };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  dinero(n) { return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2 }); }
+  renderVals() {
+    const s = this.state, movil = s.movil, paso = s.paso;
+    const opcion = (el, lleno) => lleno ? { fondo: '#F3F4F8', tinta: '#6B7085', borde: '1px dashed #DEE1EA' } : el ? { fondo: '#ECEBFC', tinta: '#2B2699', borde: '2px solid #3A32D1' } : { fondo: '#FFFFFF', tinta: '#171A2C', borde: '1px solid #8E95AA' };
+    const faltan = this.NINOS.filter((n) => !s.apellidos[n.id].trim());
+    const puede = paso === 2 ? faltan.length === 0 : paso === 4 ? s.reglamento : true;
+    const resumen = this.NINOS.map((n) => { const [ins, men] = n.precio; return { alumno: `${n.n} ${s.apellidos[n.id].trim() || 'Mora'}`, color: n.color, grupo: `${n.programa} · ${n.grupos[s.grupo[n.id]][0]}`, inscripcion: this.dinero(ins), mensualidad: this.dinero(Math.round(men * 0.9)) }; });
+    const total = this.NINOS.reduce((a, n) => a + n.precio[0] + Math.round(n.precio[1] * 0.9), 0);
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '24px 32px 32px',
+      titulo: s.listo ? 'Inscripción lista' : 'Inscribir a Julián y Paula', enCurso: !s.listo, listo: s.listo,
+      pasos: ['Familia', 'Alumnos', 'Grupos', 'Confirmar'].map((nombre, i) => { const k = i + 1, hecho = k < paso, actual = k === paso; return { nombre, marca: hecho ? '✓' : String(k), actual: actual ? 'step' : undefined, barra: k <= paso ? '#3A32D1' : '#E7E9F1', fondo: hecho || actual ? '#3A32D1' : '#E7E9F1', tinta: hecho || actual ? '#FFFFFF' : '#454B60', peso: actual ? 700 : 600, color: actual ? '#171A2C' : '#5A6074', verTexto: movil && !actual ? 'none' : 'inline' }; }),
+      paso1: paso === 1, paso2: paso === 2, paso3: paso === 3, paso4: paso === 4, hayAtras: paso > 1,
+      familia: [['Adulto responsable', 'Gabriela Mora Lagos'], ['Teléfono', '55 9901 0045'], ['Correo', 'gabriela.mora@correo.mx'], ['Responsable de pago', 'Gabriela Mora Lagos'], ['También recoge', 'Ernesto Mora (abuelo)']].map(([etiqueta, valor]) => ({ etiqueta, valor })),
+      alCorregir: () => {},
+      alumnos: this.NINOS.map((n) => ({ nombre: n.n, disciplina: n.d, color: n.color, campoId: 'ap-' + n.id, apellidos: s.apellidos[n.id], borde: s.apellidos[n.id].trim() ? '#8E95AA' : '#3A32D1',
+        datos: [['Nombre', n.n], ['Fecha de nacimiento', n.nac], ['Edad', `${n.e} años`]].map(([etiqueta, valor]) => ({ etiqueta, valor })),
+        alApellidos: (e) => { const v = e.target.value; this.setState((st) => ({ apellidos: { ...st.apellidos, [n.id]: v } })); },
+        alCopiar: () => this.setState((st) => ({ apellidos: { ...st.apellidos, [n.id]: 'Mora Lagos' } })) })),
+      grupos: this.NINOS.map((n) => ({ nombre: n.n, programa: n.programa, color: n.color, opciones: n.grupos.map(([horario, lugares, rec], i) => ({ horario, lugares: lugares ? `${lugares} lugares` : 'Lleno · lista de espera', recomendado: rec, lleno: !lugares, elegido: s.grupo[n.id] === i, ...opcion(s.grupo[n.id] === i, !lugares), alElegir: () => lugares && this.setState((st) => ({ grupo: { ...st.grupo, [n.id]: i } })) })) })),
+      reglamento: s.reglamento, alReglamento: (e) => this.setState({ reglamento: e.target.checked }),
+      resumen, total: this.dinero(total),
+      hayFalta: !puede, falta: paso === 2 ? `Falta: apellidos de ${faltan.map((n) => n.n).join(' y ')}.` : 'Falta que la familia acepte el reglamento.',
+      bloqueado: !puede, fondoBoton: puede ? '#3A32D1' : '#F3F4F8', tintaBoton: puede ? '#FFFFFF' : '#6B7085', textoBoton: paso < 4 ? 'Siguiente' : 'Inscribir a Julián y Paula',
+      alSiguiente: () => { if (!puede) return; if (paso < 4) this.setState({ paso: paso + 1 }); else this.setState({ listo: true }); },
+      alAtras: () => this.setState({ paso: Math.max(1, paso - 1) }),
+    };
+  }
+}
+</script>
+</body>
+</html>

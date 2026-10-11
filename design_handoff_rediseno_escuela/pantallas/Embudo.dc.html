@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes velo{from{opacity:0}to{opacity:1}}
+@keyframes desliza{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes subeCentro{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<nav aria-label="Secciones" style="flex: 0 0 232px; width: 232px; height: 100%; overflow-y: auto; scrollbar-width: none; background: #171A2C; color: #C9CDE0; display: flex; flex-direction: column; gap: 14px; padding: 16px 14px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 0 6px">
+<div aria-hidden="true" style="flex: none; width: 40px; height: 40px; border-radius: 12px; background: #3A32D1; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 16px">AN</div>
+<div style="min-width: 0; color: #FFFFFF; font-weight: 700; font-size: 15px; line-height: 20px">Academia Nova</div>
+</div>
+<div style="padding: 0 6px">
+<label for="sucursal-lateral" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Sucursal</label>
+<select id="sucursal-lateral" value="{{ sucursal }}" onChange="{{ alSucursal }}" style="width: 100%; min-height: 44px; padding: 0 12px; background: transparent; color: #C9CDE0; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; font-size: 12.5px; cursor: pointer">
+<option value="" style="color: #171A2C; background: #FFFFFF">Todas mis sucursales</option>
+<option value="Águilas" style="color: #171A2C; background: #FFFFFF">Águilas</option>
+<option value="Norte" style="color: #171A2C; background: #FFFFFF">Norte</option>
+</select>
+</div>
+<div style="display: flex; flex-direction: column">
+<div style="padding: 6px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Clases</div>
+<a href="Hoy-maestro.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>Hoy</a>
+<a href="Pase-de-lista.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Captación</div>
+<a href="Embudo.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; background: rgba(255,255,255,0.12); color: #FFFFFF; font-weight: 700"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4L3 4z"></path></svg>Embudo</a>
+<a href="Tareas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z"></path><path d="M6.5 10l2.5 2.5 4.5-5"></path></svg>Tareas</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Cobranza</div>
+<a href="Registrar-pago.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h11a2 2 0 012 2v7a2 2 0 01-2 2h-11a2 2 0 01-2-2v-7a2 2 0 012-2z"></path><path d="M2.5 8.5h15M5.5 12.5h3"></path></svg>Registrar pago</a>
+<a href="Estado-de-cuenta.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5v-15z"></path><path d="M8 7h4M8 10.5h4"></path></svg>Estado de cuenta</a>
+<a href="Uniformes.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3L3 5.5l1.5 3L6.5 8v9h7V8l2 .5 1.5-3L13 3c-.4 1.3-1.5 2-3 2s-2.6-.7-3-2z"></path></svg>Uniformes</a>
+<a href="Ventas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h2l2 9h8.5l1.5-6H6"></path><path d="M7.5 16.7a.7.7 0 100-1.4.7.7 0 000 1.4zM14 16.7a.7.7 0 100-1.4.7.7 0 000 1.4z"></path></svg>Ventas</a>
+<a href="Cierre-del-dia.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2v-11a2 2 0 012-2z"></path><path d="M7 6.5h6M7 10h6M7 13.5h3"></path></svg>Cierre del día</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Escuela</div>
+<a href="Tableros.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h14M6 14V9M10 14V5M14 14v-3"></path></svg>Tableros</a>
+<a href="Alumnos.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 10a3 3 0 100-6 3 3 0 000 6z"></path><path d="M2.5 16.5c.6-2.8 2.5-4.2 5-4.2s4.4 1.4 5 4.2"></path><path d="M13 4.3a3 3 0 010 5.4M15 12.6c1.4.6 2.2 1.9 2.5 3.9"></path></svg>Alumnos</a>
+<a href="Familias.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L10 3l7 6.5"></path><path d="M5 8.5V17h10V8.5"></path><path d="M8.5 17v-4.5h3V17"></path></svg>Familias</a>
+<a href="Administracion.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"></path><path d="M16.2 10l1.3.8-1.3 2.2-1.5-.4a5.5 5.5 0 01-1.3.8l-.4 1.6H10.3l-.4-1.6a5.5 5.5 0 01-1.3-.8l-1.5.4-1.3-2.2L7 10a5.6 5.6 0 010-1.6l-1.3-.8 1.3-2.2 1.5.4a5.5 5.5 0 011.3-.8l.4-1.6h2.4l.4 1.6a5.5 5.5 0 011.3.8l1.5-.4 1.3 2.2-1.3.8c.1.5.1 1.1 0 1.6z"></path></svg>Administración</a>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 4px; padding: 10px 0 0 6px; border-top: 1px solid rgba(255,255,255,0.14)">
+<a href="Mas.dc.html" aria-label="Mi cuenta (Adela Ramírez)" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; color: #FFFFFF; font-weight: 600">
+<span aria-hidden="true" style="flex: none; width: 36px; height: 36px; border-radius: 999px; background: #2B3050; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700">AR</span>
+<span style="min-width: 0; display: flex; flex-direction: column"><span>Adela Ramírez</span><span style="color: #A9AEC6; font-size: 12.5px; line-height: 16px; font-weight: 500">Administración</span></span>
+</a>
+<a href="Acceso.dc.html" aria-label="Salir" title="Salir" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 10px; color: #A9AEC6; cursor: pointer" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5H5.5a1 1 0 00-1 1v11a1 1 0 001 1H8"></path><path d="M12.5 6.5L16 10l-3.5 3.5M16 10H8"></path></svg></a>
+</div>
+</nav>
+</sc-if>
+
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+
+<sc-if value="{{ movil }}">
+<header style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 2px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="color: #5A6074; font-size: 13px; line-height: 18px; font-weight: 600">Academia Nova</span>
+<label for="sucursal-cabecera" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Sucursal</label>
+<select id="sucursal-cabecera" value="{{ sucursal }}" onChange="{{ alSucursal }}" style="min-height: 36px; max-width: 14rem; padding: 0 8px; margin-left: -8px; background: transparent; color: #171A2C; border: 0; border-radius: 10px; font-weight: 700">
+<option value="">Todas mis sucursales</option>
+<option value="Águilas">Águilas</option>
+<option value="Norte">Norte</option>
+</select>
+</div>
+<a href="Mas.dc.html" aria-label="Mi cuenta (Adela Ramírez)" style="flex: none; width: 44px; height: 44px; border-radius: 999px; background: #171A2C; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px">AR</a>
+</header>
+</sc-if>
+
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Embudo</h1>
+<div style="color: #5A6074">{{ subtitulo }}</div>
+</div>
+<div style="flex: 1 1 340px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px">
+<label style="flex: 1 1 260px; max-width: {{ anchoBusqueda }}; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; color: #5A6074">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11z"></path><path d="M13.5 13.5L17 17"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Buscar lead</span>
+<input type="search" value="{{ busqueda }}" onChange="{{ alBuscar }}" placeholder="Buscar por nombre, niño o teléfono" style="flex: 1; min-width: 0; min-height: 42px; border: 0; outline: 0; background: transparent; color: #171A2C; font-size: 14px">
+</label>
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<button type="button" onClick="{{ alDescargar }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8; border-color: #8E95AA">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9M6.5 8.5L10 12l3.5-3.5M4 15.5h12"></path></svg>
+Descargar lista</button>
+</sc-if>
+</div>
+</div>
+
+<sc-if value="{{ verIndicadores }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<div style="flex: 1.3 1 200px; background: #ECEBFC; border: 1px solid #3A32D1; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="color: #2B2699; font-size: 12.5px; line-height: 16px; font-weight: 600">Leads abiertos</div>
+<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 36px; line-height: 40px; color: #2B2699; font-variant-numeric: tabular-nums">{{ kpiAbiertos }}</div>
+<div style="color: #2B2699; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ kpiAbiertosNota }}</div>
+</div>
+</div>
+<div style="flex: 1 1 150px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Nuevos sin contactar</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 28px; line-height: 40px; font-variant-numeric: tabular-nums">{{ kpiNuevos }}</div>
+</div>
+<div style="flex: 1 1 150px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Clases muestra agendadas</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 28px; line-height: 40px; font-variant-numeric: tabular-nums">{{ kpiClases }}</div>
+</div>
+<div style="flex: 1.3 1 220px; background: #FFF0D2; border: 1px solid #F0C56A; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 6px; color: #6B4100; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg>
+Llevan días sin movimiento</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 28px; line-height: 40px; color: #4A2D00; font-variant-numeric: tabular-nums">{{ kpiEstancados }}</div>
+<button type="button" onClick="{{ alVerEstancados }}" style="min-height: 40px; padding: 0 14px; background: #FFFFFF; color: #4A2D00; border: 1px solid #F0C56A; border-radius: 10px; font-weight: 700; cursor: pointer" style-hover="background: #FFF8E8">{{ textoVerEstancados }}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0">
+<div role="group" aria-label="Disciplina" style="display: flex; gap: 6px; overflow-x: auto; max-width: 100%; scrollbar-width: none">
+<sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{ c.activo }}" onClick="{{ c.alElegir }}" style="flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid {{ c.borde }}; background: {{ c.fondo }}; color: {{ c.tinta }}; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background-color 120ms, color 120ms">
+<sc-if value="{{ c.hayPunto }}"><span aria-hidden="true" style="width: 9px; height: 9px; border-radius: 999px; background: {{ c.punto }}; box-shadow: 0 0 0 2px {{ c.anilloPunto }}"></span></sc-if>
+{{ c.nombre }}
+<span style="font-variant-numeric: tabular-nums; font-weight: 700; opacity: 0.8">{{ c.cuenta }}</span>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px">
+<label for="fuente" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Fuente</label>
+<select id="fuente" value="{{ fuente }}" onChange="{{ alFuente }}" style="min-height: 44px; min-width: 190px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px; cursor: pointer">
+<option value="">Todas las fuentes</option>
+<sc-for list="{{ fuentes }}" as="f" hint-placeholder-count="0"><option value="{{ f.id }}">{{ f.nombre }}</option></sc-for>
+</select>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 500; cursor: pointer">
+<input type="checkbox" checked="{{ soloEstancados }}" onChange="{{ alEstancados }}" style="width: 20px; height: 20px; margin: 0; accent-color: #3A32D1">
+Solo estancados</label>
+</div>
+</div>
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<div role="group" aria-label="Vista del embudo" style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px">
+<button type="button" aria-pressed="{{ esTablero }}" onClick="{{ alTablero }}" style="min-height: 36px; padding: 0 18px; background: {{ fondoTablero }}; color: #171A2C; border: 0; border-radius: 9px; font-weight: {{ pesoTablero }}; box-shadow: {{ sombraTablero }}; cursor: pointer">Tablero</button>
+<button type="button" aria-pressed="{{ esLista }}" onClick="{{ alLista }}" style="min-height: 36px; padding: 0 18px; background: {{ fondoLista }}; color: #171A2C; border: 0; border-radius: 9px; font-weight: {{ pesoLista }}; box-shadow: {{ sombraLista }}; cursor: pointer">Lista</button>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ sinResultados }}">
+<div style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 12px; color: #5A6074">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11z"></path><path d="M13.5 13.5L17 17"></path></svg>
+<div style="min-width: 0"><div style="font-weight: 700; color: #171A2C">No hay leads con estos filtros</div><div>Borra la búsqueda, quita «Solo estancados» o elige «Todas las fuentes» para ver más.</div></div>
+<button type="button" onClick="{{ alLimpiar }}" style="margin-left: auto; flex: none; min-height: 40px; padding: 0 14px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">Quitar filtros</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ verTablero }}" hint-placeholder-val="{{ true }}">
+<div ref="{{ tableroRef }}" style="flex: 1 1 auto; min-height: 460px; display: flex; align-items: stretch; gap: 12px; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 10px">
+<sc-for list="{{ columnas }}" as="col" hint-placeholder-count="5">
+<sc-if value="{{ col.abierta }}" hint-placeholder-val="{{ true }}">
+<section data-columna="{{ col.id }}" aria-label="{{ col.nombre }}" style="flex: 1 0 268px; min-width: 268px; max-width: 340px; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 8px 10px 10px; border-radius: 16px; background: {{ col.fondo }}; box-shadow: {{ col.sombra }}; transition: background-color 120ms cubic-bezier(.2,.8,.2,1), box-shadow 120ms cubic-bezier(.2,.8,.2,1)">
+<div style="display: flex; align-items: center; gap: 8px; padding: 2px 0 0 6px">
+<h2 style="margin: 0; flex: 1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ col.nombre }}</h2>
+<span style="min-width: 28px; padding: 2px 8px; text-align: center; background: #FFFFFF; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700; font-variant-numeric: tabular-nums">{{ col.total }}</span>
+<button type="button" onClick="{{ col.alPlegar }}" aria-label="{{ col.plegarEtiqueta }}" title="Plegar columna" style="flex: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; color: #5A6074; border: 0; border-radius: 8px; cursor: pointer" style-hover="background: rgba(23,26,44,0.06); color: #171A2C"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg></button>
+</div>
+<sc-if value="{{ col.hayEstancados }}">
+<div style="display: flex; align-items: center; gap: 6px; padding: 0 6px; color: #6B4100; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg>
+{{ col.estancadosTexto }}</div>
+</sc-if>
+<div style="flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px 4px 4px 2px; margin: 0 -2px 0 -2px">
+<sc-if value="{{ col.esDestino }}">
+<div style="flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 10px 12px; border: 2px dashed {{ col.colorDestino }}; border-radius: 12px; color: {{ col.colorDestino }}; font-weight: 700; text-align: center">{{ col.textoDestino }}</div>
+</sc-if>
+<sc-for list="{{ col.leads }}" as="l" hint-placeholder-count="3">
+<article data-lead="{{ l.id }}" tabindex="0" aria-label="{{ l.etiqueta }}" onPointerDown="{{ l.alPresionar }}" onClick="{{ l.alClic }}" onKeyDown="{{ l.alTeclear }}" style="position: relative; flex: none; background: #FFFFFF; border-radius: 12px; padding: 12px 10px 6px 12px; display: flex; flex-direction: column; gap: 6px; cursor: grab; user-select: none; outline: {{ l.contorno }}; outline-offset: -2px; opacity: {{ l.opacidad }}; box-shadow: 0 1px 2px rgba(23,26,44,0.08), 0 2px 6px -2px rgba(23,26,44,0.10); transition: box-shadow 120ms cubic-bezier(.2,.8,.2,1), transform 120ms cubic-bezier(.2,.8,.2,1), opacity 120ms" style-hover="box-shadow: 0 10px 24px -8px rgba(23,26,44,0.30); transform: translateY(-1px)">
+<div style="display: flex; align-items: flex-start; gap: 10px">
+<button type="button" aria-pressed="{{ l.seleccionado }}" aria-label="{{ l.seleccionEtiqueta }}" title="Seleccionar" onClick="{{ l.alSeleccionar }}" style="flex: none; width: 32px; height: 32px; margin-top: -3px; border-radius: 999px; border: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: {{ l.fondoAvatar }}; color: {{ l.tintaAvatar }}; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; cursor: pointer" style-hover="box-shadow: 0 0 0 2px #3A32D1">
+<sc-if value="{{ l.seleccionado }}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></sc-if>
+<sc-if value="{{ l.noSeleccionado }}" hint-placeholder-val="{{ true }}">{{ l.iniciales }}</sc-if>
+</button>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px">
+<span style="min-width: 0; font-weight: 700; font-size: 15px; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -4px">{{ l.nombre }}</span>
+<sc-if value="{{ l.estancado }}"><span title="{{ l.estancadoEtiqueta }}" aria-label="{{ l.estancadoEtiqueta }}" style="flex: none; margin-top: -3px; display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; background: #FFF0D2; color: #6B4100; border: 1px solid #F0C56A; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 700; font-variant-numeric: tabular-nums"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg>{{ l.diasTexto }}</span></sc-if>
+<sc-if value="{{ l.noEstancado }}"><span title="Último movimiento" style="flex: none; color: #5A6074; font-size: 12.5px; line-height: 16px; font-variant-numeric: tabular-nums">{{ l.tiempo }}</span></sc-if>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px">
+<sc-for list="{{ l.discs }}" as="d" hint-placeholder-count="1"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: {{ d.suave }}; color: {{ d.tinta }}; font-size: 12px; line-height: 16px; font-weight: 700"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: {{ d.color }}"></span>{{ d.nombre }}</span></sc-for>
+<span style="color: #454B60; font-size: 13px; line-height: 18px">{{ l.ninos }}</span>
+</div>
+<sc-if value="{{ l.hayDetalle }}">
+<div style="display: flex; align-items: center; gap: 6px; color: {{ l.colorDetalle }}; font-weight: 600; font-size: 13px; line-height: 18px">
+<sc-if value="{{ l.icoClase }}"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg></sc-if>
+<sc-if value="{{ l.icoAsistio }}"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></sc-if>
+<sc-if value="{{ l.icoCotiza }}"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h11a2 2 0 012 2v7a2 2 0 01-2 2h-11a2 2 0 01-2-2v-7a2 2 0 012-2z"></path><path d="M2.5 8.5h15M5.5 12.5h3"></path></svg></sc-if>
+<sc-if value="{{ l.icoMotivo }}"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10M15 5L5 15"></path></svg></sc-if>
+<span style="min-width: 0">{{ l.detalle }}</span>
+</div>
+</sc-if>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px">
+<span style="min-width: 0; color: #5A6074; font-size: 12.5px; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ l.meta }}</span>
+<div style="flex: none; display: flex; gap: 2px">
+<button type="button" onClick="{{ l.alChat }}" aria-label="{{ l.chatEtiqueta }}" title="Abrir conversación" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 9px; cursor: pointer" style-hover="background: #E7E9F1; color: #171A2C"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h12a1 1 0 011 1v7.5a1 1 0 01-1 1H9l-4 3v-3H4a1 1 0 01-1-1V5.5a1 1 0 011-1z"></path></svg></button>
+<sc-if value="{{ l.hayAccion2 }}">
+<button type="button" onClick="{{ l.alAccion2 }}" aria-label="{{ l.accion2Etiqueta }}" title="{{ l.accion2Etiqueta }}" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 9px; cursor: pointer" style-hover="background: #E7E9F1; color: #171A2C">
+<sc-if value="{{ l.accion2Agendar }}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg></sc-if>
+<sc-if value="{{ l.accion2Inscribir }}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z"></path><path d="M6.8 10.3l2.2 2.2 4.2-4.6"></path></svg></sc-if>
+</button>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+</article>
+</sc-for>
+<sc-if value="{{ col.vacia }}">
+<div style="flex: none; padding: 16px 12px; border: 1px dashed #A9AEC6; border-radius: 12px; color: #454B60; text-align: center; text-wrap: pretty">{{ col.vacio }}</div>
+</sc-if>
+</div>
+</section>
+</sc-if>
+<sc-if value="{{ col.plegada }}">
+<section data-columna="{{ col.id }}" aria-label="{{ col.nombre }}" style="flex: 0 0 56px; width: 56px; display: flex; border-radius: 16px; background: {{ col.fondo }}; box-shadow: {{ col.sombra }}; transition: background-color 120ms, box-shadow 120ms">
+<button type="button" onClick="{{ col.alPlegar }}" aria-label="{{ col.desplegarEtiqueta }}" title="Desplegar columna" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0; background: transparent; border: 0; border-radius: 16px; color: #171A2C; cursor: pointer" style-hover="background: rgba(23,26,44,0.04)">
+<span style="min-width: 28px; padding: 2px 8px; text-align: center; background: #FFFFFF; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700; font-variant-numeric: tabular-nums">{{ col.total }}</span>
+<sc-if value="{{ col.esGanado }}"><span aria-hidden="true" style="color: #17603A; display: flex"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z"></path><path d="M6.8 10.3l2.2 2.2 4.2-4.6"></path></svg></span></sc-if>
+<sc-if value="{{ col.esPerdido }}"><span aria-hidden="true" style="color: #B3261E; display: flex"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z"></path><path d="M5 5l10 10"></path></svg></span></sc-if>
+<span style="writing-mode: vertical-rl; font-weight: 700; font-size: 14px; line-height: 20px">{{ col.nombre }}</span>
+<sc-if value="{{ col.esDestino }}"><span style="writing-mode: vertical-rl; color: {{ col.colorDestino }}; font-weight: 700; font-size: 12.5px">{{ col.textoDestino }}</span></sc-if>
+</button>
+</section>
+</sc-if>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ verLista }}">
+<div role="table" aria-label="Leads" style="flex: none; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; overflow-x: auto">
+<div role="row" style="min-width: 940px; display: grid; grid-template-columns: 52px minmax(180px, 1.3fr) minmax(200px, 1.4fr) minmax(150px, 1fr) minmax(130px, 0.9fr) 92px 120px 96px; align-items: center; border-bottom: 1px solid #DEE1EA; color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">
+<span role="columnheader" style="padding: 12px 0 12px 14px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Seleccionar</span></span>
+<span role="columnheader" style="padding: 12px 14px">Contacto</span>
+<span role="columnheader" style="padding: 12px 14px">Interés</span>
+<span role="columnheader" style="padding: 12px 14px">Etapa</span>
+<span role="columnheader" style="padding: 12px 14px">Fuente</span>
+<span role="columnheader" style="padding: 12px 14px">Sucursal</span>
+<span role="columnheader" style="padding: 12px 14px">Último movimiento</span>
+<span role="columnheader" style="padding: 12px 14px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Acciones</span></span>
+</div>
+<sc-for list="{{ filasLista }}" as="l" hint-placeholder-count="6">
+<div role="row" onClick="{{ l.alClic }}" style="min-width: 940px; display: grid; grid-template-columns: 52px minmax(180px, 1.3fr) minmax(200px, 1.4fr) minmax(150px, 1fr) minmax(130px, 0.9fr) 92px 120px 96px; align-items: center; border-bottom: 1px solid #DEE1EA; background: {{ l.fondoFila }}; cursor: pointer" style-hover="background: #F3F4F8">
+<span role="cell" style="padding: 8px 0 8px 14px"><button type="button" aria-pressed="{{ l.seleccionado }}" aria-label="{{ l.seleccionEtiqueta }}" onClick="{{ l.alSeleccionar }}" style="width: 32px; height: 32px; border-radius: 999px; border: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: {{ l.fondoAvatar }}; color: {{ l.tintaAvatar }}; font-size: 12px; font-weight: 700; cursor: pointer" style-hover="box-shadow: 0 0 0 2px #3A32D1"><sc-if value="{{ l.seleccionado }}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></sc-if><sc-if value="{{ l.noSeleccionado }}">{{ l.iniciales }}</sc-if></button></span>
+<span role="cell" style="padding: 10px 14px; min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ l.nombre }}</span><span style="color: #5A6074; font-variant-numeric: tabular-nums">{{ l.tel }}</span></span>
+<span role="cell" style="padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px"><sc-for list="{{ l.discs }}" as="d" hint-placeholder-count="1"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: {{ d.suave }}; color: {{ d.tinta }}; font-size: 12px; line-height: 16px; font-weight: 700"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: {{ d.color }}"></span>{{ d.nombre }}</span></sc-for><span style="color: #454B60">{{ l.ninos }}</span></span>
+<span role="cell" style="padding: 10px 14px"><span style="display: inline-block; padding: 4px 10px; border-radius: 999px; background: {{ l.etapaFondo }}; color: {{ l.etapaTinta }}; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ l.etapaNombre }}</span></span>
+<span role="cell" style="padding: 10px 14px">{{ l.fuenteNombre }}</span>
+<span role="cell" style="padding: 10px 14px">{{ l.suc }}</span>
+<span role="cell" style="padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px"><span style="font-variant-numeric: tabular-nums">{{ l.haceTexto }}</span><sc-if value="{{ l.estancado }}"><span style="padding: 1px 7px; background: #FFF0D2; color: #6B4100; border: 1px solid #F0C56A; border-radius: 6px; font-size: 12px; line-height: 16px; font-weight: 700">Estancado</span></sc-if></span>
+<span role="cell" style="padding: 6px 10px; display: flex; justify-content: flex-end; gap: 2px">
+<button type="button" onClick="{{ l.alChat }}" aria-label="{{ l.chatEtiqueta }}" title="Abrir conversación" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1; color: #171A2C"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h12a1 1 0 011 1v7.5a1 1 0 01-1 1H9l-4 3v-3H4a1 1 0 01-1-1V5.5a1 1 0 011-1z"></path></svg></button>
+<button type="button" onClick="{{ l.alMover }}" aria-label="{{ l.moverEtiqueta }}" title="Mover de etapa" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1; color: #171A2C"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11M11 5.5l4.5 4.5-4.5 4.5"></path></svg></button>
+</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ movil }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px">
+<div role="tablist" aria-label="Etapas" style="flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px">
+<sc-for list="{{ pildoras }}" as="p" hint-placeholder-count="5">
+<button type="button" role="tab" aria-selected="{{ p.activo }}" onClick="{{ p.alElegir }}" style="flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid {{ p.borde }}; background: {{ p.fondo }}; color: {{ p.tinta }}; font-weight: 600; white-space: nowrap; cursor: pointer">{{ p.nombre }}<span style="font-weight: 700; font-variant-numeric: tabular-nums">{{ p.total }}</span></button>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">{{ etapaMovilNombre }}</h2>
+<button type="button" onClick="{{ alModoSel }}" style="min-height: 44px; padding: 0 14px; background: {{ fondoModoSel }}; color: {{ tintaModoSel }}; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 700; cursor: pointer">{{ textoModoSel }}</button>
+</div>
+<sc-for list="{{ listaMovil }}" as="l" hint-placeholder-count="3">
+<article tabindex="0" aria-label="{{ l.etiqueta }}" onClick="{{ l.alClic }}" style="background: #FFFFFF; border-radius: 14px; padding: 14px 12px 8px 14px; display: flex; flex-direction: column; gap: 6px; outline: {{ l.contorno }}; outline-offset: -2px; box-shadow: 0 1px 2px rgba(23,26,44,0.08), 0 2px 6px -2px rgba(23,26,44,0.10)">
+<div style="display: flex; align-items: flex-start; gap: 12px">
+<button type="button" aria-pressed="{{ l.seleccionado }}" aria-label="{{ l.seleccionEtiqueta }}" onClick="{{ l.alSeleccionar }}" style="flex: none; width: 40px; height: 40px; border-radius: 999px; border: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: {{ l.fondoAvatar }}; color: {{ l.tintaAvatar }}; font-size: 13px; font-weight: 700"><sc-if value="{{ l.seleccionado }}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></sc-if><sc-if value="{{ l.noSeleccionado }}">{{ l.iniciales }}</sc-if></button>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px">
+<span style="min-width: 0; font-weight: 700; font-size: 16px; line-height: 22px">{{ l.nombre }}</span>
+<sc-if value="{{ l.estancado }}"><span aria-label="{{ l.estancadoEtiqueta }}" style="flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; background: #FFF0D2; color: #6B4100; border: 1px solid #F0C56A; border-radius: 6px; font-size: 12px; line-height: 18px; font-weight: 700"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg>{{ l.diasTexto }}</span></sc-if>
+<sc-if value="{{ l.noEstancado }}"><span style="flex: none; color: #5A6074; font-size: 13px; line-height: 22px">{{ l.tiempo }}</span></sc-if>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px">
+<sc-for list="{{ l.discs }}" as="d" hint-placeholder-count="1"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: {{ d.suave }}; color: {{ d.tinta }}; font-size: 12.5px; line-height: 18px; font-weight: 700"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: {{ d.color }}"></span>{{ d.nombre }}</span></sc-for>
+<span style="color: #454B60">{{ l.ninos }}</span>
+</div>
+<sc-if value="{{ l.hayDetalle }}"><div style="color: {{ l.colorDetalle }}; font-weight: 600">{{ l.detalle }}</div></sc-if>
+</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-left: 52px">
+<span style="min-width: 0; color: #5A6074; font-size: 13px; line-height: 18px">{{ l.meta }}</span>
+<div style="flex: none; display: flex; gap: 2px">
+<button type="button" onClick="{{ l.alChat }}" aria-label="{{ l.chatEtiqueta }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h12a1 1 0 011 1v7.5a1 1 0 01-1 1H9l-4 3v-3H4a1 1 0 01-1-1V5.5a1 1 0 011-1z"></path></svg></button>
+<sc-if value="{{ l.hayAccion2 }}"><button type="button" onClick="{{ l.alAccion2 }}" aria-label="{{ l.accion2Etiqueta }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px"><sc-if value="{{ l.accion2Agendar }}"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg></sc-if><sc-if value="{{ l.accion2Inscribir }}"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z"></path><path d="M6.8 10.3l2.2 2.2 4.2-4.6"></path></svg></sc-if></button></sc-if>
+<button type="button" onClick="{{ l.alMover }}" aria-label="{{ l.moverEtiqueta }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11M11 5.5l4.5 4.5-4.5 4.5"></path></svg></button>
+</div>
+</div>
+</article>
+</sc-for>
+<sc-if value="{{ movilVacia }}"><div style="padding: 16px 12px; border: 1px dashed #A9AEC6; border-radius: 12px; color: #454B60; text-align: center">{{ etapaMovilVacio }}</div></sc-if>
+</div>
+</sc-if>
+
+</main>
+
+<sc-if value="{{ movil }}">
+<nav aria-label="Secciones" style="flex: none; display: flex; background: #FFFFFF; border-top: 1px solid #DEE1EA; padding: 4px 8px 8px">
+<a href="Hoy-maestro.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>Hoy</a>
+<a href="Pase-de-lista.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<a href="Embudo.dc.html" aria-current="page" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #3A32D1; font-size: 12.5px; line-height: 16px; font-weight: 700; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4L3 4z"></path></svg>Embudo</a>
+<a href="Tareas.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z"></path><path d="M6.5 10l2.5 2.5 4.5-5"></path></svg>Tareas</a>
+<a href="Mas.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10.8a.8.8 0 100-1.6.8.8 0 000 1.6zM4.5 10.8a.8.8 0 100-1.6.8.8 0 000 1.6zM15.5 10.8a.8.8 0 100-1.6.8.8 0 000 1.6z"></path></svg>Más</a>
+</nav>
+</sc-if>
+</div>
+
+<sc-if value="{{ hayFantasma }}">
+<div ref="{{ fantasma }}" aria-hidden="true" style="position: fixed; left: 0; top: 0; z-index: 300; pointer-events: none; width: {{ fantasmaAncho }}; transform: {{ fantasmaTransform }}">
+<sc-if value="{{ fantasmaVarios }}"><div style="position: absolute; inset: 7px -7px -7px 7px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(23,26,44,0.18); transform: rotate(-3deg)"></div></sc-if>
+<div style="position: relative; background: #FFFFFF; border-radius: 12px; padding: 12px; display: flex; align-items: center; gap: 10px; box-shadow: 0 24px 48px -12px rgba(23,26,44,0.45), 0 0 0 2px #3A32D1; cursor: grabbing">
+<span style="flex: none; width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: {{ fantasmaFondo }}; color: {{ fantasmaTinta }}; font-size: 12px; font-weight: 700">{{ fantasmaIniciales }}</span>
+<span style="min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 700; font-size: 15px; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ fantasmaNombre }}</span><span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ fantasmaNota }}</span></span>
+<sc-if value="{{ fantasmaVarios }}"><span style="position: absolute; top: -12px; right: -12px; min-width: 30px; height: 30px; padding: 0 9px; border-radius: 999px; background: #3A32D1; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; box-shadow: 0 0 0 3px #FFFFFF; font-variant-numeric: tabular-nums">{{ fantasmaCuenta }}</span></sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayLote }}">
+<div role="region" aria-label="Leads seleccionados" style="position: absolute; left: 50%; bottom: {{ loteAbajo }}; z-index: 30; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 8px; background: #171A2C; color: #FFFFFF; border-radius: 16px; box-shadow: 0 16px 40px -8px rgba(23,26,44,0.45); white-space: nowrap; animation: subeCentro 180ms cubic-bezier(.2,.8,.2,1)">
+<span style="min-width: 32px; height: 32px; padding: 0 10px; border-radius: 999px; background: #3A32D1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-variant-numeric: tabular-nums">{{ loteCuenta }}</span>
+<span style="font-weight: 600; padding-right: 6px">{{ loteTexto }}</span>
+<div style="position: relative">
+<button type="button" aria-haspopup="menu" aria-expanded="{{ menuLote }}" onClick="{{ alMenuLote }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer" style-hover="background: #ECEBFC">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11M11 5.5l4.5 4.5-4.5 4.5"></path></svg>
+Mover a…</button>
+<sc-if value="{{ menuLote }}">
+<div role="menu" style="position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); width: 280px; padding: 6px; background: #FFFFFF; color: #171A2C; border-radius: 14px; box-shadow: 0 12px 32px rgba(23,26,44,0.24); display: flex; flex-direction: column; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<sc-for list="{{ opcionesLote }}" as="o" hint-placeholder-count="7">
+<button type="button" role="menuitem" disabled="{{ o.deshabilitada }}" onClick="{{ o.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px; background: transparent; color: {{ o.tinta }}; border: 0; border-radius: 10px; text-align: left; font-weight: 600; cursor: pointer; white-space: normal" style-hover="background: #F3F4F8"><span>{{ o.nombre }}</span><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 500">{{ o.nota }}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<button type="button" onClick="{{ alQuitarSel }}" aria-label="Quitar la selección" title="Quitar la selección" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #C9CDE0; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10M15 5L5 15"></path></svg></button>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayPanel }}">
+<div onClick="{{ alCerrarPanel }}" style="position: absolute; inset: 0; z-index: 40; display: flex; justify-content: flex-end; background: rgba(23,26,44,0.22); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<aside role="dialog" aria-modal="true" aria-label="{{ p.nombre }}" onClick="{{ detener }}" style="width: {{ anchoPanel }}; max-width: 100%; height: 100%; background: #FFFFFF; box-shadow: -12px 0 32px rgba(23,26,44,0.18); display: flex; flex-direction: column; animation: desliza 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 10px 20px; border-bottom: 1px solid #DEE1EA">
+<span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Ficha del lead</span>
+<div style="display: flex; align-items: center; gap: 2px">
+<a href="Ficha-lead.dc.html" style="display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border-radius: 10px; font-weight: 700; font-size: 13px">Abrir completa<svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5H5.5a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1V12"></path><path d="M11.5 4.5h4v4M15.5 4.5L9.5 10.5"></path></svg></a>
+<button type="button" onClick="{{ alCerrarPanel }}" aria-label="Cerrar la ficha" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1; color: #171A2C"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10M15 5L5 15"></path></svg></button>
+</div>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: flex-start; gap: 14px">
+<span aria-hidden="true" style="flex: none; width: 52px; height: 52px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: {{ p.fondoAvatar }}; color: {{ p.tintaAvatar }}; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 18px">{{ p.iniciales }}</span>
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px; line-height: 28px; letter-spacing: -0.01em">{{ p.nombre }}</h2>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px">
+<span style="padding: 4px 10px; border-radius: 999px; background: {{ p.etapaFondo }}; color: {{ p.etapaTinta }}; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ p.etapa }}</span>
+<span style="color: #454B60; font-variant-numeric: tabular-nums">{{ p.tel }}</span>
+</div>
+<div style="color: #5A6074; font-size: 13px; line-height: 18px">{{ p.ultimo }}</div>
+</div>
+</div>
+<sc-if value="{{ p.estancado }}">
+<div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: #FFF0D2; border: 1px solid #F0C56A; border-radius: 12px; color: #4A2D00">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg>
+<div><div style="font-weight: 700">{{ p.diasTexto }}</div><div>Tarea pendiente: decide cómo retomarlo. El sistema ya le mandó el mensaje de reenganche.</div></div>
+</div>
+</sc-if>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" onClick="{{ p.alPrincipal }}" style="flex: 1 1 auto; min-height: 44px; padding: 0 18px; background: #3A32D1; color: #FFFFFF; border: 1px solid #3A32D1; border-radius: 10px; font-weight: 700; cursor: pointer" style-hover="background: #2B2699">{{ p.principal }}</button>
+<button type="button" onClick="{{ p.alChat }}" style="flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8; border-color: #8E95AA"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h12a1 1 0 011 1v7.5a1 1 0 01-1 1H9l-4 3v-3H4a1 1 0 01-1-1V5.5a1 1 0 011-1z"></path></svg>Abrir conversación</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="mover-panel" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Mover de etapa</label>
+<select id="mover-panel" value="{{ p.etapaActual }}" onChange="{{ p.alEtapa }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px; cursor: pointer">
+<option value="nuevo">Nuevo</option>
+<option value="contactado">Contactado</option>
+<option value="agendada">Clase muestra agendada</option>
+<option value="asistida">Clase muestra asistida</option>
+<option value="negociacion">Negociación</option>
+<option value="inscrito">Inscrito (abre la inscripción)</option>
+<option value="perdido">Perdido (pide el motivo)</option>
+</select>
+</div>
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Para quién son las clases</h3>
+<sc-for list="{{ p.ninos }}" as="n" hint-placeholder-count="1">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #F3F4F8; border-radius: 12px">
+<span aria-hidden="true" style="flex: none; width: 10px; height: 36px; border-radius: 999px; background: {{ n.color }}"></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<div style="font-weight: 700; font-size: 15px; line-height: 22px">{{ n.nombre }} <span style="font-weight: 500; color: #454B60">· {{ n.edad }}</span></div>
+<div style="color: #5A6074">{{ n.disc }} · sugerido: {{ n.programa }}</div>
+</div>
+</div>
+</sc-for>
+</section>
+<sc-if value="{{ p.hayClase }}">
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Clase muestra</h3>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid #DEE1EA; border-radius: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span style="font-weight: 700; font-size: 15px">{{ p.clase }}</span><span style="padding: 4px 10px; border-radius: 999px; background: {{ p.claseFondo }}; color: {{ p.claseTinta }}; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ p.claseEstado }}</span></div>
+<div style="color: #5A6074">{{ p.claseGrupo }} · con {{ p.maestro }}</div>
+</div>
+</section>
+</sc-if>
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">De dónde llegó</h3>
+<div style="display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px">
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Fuente</span><span>{{ p.fuente }}</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Campaña</span><span>{{ p.campana }}</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Sucursal</span><span>{{ p.sucursal }}</span>
+</div>
+</section>
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h3 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Historial</h3>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+<sc-for list="{{ p.hist }}" as="h" hint-placeholder-count="3">
+<li style="display: flex; gap: 12px">
+<div aria-hidden="true" style="flex: none; width: 12px; display: flex; flex-direction: column; align-items: center">
+<span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 999px; background: {{ h.punto }}; box-shadow: 0 0 0 3px {{ h.halo }}"></span>
+<sc-if value="{{ h.conLinea }}"><span style="flex: 1; width: 2px; margin: 4px 0; background: #DEE1EA"></span></sc-if>
+</div>
+<div style="flex: 1; min-width: 0; padding-bottom: 14px; display: flex; flex-direction: column; gap: 2px">
+<div style="font-weight: 700">{{ h.t }}</div>
+<sc-if value="{{ h.hayNota }}"><div style="color: #454B60">{{ h.n }}</div></sc-if>
+<div style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ h.q }} · {{ h.c }}</div>
+</div>
+</li>
+</sc-for>
+</ol>
+</section>
+</div>
+</aside>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayHoja }}">
+<div onClick="{{ alCerrarHoja }}" style="position: absolute; inset: 0; z-index: 50; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="hoja-titulo" onClick="{{ detener }}" style="width: {{ hojaAncho }}; max-width: 100%; max-height: 100%; overflow-y: auto; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); padding: 20px; display: flex; flex-direction: column; gap: 14px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 id="hoja-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px; letter-spacing: -0.01em">{{ hojaTitulo }}</h2>
+<div style="color: #5A6074">{{ hojaActual }}</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{ hojaOpciones }}" as="o" hint-placeholder-count="7">
+<button type="button" disabled="{{ o.actual }}" onClick="{{ o.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 14px; background: {{ o.fondo }}; color: {{ o.tinta }}; border: 1px solid {{ o.borde }}; border-radius: 12px; font-weight: 700; text-align: left; cursor: pointer"><span>{{ o.nombre }}</span><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ o.nota }}</span></button>
+</sc-for>
+</div>
+<button type="button" onClick="{{ alCerrarHoja }}" style="min-height: 48px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayDialogo }}">
+<div style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="dlg-titulo" style="width: {{ dlgAncho }}; max-width: 100%; max-height: 100%; overflow-y: auto; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); display: flex; flex-direction: column; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="padding: 20px 20px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h2 id="dlg-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px; letter-spacing: -0.01em; text-wrap: pretty">{{ d.titulo }}</h2>
+<div style="color: #5A6074">{{ d.sub }}</div>
+</div>
+<button type="button" onClick="{{ alCerrarDialogo }}" aria-label="Cerrar" style="flex: none; width: 44px; height: 44px; margin: -8px -8px 0 0; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10M15 5L5 15"></path></svg></button>
+</div>
+<div style="padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 16px">
+
+<sc-if value="{{ d.esPerdido }}">
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+<legend style="padding: 0; margin-bottom: 8px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Motivo de pérdida</legend>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px">
+<sc-for list="{{ d.motivos }}" as="m" hint-placeholder-count="6">
+<button type="button" aria-pressed="{{ m.activo }}" onClick="{{ m.alElegir }}" style="min-height: 48px; padding: 0 12px; background: {{ m.fondo }}; color: {{ m.tinta }}; border: {{ m.borde }}; border-radius: 10px; font-weight: {{ m.peso }}; cursor: pointer">{{ m.nombre }}</button>
+</sc-for>
+</div>
+</fieldset>
+</sc-if>
+
+<sc-if value="{{ d.esRecuperar }}">
+<div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: #ECEBFC; border: 1px solid #3A32D1; border-radius: 12px; color: #2B2699">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z"></path><path d="M10 9.2v4.3M10 6.7h.01"></path></svg>
+<span>Estás recuperando un lead que se había perdido: la nota es obligatoria.</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ d.conNota }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="dlg-nota" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">{{ d.notaEtiqueta }}</label>
+<textarea id="dlg-nota" value="{{ d.nota }}" onChange="{{ d.alNota }}" rows="3" maxlength="1000" placeholder="{{ d.notaAyuda }}" style="width: 100%; min-height: 84px; padding: 10px 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px; resize: vertical"></textarea>
+</div>
+</sc-if>
+
+<sc-if value="{{ d.esAgendar }}">
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+<legend style="padding: 0; margin-bottom: 8px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Elige día y hora</legend>
+<sc-for list="{{ d.grupos }}" as="g" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{ g.elegido }}" disabled="{{ g.lleno }}" onClick="{{ g.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 10px 14px; background: {{ g.fondo }}; color: {{ g.tinta }}; border: {{ g.borde }}; border-radius: 12px; text-align: left; cursor: pointer">
+<span style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ g.proxima }}</span><span style="color: #5A6074">{{ g.nombre }} · {{ g.horario }}</span></span>
+<span style="flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px"><span style="font-weight: 700; font-variant-numeric: tabular-nums">{{ g.lugaresTexto }}</span><sc-if value="{{ g.recomendado }}"><span style="padding: 2px 8px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 700">El más próximo</span></sc-if></span>
+</button>
+</sc-for>
+</fieldset>
+<div style="color: #5A6074">La familia recibe la confirmación por WhatsApp y el maestro ve la clase en su pantalla «Hoy».</div>
+</sc-if>
+
+<sc-if value="{{ d.esInscribir }}">
+<ol aria-label="Pasos" style="margin: 0; padding: 0; list-style: none; display: flex; align-items: center; gap: 8px">
+<sc-for list="{{ d.pasos }}" as="ps" hint-placeholder-count="3">
+<li style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px">
+<span style="flex: none; width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: {{ ps.fondo }}; color: {{ ps.tinta }}; border: {{ ps.borde }}; font-weight: 700; font-size: 13px">{{ ps.marca }}</span>
+<span style="min-width: 0; font-weight: {{ ps.peso }}; color: {{ ps.color }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ ps.nombre }}</span>
+<sc-if value="{{ ps.conLinea }}"><span aria-hidden="true" style="flex: 1; height: 2px; min-width: 12px; border-radius: 2px; background: {{ ps.linea }}"></span></sc-if>
+</li>
+</sc-for>
+</ol>
+<sc-if value="{{ d.paso1 }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="color: #454B60">Lo que ya capturaron el asistente, la página o el maestro no se vuelve a pedir.</div>
+<sc-for list="{{ d.capturados }}" as="c" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #F3F4F8; border-radius: 10px">
+<span style="min-width: 0"><span style="color: #5A6074">{{ c.etiqueta }}: </span><strong>{{ c.valor }}</strong></span>
+<span style="flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 700"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>Capturado</span>
+</div>
+</sc-for>
+<sc-if value="{{ d.faltaApellidos }}">
+<div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px">
+<label for="dlg-apellidos" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Apellidos del alumno <span style="color: #B3261E">*</span></label>
+<input id="dlg-apellidos" value="{{ d.apellidos }}" onChange="{{ d.alApellidos }}" placeholder="Como aparecen en el acta" autocomplete="off" style="width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 2px solid #3A32D1; border-radius: 10px; font-size: 14px">
+<div style="color: #5A6074; font-size: 12.5px; line-height: 16px">Es lo único que falta para inscribir.</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ d.paso2 }}">
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+<legend style="padding: 0; margin-bottom: 8px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Grupo, con los lugares que quedan hoy</legend>
+<sc-for list="{{ d.grupos }}" as="g" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{ g.elegido }}" disabled="{{ g.lleno }}" onClick="{{ g.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 10px 14px; background: {{ g.fondo }}; color: {{ g.tinta }}; border: {{ g.borde }}; border-radius: 12px; text-align: left; cursor: pointer">
+<span style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ g.nombre }}</span><span style="color: #5A6074">{{ g.horario }} · {{ g.sucursal }}</span></span>
+<span style="flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px"><span style="font-weight: 700; font-variant-numeric: tabular-nums">{{ g.lugaresTexto }}</span><sc-if value="{{ g.recomendado }}"><span style="padding: 2px 8px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 700">Lo recomendó el maestro</span></sc-if></span>
+</button>
+</sc-for>
+</fieldset>
+</sc-if>
+<sc-if value="{{ d.paso3 }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; padding: 14px 16px; border: 1px solid #DEE1EA; border-radius: 12px">
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Alumno</span><strong>{{ d.alumno }}</strong>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Grupo</span><span>{{ d.grupoTexto }}</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Empieza</span><span>Lunes 19 de octubre</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Responsable de pago</span><span>{{ d.responsable }}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #F3F4F8; border-radius: 12px">
+<div style="display: flex; justify-content: space-between; gap: 12px"><span>Inscripción</span><strong style="font-variant-numeric: tabular-nums">{{ d.inscripcion }}</strong></div>
+<div style="display: flex; justify-content: space-between; gap: 12px"><span>Primera mensualidad</span><strong style="font-variant-numeric: tabular-nums">{{ d.mensualidad }}</strong></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid #C5CAD8; font-weight: 700"><span>Primer pago</span><span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; line-height: 24px; font-variant-numeric: tabular-nums">{{ d.total }}</span></div>
+</div>
+<div style="color: #5A6074">La familia recibe la bienvenida por WhatsApp con el grupo, la sucursal y el primer día.</div>
+</div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{ d.hayFalta }}"><div style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ d.falta }}</div></sc-if>
+</div>
+<div style="position: sticky; bottom: 0; display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding: 12px 20px; background: #FFFFFF; border-top: 1px solid #DEE1EA; border-radius: {{ dlgRadioPie }}">
+<button type="button" disabled="{{ d.bloqueado }}" onClick="{{ d.alConfirmar }}" style="flex: 0 1 auto; min-height: 48px; padding: 0 20px; background: {{ d.fondoBoton }}; color: {{ d.tintaBoton }}; border: 1px solid {{ d.bordeBoton }}; border-radius: 12px; font-weight: 700; cursor: pointer">{{ d.boton }}</button>
+<sc-if value="{{ d.hayAtras }}"><button type="button" onClick="{{ d.alAtras }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Atrás</button></sc-if>
+<button type="button" onClick="{{ alCerrarDialogo }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28); animation: subeCentro 180ms cubic-bezier(.2,.8,.2,1)">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>
+<span style="min-width: 0; text-wrap: pretty">{{ toastTexto }}</span>
+<button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;colorPorDisciplina&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Embudo&quot;},&quot;plegarCierre&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Embudo&quot;},&quot;mostrarIndicadores&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Embudo&quot;}}">
+class Component extends DCLogic {
+  raiz = React.createRef();
+  fantasma = React.createRef();
+  tableroRef = React.createRef();
+
+  ETAPAS = [
+    { id: 'nuevo', nombre: 'Nuevo', dias: 2, vacio: 'Cuando una familia escriba por WhatsApp o llene la página de captación, aparecerá aquí.' },
+    { id: 'contactado', nombre: 'Contactado', dias: 3, vacio: 'Arrastra aquí un lead cuando ya hablaste con la familia.' },
+    { id: 'agendada', nombre: 'Clase muestra agendada', dias: 3, vacio: 'Arrastra aquí a quien ya tiene día y hora para su clase muestra.' },
+    { id: 'asistida', nombre: 'Clase muestra asistida', dias: 3, vacio: 'Aquí llegan quienes ya tomaron su clase muestra.' },
+    { id: 'negociacion', nombre: 'Negociación', dias: 5, vacio: 'Arrastra aquí a quien ya tiene su cotización.' },
+    { id: 'inscrito', nombre: 'Inscrito', cierre: true, vacio: 'Suelta aquí un lead para inscribirlo.' },
+    { id: 'perdido', nombre: 'Perdido', cierre: true, vacio: 'Suelta aquí un lead que ya no sigue.' },
+  ];
+  DISC = {
+    karate: { nombre: 'Karate', color: 'oklch(0.6 0.16 35)', suave: 'oklch(0.95 0.035 35)', tinta: 'oklch(0.44 0.13 35)' },
+    ballet: { nombre: 'Ballet clásico', color: 'oklch(0.6 0.16 355)', suave: 'oklch(0.95 0.035 355)', tinta: 'oklch(0.44 0.13 355)' },
+    salsa: { nombre: 'Salsa', color: 'oklch(0.6 0.11 190)', suave: 'oklch(0.95 0.03 190)', tinta: 'oklch(0.42 0.08 190)' },
+  };
+  FUENTES = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', google: 'Google', referido: 'Referido', presencial: 'En sucursal (QR)', landing: 'Página de captación', anuncio: 'Anuncio de WhatsApp' };
+  CAMPANAS = { facebook: 'Regreso a clases — Karate', instagram: 'Ballet clásico — temporada', tiktok: 'Salsa sin pareja', google: 'Búsqueda local', anuncio: 'Anuncio de otoño' };
+  MAESTROS = { karate: 'Marco Díaz', ballet: 'Lucía Ferrer', salsa: 'Andrés Solano' };
+  PRECIOS = { karate: [500, 650], ballet: [600, 780], salsa: [400, 600] };
+  MOTIVOS = ['Precio', 'Horario', 'Distancia', 'No contestó', 'Eligió otra escuela', 'Otro'];
+  crudos = [
+    ['l01', 'Beatriz Montes', '55 9901 0003', 'nuevo', 'landing', 'Águilas', 0, 'Tadeo:6:karate', ''],
+    ['l02', 'Rubén Quiroz', '55 9901 0002', 'nuevo', 'landing', 'Águilas', 14, 'Emilio:9:karate', ''],
+    ['l03', 'Karla Olvera', '55 9901 0001', 'nuevo', 'anuncio', 'Águilas', 1, 'Regina:5:ballet', ''],
+    ['l04', 'Fernanda Ríos', '55 9901 0011', 'nuevo', 'facebook', 'Norte', 0, 'Santiago:7:karate', ''],
+    ['l05', 'Héctor Lozano', '55 9901 0012', 'nuevo', 'tiktok', 'Norte', 3, 'él::salsa', ''],
+    ['l06', 'Mónica Treviño', '55 9901 0013', 'nuevo', 'instagram', 'Águilas', 1, 'Valeria:8:ballet', ''],
+    ['l07', 'Luis Arreola', '55 9901 0014', 'nuevo', 'google', 'Norte', 0, 'Mateo:10:karate|Sofía:6:ballet', ''],
+    ['l08', 'Daniela Cruz', '55 9901 0015', 'nuevo', 'tiktok', 'Águilas', 2, 'ella::salsa', ''],
+    ['l09', 'Pablo Esquivel', '55 9901 0016', 'nuevo', 'facebook', 'Norte', 5, 'Leonardo:12:karate', ''],
+    ['l10', 'Gerardo Ibarra', '55 9901 0004', 'contactado', 'landing', 'Águilas', 1, 'Camila:6:ballet', ''],
+    ['l11', 'Alejandra Pineda', '55 9901 0021', 'contactado', 'instagram', 'Norte', 4, 'Ximena:9:ballet', ''],
+    ['l12', 'Óscar Medina', '55 9901 0022', 'contactado', 'referido', 'Norte', 2, 'Emiliano:11:karate', ''],
+    ['l13', 'Silvia Carranza', '55 9901 0023', 'contactado', 'facebook', 'Águilas', 1, 'Andrea:5:karate', ''],
+    ['l14', 'Tomás Villarreal', '55 9901 0024', 'contactado', 'tiktok', 'Norte', 6, 'él::salsa', ''],
+    ['l15', 'Paola Guerrero', '55 9901 0025', 'contactado', 'presencial', 'Águilas', 0, 'Isabella:4:ballet', ''],
+    ['l16', 'Iván Robles', '55 9901 0026', 'contactado', 'google', 'Norte', 2, 'Sebastián:8:karate', ''],
+    ['l17', 'Samuel Zepeda', '55 9901 0006', 'agendada', 'landing', 'Águilas', 1, 'Matías:4:karate', 'Hoy · 4:00 pm'],
+    ['l18', 'Lorena Rangel', '55 9901 0005', 'agendada', 'landing', 'Águilas', 1, 'Elena:7:karate', 'Hoy · 5:00 pm'],
+    ['l19', 'Claudia Vargas', '55 9900 0230', 'agendada', 'anuncio', 'Águilas', 2, 'Diego:11:karate', 'Hoy · 6:30 pm'],
+    ['l20', 'Ricardo Salas', '55 9901 0031', 'agendada', 'instagram', 'Norte', 1, 'Luciana:6:ballet', 'Mar 13 oct · 5:00 pm'],
+    ['l21', 'Verónica León', '55 9901 0032', 'agendada', 'tiktok', 'Norte', 0, 'ella::salsa', 'Mié 14 oct · 8:00 pm'],
+    ['l22', 'Jimena Ortega', '55 9901 0033', 'agendada', 'referido', 'Águilas', 4, 'Renata:6:karate', 'Mar 13 oct · 4:00 pm'],
+    ['l23', 'Arturo Peña', '55 9901 0034', 'agendada', 'facebook', 'Norte', 2, 'Iker:9:karate', 'Mié 14 oct · 6:00 pm'],
+    ['l24', 'Natalia Fuentes', '55 9901 0041', 'asistida', 'facebook', 'Águilas', 1, 'Sofía:5:ballet', 'Asistió el sáb 10 oct'],
+    ['l25', 'Eduardo Campos', '55 9901 0042', 'asistida', 'referido', 'Norte', 2, 'Bruno:8:karate', 'Asistió el vie 9 oct'],
+    ['l26', 'Mariana Solís', '55 9901 0043', 'asistida', 'instagram', 'Águilas', 5, 'Victoria:10:ballet', 'Asistió el mar 6 oct'],
+    ['l27', 'Rafael Domínguez', '55 9901 0044', 'asistida', 'tiktok', 'Norte', 0, 'él::salsa', 'Asistió el sáb 10 oct'],
+    ['l28', 'Gabriela Mora', '55 9901 0045', 'asistida', 'presencial', 'Águilas', 1, 'Julián:7:karate|Paula:5:ballet', 'Asistieron el sáb 10 oct'],
+    ['l29', 'Lucía Herrera', '55 9901 0051', 'negociacion', 'referido', 'Águilas', 2, 'Antonio:6:karate', '$650 al mes · la promoción vence el 15 oct'],
+    ['l30', 'Jorge Salinas', '55 9901 0052', 'negociacion', 'facebook', 'Norte', 7, 'Martina:9:ballet', '$780 al mes'],
+    ['l31', 'Sandra Aguilar', '55 9901 0053', 'negociacion', 'google', 'Norte', 1, 'Ángel:12:karate', '$650 al mes'],
+    ['l32', 'Miguel Ángel Ruiz', '55 9901 0054', 'negociacion', 'tiktok', 'Águilas', 3, 'él::salsa', '$600 al mes'],
+    ['l33', 'Teresa Navarro', '55 9901 0055', 'negociacion', 'instagram', 'Águilas', 0, 'Ana Sofía:4:ballet', '$780 al mes · inscripción gratis hasta el 20 oct'],
+    ['l34', 'Carmen Ibáñez', '55 9901 0061', 'inscrito', 'referido', 'Águilas', 4, 'Nicolás:7:karate', 'Inscrito el 8 oct'],
+    ['l35', 'Alberto Ramos', '55 9901 0062', 'inscrito', 'facebook', 'Norte', 7, 'Carlota:6:ballet', 'Inscrita el 5 oct'],
+    ['l36', 'Rosa Delgado', '55 9901 0063', 'inscrito', 'tiktok', 'Águilas', 9, 'ella::salsa', 'Inscrita el 3 oct'],
+    ['l37', 'Francisco Mejía', '55 9901 0064', 'inscrito', 'instagram', 'Norte', 11, 'Ivana:8:ballet', 'Inscrita el 1 oct'],
+    ['l38', 'Diana Castillo', '55 9901 0071', 'perdido', 'facebook', 'Norte', 3, 'Pedro:10:karate', 'Horario'],
+    ['l39', 'Enrique Vega', '55 9901 0072', 'perdido', 'google', 'Águilas', 5, 'Lucas:6:karate', 'Precio'],
+    ['l40', 'Adriana Paredes', '55 9901 0073', 'perdido', 'tiktok', 'Norte', 8, 'ella::salsa', 'No contestó'],
+    ['l41', 'Hugo Serrano', '55 9901 0074', 'perdido', 'instagram', 'Águilas', 12, 'Romina:7:ballet', 'Distancia'],
+  ];
+
+  state = {
+    movil: false, leads: this.armar(), sucursal: '', disciplina: '', fuente: '', soloEstancados: false, busqueda: '', vista: 'tablero',
+    plegadas: {}, sel: {}, drag: null, panel: null, dlg: null, toast: null, menuLote: false, etapaMovil: 'nuevo', hoja: null, modoSel: false,
+  };
+
+  armar() {
+    return this.crudos.map(([id, nombre, tel, etapa, fuente, suc, dias, ninos, extra]) => ({
+      id, nombre, tel, etapa, fuente, suc, dias, extra,
+      ninos: ninos.split('|').map((t) => { const [n, e, d] = t.split(':'); return e ? { n, e: Number(e), d, adulto: false } : { n: nombre.split(' ')[0], e: null, d, adulto: true, pron: n }; }),
+      hist: this.historia(etapa, fuente, dias, extra),
+    }));
+  }
+  historia(etapa, fuente, dias, extra) {
+    const E = this.ETAPAS, i = E.findIndex((e) => e.id === etapa), pasos = [];
+    if (etapa === 'perdido') pasos.push({ t: 'Pasó a Perdido', n: 'Motivo: ' + extra });
+    else if (etapa === 'inscrito') pasos.push({ t: 'Se inscribió', n: extra });
+    const tope = etapa === 'perdido' ? 1 : Math.min(i, 4);
+    for (let k = tope; k >= 1; k--) pasos.push({ t: 'Pasó a ' + E[k].nombre });
+    pasos.push({ t: 'Llegó por ' + this.FUENTES[fuente], q: fuente === 'landing' ? 'Página de captación' : fuente === 'presencial' ? 'Código QR en la sucursal' : 'Asistente de WhatsApp' });
+    return pasos.map((p, k) => ({ t: p.t, n: p.n || '', q: p.q || 'Daniela Ortiz', c: this.hace(dias + k * 2) }));
+  }
+  hace(d) { return d === 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`; }
+  ini(n) { const p = n.split(/\s+/); return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
+  lead(id) { return this.state.leads.find((l) => l.id === id); }
+  cerrada(l) { return l.etapa === 'inscrito' || l.etapa === 'perdido'; }
+  estancado(l) { const e = this.ETAPAS.find((x) => x.id === l.etapa); return !!(e && e.dias && l.dias > e.dias); }
+  seleccionados() { return Object.keys(this.state.sel).filter((k) => this.state.sel[k]); }
+  alternar(id) { this.setState((s) => { const sel = { ...s.sel }; if (sel[id]) delete sel[id]; else sel[id] = true; return { sel, menuLote: false }; }); }
+  ninosTexto(l) { if (l.ninos[0].adulto) return `Clases para ${l.ninos[0].pron}`; return l.ninos.length === 1 ? `${l.ninos[0].n}, ${l.ninos[0].e} años` : l.ninos.map((n) => `${n.n}, ${n.e}`).join(' · '); }
+  dinero(n) { return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  visible(l) {
+    const s = this.state, q = s.busqueda.trim().toLowerCase();
+    return (!s.sucursal || l.suc === s.sucursal) && (!s.disciplina || l.ninos.some((n) => n.d === s.disciplina)) && (!s.fuente || l.fuente === s.fuente) && (!s.soloEstancados || this.estancado(l)) && (!q || `${l.nombre} ${l.tel} ${l.ninos.map((n) => n.n).join(' ')}`.toLowerCase().includes(q));
+  }
+  gruposPara(n, suc) {
+    const nombre = { karate: n.e === null ? 'Karate Adultos' : n.e <= 5 ? 'Karate Infantil 3-5' : n.e <= 8 ? 'Karate Infantil 6-8' : n.e <= 12 ? 'Karate Infantil 9-12' : 'Karate Juvenil', ballet: n.e <= 4 ? 'Ballet Baby 3-4' : n.e <= 8 ? 'Ballet Infantil 5-8' : 'Ballet Infantil 9-12', salsa: 'Salsa Adultos Principiantes' }[n.d];
+    const h = { karate: [['Lun y Mié 5:00 pm', 'Hoy · 5:00 pm', 3], ['Mar y Jue 4:00 pm', 'Mar 13 oct · 4:00 pm', 6], ['Sáb 10:00 am', 'Sáb 17 oct · 10:00 am', 0]], ballet: [['Lun y Mié 4:00 pm', 'Hoy · 4:00 pm', 2], ['Mar y Jue 5:00 pm', 'Mar 13 oct · 5:00 pm', 5], ['Sáb 9:00 am', 'Sáb 17 oct · 9:00 am', 0]], salsa: [['Mar y Jue 8:00 pm', 'Mar 13 oct · 8:00 pm', 7], ['Mié 8:00 pm', 'Mié 14 oct · 8:00 pm', 4], ['Sáb 12:00 pm', 'Sáb 17 oct · 12:00 pm', 0]] }[n.d];
+    return h.map(([horario, proxima, lugares], i) => ({ id: n.d + i, nombre, horario, proxima, lugares, sucursal: suc, recomendado: i === 0 }));
+  }
+
+  componentDidMount() {
+    const el = this.raiz.current;
+    if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); }
+    this.medir();
+    this.teclas = (e) => { if (e.key === 'Escape') this.escape(); };
+    document.addEventListener('keydown', this.teclas);
+  }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); document.removeEventListener('keydown', this.teclas); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil, drag: null }); }
+  escape() {
+    const s = this.state;
+    if (s.dlg) return this.setState({ dlg: null });
+    if (s.hoja) return this.setState({ hoja: null });
+    if (s.menuLote) return this.setState({ menuLote: false });
+    if (s.panel) return this.setState({ panel: null });
+    if (this.seleccionados().length) this.setState({ sel: {}, modoSel: false });
+  }
+  aviso(texto) { clearTimeout(this.tt); this.setState({ toast: texto }); this.tt = setTimeout(() => this.setState({ toast: null }), 5000); }
+
+  presionar(e, id) {
+    if (this.state.movil || e.button !== 0 || e.pointerType === 'touch') return;
+    if (e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
+    const r = e.currentTarget.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY;
+    let activo = false;
+    const mover = (ev) => {
+      if (!activo) {
+        if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 6) return;
+        activo = true;
+        const ids = this.state.sel[id] ? this.seleccionados() : [id];
+        this.off = { dx: x0 - r.left, dy: y0 - r.top };
+        document.body.style.userSelect = 'none'; document.body.style.cursor = 'grabbing';
+        this.setState({ drag: { ids, sobre: null, x: ev.clientX - this.off.dx, y: ev.clientY - this.off.dy, ancho: r.width }, menuLote: false });
+        return;
+      }
+      const g = this.fantasma.current;
+      if (g) g.style.transform = `translate(${ev.clientX - this.off.dx}px, ${ev.clientY - this.off.dy}px) rotate(2deg)`;
+      const bajo = document.elementFromPoint(ev.clientX, ev.clientY);
+      const col = bajo && bajo.closest ? bajo.closest('[data-columna]') : null;
+      const sobre = col ? col.getAttribute('data-columna') : null;
+      if (this.state.drag && sobre !== this.state.drag.sobre) this.setState((s) => ({ drag: s.drag ? { ...s.drag, sobre } : null }));
+      const t = this.tableroRef.current;
+      if (t) { const b = t.getBoundingClientRect(); if (ev.clientX > b.right - 80) t.scrollLeft += 18; else if (ev.clientX < b.left + 80) t.scrollLeft -= 18; }
+    };
+    const soltar = () => {
+      document.removeEventListener('pointermove', mover); document.removeEventListener('pointerup', soltar); document.removeEventListener('pointercancel', soltar);
+      document.body.style.userSelect = ''; document.body.style.cursor = '';
+      if (!activo) return;
+      this.ignorarClic = true; setTimeout(() => { this.ignorarClic = false; }, 0);
+      const d = this.state.drag;
+      this.setState({ drag: null });
+      if (d && d.sobre) this.soltarEn(d.ids, d.sobre);
+    };
+    document.addEventListener('pointermove', mover); document.addEventListener('pointerup', soltar); document.addEventListener('pointercancel', soltar);
+  }
+
+  soltarEn(ids, destino) {
+    let leads = ids.map((i) => this.lead(i)).filter((l) => l && l.etapa !== destino);
+    if (!leads.length) return;
+    const inscritos = leads.filter((l) => l.etapa === 'inscrito');
+    leads = leads.filter((l) => l.etapa !== 'inscrito');
+    if (!leads.length) { this.setState({ hoja: null, menuLote: false }); return this.aviso(inscritos.length === 1 ? `${inscritos[0].nombre} ya está inscrito: los cambios se hacen desde su expediente.` : 'Los inscritos ya son alumnos: los cambios se hacen desde su expediente.'); }
+    const ls = leads.map((l) => l.id), base = { hoja: null, menuLote: false };
+    if (destino === 'perdido') return this.setState({ ...base, dlg: { tipo: 'perdido', ids: ls, motivo: '', nota: '' } });
+    if (destino === 'inscrito') {
+      if (leads.length > 1) { this.setState(base); return this.aviso('La inscripción se hace de una familia a la vez: suelta los leads uno por uno.'); }
+      return this.setState({ ...base, dlg: { tipo: 'inscribir', ids: ls, paso: 1, apellidos: '', grupo: this.gruposPara(leads[0].ninos[0])[0].id } });
+    }
+    if (leads.some((l) => l.etapa === 'perdido')) return this.setState({ ...base, dlg: { tipo: 'recuperar', ids: ls, destino, nota: '' } });
+    this.mover(ls, destino, {});
+  }
+  mover(ids, destino, o) {
+    const E = this.ETAPAS.find((e) => e.id === destino);
+    const extra = o.extra !== undefined ? o.extra : { nuevo: '', contactado: '', agendada: 'Falta elegir día y hora', asistida: 'Asistió hoy', negociacion: 'Sin cotización todavía', perdido: o.motivo || '', inscrito: o.grupo ? 'Inscrito hoy · ' + o.grupo : 'Inscrito hoy' }[destino];
+    const nota = o.motivo ? 'Motivo: ' + o.motivo + (o.nota ? ' · ' + o.nota : '') : o.nota || (destino === 'agendada' && o.extra ? 'Clase muestra: ' + o.extra : '');
+    const primero = this.lead(ids[0]);
+    this.setState((s) => ({
+      leads: s.leads.map((l) => (ids.includes(l.id) ? { ...l, etapa: destino, dias: 0, extra, hist: [{ t: destino === 'inscrito' ? 'Se inscribió' : 'Pasó a ' + E.nombre, n: nota, q: 'Adela Ramírez', c: 'ahora' }, ...l.hist] } : l)),
+      sel: {}, dlg: null, hoja: null, menuLote: false, modoSel: false,
+    }));
+    this.aviso(o.texto || (ids.length === 1 ? `${primero.nombre} pasó a ${E.nombre}.` : `${ids.length} leads pasaron a ${E.nombre}.`));
+  }
+  ponerDlg(cambio) { this.setState((s) => ({ dlg: s.dlg ? { ...s.dlg, ...cambio } : null })); }
+  agendar(id) { const l = this.lead(id); const g = this.gruposPara(l.ninos[0]).find((x) => x.lugares > 0); this.setState({ dlg: { tipo: 'agendar', ids: [id], grupo: g.id }, hoja: null }); }
+
+  tarjeta(l) {
+    const s = this.state, D = this.DISC, sel = !!s.sel[l.id], d0 = D[l.ninos[0].d], color = this.props.colorPorDisciplina ?? true;
+    const est = this.estancado(l), cerrada = this.cerrada(l), tarde = l.etapa === 'asistida' || l.etapa === 'negociacion';
+    const E = this.ETAPAS.find((e) => e.id === l.etapa), n0 = l.ninos[0];
+    const tono = l.etapa === 'inscrito' ? ['#E1F3E7', '#17603A'] : l.etapa === 'perdido' ? ['#FDECEA', '#B3261E'] : ['#ECEBFC', '#2B2699'];
+    return {
+      id: l.id, nombre: l.nombre, iniciales: this.ini(l.nombre), tel: l.tel, suc: l.suc,
+      etiqueta: `${l.nombre}, ${this.ninosTexto(l)}, ${E.nombre}`,
+      seleccionado: sel, noSeleccionado: !sel,
+      fondoAvatar: sel ? '#3A32D1' : color ? d0.suave : '#ECEDF3', tintaAvatar: sel ? '#FFFFFF' : color ? d0.tinta : '#3A3F52',
+      discs: [...new Set(l.ninos.map((n) => n.d))].map((k) => ({ nombre: D[k].nombre, suave: color ? D[k].suave : '#ECEDF3', tinta: color ? D[k].tinta : '#3A3F52', color: color ? D[k].color : '#8E95AA' })),
+      ninos: this.ninosTexto(l), meta: `${this.FUENTES[l.fuente]} · ${l.suc}`, fuenteNombre: this.FUENTES[l.fuente],
+      estancado: est && !cerrada, noEstancado: !est && !cerrada, tiempo: l.dias === 0 ? 'Hoy' : `${l.dias} d`, diasTexto: `${l.dias} d`, estancadoEtiqueta: `${l.dias} días sin movimiento`,
+      haceTexto: l.dias === 0 ? 'Hoy' : `Hace ${l.dias} d`,
+      hayDetalle: !!l.extra, detalle: l.etapa === 'perdido' ? 'Motivo: ' + l.extra : l.extra,
+      icoClase: l.etapa === 'agendada', icoAsistio: l.etapa === 'asistida' || l.etapa === 'inscrito', icoCotiza: l.etapa === 'negociacion', icoMotivo: l.etapa === 'perdido',
+      colorDetalle: l.etapa === 'perdido' ? '#B3261E' : l.etapa === 'asistida' || l.etapa === 'inscrito' ? '#17603A' : l.etapa === 'negociacion' ? '#454B60' : '#2B2699',
+      etapaNombre: E.nombre, etapaFondo: tono[0], etapaTinta: tono[1],
+      opacidad: s.drag && s.drag.ids.includes(l.id) ? 0.4 : 1, contorno: sel ? '2px solid #3A32D1' : '2px solid transparent', fondoFila: sel ? '#F7F7FE' : '#FFFFFF',
+      hayAccion2: !cerrada, accion2Agendar: !cerrada && !tarde, accion2Inscribir: tarde,
+      accion2Etiqueta: tarde ? `Inscribir a ${n0.n}` : l.etapa === 'agendada' ? `Cambiar la clase muestra de ${n0.n}` : `Agendar la clase muestra de ${n0.n}`,
+      chatEtiqueta: `Abrir la conversación con ${l.nombre}`, moverEtiqueta: `Mover de etapa a ${l.nombre}`,
+      seleccionEtiqueta: sel ? `Quitar a ${l.nombre} de la selección` : `Seleccionar a ${l.nombre}`,
+      alPresionar: (e) => this.presionar(e, l.id),
+      alClic: () => { if (this.ignorarClic) return; if (this.state.modoSel) return this.alternar(l.id); this.setState({ panel: l.id, menuLote: false }); },
+      alTeclear: (e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter') { e.preventDefault(); this.setState({ panel: l.id }); } else if (e.key === ' ') { e.preventDefault(); this.alternar(l.id); } },
+      alSeleccionar: (e) => { e.stopPropagation(); this.alternar(l.id); },
+      alChat: (e) => { e.stopPropagation(); this.aviso(`Se abrió la conversación con ${l.nombre} en Chatwoot.`); },
+      alAccion2: (e) => { e.stopPropagation(); if (tarde) this.soltarEn([l.id], 'inscrito'); else this.agendar(l.id); },
+      alMover: (e) => { e.stopPropagation(); this.setState({ hoja: l.id }); },
+    };
+  }
+
+  opcion(activo, deshabilitado) {
+    return deshabilitado ? { fondo: '#F3F4F8', tinta: '#6B7085', borde: '1px dashed #DEE1EA', peso: 500 } : activo ? { fondo: '#ECEBFC', tinta: '#2B2699', borde: '2px solid #3A32D1', peso: 700 } : { fondo: '#FFFFFF', tinta: '#171A2C', borde: '1px solid #8E95AA', peso: 600 };
+  }
+
+  dialogo() {
+    const s = this.state, dl = s.dlg;
+    if (!dl) return {};
+    const ls = dl.ids.map((i) => this.lead(i)).filter(Boolean);
+    if (!ls.length) return {};
+    const l = ls[0], n0 = l.ninos[0], D = this.DISC, E = this.ETAPAS;
+    const sub = `${l.nombre} · ${D[n0.d].nombre} · ${l.suc}`;
+    const nombres = ls.length > 3 ? ls.slice(0, 3).map((x) => x.nombre).join(', ') + ` y ${ls.length - 3} más` : ls.map((x) => x.nombre).join(', ');
+    const boton = (texto, puede) => ({ boton: texto, bloqueado: !puede, fondoBoton: puede ? '#3A32D1' : '#F3F4F8', tintaBoton: puede ? '#FFFFFF' : '#6B7085', bordeBoton: puede ? '#3A32D1' : '#DEE1EA' });
+    const grupos = (conLlenos) => this.gruposPara(n0, l.suc).map((g) => { const lleno = g.lugares === 0, el = dl.grupo === g.id, st = this.opcion(el, lleno); return { ...g, ...st, borde: st.borde, elegido: el, lleno, lugaresTexto: lleno ? (conLlenos ? 'Lleno' : 'Lleno · lista de espera') : g.lugares === 1 ? '1 lugar' : `${g.lugares} lugares`, alElegir: () => !lleno && this.ponerDlg({ grupo: g.id }) }; });
+    const alNota = (e) => this.ponerDlg({ nota: e.target.value });
+    if (dl.tipo === 'perdido') {
+      const puede = !!dl.motivo;
+      return { esPerdido: true, conNota: true, titulo: ls.length === 1 ? `¿Por qué se perdió ${l.nombre}?` : `¿Por qué se perdieron estos ${ls.length} leads?`, sub: ls.length === 1 ? `Ahora está en: ${E.find((e) => e.id === l.etapa).nombre}` : nombres,
+        motivos: this.MOTIVOS.map((m) => ({ nombre: m, activo: dl.motivo === m, ...this.opcion(dl.motivo === m, false), alElegir: () => this.ponerDlg({ motivo: m }) })),
+        nota: dl.nota, alNota, notaEtiqueta: 'Nota (opcional)', notaAyuda: 'Lo que te dijo la familia',
+        hayFalta: !puede, falta: 'Elige el motivo de pérdida.', ...boton(ls.length === 1 ? 'Mover a Perdido' : `Mover ${ls.length} a Perdido`, puede),
+        alConfirmar: () => puede && this.mover(dl.ids, 'perdido', { motivo: dl.motivo, nota: dl.nota.trim() }) };
+    }
+    if (dl.tipo === 'recuperar') {
+      const destino = E.find((e) => e.id === dl.destino).nombre, puede = dl.nota.trim() !== '';
+      return { esRecuperar: true, conNota: true, titulo: ls.length === 1 ? `Recuperar a ${l.nombre}` : `Recuperar ${ls.length} leads`, sub: `Pasa de Perdido a ${destino}`, nota: dl.nota, alNota, notaEtiqueta: 'Nota (obligatoria)', notaAyuda: 'Por qué se recupera',
+        hayFalta: !puede, falta: 'Escribe una nota: por qué se recupera.', ...boton(`Mover a ${destino}`, puede), alConfirmar: () => puede && this.mover(dl.ids, dl.destino, { nota: dl.nota.trim() }) };
+    }
+    if (dl.tipo === 'agendar') {
+      const g = this.gruposPara(n0, l.suc).find((x) => x.id === dl.grupo);
+      return { esAgendar: true, titulo: `Agendar la clase muestra de ${n0.n}`, sub, grupos: grupos(true), ...boton('Agendar y avisar', !!g),
+        alConfirmar: () => g && this.mover([l.id], 'agendada', { extra: g.proxima, texto: `Clase muestra agendada para ${n0.n}: ${g.proxima.toLowerCase()}. La familia y el maestro ya tienen el aviso.` }) };
+    }
+    const faltaApellidos = !n0.adulto, paso = dl.paso, g = this.gruposPara(n0, l.suc).find((x) => x.id === dl.grupo);
+    const nombresPasos = ['Alumno', 'Grupo', 'Confirmar'];
+    const puede = paso === 1 ? !faltaApellidos || dl.apellidos.trim() !== '' : paso === 2 ? !!(g && g.lugares > 0) : true;
+    const [insc, mens] = this.PRECIOS[n0.d];
+    const apellidoAdulto = l.nombre.split(' ').slice(1).join(' ');
+    return {
+      esInscribir: true, titulo: `Inscribir a ${n0.n}`, sub, paso1: paso === 1, paso2: paso === 2, paso3: paso === 3, hayAtras: paso > 1,
+      pasos: nombresPasos.map((nombre, i) => { const k = i + 1, hecho = k < paso, actual = k === paso; return { nombre, marca: hecho ? '✓' : String(k), fondo: hecho ? '#3A32D1' : actual ? '#ECEBFC' : '#FFFFFF', tinta: hecho ? '#FFFFFF' : actual ? '#2B2699' : '#5A6074', borde: hecho || actual ? '2px solid #3A32D1' : '1px solid #C5CAD8', peso: actual ? 700 : 600, color: actual || hecho ? '#171A2C' : '#5A6074', conLinea: k < 3, linea: hecho ? '#3A32D1' : '#DEE1EA' }; }),
+      capturados: [['Adulto responsable', l.nombre], ['Teléfono', l.tel], ['Alumno', n0.adulto ? l.nombre : n0.n], ['Edad', n0.adulto ? 'Adulto' : `${n0.e} años`], ['Sucursal', l.suc]].map(([etiqueta, valor]) => ({ etiqueta, valor })),
+      faltaApellidos, apellidos: dl.apellidos, alApellidos: (e) => this.ponerDlg({ apellidos: e.target.value }),
+      grupos: grupos(false),
+      alumno: n0.adulto ? l.nombre : `${n0.n} ${dl.apellidos.trim() || apellidoAdulto}`, grupoTexto: g ? `${g.nombre} · ${g.horario} · ${l.suc}` : '', responsable: l.nombre,
+      inscripcion: this.dinero(insc), mensualidad: this.dinero(mens), total: this.dinero(insc + mens),
+      hayFalta: !puede, falta: paso === 1 ? 'Escribe los apellidos del alumno para seguir.' : 'Elige un grupo con lugar.',
+      ...boton(paso < 3 ? 'Siguiente' : `Inscribir a ${n0.n}`, puede),
+      alAtras: () => this.ponerDlg({ paso: Math.max(1, paso - 1) }),
+      alConfirmar: () => { if (!puede) return; if (paso < 3) return this.ponerDlg({ paso: paso + 1 }); this.mover([l.id], 'inscrito', { grupo: `${g.nombre} · ${g.horario}`, texto: `${n0.n} quedó inscrito en ${g.nombre} (${g.horario}). La familia recibe la bienvenida por WhatsApp.` }); },
+    };
+  }
+
+  renderVals() {
+    const s = this.state, E = this.ETAPAS, D = this.DISC, movil = s.movil, n = this.seleccionados().length;
+    const base = s.leads.filter((l) => !s.sucursal || l.suc === s.sucursal);
+    const abiertos = base.filter((l) => !this.cerrada(l));
+    const visibles = s.leads.filter((l) => this.visible(l));
+    const filtrando = !!(s.busqueda.trim() || s.fuente || s.soloEstancados || s.disciplina);
+    const plegarCierre = this.props.plegarCierre ?? true;
+    const columnas = E.map((e) => {
+      const enEtapa = visibles.filter((l) => l.etapa === e.id);
+      const plegada = s.plegadas[e.id] !== undefined ? s.plegadas[e.id] : !!(e.cierre && plegarCierre);
+      const destino = !!(s.drag && s.drag.sobre === e.id);
+      const tono = e.id === 'inscrito' ? 'g' : e.id === 'perdido' ? 'p' : 'n';
+      const linea = { n: '#3A32D1', g: '#17603A', p: '#B3261E' }[tono];
+      const est = enEtapa.filter((l) => this.estancado(l)).length;
+      return {
+        id: e.id, nombre: e.nombre, total: enEtapa.length, abierta: !plegada, plegada,
+        fondo: destino ? { n: '#ECEBFC', g: '#CDEBD7', p: '#F9D7D3' }[tono] : { n: '#E7E9F1', g: '#E1F3E7', p: '#FDECEA' }[tono],
+        sombra: destino ? `inset 0 0 0 2px ${linea}` : s.drag ? 'inset 0 0 0 1px #C5CAD8' : 'none',
+        leads: plegada ? [] : enEtapa.map((l) => this.tarjeta(l)), vacia: !plegada && enEtapa.length === 0 && !destino, vacio: e.vacio,
+        esDestino: destino, colorDestino: linea, textoDestino: e.id === 'inscrito' ? 'Suelta para inscribir' : e.id === 'perdido' ? 'Suelta y elige el motivo' : 'Suelta para mover aquí',
+        hayEstancados: est > 0, estancadosTexto: est === 1 ? '1 sin movimiento' : `${est} sin movimiento`,
+        esGanado: e.id === 'inscrito', esPerdido: e.id === 'perdido',
+        plegarEtiqueta: `Plegar la columna ${e.nombre}`, desplegarEtiqueta: `Desplegar la columna ${e.nombre} (${enEtapa.length})`,
+        alPlegar: () => this.setState((st) => ({ plegadas: { ...st.plegadas, [e.id]: !plegada } })),
+      };
+    });
+    const chipEstilo = (activo) => (activo ? { fondo: '#171A2C', tinta: '#FFFFFF', borde: '#171A2C', anilloPunto: '#171A2C' } : { fondo: '#FFFFFF', tinta: '#171A2C', borde: '#C5CAD8', anilloPunto: '#FFFFFF' });
+    const chips = [{ id: '', nombre: 'Todas', cuenta: abiertos.length }].concat(Object.keys(D).map((k) => ({ id: k, nombre: D[k].nombre, cuenta: abiertos.filter((l) => l.ninos.some((x) => x.d === k)).length, punto: D[k].color }))).map((c) => ({ ...c, ...chipEstilo(s.disciplina === c.id), activo: s.disciplina === c.id, hayPunto: !!c.id, alElegir: () => this.setState({ disciplina: c.id }) }));
+    const pl = s.panel ? this.lead(s.panel) : null;
+    let p = {};
+    if (pl) {
+      const t = this.tarjeta(pl), n0 = pl.ninos[0], g0 = this.gruposPara(n0)[0], e = E.find((x) => x.id === pl.etapa);
+      p = {
+        nombre: pl.nombre, iniciales: t.iniciales, fondoAvatar: D[n0.d].suave, tintaAvatar: D[n0.d].tinta, tel: pl.tel, etapa: e.nombre, etapaFondo: t.etapaFondo, etapaTinta: t.etapaTinta,
+        ultimo: `Llegó ${pl.hist[pl.hist.length - 1].c} · último movimiento ${this.hace(pl.dias)}`, estancado: t.estancado, diasTexto: `${pl.dias} días sin movimiento en ${e.nombre}`,
+        ninos: pl.ninos.map((x) => ({ nombre: x.adulto ? pl.nombre : x.n, edad: x.adulto ? 'adulto' : `${x.e} años`, disc: D[x.d].nombre, color: D[x.d].color, programa: this.gruposPara(x)[0].nombre })),
+        hayClase: pl.etapa === 'agendada' || pl.etapa === 'asistida', clase: pl.extra, claseEstado: pl.etapa === 'agendada' ? 'Agendada' : 'Asistió', claseFondo: pl.etapa === 'agendada' ? '#ECEBFC' : '#E1F3E7', claseTinta: pl.etapa === 'agendada' ? '#2B2699' : '#17603A',
+        claseGrupo: `${g0.nombre} · ${pl.suc}`, maestro: this.MAESTROS[n0.d], fuente: this.FUENTES[pl.fuente], campana: this.CAMPANAS[pl.fuente] || 'Sin campaña', sucursal: pl.suc,
+        hist: pl.hist.map((h, i, a) => ({ ...h, hayNota: !!h.n, conLinea: i < a.length - 1, punto: i === 0 ? '#3A32D1' : '#A9AEC6', halo: i === 0 ? '#ECEBFC' : '#FFFFFF' })),
+        principal: { nuevo: 'Agendar clase muestra', contactado: 'Agendar clase muestra', agendada: 'Cambiar la clase muestra', asistida: 'Convertir e inscribir', negociacion: 'Convertir e inscribir', inscrito: 'Ver expediente', perdido: 'Recuperar lead' }[pl.etapa],
+        alPrincipal: () => { const et = pl.etapa; if (et === 'asistida' || et === 'negociacion') this.soltarEn([pl.id], 'inscrito'); else if (et === 'inscrito') this.aviso('El expediente del alumno está en Familias.'); else if (et === 'perdido') this.setState({ dlg: { tipo: 'recuperar', ids: [pl.id], destino: 'contactado', nota: '' } }); else this.agendar(pl.id); },
+        etapaActual: pl.etapa, alEtapa: (ev) => this.soltarEn([pl.id], ev.target.value),
+        alChat: () => this.aviso(`Se abrió la conversación con ${pl.nombre} en Chatwoot.`),
+      };
+    }
+    const hl = s.hoja ? this.lead(s.hoja) : null;
+    const etMovil = E.find((e) => e.id === s.etapaMovil);
+    const listaMovil = visibles.filter((l) => l.etapa === s.etapaMovil).map((l) => this.tarjeta(l));
+    const d = this.dialogo();
+    const drag = s.drag, dl = drag ? this.lead(drag.ids[0]) : null;
+    const segmento = (activo) => ({ fondo: activo ? '#FFFFFF' : 'transparent', peso: activo ? 700 : 600, sombra: activo ? '0 1px 2px rgba(23,26,44,0.16)' : 'none' });
+    const st = segmento(s.vista === 'tablero'), sl = segmento(s.vista === 'lista');
+    const loteAbajo = movil ? 84 : 24;
+    return {
+      raiz: this.raiz, fantasma: this.fantasma, tableroRef: this.tableroRef,
+      escritorio: !movil, movil, anchoBusqueda: movil ? 'none' : '340px', direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 20px',
+      sucursal: s.sucursal, alSucursal: (e) => this.setState({ sucursal: e.target.value, sel: {} }),
+      busqueda: s.busqueda, alBuscar: (e) => this.setState({ busqueda: e.target.value }),
+      alDescargar: () => this.aviso('Se descargó la lista de leads (CSV para Excel).'),
+      subtitulo: `${abiertos.length} leads abiertos ${s.sucursal ? 'en ' + s.sucursal : 'en todas tus sucursales'}`,
+      verIndicadores: this.props.mostrarIndicadores ?? true,
+      kpiAbiertos: abiertos.length, kpiAbiertosNota: `${base.filter((l) => l.etapa === 'inscrito').length} inscritos este mes`,
+      kpiNuevos: base.filter((l) => l.etapa === 'nuevo').length, kpiClases: base.filter((l) => l.etapa === 'agendada').length,
+      kpiEstancados: abiertos.filter((l) => this.estancado(l)).length, textoVerEstancados: s.soloEstancados ? 'Ver todos' : 'Ver solo estos',
+      alVerEstancados: () => this.setState({ soloEstancados: !s.soloEstancados }),
+      chips, fuentes: Object.keys(this.FUENTES).map((id) => ({ id, nombre: this.FUENTES[id] })), fuente: s.fuente, alFuente: (e) => this.setState({ fuente: e.target.value }),
+      soloEstancados: s.soloEstancados, alEstancados: (e) => this.setState({ soloEstancados: e.target.checked }),
+      esTablero: s.vista === 'tablero', esLista: s.vista === 'lista', fondoTablero: st.fondo, pesoTablero: st.peso, sombraTablero: st.sombra, fondoLista: sl.fondo, pesoLista: sl.peso, sombraLista: sl.sombra,
+      alTablero: () => this.setState({ vista: 'tablero' }), alLista: () => this.setState({ vista: 'lista' }),
+      sinResultados: filtrando && visibles.filter((l) => !this.cerrada(l)).length === 0, alLimpiar: () => this.setState({ busqueda: '', fuente: '', soloEstancados: false, disciplina: '' }),
+      verTablero: !movil && s.vista === 'tablero', verLista: !movil && s.vista === 'lista', columnas,
+      filasLista: visibles.map((l) => this.tarjeta(l)),
+      pildoras: E.map((e) => { const a = s.etapaMovil === e.id; return { nombre: e.nombre, total: visibles.filter((l) => l.etapa === e.id).length, activo: a, fondo: a ? '#171A2C' : '#FFFFFF', tinta: a ? '#FFFFFF' : '#171A2C', borde: a ? '#171A2C' : '#DEE1EA', alElegir: () => this.setState({ etapaMovil: e.id }) }; }),
+      etapaMovilNombre: etMovil.nombre, etapaMovilVacio: etMovil.vacio, listaMovil, movilVacia: listaMovil.length === 0,
+      textoModoSel: s.modoSel ? 'Listo' : 'Seleccionar', fondoModoSel: s.modoSel ? '#171A2C' : '#FFFFFF', tintaModoSel: s.modoSel ? '#FFFFFF' : '#171A2C',
+      alModoSel: () => this.setState({ modoSel: !s.modoSel, sel: s.modoSel ? {} : s.sel }),
+      hayFantasma: !!drag && !!dl, fantasmaAncho: drag ? drag.ancho + 'px' : '260px', fantasmaTransform: drag ? `translate(${drag.x}px, ${drag.y}px) rotate(2deg)` : 'none',
+      fantasmaVarios: !!drag && drag.ids.length > 1, fantasmaCuenta: drag ? drag.ids.length : 0, fantasmaNombre: dl ? (drag.ids.length > 1 ? `${dl.nombre} y ${drag.ids.length - 1} más` : dl.nombre) : '',
+      fantasmaNota: dl ? this.ninosTexto(dl) : '', fantasmaIniciales: dl ? this.ini(dl.nombre) : '', fantasmaFondo: dl ? D[dl.ninos[0].d].suave : '#ECEDF3', fantasmaTinta: dl ? D[dl.ninos[0].d].tinta : '#3A3F52',
+      hayLote: n > 0 && !s.dlg, loteCuenta: n, loteTexto: n === 1 ? 'seleccionado' : 'seleccionados', menuLote: s.menuLote, loteAbajo: loteAbajo + 'px',
+      alMenuLote: () => this.setState({ menuLote: !s.menuLote }), alQuitarSel: () => this.setState({ sel: {}, menuLote: false, modoSel: false }),
+      opcionesLote: E.map((e) => { const des = e.id === 'inscrito' && n > 1; return { nombre: e.nombre, nota: e.id === 'inscrito' ? (n > 1 ? 'De una en una' : 'Abre la inscripción') : e.id === 'perdido' ? 'Pide el motivo' : '', deshabilitada: des, tinta: des ? '#6B7085' : '#171A2C', alElegir: () => this.soltarEn(this.seleccionados(), e.id) }; }),
+      hayPanel: !!pl, p, anchoPanel: movil ? '100%' : '460px', alCerrarPanel: () => this.setState({ panel: null }), detener: (e) => e.stopPropagation(),
+      opcionesEtapa: E.map((e) => ({ id: e.id, nombre: e.nombre })),
+      hayHoja: !!hl, hojaTitulo: hl ? `Mover a ${hl.nombre}` : '', hojaActual: hl ? `Ahora está en: ${E.find((e) => e.id === hl.etapa).nombre}` : '', hojaAncho: movil ? '100%' : '440px',
+      hojaOpciones: hl ? E.map((e) => { const a = e.id === hl.etapa; return { nombre: e.nombre, actual: a, nota: a ? 'Aquí está' : e.id === 'perdido' ? 'Pide el motivo' : e.id === 'inscrito' ? 'Abre la inscripción' : '', fondo: a ? '#F3F4F8' : '#FFFFFF', tinta: a ? '#6B7085' : '#171A2C', borde: a ? '#DEE1EA' : '#C5CAD8', alElegir: () => this.soltarEn([hl.id], e.id) }; }) : [],
+      alCerrarHoja: () => this.setState({ hoja: null }),
+      hayDialogo: !!s.dlg && !!d.titulo, d, alCerrarDialogo: () => this.setState({ dlg: null }),
+      dlgAlinear: movil ? 'flex-end' : 'center', dlgRelleno: movil ? '0' : '24px', dlgAncho: movil ? '100%' : s.dlg && s.dlg.tipo === 'inscribir' ? '620px' : '520px', dlgRadio: movil ? '20px 20px 0 0' : '16px', dlgRadioPie: movil ? '0' : '0 0 16px 16px',
+      hayToast: !!s.toast, toastTexto: s.toast || '', toastAbajo: (n > 0 && !s.dlg ? loteAbajo + 68 : loteAbajo) + 'px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

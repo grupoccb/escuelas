@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes velo{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="admin" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 20px">
+
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<nav aria-label="Áreas de administración" style="flex: 0 0 220px; position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px">
+<a href="Administracion.dc.html" style="display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 8px; font-weight: 700"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg>Administración</a>
+<sc-for list="{{ menu }}" as="m" hint-placeholder-count="12">
+<sc-if value="{{ m.esGrupo }}"><div style="padding: 14px 10px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5A6074">{{ m.nombre }}</div></sc-if>
+<sc-if value="{{ m.esArea }}"><a href="{{ m.href }}" onClick="{{ m.alIr }}" aria-current="{{ m.actual }}" style="display: flex; align-items: center; min-height: 38px; padding: 0 10px; border-radius: 10px; background: {{ m.fondo }}; color: {{ m.tinta }}; font-weight: {{ m.peso }}" style-hover="background: #E7E9F1">{{ m.nombre }}</a></sc-if>
+</sc-for>
+</nav>
+</sc-if>
+
+<div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+<sc-if value="{{ movil }}">
+<a href="Administracion.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-weight: 700"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg>Administración</a>
+<select aria-label="Área" value="{{ area }}" onChange="{{ alArea }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-size: 15px; font-weight: 600"><sc-for list="{{ opcionesArea }}" as="o" hint-placeholder-count="0"><option value="{{ o.id }}">{{ o.nombre }}</option></sc-for></select>
+</sc-if>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">{{ titulo }}</h1>
+<div style="color: #5A6074; max-width: 70ch">{{ ayuda }}</div>
+</div>
+<sc-if value="{{ hayNota }}"><div style="display: flex; gap: 10px; padding: 12px 14px; background: #ECEBFC; border-radius: 12px; color: #2B2699"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z M10 9.2v4.3M10 6.7h.01"></path></svg><span>{{ nota }}</span></div></sc-if>
+
+<sc-for list="{{ listas }}" as="li" hint-placeholder-count="1">
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">{{ li.titulo }} <span style="color: #5A6074; font-weight: 600">· {{ li.cuenta }}</span></h2>
+<button type="button" onClick="{{ li.alNuevo }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: {{ li.fondoNuevo }}; color: {{ li.tintaNuevo }}; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">{{ li.nuevo }}</button>
+</div>
+<sc-for list="{{ li.filas }}" as="f" hint-placeholder-count="4">
+<article style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 14px; opacity: {{ f.opacidad }}; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<sc-if value="{{ f.hayOrden }}"><span style="flex: none; width: 28px; height: 28px; border-radius: 999px; background: #E7E9F1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-variant-numeric: tabular-nums">{{ f.orden }}</span></sc-if>
+<sc-if value="{{ f.hayColor }}"><span aria-hidden="true" style="flex: none; width: 12px; height: 40px; border-radius: 999px; background: {{ f.color }}"></span></sc-if>
+<div style="flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px"><strong style="font-size: 15px; line-height: 22px">{{ f.titulo }}</strong><sc-for list="{{ f.chips }}" as="c" hint-placeholder-count="1"><span style="padding: 2px 8px; border-radius: {{ c.radio }}; background: {{ c.fondo }}; color: {{ c.tinta }}; font-size: 12px; line-height: 16px; font-weight: 700">{{ c.texto }}</span></sc-for></div>
+<span style="color: #5A6074; text-wrap: pretty">{{ f.sub }}</span>
+</div>
+<div style="flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto">
+<sc-if value="{{ f.hayOrden }}">
+<button type="button" onClick="{{ f.alSubir }}" aria-label="{{ f.subirEtiqueta }}" title="Subir" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16V4.5M5.5 9L10 4.5 14.5 9"></path></svg></button>
+<button type="button" onClick="{{ f.alBajar }}" aria-label="{{ f.bajarEtiqueta }}" title="Bajar" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v11.5M5.5 11L10 15.5 14.5 11"></path></svg></button>
+</sc-if>
+<sc-if value="{{ f.hayExtra }}"><button type="button" onClick="{{ f.alExtra }}" style="min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">{{ f.extra }}</button></sc-if>
+<button type="button" onClick="{{ f.alActivar }}" style="min-height: 40px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer">{{ f.activarTexto }}</button>
+<button type="button" onClick="{{ f.alEditar }}" aria-label="{{ f.editarEtiqueta }}" title="Editar" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l.8-3.4L13.6 3.8a1.6 1.6 0 012.3 0l.3.3a1.6 1.6 0 010 2.3L7.4 15.2 4 16z M12 5.4l2.6 2.6"></path></svg></button>
+<button type="button" onClick="{{ f.alBaja }}" aria-label="{{ f.bajaEtiqueta }}" title="Dar de baja" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #FDECEA; color: #B3261E"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h13M8 5.5V4a1 1 0 011-1h2a1 1 0 011 1v1.5 M5 5.5l.7 10a1.5 1.5 0 001.5 1.4h5.6a1.5 1.5 0 001.5-1.4l.7-10 M8.5 9v4.5M11.5 9v4.5"></path></svg></button>
+</div>
+</article>
+</sc-for>
+<sc-if value="{{ li.vacia }}"><div style="padding: 16px; background: #FFFFFF; border: 1px dashed #A9AEC6; border-radius: 12px; color: #454B60">Todavía no hay nada aquí. Empieza con «{{ li.nuevo }}».</div></sc-if>
+</section>
+</sc-for>
+</div>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="admin" activa="admin" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+
+<sc-if value="{{ hayForm }}">
+<div style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="form-titulo" style="width: {{ dlgAncho }}; max-width: 100%; max-height: 100%; overflow-y: auto; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); display: flex; flex-direction: column; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="padding: 20px 20px 4px"><h2 id="form-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px">{{ formTitulo }}</h2></div>
+<div style="padding: 12px 20px 20px; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{ campos }}" as="c" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">{{ c.etiqueta }}<sc-if value="{{ c.requerido }}"><span style="color: #B3261E"> *</span></sc-if></span>
+<sc-if value="{{ c.esTexto }}"><input aria-label="{{ c.etiqueta }}" value="{{ c.valor }}" onChange="{{ c.alCambiar }}" inputmode="{{ c.modo }}" placeholder="{{ c.ayuda }}" style="width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: {{ c.borde }}; border-radius: 10px; font-size: 14px"></sc-if>
+<sc-if value="{{ c.esSelect }}"><select aria-label="{{ c.etiqueta }}" value="{{ c.valor }}" onChange="{{ c.alCambiar }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: {{ c.borde }}; border-radius: 10px; font-size: 14px"><option value="">Elige…</option><sc-for list="{{ c.opciones }}" as="o" hint-placeholder-count="0"><option value="{{ o.nombre }}">{{ o.nombre }}</option></sc-for></select></sc-if>
+<sc-if value="{{ c.esBotones }}"><div role="group" aria-label="{{ c.etiqueta }}" style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{ c.opciones }}" as="o" hint-placeholder-count="3"><button type="button" aria-pressed="{{ o.activa }}" onClick="{{ o.alElegir }}" style="flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 12px; background: {{ o.fondo }}; color: {{ o.tinta }}; border: {{ o.borde }}; border-radius: 10px; font-weight: {{ o.peso }}; cursor: pointer"><sc-if value="{{ o.hayMuestra }}"><span aria-hidden="true" style="width: 14px; height: 14px; border-radius: 999px; background: {{ o.muestra }}"></span></sc-if>{{ o.nombre }}</button></sc-for></div></sc-if>
+<sc-if value="{{ c.hayAyudaTexto }}"><span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ c.ayudaTexto }}</span></sc-if>
+<sc-if value="{{ c.hayError }}"><span style="color: #B3261E; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ c.error }}</span></sc-if>
+</div>
+</sc-for>
+</div>
+<div style="position: sticky; bottom: 0; display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding: 12px 20px; background: #FFFFFF; border-top: 1px solid #DEE1EA">
+<button type="button" onClick="{{ alGuardar }}" style="min-height: 48px; padding: 0 20px; background: #3A32D1; color: #FFFFFF; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer">Guardar</button>
+<button type="button" onClick="{{ alCerrar }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayBaja }}">
+<div style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="alertdialog" aria-modal="true" aria-labelledby="baja-titulo" style="width: {{ dlgAncho }}; max-width: 100%; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="baja-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px">Dar de baja «{{ bajaNombre }}»</h2>
+<p style="margin: 0; color: #454B60">Deja de aparecer en el cotizador, en el embudo y en los formularios. No hay un botón para recuperarlo: si solo quieres pausarlo, mejor desactívalo.</p>
+<sc-if value="{{ bajaBloqueada }}"><div style="display: flex; gap: 10px; padding: 12px 14px; background: #FDECEA; border: 1px solid #B3261E; border-radius: 12px; color: #B3261E; font-weight: 600"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M10 3l8 14H2L10 3z M10 8.5v3.5M10 14.5h.01"></path></svg>{{ bajaMotivo }}</div></sc-if>
+</div>
+<div style="display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding: 12px 20px; border-top: 1px solid #DEE1EA">
+<button type="button" onClick="{{ alConfirmarBaja }}" style="min-height: 48px; padding: 0 20px; background: #FFFFFF; color: #B3261E; border: 1px solid #B3261E; border-radius: 12px; font-weight: 700; cursor: pointer">Dar de baja</button>
+<button type="button" onClick="{{ alCerrar }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28)"><span style="min-width: 0">{{ toast }}</span><button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  K = 'oklch(0.6 0.16 35)'; B = 'oklch(0.6 0.16 355)'; S = 'oklch(0.6 0.11 190)';
+  AREAS = {
+    verticales: { titulo: 'Disciplinas', grupo: 'Catálogo', ayuda: 'Lo que imparte la escuela, sus etiquetas y su color. El color se usa en el embudo, los tableros y las tarjetas de clase.', listas: [{ titulo: 'Disciplinas', entidad: 'la disciplina', nuevo: 'Nueva disciplina', campos: [['nombre', 'Nombre', 'texto', true], ['color', 'Color', 'color', true, ['Bermellón', 'Orquídea', 'Turquesa', 'Índigo']], ['avance', 'Nombre del avance', 'texto', false, '', 'Ej.: kyu, nivel. Vacío si no tiene progresión.'], ['evento', 'Evento de la disciplina', 'texto', false, '', 'Ej.: examen, presentación'], ['cotiza', 'Cotiza por WhatsApp', 'botones', true, ['Sí', 'No']]],
+      filas: [['Karate', 'Avance: kyu · evento: examen · 160 inscripciones', ['Cotiza por WhatsApp', 'Clase muestra'], this.K, { nombre: 'Karate', color: 'Bermellón', avance: 'kyu', evento: 'Examen', cotiza: 'Sí' }], ['Ballet clásico', 'Avance: nivel · evento: presentación de fin de curso · 95 inscripciones', ['Cotiza por WhatsApp', 'Clase muestra'], this.B, { nombre: 'Ballet clásico', color: 'Orquídea', avance: 'nivel', evento: 'Presentación', cotiza: 'Sí' }], ['Salsa', 'Sin avance · evento: noche social · 71 inscripciones', ['Cotiza por WhatsApp'], this.S, { nombre: 'Salsa', color: 'Turquesa', avance: '', evento: 'Noche social', cotiza: 'Sí' }]] }] },
+    sucursales: { titulo: 'Sucursales', grupo: 'Catálogo', ayuda: 'Dirección, zona horaria y qué disciplinas se imparten en cada una.', listas: [{ titulo: 'Sucursales', entidad: 'la sucursal', nuevo: 'Nueva sucursal', campos: [['nombre', 'Nombre', 'texto', true], ['direccion', 'Dirección', 'texto', false], ['zona', 'Zona horaria', 'select', true, ['Ciudad de México', 'Monterrey', 'Tijuana', 'Cancún']]],
+      filas: [['Águilas', 'Av. de las Águilas 230, Álvaro Obregón · Ciudad de México', ['Karate', 'Ballet clásico', 'Salsa'], null, { nombre: 'Águilas', direccion: 'Av. de las Águilas 230, Álvaro Obregón', zona: 'Ciudad de México' }], ['Norte', 'Calz. Vallejo 1180, Gustavo A. Madero · Ciudad de México', ['Karate', 'Ballet clásico', 'Salsa'], null, { nombre: 'Norte', direccion: 'Calz. Vallejo 1180, Gustavo A. Madero', zona: 'Ciudad de México' }]] }] },
+    programas: { titulo: 'Programas', grupo: 'Catálogo', ayuda: 'Rango de edad, fecha de corte y traslape. El asistente sugiere el programa según la edad del niño.', listas: [{ titulo: 'Programas', entidad: 'el programa', nuevo: 'Nuevo programa', campos: [['disciplina', 'Disciplina', 'select', true, ['Karate', 'Ballet clásico', 'Salsa']], ['sucursal', 'Sucursal', 'select', true, ['Águilas', 'Norte']], ['nombre', 'Nombre', 'texto', true], ['min', 'Edad mínima', 'numero', true], ['max', 'Edad máxima', 'numero', true], ['corte', 'Fecha de corte de la edad', 'texto', false, 'dd/mm', 'La edad se cuenta a esta fecha (por ejemplo 31/12).']],
+      filas: [['Karate Infantil 3-5', 'Águilas · 3 a 5 años · corte al 31 de diciembre', ['Karate'], this.K, { disciplina: 'Karate', sucursal: 'Águilas', nombre: 'Karate Infantil 3-5', min: '3', max: '5', corte: '31/12' }], ['Karate Infantil 6-8', 'Águilas y Norte · 6 a 8 años', ['Karate'], this.K, {}], ['Karate Infantil 9-12', 'Águilas y Norte · 9 a 12 años', ['Karate'], this.K, {}], ['Ballet Baby 3-4', 'Águilas · 3 a 4 años · alternativa si se traslapa', ['Ballet clásico', 'Alternativa'], this.B, {}], ['Ballet Infantil 5-8', 'Águilas y Norte · 5 a 8 años', ['Ballet clásico'], this.B, {}], ['Salsa Adultos Principiantes', 'Águilas y Norte · 16 años en adelante', ['Salsa'], this.S, {}]] }] },
+    grupos: { titulo: 'Grupos y horarios', grupo: 'Catálogo', ayuda: 'Cupo, salón, instructor, lista de espera y días de clase. Un grupo sin horario no aparece en el cotizador.', listas: [{ titulo: 'Grupos', entidad: 'el grupo', nuevo: 'Nuevo grupo', campos: [['programa', 'Programa', 'select', true, ['Karate Infantil 3-5', 'Karate Infantil 6-8', 'Ballet Baby 3-4', 'Salsa Adultos Principiantes']], ['nombre', 'Nombre del grupo', 'texto', true], ['cupo', 'Cupo', 'numero', true], ['dias', 'Días', 'botones', true, ['Lun y Mié', 'Mar y Jue', 'Vie', 'Sáb']], ['hora', 'Hora', 'select', true, ['9:00 am', '10:00 am', '4:00 pm', '5:00 pm', '6:30 pm', '8:00 pm']], ['espera', 'Lista de espera cuando se llene', 'botones', false, ['Sí', 'No']]],
+      filas: [['Karate Infantil 3-5 · Lun y Mié 4:00 pm', 'Águilas · Salón 1 · Marco Díaz', ['14 de 14', 'Lista de espera: 2'], this.K, {}], ['Karate Infantil 6-8 · Lun y Mié 5:00 pm', 'Norte · Duela · Marco Díaz', ['20 de 20', 'Lista de espera: 4'], this.K, {}], ['Karate Infantil 6-8 · Mar y Jue 4:00 pm', 'Águilas · Salón 1 · Marco Díaz', ['10 de 16'], this.K, {}], ['Ballet Baby 3-4 · Lun y Mié 4:00 pm', 'Águilas · Salón 2 · Lucía Ferrer', ['12 de 12'], this.B, {}], ['Ballet Infantil 9-12 · Sáb 12:00 pm', 'Águilas · Salón 2 · Lucía Ferrer', ['5 de 14'], this.B, {}], ['Salsa Adultos Principiantes · Vie 7:00 pm', 'Norte · Salón espejo · Andrés Solano', ['6 de 16'], this.S, {}]] }] },
+    instructores: { titulo: 'Instructores y salones', grupo: 'Catálogo', ayuda: 'Quién imparte y dónde. El sistema avisa si un salón o un instructor se pisan en dos grupos a la misma hora.', listas: [{ titulo: 'Instructores', entidad: 'el instructor', nuevo: 'Nuevo instructor', campos: [['nombre', 'Nombre', 'texto', true], ['correo', 'Correo', 'texto', false], ['telefono', 'Teléfono', 'texto', false]],
+      filas: [['Marco Díaz', 'Karate · Águilas y Norte · 6 grupos', ['Tiene usuario'], this.K, { nombre: 'Marco Díaz', correo: 'marco@academianova.mx', telefono: '55 4100 2201' }], ['Lucía Ferrer', 'Ballet clásico · Águilas · 4 grupos', ['Tiene usuario'], this.B, {}], ['Paula Gil', 'Ballet clásico · Norte · 3 grupos', [], this.B, {}], ['Andrés Solano', 'Salsa · Águilas y Norte · 5 grupos', ['Tiene usuario'], this.S, {}]] },
+      { titulo: 'Salones', entidad: 'el salón', nuevo: 'Nuevo salón', campos: [['sucursal', 'Sucursal', 'select', true, ['Águilas', 'Norte']], ['nombre', 'Nombre', 'texto', true], ['capacidad', 'Capacidad', 'numero', false]],
+        filas: [['Salón 1', 'Águilas · capacidad 20', [], null, {}], ['Salón 2', 'Águilas · capacidad 14', [], null, {}], ['Duela', 'Norte · capacidad 24', [], null, {}], ['Salón espejo', 'Norte · capacidad 16', [], null, {}]] }] },
+    promociones: { titulo: 'Promociones', grupo: 'Catálogo', ayuda: 'Condición, alcance, beneficios, cupo y prioridad. Las que no son acumulables se aplican en orden de prioridad.', listas: [{ titulo: 'Promociones', entidad: 'la promoción', nuevo: 'Nueva promoción', campos: [['nombre', 'Nombre', 'texto', true], ['codigo', 'Código', 'texto', true, 'Ej.: HERMANOS'], ['condicion', 'Condición', 'select', false, ['Ninguna', 'Hermanos inscritos', 'Pago anticipado']], ['beneficio', 'Beneficio', 'select', true, ['% de la mensualidad', '% de la inscripción', 'Producto gratis']], ['valor', 'Valor del beneficio', 'texto', true, 'Ej.: 10 %'], ['inicio', 'Empieza', 'texto', true, 'dd/mm/aaaa'], ['cupo', 'Cupo', 'numero', false, '', 'Vacío: sin límite']],
+      filas: [['Hermanos', '10 % en la mensualidad desde el segundo hijo · sin fecha de fin · prioridad 1', ['Activa', 'Todas las disciplinas'], null, { nombre: 'Hermanos', codigo: 'HERMANOS', condicion: 'Hermanos inscritos', beneficio: '% de la mensualidad', valor: '10 %', inicio: '01/01/2026', cupo: '' }], ['Inscripción de otoño', 'Inscripción gratis · 1 de septiembre al 31 de octubre · 27 de 40 usados', ['Activa', 'Vence en 19 días'], null, {}], ['Pago anticipado', '8 % si se pagan 3 meses por adelantado · prioridad 2', ['Activa'], null, {}], ['Playera de bienvenida', 'Playera de la escuela gratis al pagar la primera mensualidad', ['Activa', 'Salsa'], this.S, {}]] }] },
+    canales: { titulo: 'Canales de WhatsApp', grupo: 'Canales y organización', ayuda: 'Números y bandejas de Chatwoot. Cada número contesta a las familias de su sucursal.', listas: [{ titulo: 'Canales', entidad: 'el canal', nuevo: 'Nuevo canal', campos: [['nombre', 'Nombre', 'texto', true], ['numero', 'Número de WhatsApp', 'texto', true, '+52 55 …'], ['sucursal', 'Sucursal', 'select', true, ['Águilas', 'Norte']], ['bandeja', 'Bandeja de Chatwoot', 'texto', true]],
+      filas: [['WhatsApp Águilas', '+52 55 4000 1122 · bandeja «Águilas» · plantillas sincronizadas hoy', ['Conectado'], null, {}], ['WhatsApp Norte', '+52 55 4000 3344 · bandeja «Norte»', ['Conectado'], null, {}]] }] },
+    campanas: { titulo: 'Campañas y códigos QR', grupo: 'Canales y organización', ayuda: 'Dónde anuncias y el QR para imprimir: así sabes de dónde llega cada familia y cuánto cuesta cada alumno.', listas: [{ titulo: 'Campañas', entidad: 'la campaña', nuevo: 'Nueva campaña', campos: [['nombre', 'Nombre', 'texto', true], ['origen', 'Dónde se anuncia', 'select', true, ['Facebook', 'Instagram', 'TikTok', 'Google', 'Volante o cartel (QR)']], ['codigo', 'Código de rastreo', 'texto', false, 'Se genera solo si lo dejas vacío']],
+      filas: [['Regreso a clases — Karate', 'Facebook · 72 leads en septiembre · $6,840 de gasto', ['Activa'], null, {}], ['Ballet clásico — temporada', 'Instagram · 48 leads · $5,180', ['Activa'], null, {}], ['Salsa sin pareja', 'TikTok · 39 leads · $2,460', ['Activa'], null, {}], ['Cartel en recepción', 'Código QR · AGU-RECEP-01 · 17 leads', ['QR'], null, {}, 'Imprimir QR']] }] },
+    etapas: { titulo: 'Etapas del embudo', grupo: 'Canales y organización', ayuda: 'Nombres, orden y días sin movimiento de cada etapa. «Inscrito» y «Perdido» son del sistema: se renombran pero no se borran.', listas: [{ titulo: 'Etapas', entidad: 'la etapa', nuevo: 'Nueva etapa', orden: true, campos: [['nombre', 'Nombre', 'texto', true], ['dias', 'Días sin movimiento para avisar', 'numero', false, '', 'Vacío: esta etapa nunca avisa.']],
+      filas: [['Nuevo', 'Avisa a los 2 días sin movimiento', [], null, { nombre: 'Nuevo', dias: '2' }], ['Contactado', 'Avisa a los 3 días', [], null, {}], ['Clase muestra agendada', 'Avisa a los 3 días', [], null, {}], ['Clase muestra asistida', 'Avisa a los 3 días', [], null, {}], ['Negociación', 'Avisa a los 5 días', [], null, {}], ['Inscrito', 'Se llega inscribiendo · no avisa', ['Del sistema'], null, {}], ['Perdido', 'Pide el motivo · no avisa', ['Del sistema'], null, {}]] }] },
+    motivos: { titulo: 'Motivos de pérdida y de baja', grupo: 'Canales y organización', ayuda: 'Por qué se va una familia, en tus palabras. Aparecen al perder un lead y al dar de baja a un alumno.', listas: [{ titulo: 'Motivos de pérdida', entidad: 'el motivo', nuevo: 'Nuevo motivo de pérdida', orden: true, campos: [['nombre', 'Nombre', 'texto', true]], filas: [['No contestó', '41 leads en septiembre', [], null, {}], ['Horario', '29 leads', [], null, {}], ['Precio', '24 leads', [], null, {}], ['Distancia', '14 leads', [], null, {}], ['Eligió otra escuela', '11 leads', [], null, {}], ['Otro', '9 leads', [], null, {}]] },
+      { titulo: 'Motivos de baja', entidad: 'el motivo', nuevo: 'Nuevo motivo de baja', orden: true, campos: [['nombre', 'Nombre', 'texto', true]], filas: [['Horario', '6 bajas en septiembre', [], null, {}], ['Económico', '5 bajas', [], null, {}], ['Cambio de domicilio', '3 bajas', [], null, {}], ['Insatisfacción', '2 bajas', [], null, {}], ['Otro', '1 baja', [], null, {}]] }] },
+    plantillas: { titulo: 'Plantillas de mensaje', grupo: 'Mensajería y usuarios', ayuda: 'Estado de aprobación, clase (servicio o marketing) y variables. Fuera de la ventana de 24 h solo salen plantillas aprobadas.', nota: 'Las plantillas se crean en Twilio y se sincronizan aquí. Con una persona atendiendo, las de marketing no salen; las de servicio sí.', listas: [{ titulo: 'Plantillas', entidad: 'la plantilla', nuevo: 'Sincronizar con Twilio', sincroniza: true, campos: [['clase', 'Clase del mensaje', 'botones', true, ['Servicio', 'Marketing']]],
+      filas: [['recordatorio_clase_muestra', 'Recuerda a la familia su clase muestra · variables: alumno, fecha, hora, sucursal', ['Aprobada', 'Servicio'], null, { clase: 'Servicio' }], ['recordatorio_pago', 'Recuerda la mensualidad · variables: alumno, monto, fecha', ['Aprobada', 'Servicio'], null, { clase: 'Servicio' }], ['bienvenida_inscripcion', 'Bienvenida con grupo, sucursal y primer día', ['En revisión', 'Servicio'], null, { clase: 'Servicio' }], ['reenganche_lead_frio', '«Hola, ¿sigue interesado {{1}} en las clases de {{2}}?…»', ['Aprobada', 'Marketing'], null, { clase: 'Marketing' }], ['promocion_por_vencer', '«La promoción {{2}} que te cotizamos para {{1}} vence el {{3}}…»', ['Aprobada', 'Marketing'], null, { clase: 'Marketing' }]] }] },
+    usuarios: { titulo: 'Usuarios y roles', grupo: 'Mensajería y usuarios', ayuda: 'Altas, roles, sucursales, contraseñas y agente de Chatwoot. El rol decide la pantalla de inicio; los permisos, lo que cada quien ve.', listas: [{ titulo: 'Usuarios', entidad: 'el usuario', nuevo: 'Nuevo usuario', campos: [['nombre', 'Nombre', 'texto', true], ['correo', 'Correo', 'texto', true], ['rol', 'Rol', 'botones', true, ['Asesor', 'Recepción', 'Maestro', 'Administración']], ['sucursales', 'Sucursales que atiende', 'botones', false, ['Águilas', 'Norte', 'Las dos']], ['clave', 'Contraseña temporal', 'texto', true, '', 'Al menos 10 caracteres. La persona la cambia al entrar.']],
+      filas: [['Adela Ramírez', 'adela@academianova.mx · todas las sucursales', ['Administración', 'Tú'], null, { nombre: 'Adela Ramírez', correo: 'adela@academianova.mx', rol: 'Administración', sucursales: 'Las dos' }], ['Daniela Ortiz', 'daniela@academianova.mx · Águilas y Norte · agente de Chatwoot', ['Asesor'], null, { nombre: 'Daniela Ortiz', correo: 'daniela@academianova.mx', rol: 'Asesor', sucursales: 'Las dos' }], ['Rocío Méndez', 'rocio@academianova.mx · Águilas', ['Recepción'], null, {}], ['Marco Díaz', 'marco@academianova.mx · Águilas y Norte', ['Maestro'], null, {}], ['Lucía Ferrer', 'lucia@academianova.mx · Águilas', ['Maestro'], null, {}], ['Iván Cota', 'ivan@academianova.mx · Norte', ['Recepción'], null, {}, null, false]] }] },
+  };
+  COLORES = { 'Bermellón': this.K, 'Orquídea': this.B, 'Turquesa': this.S, 'Índigo': '#3A32D1' };
+  state = { movil: false, area: 'verticales', datos: null, dlg: null, baja: null, toast: null };
+  componentDidMount() {
+    const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir();
+    this.leer = () => { const h = (window.location.hash || '').replace('#', ''); if (this.AREAS[h] && h !== this.state.area) this.setState({ area: h }); };
+    this.leer(); window.addEventListener('hashchange', this.leer);
+  }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); window.removeEventListener('hashchange', this.leer); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  datos() { if (this.state.datos) return this.state.datos; const d = {}; for (const a in this.AREAS) d[a] = this.AREAS[a].listas.map((l) => l.filas.map(([titulo, sub, chips, color, valores, extra, activo], i) => ({ id: a + i, titulo, sub, chips, color, valores: valores || {}, extra: extra || '', activo: activo !== false }))); return d; }
+  ponerFilas(a, li, fn) { const d = this.datos(); const n = { ...d, [a]: d[a].map((f, i) => (i === li ? fn(f) : f)) }; this.setState({ datos: n }); }
+  ir(a) { this.setState({ area: a, dlg: null }); try { history.replaceState(null, '', '#' + a); } catch (e) {} }
+  chip(t) { const v = { Activa: ['#E1F3E7', '#17603A'], Conectado: ['#E1F3E7', '#17603A'], Aprobada: ['#E1F3E7', '#17603A'], 'En revisión': ['#FFF0D2', '#6B4100'], 'Del sistema': ['#ECEBFC', '#2B2699'], Tú: ['#ECEBFC', '#2B2699'], Inactivo: ['#ECEDF3', '#5A6074'] }[t]; if (v) return { texto: t, fondo: v[0], tinta: v[1], radio: '999px' }; if (/ de \d+$/.test(t) && t.split(' de ')[0] === t.split(' de ')[1]) return { texto: t + ' · lleno', fondo: '#FFF0D2', tinta: '#6B4100', radio: '999px' }; return { texto: t, fondo: '#ECEDF3', tinta: '#3A3F52', radio: '6px' }; }
+  renderVals() {
+    const s = this.state, movil = s.movil, A = this.AREAS[s.area], d = this.datos();
+    const menu = []; let g = '';
+    for (const id in this.AREAS) { const a = this.AREAS[id]; if (a.grupo !== g) { g = a.grupo; menu.push({ esGrupo: true, esArea: false, nombre: g }); } const act = id === s.area; menu.push({ esGrupo: false, esArea: true, nombre: a.titulo, href: '#' + id, actual: act ? 'page' : undefined, fondo: act ? '#ECEBFC' : 'transparent', tinta: act ? '#2B2699' : '#171A2C', peso: act ? 700 : 500, alIr: (e) => { e.preventDefault(); this.ir(id); } }); }
+    const listas = A.listas.map((L, li) => { const filas = d[s.area][li]; return { titulo: L.titulo, nuevo: L.nuevo, cuenta: filas.length, vacia: filas.length === 0, fondoNuevo: L.sincroniza ? '#ECEBFC' : '#3A32D1', tintaNuevo: L.sincroniza ? '#2B2699' : '#FFFFFF',
+      alNuevo: () => { if (L.sincroniza) return this.aviso('Plantillas sincronizadas con Twilio: no hay cambios.'); this.setState({ dlg: { li, modo: 'nuevo', id: null, v: {}, intento: false } }); },
+      filas: filas.map((f, i) => ({ titulo: f.titulo, sub: f.sub, chips: (f.activo ? f.chips : ['Inactivo'].concat(f.chips)).map((c) => this.chip(c)), hayColor: !!f.color, color: f.color, opacidad: f.activo ? 1 : 0.7, hayOrden: !!L.orden, orden: i + 1, hayExtra: !!f.extra, extra: f.extra,
+        alExtra: () => this.aviso('Se abrió la vista para imprimir el código QR.'), activarTexto: f.activo ? 'Desactivar' : 'Activar',
+        alActivar: () => { this.ponerFilas(s.area, li, (fs) => fs.map((x) => (x.id === f.id ? { ...x, activo: !x.activo } : x))); this.aviso(f.activo ? `«${f.titulo}» quedó desactivado: deja de recibir captación nueva.` : `«${f.titulo}» quedó activo otra vez.`); },
+        alEditar: () => this.setState({ dlg: { li, modo: 'editar', id: f.id, v: { nombre: f.titulo, ...f.valores }, intento: false } }), editarEtiqueta: `Editar ${f.titulo}`,
+        alBaja: () => this.setState({ baja: { li, id: f.id } }), bajaEtiqueta: `Dar de baja ${f.titulo}`,
+        subirEtiqueta: `Subir ${f.titulo}`, bajarEtiqueta: `Bajar ${f.titulo}`,
+        alSubir: () => i > 0 && this.ponerFilas(s.area, li, (fs) => { const n = fs.slice(); [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; }),
+        alBajar: () => i < filas.length - 1 && this.ponerFilas(s.area, li, (fs) => { const n = fs.slice(); [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; }) })) }; });
+    const dl = s.dlg, L = dl ? A.listas[dl.li] : null;
+    const campos = L ? L.campos.map(([k, etiqueta, tipo, req, extra, ayudaTexto]) => { const val = dl.v[k] || '', falta = req && !String(val).trim(), err = dl.intento && falta, ops = Array.isArray(extra) ? extra : [];
+      return { etiqueta, requerido: req, valor: val, esTexto: tipo === 'texto' || tipo === 'numero', modo: tipo === 'numero' ? 'numeric' : 'text', esSelect: tipo === 'select', esBotones: tipo === 'botones' || tipo === 'color', ayuda: Array.isArray(extra) ? '' : extra || '', hayAyudaTexto: !!ayudaTexto, ayudaTexto: ayudaTexto || '',
+        borde: err ? '2px solid #B3261E' : '1px solid #8E95AA', hayError: err, error: `Falta: ${etiqueta}.`,
+        alCambiar: (e) => { const x = e.target.value; this.setState((st) => ({ dlg: { ...st.dlg, v: { ...st.dlg.v, [k]: x } } })); },
+        opciones: ops.map((o) => { const a = val === o; return { nombre: o, activa: a, hayMuestra: tipo === 'color', muestra: this.COLORES[o] || '#C5CAD8', fondo: a ? '#ECEBFC' : '#FFFFFF', tinta: a ? '#2B2699' : '#171A2C', borde: a ? '2px solid #3A32D1' : '1px solid #8E95AA', peso: a ? 700 : 600, alElegir: () => this.setState((st) => ({ dlg: { ...st.dlg, v: { ...st.dlg.v, [k]: o } } })) }; }) }; }) : [];
+    const guardar = () => { const faltan = L.campos.filter(([k, , , req]) => req && !String(dl.v[k] || '').trim()); if (faltan.length) return this.setState({ dlg: { ...dl, intento: true } }); const nombre = dl.v.nombre || dl.v.programa || 'Nuevo';
+      if (dl.modo === 'nuevo') this.ponerFilas(s.area, dl.li, (fs) => [{ id: s.area + Date.now(), titulo: nombre, sub: 'Recién creado', chips: [], color: this.COLORES[dl.v.color] || null, valores: dl.v, extra: '', activo: true }, ...fs]);
+      else this.ponerFilas(s.area, dl.li, (fs) => fs.map((x) => (x.id === dl.id ? { ...x, titulo: nombre, valores: dl.v, color: this.COLORES[dl.v.color] || x.color } : x)));
+      this.setState({ dlg: null }); this.aviso(`${L.entidad[0].toUpperCase() + L.entidad.slice(1)} «${nombre}» se guardó.`); };
+    const bj = s.baja, bf = bj ? d[s.area][bj.li].find((x) => x.id === bj.id) : null, bloqueo = bf && /inscripciones|grupos|leads|alumnos/.test(bf.sub) && s.area !== 'motivos';
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      menu, area: s.area, alArea: (e) => this.ir(e.target.value), opcionesArea: Object.keys(this.AREAS).map((id) => ({ id, nombre: this.AREAS[id].titulo })),
+      titulo: A.titulo, ayuda: A.ayuda, hayNota: !!A.nota, nota: A.nota || '', listas,
+      hayForm: !!dl, formTitulo: L ? (dl.modo === 'nuevo' ? L.nuevo : `Editar ${L.entidad.replace(/^(el|la) /, '')}`) : '', campos, alGuardar: () => dl && guardar(), alCerrar: () => this.setState({ dlg: null, baja: null }),
+      hayBaja: !!bf, bajaNombre: bf ? bf.titulo : '', bajaBloqueada: !!bloqueo, bajaMotivo: 'Todavía tiene movimiento (grupos, inscripciones o leads). El servidor no lo dejará: desactívalo para que deje de usarse.',
+      alConfirmarBaja: () => { if (!bf) return; if (bloqueo) { this.setState({ baja: null }); return this.aviso(`No se pudo dar de baja «${bf.titulo}»: tiene movimiento. Se puede desactivar.`); } this.ponerFilas(s.area, bj.li, (fs) => fs.filter((x) => x.id !== bf.id)); this.setState({ baja: null }); this.aviso(`«${bf.titulo}» se dio de baja.`); },
+      dlgAlinear: movil ? 'flex-end' : 'center', dlgRelleno: movil ? '0' : '24px', dlgAncho: movil ? '100%' : '540px', dlgRadio: movil ? '20px 20px 0 0' : '16px',
+      hayToast: !!s.toast, toast: s.toast || '', toastAbajo: movil ? '84px' : '24px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

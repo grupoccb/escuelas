@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="admin" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 20px">
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Administración</h1>
+<div style="color: #5A6074">El catálogo, los canales, los mensajes y las personas de la escuela.</div>
+</div>
+<label style="flex: 1 1 260px; max-width: 380px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; color: #5A6074"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11z M13.5 13.5L17 17"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Buscar en administración</span><input type="search" value="{{ q }}" onChange="{{ alQ }}" placeholder="¿Qué quieres cambiar? Ej.: precio, contraseña" style="flex: 1; min-width: 0; min-height: 42px; border: 0; outline: 0; background: transparent; color: #171A2C; font-size: 14px"></label>
+</div>
+
+<sc-if value="{{ sinBuscar }}" hint-placeholder-val="{{ true }}">
+<section style="flex: none; background: #171A2C; color: #FFFFFF; border-radius: 20px; padding: 22px 24px; display: flex; flex-wrap: wrap; gap: 20px 28px">
+<div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px">
+<span style="color: #A9AEC6; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase">Para empezar</span>
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 34px">{{ hechos }} de 8 pasos hechos</span>
+<div aria-hidden="true" style="height: 8px; border-radius: 4px; background: rgba(255,255,255,0.14); overflow: hidden"><div style="height: 100%; width: {{ avance }}; background: #8FD8A8; border-radius: 4px"></div></div>
+<div style="color: #C9CDE0">Lo que sigue: <strong style="color: #FFFFFF">{{ sigue }}</strong>. Sin grupos con horario, el asistente de WhatsApp no puede cotizar ni agendar.</div>
+<a href="{{ sigueHref }}" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border-radius: 10px; font-weight: 700">Ir a {{ sigue }}</a>
+</div>
+<ol style="flex: 1.2 1 320px; margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px">
+<sc-for list="{{ pasos }}" as="p" hint-placeholder-count="8"><li><a href="{{ p.href }}" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border-radius: 10px; background: {{ p.fondo }}; color: {{ p.tinta }}; font-weight: 600"><span aria-hidden="true" style="flex: none; width: 24px; height: 24px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: {{ p.fondoMarca }}; color: {{ p.tintaMarca }}; font-size: 12px; font-weight: 700">{{ p.marca }}</span>{{ p.nombre }}</a></li></sc-for>
+</ol>
+</section>
+</sc-if>
+
+<sc-if value="{{ buscando }}"><div style="flex: none; padding: 12px 14px; background: #ECEBFC; border-radius: 12px; color: #2B2699; font-weight: 600">{{ textoBusqueda }}</div></sc-if>
+
+<sc-for list="{{ grupos }}" as="g" hint-placeholder-count="3">
+<section style="flex: none; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">{{ g.titulo }}</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px">
+<sc-for list="{{ g.areas }}" as="a" hint-placeholder-count="4">
+<a href="{{ a.href }}" style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 14px; color: #171A2C" style-hover="border-color: #8E95AA; box-shadow: 0 10px 24px -14px rgba(23,26,44,0.35)">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 15px; line-height: 22px">{{ a.titulo }}</strong><span style="color: #5A6074; text-wrap: pretty">{{ a.ayuda }}</span></span>
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px; color: #5A6074"><path d="M4 10h11M11 5.5l4.5 4.5-4.5 4.5"></path></svg>
+</a>
+</sc-for>
+</div>
+</section>
+</sc-for>
+<sc-if value="{{ sinResultados }}"><div style="flex: none; padding: 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 12px; color: #5A6074">No hay ninguna pantalla con «{{ q }}». Prueba con otra palabra, como «horario» o «WhatsApp».</div></sc-if>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="admin" activa="admin" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  GRUPOS = [
+    ['Catálogo', [['Cargar catálogo', 'Sube tus hojas de Excel con sucursales, programas, grupos, horarios y precios; se revisan antes de guardar.', 'Cargar-catalogo.dc.html', 'excel csv importar subir plantillas archivo'], ['Disciplinas', 'Lo que imparte la escuela, sus etiquetas y su color.', 'Admin-catalogo.dc.html#verticales', 'materias clases actividades'], ['Sucursales', 'Dirección, zona horaria y qué disciplinas se imparten en cada una.', 'Admin-catalogo.dc.html#sucursales', 'sedes planteles zona horaria direccion'], ['Programas', 'Rango de edad, fecha de corte y traslape.', 'Admin-catalogo.dc.html#programas', 'edades niveles'], ['Grupos y horarios', 'Cupo, salón, instructor, lista de espera y días de clase.', 'Admin-catalogo.dc.html#grupos', 'cupo clases dias lista de espera'], ['Instructores y salones', 'Quién imparte y dónde.', 'Admin-catalogo.dc.html#instructores', 'maestros profesores aulas'], ['Precios', 'Inscripción y mensualidad con vigencia.', 'Precios.dc.html', 'costos mensualidad cuota cambiar precio'], ['Promociones', 'Condición, alcance, beneficios, cupo y prioridad.', 'Admin-catalogo.dc.html#promociones', 'descuentos ofertas hermanos']]],
+    ['Canales y organización', [['Canales de WhatsApp', 'Números y bandejas de Chatwoot.', 'Admin-catalogo.dc.html#canales', 'numero telefono bandeja'], ['Campañas y códigos QR', 'Dónde anuncias y el QR para imprimir: así sabes de dónde llega cada familia.', 'Admin-catalogo.dc.html#campanas', 'anuncios publicidad facebook instagram qr volantes origen'], ['Módulos', 'Qué partes del sistema tiene encendidas la escuela: cotizador, clase muestra, inscripción, operación, finanzas y tableros.', 'Admin-sistema.dc.html#modulos', 'encender apagar activar funciones'], ['Configuración', 'Horario de los mensajes automáticos, topes de mensajes, tiempos del asistente, vigencias, umbrales y modo de cierre.', 'Admin-sistema.dc.html#configuracion', 'horario de envio ajustes tiempos'], ['Textos del asistente', 'Lo que el asistente de WhatsApp dice en cada paso, a la manera de la escuela.', 'Admin-sistema.dc.html#textos', 'bot mensajes saludo preguntas'], ['Etapas del embudo', 'Nombres, orden y días sin movimiento de cada etapa; agrega las tuyas.', 'Admin-catalogo.dc.html#etapas', 'pipeline seguimiento leads'], ['Motivos de pérdida y de baja', 'Por qué se va una familia, en tus palabras.', 'Admin-catalogo.dc.html#motivos', 'razones perdidas bajas']]],
+    ['Mensajería y usuarios', [['Plantillas de mensaje', 'Estado de aprobación, clase (servicio o marketing) y variables.', 'Admin-catalogo.dc.html#plantillas', 'whatsapp aprobadas twilio meta'], ['Automatizaciones', 'Encender, desfases, intentos y horario de envío.', 'Admin-sistema.dc.html#automatizaciones', 'recordatorios avisos automaticos'], ['Usuarios y roles', 'Altas, roles, sucursales, contraseñas y agente de Chatwoot.', 'Admin-catalogo.dc.html#usuarios', 'personas contrasena restablecer desactivar asesor maestro recepcion'], ['Bandeja del administrador', 'Eventos inesperados y tareas sin lead.', 'Admin-sistema.dc.html#bandeja', 'errores pendientes revisar']]],
+  ];
+  PASOS = [['Disciplinas', true, 'Admin-catalogo.dc.html#verticales'], ['Sucursales', true, 'Admin-catalogo.dc.html#sucursales'], ['Programas y edades', true, 'Admin-catalogo.dc.html#programas'], ['Grupos y horarios', false, 'Admin-catalogo.dc.html#grupos'], ['Precios', false, 'Precios.dc.html'], ['Instructores y salones', false, 'Admin-catalogo.dc.html#instructores'], ['Canal de WhatsApp', false, 'Admin-catalogo.dc.html#canales'], ['Usuarios del equipo', false, 'Admin-catalogo.dc.html#usuarios']];
+  state = { movil: false, q: '' };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  limpio(t) { return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+  renderVals() {
+    const s = this.state, movil = s.movil, q = this.limpio(s.q.trim());
+    const grupos = this.GRUPOS.map(([titulo, areas]) => ({ titulo, areas: areas.filter(([t, a, , p]) => !q || this.limpio(`${t} ${a} ${p}`).includes(q)).map(([t, ayuda, href]) => ({ titulo: t, ayuda, href })) })).filter((g) => g.areas.length);
+    const hechos = this.PASOS.filter((p) => p[1]).length, sig = this.PASOS.find((p) => !p[1]);
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      q: s.q, alQ: (e) => this.setState({ q: e.target.value }), sinBuscar: !q, buscando: !!q && grupos.length > 0, textoBusqueda: 'Mostrando solo lo que coincide con tu búsqueda.', sinResultados: !!q && grupos.length === 0,
+      grupos, hechos, avance: (hechos / 8) * 100 + '%', sigue: sig[0], sigueHref: sig[2],
+      pasos: this.PASOS.map(([nombre, ok, href]) => ({ nombre, href, marca: ok ? '✓' : '·', fondo: ok ? 'rgba(143,216,168,0.12)' : 'rgba(255,255,255,0.06)', tinta: ok ? '#C9F0D6' : '#FFFFFF', fondoMarca: ok ? '#8FD8A8' : 'rgba(255,255,255,0.14)', tintaMarca: ok ? '#0E3B22' : '#FFFFFF' })),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 22px">
+<section style="flex: 1 1 420px; background: #171A2C; color: #FFFFFF; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px">
+<div style="display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: 18px"><span aria-hidden="true" style="width: 48px; height: 48px; border-radius: 14px; background: #3A32D1; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-size: 19px">AN</span>Academia Nova</div>
+<div style="display: flex; flex-direction: column; gap: 16px; max-width: 460px">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 44px; line-height: 48px; letter-spacing: -0.02em; text-wrap: balance">Cada familia, de su primer mensaje a su primera clase.</h2>
+<p style="margin: 0; color: #C9CDE0; font-size: 17px; line-height: 26px">Captación, clases muestra, inscripciones y cobranza de Karate, Ballet clásico y Salsa en un solo lugar.</p>
+</div>
+<div style="display: flex; gap: 8px" aria-hidden="true"><span style="width: 36px; height: 6px; border-radius: 3px; background: oklch(0.6 0.16 35)"></span><span style="width: 36px; height: 6px; border-radius: 3px; background: oklch(0.6 0.16 355)"></span><span style="width: 36px; height: 6px; border-radius: 3px; background: oklch(0.6 0.11 190)"></span></div>
+</section>
+<section style="flex: 999 1 420px; min-width: 0; padding: 48px 32px; display: flex; align-items: center; justify-content: center">
+<form onSubmit="{{ alEntrar }}" noValidate="novalidate" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px"><h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 32px; line-height: 38px">Entrar</h1><span style="color: #5A6074">Con el correo que te dio la escuela.</span></div>
+<sc-if value="{{ hayAviso }}"><div role="alert" style="display: flex; gap: 10px; padding: 12px 14px; background: {{ avisoFondo }}; border: 1px solid {{ avisoBorde }}; border-radius: 12px; color: {{ avisoTinta }}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z M10 9.2v4.3M10 6.7h.01"></path></svg><span>{{ aviso }}</span></div></sc-if>
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="correo" style="font-size: 13px; font-weight: 600; color: #454B60">Correo</label><input id="correo" type="email" autocomplete="username" value="{{ correo }}" onChange="{{ alCorreo }}" style="width: 100%; min-height: 48px; padding: 0 14px; background: #FFFFFF; border: {{ bordeCampo }}; border-radius: 12px; font-size: 16px"></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="clave" style="font-size: 13px; font-weight: 600; color: #454B60">Contraseña</label><div style="display: flex; align-items: center; min-height: 48px; padding: 0 4px 0 14px; background: #FFFFFF; border: {{ bordeCampo }}; border-radius: 12px"><input id="clave" type="{{ tipoClave }}" autocomplete="current-password" value="{{ clave }}" onChange="{{ alClave }}" style="flex: 1; min-width: 0; min-height: 44px; border: 0; outline: 0; background: transparent; font-size: 16px"><button type="button" onClick="{{ alVer }}" style="min-height: 40px; padding: 0 12px; background: transparent; color: #2B2699; border: 0; border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer">{{ textoVer }}</button></div></div>
+<button type="submit" disabled="{{ bloqueado }}" aria-busy="{{ entrando }}" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; background: {{ fondoBoton }}; color: {{ tintaBoton }}; border: 0; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer"><sc-if value="{{ entrando }}"><span aria-hidden="true" style="width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: gira 0.8s linear infinite"></span></sc-if>{{ textoBoton }}</button>
+<p style="margin: 0; text-align: center; color: #5A6074; font-size: 14px">¿Olvidaste tu contraseña? Pídele a quien administra la escuela que te la restablezca.</p>
+</form>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;estado&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Normal&quot;,&quot;Contraseña incorrecta&quot;,&quot;Demasiados intentos&quot;,&quot;Sin conexión&quot;,&quot;Sesión terminada&quot;,&quot;Cerraste sesión&quot;],&quot;default&quot;:&quot;Normal&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Acceso&quot;}}">
+class Component extends DCLogic {
+  state = { correo: '', clave: '', ver: false, entrando: false, intento: null };
+  AVISOS = { 'Contraseña incorrecta': ['Correo o contraseña incorrectos.', 'peligro'], 'Demasiados intentos': ['Hiciste demasiados intentos. Espera 10 minutos y vuelve a probar.', 'alerta'], 'Sin conexión': ['No hay conexión con el servidor. Revisa tu internet y vuelve a intentar.', 'alerta'], 'Sesión terminada': ['Tu sesión terminó. Entra otra vez para seguir donde te quedaste.', 'info'], 'Cerraste sesión': ['Cerraste tu sesión.', 'info'] };
+  componentWillUnmount() { clearTimeout(this.t); }
+  renderVals() {
+    const s = this.state, estado = s.intento || this.props.estado || 'Normal', a = this.AVISOS[estado];
+    const tono = a ? { peligro: ['#FDECEA', '#B3261E', '#B3261E'], alerta: ['#FFF0D2', '#F0C56A', '#4A2D00'], info: ['#ECEBFC', '#3A32D1', '#2B2699'] }[a[1]] : null;
+    const listo = s.correo.trim() && s.clave;
+    return {
+      correo: s.correo, clave: s.clave, alCorreo: (e) => this.setState({ correo: e.target.value }), alClave: (e) => this.setState({ clave: e.target.value }),
+      tipoClave: s.ver ? 'text' : 'password', textoVer: s.ver ? 'Ocultar' : 'Mostrar', alVer: () => this.setState({ ver: !s.ver }),
+      hayAviso: !!a, aviso: a ? a[0] : '', avisoFondo: tono ? tono[0] : '', avisoBorde: tono ? tono[1] : '', avisoTinta: tono ? tono[2] : '', bordeCampo: estado === 'Contraseña incorrecta' ? '2px solid #B3261E' : '1px solid #8E95AA',
+      entrando: s.entrando, bloqueado: !listo || s.entrando, fondoBoton: listo ? '#3A32D1' : '#F3F4F8', tintaBoton: listo ? '#FFFFFF' : '#6B7085', textoBoton: s.entrando ? 'Entrando…' : 'Entrar',
+      alEntrar: (e) => { e.preventDefault(); if (!listo) return; this.setState({ entrando: true, intento: 'Normal' }); this.t = setTimeout(() => { if (s.clave === 'nova2026') window.location.href = 'Embudo.dc.html'; else this.setState({ entrando: false, intento: 'Contraseña incorrecta' }); }, 900); },
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes velo{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="admin" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+<a href="Administracion.dc.html" style="flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-weight: 700"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg>Administración</a>
+<div role="tablist" aria-label="Sistema" style="flex: none; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid #DEE1EA">
+<sc-for list="{{ pestanas }}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{ t.activa }}" onClick="{{ t.alElegir }}" style="flex: none; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid {{ t.linea }}; background: none; color: {{ t.tinta }}; font-weight: {{ t.peso }}; cursor: pointer">{{ t.nombre }}</button></sc-for>
+</div>
+<div style="flex: none; display: flex; flex-direction: column; gap: 4px"><h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">{{ titulo }}</h1><div style="color: #5A6074; max-width: 72ch">{{ ayuda }}</div></div>
+
+<sc-if value="{{ esModulos }}" hint-placeholder-val="{{ true }}">
+<div style="flex: none; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ modulos }}" as="m" hint-placeholder-count="7">
+<article style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 16px 18px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 4px"><div style="display: flex; align-items: center; gap: 10px"><strong style="font-size: 16px">{{ m.nombre }}</strong><span style="padding: 2px 9px; border-radius: 999px; background: {{ m.fondoEstado }}; color: {{ m.tintaEstado }}; font-size: 12px; line-height: 16px; font-weight: 700">{{ m.estado }}</span></div><span style="color: #454B60; text-wrap: pretty">{{ m.efecto }}</span><sc-if value="{{ m.bloqueado }}"><span style="display: inline-flex; align-items: center; gap: 6px; color: #6B4100; font-weight: 600"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z M5 5l10 10"></path></svg>{{ m.bloqueo }}</span></sc-if></div>
+<button type="button" role="switch" aria-checked="{{ m.encendido }}" aria-label="{{ m.etiqueta }}" disabled="{{ m.bloqueado }}" onClick="{{ m.alCambiar }}" style="flex: none; width: 60px; height: 34px; padding: 3px; border-radius: 999px; border: 0; background: {{ m.pista }}; display: flex; justify-content: {{ m.lado }}; cursor: pointer; transition: background-color 120ms"><span style="width: 28px; height: 28px; border-radius: 999px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(23,26,44,0.3)"></span></button>
+</article>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ esConfig }}">
+<div style="flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px">
+<sc-for list="{{ ajustes }}" as="g" hint-placeholder-count="4">
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">{{ g.titulo }}</h2>
+<sc-for list="{{ g.campos }}" as="c" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12.5px; font-weight: 600; color: #5A6074">{{ c.etiqueta }}</span>
+<sc-if value="{{ c.esValor }}"><div style="display: flex; align-items: center; gap: 8px"><input aria-label="{{ c.etiqueta }}" value="{{ c.valor }}" onChange="{{ c.alCambiar }}" style="width: 120px; min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums"><span style="color: #454B60">{{ c.unidad }}</span></div></sc-if>
+<sc-if value="{{ c.esOpciones }}"><div style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px"><sc-for list="{{ c.opciones }}" as="o" hint-placeholder-count="2"><button type="button" aria-pressed="{{ o.activa }}" onClick="{{ o.alElegir }}" style="flex: 1 1 0; min-height: 40px; background: {{ o.fondo }}; color: #171A2C; border: 0; border-radius: 9px; font-weight: {{ o.peso }}; box-shadow: {{ o.sombra }}; cursor: pointer">{{ o.nombre }}</button></sc-for></div></sc-if>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ c.ayuda }}</span></div>
+</sc-for>
+</section>
+</sc-for>
+</div>
+<sc-if value="{{ hayCambios }}"><div style="flex: none; position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; box-shadow: 0 12px 32px rgba(23,26,44,0.18); animation: aparece 180ms cubic-bezier(.2,.8,.2,1)"><span style="font-weight: 600; color: #6B4100">Tienes cambios sin guardar</span><div style="display: flex; gap: 8px"><button type="button" onClick="{{ alDescartar }}" style="min-height: 44px; padding: 0 14px; background: #FFFFFF; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer">Descartar</button><button type="button" onClick="{{ alGuardarConfig }}" style="min-height: 44px; padding: 0 18px; background: #3A32D1; color: #FFFFFF; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">Guardar cambios</button></div></div></sc-if>
+</sc-if>
+
+<sc-if value="{{ esAuto }}">
+<div style="flex: none; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ autos }}" as="a" hint-placeholder-count="6">
+<article style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 16px 18px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><strong style="font-size: 16px">{{ a.nombre }}</strong><span style="padding: 2px 9px; border-radius: 999px; background: {{ a.fondoClase }}; color: {{ a.tintaClase }}; font-size: 12px; line-height: 16px; font-weight: 700">{{ a.clase }}</span></div><span style="color: #454B60">{{ a.cuando }}</span><span style="color: #5A6074; font-size: 12.5px">{{ a.reglas }}</span></div>
+<button type="button" onClick="{{ a.alAjustar }}" style="min-height: 40px; padding: 0 14px; background: #FFFFFF; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer">Ajustar</button>
+<button type="button" role="switch" aria-checked="{{ a.encendida }}" aria-label="{{ a.etiqueta }}" onClick="{{ a.alCambiar }}" style="flex: none; width: 60px; height: 34px; padding: 3px; border-radius: 999px; border: 0; background: {{ a.pista }}; display: flex; justify-content: {{ a.lado }}; cursor: pointer"><span style="width: 28px; height: 28px; border-radius: 999px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(23,26,44,0.3)"></span></button>
+</article>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ esTextos }}">
+<div style="flex: none; display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start">
+<div style="flex: 1.3 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ textos }}" as="t" hint-placeholder-count="6">
+<button type="button" aria-pressed="{{ t.activo }}" onClick="{{ t.alElegir }}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px 16px; background: #FFFFFF; border: {{ t.borde }}; border-radius: 14px; text-align: left; color: #171A2C; cursor: pointer"><span style="display: flex; align-items: center; gap: 8px"><span style="width: 24px; height: 24px; border-radius: 999px; background: #E7E9F1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">{{ t.num }}</span><strong>{{ t.paso }}</strong></span><span style="color: #5A6074; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%">{{ t.texto }}</span></button>
+</sc-for>
+</div>
+<section style="flex: 1 1 320px; min-width: 0; position: sticky; top: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">{{ textoSel.paso }}</h2>
+<textarea aria-label="Texto del asistente" value="{{ textoSel.texto }}" onChange="{{ alTexto }}" rows="5" style="width: 100%; min-height: 120px; padding: 10px 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px; resize: vertical"></textarea>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><span style="color: #5A6074; font-size: 12.5px; font-weight: 600">Variables:</span><sc-for list="{{ variables }}" as="v" hint-placeholder-count="3"><span style="padding: 2px 8px; background: #ECEBFC; color: #2B2699; border-radius: 6px; font-size: 12px; font-weight: 700">{{ v }}</span></sc-for></div>
+<span style="color: #5A6074; font-size: 12.5px; font-weight: 600">Así lo lee la familia</span>
+<div style="padding: 14px; background: #E7E9F1; border-radius: 14px"><div style="max-width: 88%; padding: 10px 12px; background: #FFFFFF; border-radius: 4px 14px 14px 14px; box-shadow: 0 1px 1px rgba(23,26,44,0.1); white-space: pre-wrap">{{ vistaPrevia }}</div></div>
+<button type="button" onClick="{{ alGuardarTexto }}" style="align-self: flex-start; min-height: 44px; padding: 0 18px; background: #3A32D1; color: #FFFFFF; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">Guardar texto</button>
+</section>
+</div>
+</sc-if>
+
+<sc-if value="{{ esBandeja }}">
+<div style="flex: none; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ eventos }}" as="e" hint-placeholder-count="4">
+<article style="display: flex; gap: 14px; padding: 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; opacity: {{ e.opacidad }}">
+<span aria-hidden="true" style="flex: none; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: {{ e.fondo }}; color: {{ e.tinta }}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z M10 8.5v3.5M10 14.5h.01"></path></svg></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px"><div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px"><strong style="font-size: 15px">{{ e.titulo }}</strong><span style="color: #5A6074; font-size: 12.5px">{{ e.cuando }}</span></div><span style="color: #454B60">{{ e.texto }}</span><span style="color: #5A6074; font-size: 12.5px; font-variant-numeric: tabular-nums">{{ e.dato }}</span>
+<sc-if value="{{ e.pendiente }}"><button type="button" onClick="{{ e.alRevisar }}" style="align-self: flex-start; margin-top: 4px; min-height: 40px; padding: 0 14px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">Marcar como revisado</button></sc-if>
+<sc-if value="{{ e.revisado }}"><span style="color: #17603A; font-weight: 700">Revisado por Adela Ramírez</span></sc-if></div>
+</article>
+</sc-for>
+</div>
+</sc-if>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="admin" activa="admin" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+
+<sc-if value="{{ hayDialogo }}">
+<div style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="dlg-titulo" style="width: {{ dlgAncho }}; max-width: 100%; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 12px"><h2 id="dlg-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px">{{ dlgTitulo }}</h2><p style="margin: 0; color: #454B60; white-space: pre-line">{{ dlgTexto }}</p></div>
+<div style="display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding: 12px 20px; border-top: 1px solid #DEE1EA"><button type="button" onClick="{{ alConfirmar }}" style="min-height: 48px; padding: 0 20px; background: #3A32D1; color: #FFFFFF; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer">{{ dlgBoton }}</button><button type="button" onClick="{{ alCerrar }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button></div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28)"><span style="min-width: 0">{{ toast }}</span><button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  SECS = { modulos: ['Módulos', 'Qué partes del sistema tiene encendidas la escuela. Un módulo apagado no aparece en la barra y sus pantallas dicen «No disponible».'], configuracion: ['Configuración', 'Horario de los mensajes automáticos, topes, tiempos del asistente, vigencias, umbrales y modo de cierre.'], automatizaciones: ['Automatizaciones', 'Los avisos que el sistema manda solo. Ninguno sale fuera de 09:00–20:00 de la sucursal ni a quien pidió no recibir mensajes.'], textos: ['Textos del asistente', 'Lo que el asistente de WhatsApp dice en cada paso, a la manera de la escuela.'], bandeja: ['Bandeja del administrador', 'Eventos inesperados y tareas sin lead: lo que el sistema no supo a quién asignar.'] };
+  MODS = [['captacion', 'Captación', 'El embudo, las tareas y el asistente de WhatsApp. Es la base: no se apaga.', null], ['cotizador', 'Cotizador', 'Si lo apagas, el asistente ya no da precios y los asesores no pueden cotizar.', 'captacion'], ['clase_muestra', 'Clase muestra', 'Si lo apagas, desaparecen «Hoy» del maestro y el agendado de clases muestra.', 'captacion'], ['inscripcion', 'Inscripción', 'Si lo apagas, los leads se marcan como inscritos a mano y no hay alumnos ni familias.', 'captacion'], ['operacion', 'Operación', 'Si lo apagas, desaparece el pase de lista.', 'inscripcion'], ['finanzas', 'Finanzas', 'Si lo apagas, desaparecen pagos, estado de cuenta, uniformes, ventas y el cierre del día.', 'inscripcion'], ['tableros', 'Tableros', 'Si lo apagas, desaparecen los tableros de captación, costo y el ejecutivo.', null]];
+  AUTOS = [['Recordatorio de clase muestra', 'Servicio', '24 horas antes de la clase · y 2 horas antes', 'Hasta 2 intentos · lunes a sábado'], ['Recordatorio de pago', 'Servicio', '3 días antes de que venza la mensualidad', '1 intento · lunes a sábado'], ['Pago atrasado', 'Servicio', '5 días después del vencimiento · se crea tarea «Deuda vencida»', 'Hasta 3 intentos, uno por semana'], ['Lead frío: reenganche', 'Marketing', 'Cuando un lead pasa los días sin movimiento de su etapa', 'Hasta 3 veces por lead · no persigue lo que se enfrió hace más de 14 días'], ['Promoción por vencer', 'Marketing', '3 días antes de que termine la promoción cotizada', '1 intento'], ['Bienvenida de inscripción', 'Servicio', 'Al inscribir: grupo, sucursal y primer día', '1 intento · nunca lleva datos de salud']];
+  TEXTOS = [['Saludo', '¡Hola! Soy el asistente de {escuela}. Te ayudo con informes, precios y clases muestra. ¿Para quién son las clases?', ['escuela']], ['Nombre y edad', 'Perfecto. ¿Cómo se llama y cuántos años tiene?', []], ['Sucursal', '¿Qué sucursal te queda mejor? {sucursales}', ['sucursales']], ['Cotización', 'Para {alumno} ({edad} años) te recomendamos {programa}: inscripción {inscripcion} y mensualidad {mensualidad}. {promocion}', ['alumno', 'edad', 'programa', 'inscripcion', 'mensualidad', 'promocion']], ['Clase muestra', '¿Te gustaría que {alumno} tome una clase muestra gratis? Estos son los horarios con lugar: {horarios}', ['alumno', 'horarios']], ['Pasar a una persona', 'Gracias. En un momento te escribe alguien del equipo para resolver tus dudas.', []]];
+  EJEMPLO = { escuela: 'Academia Nova', sucursales: 'Águilas o Norte', alumno: 'Tadeo', edad: '6', programa: 'Karate Infantil 6-8', inscripcion: '$500', mensualidad: '$650', promocion: 'Este mes la inscripción es gratis.', horarios: 'lunes 5:00 pm o martes 4:00 pm' };
+  state = { movil: false, sec: 'modulos', mods: { captacion: true, cotizador: true, clase_muestra: true, inscripcion: true, operacion: true, finanzas: true, tableros: true }, autos: [true, true, true, true, false, true], cfg: null, base: { inicio: '09:00', fin: '20:00', tope: '1', diarios: '3', espera: '15', vigencia: '15', reventar: '95', vacio: '40', faltas: '3', cierre: 'Asesor' }, textos: null, tsel: 0, revisados: {}, dlg: null, toast: null };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); this.leer = () => { const h = (window.location.hash || '').replace('#', ''); if (this.SECS[h] && h !== this.state.sec) this.setState({ sec: h }); }; this.leer(); window.addEventListener('hashchange', this.leer); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); window.removeEventListener('hashchange', this.leer); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  renderVals() {
+    const s = this.state, movil = s.movil, m = s.mods, cfg = s.cfg || s.base;
+    const modulos = this.MODS.map(([id, nombre, efecto, req]) => { const on = m[id], dependientes = this.MODS.filter((x) => x[3] === id && m[x[0]]).map((x) => x[1]), falta = req && !m[req];
+      const bloq = id === 'captacion' || (on && dependientes.length > 0) || (!on && falta);
+      return { nombre, efecto: on ? efecto : efecto.replace('Si lo apagas', 'Apagado'), encendido: on, estado: on ? 'Encendido' : 'Apagado', fondoEstado: on ? '#E1F3E7' : '#ECEDF3', tintaEstado: on ? '#17603A' : '#5A6074', pista: bloq ? '#C5CAD8' : on ? '#3A32D1' : '#A9AEC6', lado: on ? 'flex-end' : 'flex-start', bloqueado: bloq, etiqueta: `${on ? 'Apagar' : 'Encender'} ${nombre}`,
+        bloqueo: id === 'captacion' ? 'Es la base del sistema' : on ? `Primero apaga ${dependientes.join(' y ')}` : `Primero enciende ${this.MODS.find((x) => x[0] === req)[1]}`,
+        alCambiar: () => { if (bloq) return; if (on) this.setState({ dlg: { tipo: 'apagar', id, nombre, efecto } }); else { this.setState((st) => ({ mods: { ...st.mods, [id]: true } })); this.aviso(`${nombre} quedó encendido.`); } } }; });
+    const val = (k, etiqueta, unidad, ayuda) => ({ esValor: true, esOpciones: false, etiqueta, unidad, ayuda, valor: cfg[k], alCambiar: (e) => { const v = e.target.value; this.setState((st) => ({ cfg: { ...(st.cfg || st.base), [k]: v } })); }, opciones: [] });
+    const ajustes = [
+      ['Horario de mensajes automáticos', [val('inicio', 'Desde', 'h', ''), val('fin', 'Hasta', 'h', 'Hora local de cada sucursal. Lo programado fuera de este horario se recorre al siguiente horario válido.')]],
+      ['Topes de mensajes', [val('tope', 'Promociones por teléfono', 'cada 7 días', ''), val('diarios', 'Mensajes automáticos por teléfono', 'al día', 'Los avisos de servicio (clase, pago) no cuentan para el tope de promociones.')]],
+      ['Asistente y vigencias', [val('espera', 'Espera antes de pasar a una persona', 'minutos', ''), val('vigencia', 'Vigencia de una cotización', 'días', '')]],
+      ['Umbrales y cierre', [val('reventar', 'Grupo «a reventar» desde', '% de ocupación', ''), val('vacio', 'Grupo «vacío» hasta', '% de ocupación', ''), val('faltas', 'Faltas seguidas para crear tarea', 'faltas', ''), { esValor: false, esOpciones: true, etiqueta: 'Quién cierra la inscripción después de la clase muestra', ayuda: '«Maestro en sitio»: el maestro inscribe desde su celular al terminar la clase.', opciones: ['Asesor', 'Maestro en sitio'].map((o) => { const a = cfg.cierre === o; return { nombre: o, activa: a, fondo: a ? '#FFFFFF' : 'transparent', peso: a ? 700 : 600, sombra: a ? '0 1px 2px rgba(23,26,44,0.16)' : 'none', alElegir: () => this.setState((st) => ({ cfg: { ...(st.cfg || st.base), cierre: o } })) }; }) }]],
+    ].map(([titulo, campos]) => ({ titulo, campos }));
+    const hayCambios = !!s.cfg && JSON.stringify(s.cfg) !== JSON.stringify(s.base);
+    const autos = this.AUTOS.map(([nombre, clase, cuando, reglas], i) => { const on = s.autos[i]; return { nombre, clase, cuando, reglas, encendida: on, pista: on ? '#3A32D1' : '#A9AEC6', lado: on ? 'flex-end' : 'flex-start', etiqueta: `${on ? 'Apagar' : 'Encender'} ${nombre}`, fondoClase: clase === 'Servicio' ? '#E1F3E7' : '#ECEBFC', tintaClase: clase === 'Servicio' ? '#17603A' : '#2B2699',
+      alCambiar: () => { this.setState((st) => ({ autos: st.autos.map((x, j) => (j === i ? !x : x)) })); this.aviso(`«${nombre}» quedó ${on ? 'apagada' : 'encendida'}.`); }, alAjustar: () => this.setState({ dlg: { tipo: 'ajustar', nombre, cuando, reglas } }) }; });
+    const textos = s.textos || this.TEXTOS.map((t) => t[1]), ts = this.TEXTOS[s.tsel];
+    const vista = textos[s.tsel].replace(/\{(\w+)\}/g, (_, k) => this.EJEMPLO[k] || `{${k}}`);
+    const eventos = [['e1', 'Mensaje de un número que no es lead', 'Escribió por el canal de Norte un número que no existe en el sistema y no pasó por el asistente.', '+52 55 7781 0042 · hace 40 min'], ['e2', 'Tarea sin lead', 'WhatsApp reportó un mensaje no entregado a un número que ya se dio de baja.', 'Código 63016 · hace 3 h'], ['e3', 'Evento de Twilio no reconocido', 'Llegó un aviso de estado que el sistema no sabe procesar. No se reintentó ningún mensaje.', 'MessageStatus=partially_delivered · ayer'], ['e4', 'Plantilla rechazada por Meta', '«bienvenida_inscripcion» sigue en revisión: mientras tanto, la bienvenida sale solo dentro de la ventana de 24 h.', 'hace 2 días']].map(([id, titulo, texto, dato]) => { const r = !!s.revisados[id]; return { titulo, texto, dato, cuando: dato.split(' · ').pop(), pendiente: !r, revisado: r, opacidad: r ? 0.7 : 1, fondo: '#FFF0D2', tinta: '#6B4100', alRevisar: () => this.setState((st) => ({ revisados: { ...st.revisados, [id]: true } })) }; });
+    const dl = s.dlg;
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '24px 32px 32px',
+      pestanas: Object.keys(this.SECS).map((id) => { const a = s.sec === id; return { nombre: this.SECS[id][0], activa: a, linea: a ? '#3A32D1' : 'transparent', tinta: a ? '#2B2699' : '#454B60', peso: a ? 700 : 600, alElegir: () => { this.setState({ sec: id }); try { history.replaceState(null, '', '#' + id); } catch (e) {} } }; }),
+      titulo: this.SECS[s.sec][0], ayuda: this.SECS[s.sec][1], esModulos: s.sec === 'modulos', esConfig: s.sec === 'configuracion', esAuto: s.sec === 'automatizaciones', esTextos: s.sec === 'textos', esBandeja: s.sec === 'bandeja',
+      modulos, ajustes, hayCambios, alDescartar: () => this.setState({ cfg: null }), alGuardarConfig: () => { this.setState((st) => ({ base: st.cfg, cfg: null })); this.aviso('Configuración guardada. Surte efecto en los próximos mensajes.'); },
+      autos, textos: this.TEXTOS.map((t, i) => ({ num: i + 1, paso: t[0], texto: textos[i], activo: i === s.tsel, borde: i === s.tsel ? '2px solid #3A32D1' : '1px solid #DEE1EA', alElegir: () => this.setState({ tsel: i }) })),
+      textoSel: { paso: ts[0], texto: textos[s.tsel] }, variables: ts[2].length ? ts[2].map((v) => `{${v}}`) : ['Sin variables'], vistaPrevia: vista,
+      alTexto: (e) => { const v = e.target.value; this.setState((st) => { const t = (st.textos || this.TEXTOS.map((x) => x[1])).slice(); t[st.tsel] = v; return { textos: t }; }); }, alGuardarTexto: () => this.aviso('Texto guardado. El asistente lo usa desde el siguiente mensaje.'),
+      eventos,
+      hayDialogo: !!dl, dlgTitulo: dl ? (dl.tipo === 'apagar' ? `Apagar ${dl.nombre}` : `Ajustar «${dl.nombre}»`) : '', dlgTexto: dl ? (dl.tipo === 'apagar' ? `${dl.efecto}\nSurte efecto enseguida para todas las personas de la escuela.` : `Cuándo sale: ${dl.cuando}.\nReglas: ${dl.reglas}.\nNunca sale fuera de 09:00–20:00 de la sucursal.`) : '', dlgBoton: dl && dl.tipo === 'apagar' ? `Apagar ${dl.nombre}` : 'Guardar',
+      alConfirmar: () => { if (!dl) return; if (dl.tipo === 'apagar') { this.setState((st) => ({ mods: { ...st.mods, [dl.id]: false }, dlg: null })); this.aviso(`${dl.nombre} quedó apagado.`); } else { this.setState({ dlg: null }); this.aviso('Automatización ajustada.'); } }, alCerrar: () => this.setState({ dlg: null }),
+      dlgAlinear: movil ? 'flex-end' : 'center', dlgRelleno: movil ? '0' : '24px', dlgAncho: movil ? '100%' : '500px', dlgRadio: movil ? '20px 20px 0 0' : '16px',
+      hayToast: !!s.toast, toast: s.toast || '', toastAbajo: movil ? '84px' : '24px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

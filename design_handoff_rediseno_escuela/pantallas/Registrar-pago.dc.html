@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes velo{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}">
+<nav aria-label="Secciones" style="flex: 0 0 232px; width: 232px; height: 100%; overflow-y: auto; scrollbar-width: none; background: #171A2C; color: #C9CDE0; display: flex; flex-direction: column; gap: 14px; padding: 16px 14px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 0 6px">
+<div aria-hidden="true" style="flex: none; width: 40px; height: 40px; border-radius: 12px; background: #3A32D1; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 16px">AN</div>
+<div style="min-width: 0; color: #FFFFFF; font-weight: 700; font-size: 15px; line-height: 20px">Academia Nova</div>
+</div>
+<div style="padding: 0 6px">
+<label for="sucursal-lateral" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Sucursal</label>
+<select id="sucursal-lateral" style="width: 100%; min-height: 44px; padding: 0 12px; background: transparent; color: #C9CDE0; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; font-size: 12.5px; cursor: pointer">
+<option value="" style="color: #171A2C; background: #FFFFFF">Todas mis sucursales</option>
+<option value="Águilas" style="color: #171A2C; background: #FFFFFF">Águilas</option>
+<option value="Norte" style="color: #171A2C; background: #FFFFFF">Norte</option>
+</select>
+</div>
+<div style="display: flex; flex-direction: column">
+<div style="padding: 6px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Clases</div>
+<a href="Hoy-maestro.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>Hoy</a>
+<a href="Pase-de-lista.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Captación</div>
+<a href="Embudo.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4L3 4z"></path></svg>Embudo</a>
+<a href="Tareas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V6a3 3 0 013-3z"></path><path d="M6.5 10l2.5 2.5 4.5-5"></path></svg>Tareas</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Cobranza</div>
+<a href="Registrar-pago.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; background: rgba(255,255,255,0.12); color: #FFFFFF; font-weight: 700"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h11a2 2 0 012 2v7a2 2 0 01-2 2h-11a2 2 0 01-2-2v-7a2 2 0 012-2z"></path><path d="M2.5 8.5h15M5.5 12.5h3"></path></svg>Registrar pago</a>
+<a href="Estado-de-cuenta.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5v-15z"></path><path d="M8 7h4M8 10.5h4"></path></svg>Estado de cuenta</a>
+<a href="Uniformes.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3L3 5.5l1.5 3L6.5 8v9h7V8l2 .5 1.5-3L13 3c-.4 1.3-1.5 2-3 2s-2.6-.7-3-2z"></path></svg>Uniformes</a>
+<a href="Ventas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h2l2 9h8.5l1.5-6H6"></path><path d="M7.5 16.7a.7.7 0 100-1.4.7.7 0 000 1.4zM14 16.7a.7.7 0 100-1.4.7.7 0 000 1.4z"></path></svg>Ventas</a>
+<a href="Cierre-del-dia.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2v-11a2 2 0 012-2z"></path><path d="M7 6.5h6M7 10h6M7 13.5h3"></path></svg>Cierre del día</a>
+<div style="padding: 14px 12px 4px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A9AEC6">Escuela</div>
+<a href="Tableros.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h14M6 14V9M10 14V5M14 14v-3"></path></svg>Tableros</a>
+<a href="Alumnos.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 10a3 3 0 100-6 3 3 0 000 6z"></path><path d="M2.5 16.5c.6-2.8 2.5-4.2 5-4.2s4.4 1.4 5 4.2"></path><path d="M13 4.3a3 3 0 010 5.4M15 12.6c1.4.6 2.2 1.9 2.5 3.9"></path></svg>Alumnos</a>
+<a href="Familias.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L10 3l7 6.5"></path><path d="M5 8.5V17h10V8.5"></path><path d="M8.5 17v-4.5h3V17"></path></svg>Familias</a>
+<a href="Administracion.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #C9CDE0; font-weight: 500" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"></path><path d="M16.2 10l1.3.8-1.3 2.2-1.5-.4a5.5 5.5 0 01-1.3.8l-.4 1.6H10.3l-.4-1.6a5.5 5.5 0 01-1.3-.8l-1.5.4-1.3-2.2L7 10a5.6 5.6 0 010-1.6l-1.3-.8 1.3-2.2 1.5.4a5.5 5.5 0 011.3-.8l.4-1.6h2.4l.4 1.6a5.5 5.5 0 011.3.8l1.5-.4 1.3 2.2-1.3.8c.1.5.1 1.1 0 1.6z"></path></svg>Administración</a>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 4px; padding: 10px 0 0 6px; border-top: 1px solid rgba(255,255,255,0.14)">
+<a href="Mas.dc.html" aria-label="Mi cuenta (Adela Ramírez)" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; color: #FFFFFF; font-weight: 600">
+<span aria-hidden="true" style="flex: none; width: 36px; height: 36px; border-radius: 999px; background: #2B3050; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700">AR</span>
+<span style="min-width: 0; display: flex; flex-direction: column"><span>Adela Ramírez</span><span style="color: #A9AEC6; font-size: 12.5px; line-height: 16px; font-weight: 500">Administración</span></span>
+</a>
+<a href="Acceso.dc.html" aria-label="Salir" title="Salir" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 10px; color: #A9AEC6; cursor: pointer" style-hover="background: rgba(255,255,255,0.14); color: #FFFFFF"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5H5.5a1 1 0 00-1 1v11a1 1 0 001 1H8"></path><path d="M12.5 6.5L16 10l-3.5 3.5M16 10H8"></path></svg></a>
+</div>
+</nav>
+</sc-if>
+
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}">
+<header style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 2px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="color: #5A6074; font-size: 13px; line-height: 18px; font-weight: 600">Academia Nova · Águilas</span>
+</div>
+<a href="Mas.dc.html" aria-label="Mi cuenta (Rocío Méndez)" style="flex: none; width: 44px; height: 44px; border-radius: 999px; background: #171A2C; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px">RM</a>
+</header>
+</sc-if>
+
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 16px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Registrar pago</h1>
+<button type="button" onClick="{{ alAbrirBuscador }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8; border-color: #8E95AA"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11z"></path><path d="M13.5 13.5L17 17"></path></svg>Cambiar de familia</button>
+</div>
+
+<section aria-label="Familia" style="flex: none; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px">
+<div style="flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 14px">
+<span aria-hidden="true" style="flex: none; width: 48px; height: 48px; border-radius: 999px; background: #DAD8FA; color: #2B2699; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 17px">{{ f.iniciales }}</span>
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 21px; line-height: 26px; letter-spacing: -0.01em">{{ f.nombre }}</div>
+<div style="color: #5A6074; font-variant-numeric: tabular-nums">{{ f.tel }} · {{ f.alumnosTexto }}</div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{ f.ninos }}" as="n" hint-placeholder-count="2">
+<span style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: {{ n.suave }}; color: {{ n.tinta }}; font-weight: 700"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: {{ n.color }}"></span>{{ n.nombre }} <span style="font-weight: 500">· {{ n.grupo }}</span></span>
+</sc-for>
+</div>
+</section>
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px">
+
+<div style="flex: 1.25 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Lo que adeuda</h2>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 40px; line-height: 44px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums">{{ saldoTexto }}</div>
+</div>
+<sc-if value="{{ hayVencido }}"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #FFF0D2; color: #6B4100; border: 1px solid #F0C56A; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l8 14H2L10 3z"></path><path d="M10 8.5v3.5M10 14.5h.01"></path></svg>{{ vencidoTexto }}</span></sc-if>
+<sc-if value="{{ nadaVencido }}"><span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12.5px; line-height: 16px; font-weight: 700"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>{{ alCorrienteTexto }}</span></sc-if>
+</div>
+<sc-if value="{{ sinCargos }}">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: #E1F3E7; border-radius: 12px; color: #17603A; font-weight: 600"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17a7 7 0 100-14 7 7 0 000 14z"></path><path d="M6.8 10.3l2.2 2.2 4.2-4.6"></path></svg>La familia está al corriente. No hay nada por cobrar.</div>
+</sc-if>
+<sc-for list="{{ grupos }}" as="g" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #DEE1EA; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 700"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: {{ g.color }}"></span>{{ g.nombre }} · {{ g.disciplina }}</div>
+<sc-for list="{{ g.cargos }}" as="c" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0 12px">
+<div style="min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ c.concepto }}</span><span style="color: {{ c.tintaFecha }}; font-weight: {{ c.pesoFecha }}">{{ c.fecha }}</span></div>
+<div style="display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="flex: 1; max-width: 220px; height: 6px; border-radius: 3px; background: #E7E9F1; overflow: hidden"><span style="display: block; height: 100%; width: {{ c.cubre }}; background: {{ c.colorCubre }}; border-radius: 3px; transition: width 180ms cubic-bezier(.2,.8,.2,1)"></span></span>
+<span style="color: {{ c.tintaEstado }}; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ c.estado }}</span>
+</div>
+</div>
+<div style="flex: none; font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums">{{ c.monto }}</div>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</section>
+
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Pagos recientes</h2>
+<sc-if value="{{ sinRecientes }}"><div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: #F3F4F8; border-radius: 12px; color: #454B60"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5v-15z"></path><path d="M8 7h4M8 10.5h4"></path></svg>Todavía no hay pagos de esta familia. El primero que registres aparecerá aquí.</div></sc-if>
+<sc-for list="{{ recientes }}" as="p" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 12px; background: {{ p.fondo }}">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="display: flex; align-items: center; gap: 8px; font-weight: 700">{{ p.fecha }}<sc-if value="{{ p.nuevo }}"><span style="padding: 2px 8px; background: #3A32D1; color: #FFFFFF; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 700">Nuevo</span></sc-if></span><span style="color: #5A6074">{{ p.detalle }}</span></div>
+<div style="flex: none; display: flex; align-items: center; gap: 4px"><strong style="font-variant-numeric: tabular-nums">{{ p.monto }}</strong><button type="button" onClick="{{ alImprimir }}" aria-label="Imprimir recibo" title="Imprimir recibo" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7V3.5h8V7"></path><path d="M6 14H4.5a1 1 0 01-1-1V8a1 1 0 011-1h11a1 1 0 011 1v5a1 1 0 01-1 1H14"></path><path d="M6 11.5h8v5H6z"></path></svg></button></div>
+</div>
+</sc-for>
+</section>
+</div>
+
+<section style="flex: 1 1 360px; min-width: 0; position: sticky; top: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 18px; box-shadow: 0 1px 2px rgba(23,26,44,0.06), 0 12px 28px -18px rgba(23,26,44,0.25)">
+<sc-if value="{{ formulario }}" hint-placeholder-val="{{ true }}">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Nuevo pago</h2>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="monto" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Monto recibido</label>
+<div style="display: flex; align-items: center; gap: 6px; min-height: 60px; padding: 0 14px; background: #FFFFFF; border: 2px solid {{ bordeMonto }}; border-radius: 12px">
+<span aria-hidden="true" style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 24px; color: #5A6074">$</span>
+<input id="monto" inputmode="decimal" autocomplete="off" value="{{ monto }}" onChange="{{ alMonto }}" placeholder="0.00" aria-describedby="monto-ayuda" style="flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; color: #171A2C; font-variant-numeric: tabular-nums">
+</div>
+<sc-if value="{{ hayError }}"><div id="monto-ayuda" style="color: #B3261E; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ error }}</div></sc-if>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px">
+<sc-for list="{{ atajos }}" as="a" hint-placeholder-count="2">
+<button type="button" onClick="{{ a.alElegir }}" style="min-height: 40px; padding: 0 14px; background: {{ a.fondo }}; color: #2B2699; border: 1px solid {{ a.borde }}; border-radius: 999px; font-weight: 700; cursor: pointer">{{ a.texto }}</button>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div id="metodo-etiqueta" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Método de pago</div>
+<div role="group" aria-labelledby="metodo-etiqueta" style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px">
+<sc-for list="{{ metodos }}" as="m" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{ m.activo }}" onClick="{{ m.alElegir }}" style="flex: 1 1 0; min-height: 44px; background: {{ m.fondo }}; color: {{ m.tinta }}; border: 0; border-radius: 9px; font-weight: {{ m.peso }}; box-shadow: {{ m.sombra }}; cursor: pointer">{{ m.nombre }}</button>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 14px">
+<sc-if value="{{ pideReferencia }}">
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 6px">
+<label for="referencia" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">{{ referenciaEtiqueta }}</label>
+<input id="referencia" value="{{ referencia }}" onChange="{{ alReferencia }}" placeholder="{{ referenciaAyuda }}" style="width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px">
+</div>
+</sc-if>
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 6px">
+<label for="fecha" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Fecha del pago</label>
+<input id="fecha" value="Hoy, 12 de octubre" readonly="readonly" style="width: 100%; min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px">
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: #F3F4F8; border-radius: 12px">
+<div style="font-size: 12.5px; line-height: 16px; font-weight: 700; color: #454B60">Así se va a repartir</div>
+<sc-if value="{{ sinReparto }}"><div style="color: #5A6074">Escribe el monto para ver a qué cargos se aplica. Primero se paga lo más antiguo.</div></sc-if>
+<sc-for list="{{ reparto }}" as="r" hint-placeholder-count="2">
+<div style="display: flex; justify-content: space-between; gap: 12px"><span style="min-width: 0">{{ r.concepto }}</span><strong style="font-variant-numeric: tabular-nums">{{ r.monto }}</strong></div>
+</sc-for>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #C5CAD8; color: {{ tintaDespues }}; font-weight: 700"><span>Saldo después del pago</span><span style="font-variant-numeric: tabular-nums">{{ despuesTexto }}</span></div>
+</div>
+<button type="button" disabled="{{ bloqueado }}" onClick="{{ alRegistrar }}" style="min-height: 52px; padding: 0 20px; background: {{ fondoBoton }}; color: {{ tintaBoton }}; border: 1px solid {{ bordeBoton }}; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer">{{ textoBoton }}</button>
+</sc-if>
+<sc-if value="{{ registrado }}">
+<div style="display: flex; flex-direction: column; align-items: flex-start; gap: 14px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<span aria-hidden="true" style="width: 56px; height: 56px; border-radius: 999px; background: #E1F3E7; color: #17603A; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></span>
+<div role="status" style="display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; line-height: 30px">Pago registrado</h2>
+<div style="color: #454B60">{{ ultimo.detalle }}</div>
+</div>
+<div style="align-self: stretch; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; padding: 14px 16px; background: #F3F4F8; border-radius: 12px">
+<span>Recibido</span><strong style="font-variant-numeric: tabular-nums">{{ ultimo.monto }}</strong>
+<span>Saldo después del pago</span><strong style="color: {{ ultimo.tintaSaldo }}; font-variant-numeric: tabular-nums">{{ ultimo.saldo }}</strong>
+</div>
+<div style="align-self: stretch; display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" onClick="{{ alImprimir }}" style="flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7V3.5h8V7"></path><path d="M6 14H4.5a1 1 0 01-1-1V8a1 1 0 011-1h11a1 1 0 011 1v5a1 1 0 01-1 1H14"></path><path d="M6 11.5h8v5H6z"></path></svg>Imprimir recibo</button>
+<button type="button" onClick="{{ alOtro }}" style="flex: 1 1 auto; min-height: 48px; padding: 0 16px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer">Registrar otro pago</button>
+</div>
+</div>
+</sc-if>
+</section>
+</div>
+</main>
+
+<sc-if value="{{ movil }}">
+<nav aria-label="Secciones" style="flex: none; display: flex; background: #FFFFFF; border-top: 1px solid #DEE1EA; padding: 4px 8px 8px">
+<a href="Pase-de-lista.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<a href="Registrar-pago.dc.html" aria-current="page" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #3A32D1; font-size: 12.5px; line-height: 16px; font-weight: 700; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5h11a2 2 0 012 2v7a2 2 0 01-2 2h-11a2 2 0 01-2-2v-7a2 2 0 012-2z"></path><path d="M2.5 8.5h15M5.5 12.5h3"></path></svg>Registrar pago</a>
+<a href="Estado-de-cuenta.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5v-15z"></path><path d="M8 7h4M8 10.5h4"></path></svg>Estado de cuenta</a>
+<a href="Uniformes.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3L3 5.5l1.5 3L6.5 8v9h7V8l2 .5 1.5-3L13 3c-.4 1.3-1.5 2-3 2s-2.6-.7-3-2z"></path></svg>Uniformes</a>
+<a href="Mas.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10.8a.8.8 0 100-1.6.8.8 0 000 1.6zM4.5 10.8a.8.8 0 100-1.6.8.8 0 000 1.6zM15.5 10.8a.8.8 0 100-1.6.8.8 0 000 1.6z"></path></svg>Más</a>
+</nav>
+</sc-if>
+</div>
+
+<sc-if value="{{ buscando }}">
+<div onClick="{{ alCerrarBuscador }}" style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="buscar-titulo" onClick="{{ detener }}" style="width: {{ dlgAncho }}; max-width: 100%; max-height: 100%; overflow-y: auto; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); padding: 20px; display: flex; flex-direction: column; gap: 14px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<h2 id="buscar-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px">Buscar familia</h2>
+<button type="button" onClick="{{ alCerrarBuscador }}" aria-label="Cerrar" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; color: #454B60; border: 0; border-radius: 10px; cursor: pointer" style-hover="background: #E7E9F1"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 10M15 5L5 15"></path></svg></button>
+</div>
+<label style="display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; background: #FFFFFF; border: 2px solid #3A32D1; border-radius: 12px; color: #5A6074">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5a5.5 5.5 0 100-11 5.5 5.5 0 000 11z"></path><path d="M13.5 13.5L17 17"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Buscar familia</span>
+<input type="search" autofocus="autofocus" value="{{ consulta }}" onChange="{{ alConsulta }}" placeholder="Nombre del adulto, del alumno o teléfono" style="flex: 1; min-width: 0; min-height: 44px; border: 0; outline: 0; background: transparent; color: #171A2C; font-size: 15px">
+</label>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{ resultados }}" as="r" hint-placeholder-count="3">
+<button type="button" onClick="{{ r.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 14px; background: {{ r.fondo }}; border: 1px solid #DEE1EA; border-radius: 12px; text-align: left; color: #171A2C; cursor: pointer" style-hover="border-color: #8E95AA; background: #F3F4F8">
+<span style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ r.nombre }}</span><span style="color: #5A6074; font-variant-numeric: tabular-nums">{{ r.tel }} · {{ r.alumnos }}</span></span>
+<span style="flex: none; padding: 4px 10px; border-radius: 999px; background: {{ r.fondoSaldo }}; color: {{ r.tintaSaldo }}; font-size: 12.5px; line-height: 16px; font-weight: 700; font-variant-numeric: tabular-nums">{{ r.saldo }}</span>
+</button>
+</sc-for>
+<sc-if value="{{ sinResultados }}"><div style="padding: 14px 16px; background: #F3F4F8; border-radius: 12px; color: #454B60">No hay ninguna familia con «{{ consulta }}». Prueba con el teléfono completo o el nombre del alumno.</div></sc-if>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28)">
+<span style="min-width: 0">{{ toast }}</span>
+<button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;familiaInicial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Dos hijos&quot;,&quot;Con atraso&quot;,&quot;Al corriente&quot;],&quot;default&quot;:&quot;Dos hijos&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Registrar pago&quot;},&quot;metodoInicial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Efectivo&quot;,&quot;Tarjeta&quot;,&quot;Transferencia&quot;],&quot;default&quot;:&quot;Efectivo&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Registrar pago&quot;}}">
+class Component extends DCLogic {
+  raiz = React.createRef();
+  DISC = {
+    karate: { nombre: 'Karate', color: 'oklch(0.6 0.16 35)', suave: 'oklch(0.95 0.035 35)', tinta: 'oklch(0.44 0.13 35)' },
+    ballet: { nombre: 'Ballet clásico', color: 'oklch(0.6 0.16 355)', suave: 'oklch(0.95 0.035 355)', tinta: 'oklch(0.44 0.13 355)' },
+    salsa: { nombre: 'Salsa', color: 'oklch(0.6 0.11 190)', suave: 'oklch(0.95 0.03 190)', tinta: 'oklch(0.42 0.08 190)' },
+  };
+  FAMILIAS = [
+    { id: 'f1', nombre: 'Marisol Vivanco Lozano', tel: '55 9901 0009', ninos: [['Santino', 'karate', 'Karate Infantil 3-5'], ['Valentina', 'ballet', 'Ballet Infantil 5-8']],
+      cargos: [['c1', 'Santino', 'Mensualidad de septiembre', 'Venció el 15 de septiembre', 65000, true], ['c2', 'Santino', 'Mensualidad de octubre', 'Vence el 15 de octubre', 65000, false], ['c3', 'Valentina', 'Mensualidad de octubre', 'Vence el 15 de octubre', 78000, false], ['c4', 'Valentina', 'Leotardo × 1', 'Vence el 15 de octubre', 32050, false]],
+      recientes: [['12 de agosto', 'Efectivo · folio P-0981', 143000], ['15 de julio', 'Transferencia · folio P-0912', 143000]] },
+    { id: 'f2', nombre: 'Patricia Núñez Arce', tel: '55 9901 0090', ninos: [['Diego', 'karate', 'Karate Infantil 9-12']],
+      cargos: [['d1', 'Diego', 'Mensualidad de agosto', 'Venció el 15 de agosto', 65000, true], ['d2', 'Diego', 'Mensualidad de septiembre', 'Venció el 15 de septiembre', 65000, true], ['d3', 'Diego', 'Mensualidad de octubre', 'Vence el 15 de octubre', 65000, false]],
+      recientes: [['14 de julio', 'Tarjeta · folio P-0907', 65000]] },
+    { id: 'f3', nombre: 'Jorge Salinas Ruiz', tel: '55 9901 0052', ninos: [['Martina', 'ballet', 'Ballet Infantil 9-12']], cargos: [], recientes: [['10 de octubre', 'Transferencia · folio P-1019', 78000], ['14 de septiembre', 'Efectivo · folio P-0997', 78000]] },
+  ];
+  METODOS = ['Efectivo', 'Tarjeta', 'Transferencia'];
+  state = { movil: false, familias: null, fid: null, monto: '', metodo: null, referencia: '', ultimo: null, buscando: false, consulta: '', toast: null, folio: 1024 };
+
+  componentDidMount() {
+    const el = this.raiz.current;
+    if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); }
+    this.medir();
+    this.teclas = (e) => { if (e.key === 'Escape' && this.state.buscando) this.setState({ buscando: false }); };
+    document.addEventListener('keydown', this.teclas);
+  }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); document.removeEventListener('keydown', this.teclas); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  dinero(c) { return '$' + (c / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  ini(n) { const p = n.split(/\s+/); return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase(); }
+  familias() { return this.state.familias || this.FAMILIAS.map((f) => ({ ...f, cargos: f.cargos.map(([id, nino, concepto, fecha, monto, vencido]) => ({ id, nino, concepto, fecha, monto, vencido })), recientes: f.recientes.map(([fecha, detalle, monto]) => ({ fecha, detalle, monto, nuevo: false })) })); }
+  inicial() { const p = this.props.familiaInicial; return p === 'Con atraso' ? 'f2' : p === 'Al corriente' ? 'f3' : 'f1'; }
+  centavos(t) { const limpio = String(t).replace(/[$,\s]/g, ''); if (limpio === '') return null; if (!/^\d+(\.\d{0,2})?$/.test(limpio)) return NaN; return Math.round(parseFloat(limpio) * 100); }
+  repartir(cargos, c) { let resto = c; return cargos.map((x) => { const aplica = Math.max(0, Math.min(x.monto, resto)); resto -= aplica; return { ...x, aplica }; }); }
+  registrar(f, cents, metodo) {
+    const s = this.state, rep = this.repartir(f.cargos, cents), folio = 'P-' + s.folio;
+    const cargos = rep.filter((x) => x.aplica < x.monto).map((x) => ({ id: x.id, nino: x.nino, concepto: x.concepto, fecha: x.fecha, vencido: x.vencido, monto: x.monto - x.aplica }));
+    const saldo = cargos.reduce((a, x) => a + x.monto, 0);
+    const detalle = `${metodo}${s.referencia.trim() ? ' · ref. ' + s.referencia.trim() : ''} · folio ${folio}`;
+    const familias = this.familias().map((x) => (x.id === f.id ? { ...x, cargos, recientes: [{ fecha: 'Hoy, 12 de octubre', detalle, monto: cents, nuevo: true }, ...x.recientes.map((r) => ({ ...r, nuevo: false }))] } : x));
+    this.setState({ familias, ultimo: { detalle: `${this.dinero(cents)} en ${metodo.toLowerCase()} · folio ${folio}`, monto: this.dinero(cents), saldo: this.dinero(saldo), cero: saldo === 0 }, monto: '', referencia: '', folio: s.folio + 1 });
+  }
+
+  renderVals() {
+    const s = this.state, D = this.DISC, movil = s.movil, todas = this.familias(), fid = s.fid || this.inicial();
+    const f = todas.find((x) => x.id === fid), metodo = s.metodo || this.props.metodoInicial || 'Efectivo';
+    const saldo = f.cargos.reduce((a, x) => a + x.monto, 0), vencido = f.cargos.filter((x) => x.vencido).reduce((a, x) => a + x.monto, 0), nVenc = f.cargos.filter((x) => x.vencido).length;
+    const cents = this.centavos(s.monto);
+    const error = cents === null ? '' : Number.isNaN(cents) ? 'Escribe solo números, con hasta dos decimales.' : cents <= 0 ? 'Escribe un monto mayor a cero.' : cents > saldo ? `El monto es mayor que lo que adeuda (${this.dinero(saldo)}). Revisa la cantidad.` : '';
+    const valido = cents !== null && !Number.isNaN(cents) && cents > 0 && !error;
+    const rep = this.repartir(f.cargos, valido ? cents : 0);
+    const ninoDe = (n) => f.ninos.find((x) => x[0] === n);
+    const grupos = f.ninos.map(([nombre, d]) => ({ nombre, disciplina: D[d].nombre, color: D[d].color,
+      cargos: rep.filter((x) => x.nino === nombre).map((x) => { const total = x.aplica === x.monto && x.aplica > 0, parcial = x.aplica > 0 && !total;
+        return { concepto: x.concepto, fecha: x.fecha, monto: this.dinero(x.monto), tintaFecha: x.vencido ? '#B3261E' : '#5A6074', pesoFecha: x.vencido ? 700 : 500,
+          cubre: (x.aplica / x.monto) * 100 + '%', colorCubre: total ? '#17603A' : '#D9962B',
+          estado: total ? 'Este pago lo cubre' : parcial ? `Se abonan ${this.dinero(x.aplica)}; quedan ${this.dinero(x.monto - x.aplica)}` : x.vencido ? 'Vencido' : 'Pendiente',
+          tintaEstado: total ? '#17603A' : parcial ? '#6B4100' : x.vencido ? '#B3261E' : '#5A6074' }; }) })).filter((g) => g.cargos.length);
+    const atajo = (texto, c) => { const a = valido && cents === c; return { texto, fondo: a ? '#ECEBFC' : '#FFFFFF', borde: a ? '#3A32D1' : '#C5CAD8', alElegir: () => this.setState({ monto: (c / 100).toFixed(2), ultimo: null }) }; };
+    const atajos = saldo ? [atajo(`Todo el saldo · ${this.dinero(saldo)}`, saldo)].concat(vencido && vencido !== saldo ? [atajo(`Solo lo vencido · ${this.dinero(vencido)}`, vencido)] : []) : [];
+    const despues = saldo - (valido ? cents : 0);
+    const q = s.consulta.trim().toLowerCase();
+    const resultados = todas.filter((x) => !q || `${x.nombre} ${x.tel.replace(/\s/g, '')} ${x.tel} ${x.ninos.map((n) => n[0]).join(' ')}`.toLowerCase().includes(q)).map((x) => { const sa = x.cargos.reduce((a, c) => a + c.monto, 0), ve = x.cargos.some((c) => c.vencido);
+      return { nombre: x.nombre, tel: x.tel, alumnos: x.ninos.map((n) => n[0]).join(' y '), saldo: sa ? (ve ? 'Con vencido · ' : 'Adeuda ') + this.dinero(sa) : 'Al corriente', fondoSaldo: !sa ? '#E1F3E7' : ve ? '#FFF0D2' : '#ECEDF3', tintaSaldo: !sa ? '#17603A' : ve ? '#6B4100' : '#3A3F52', fondo: x.id === fid ? '#F7F7FE' : '#FFFFFF',
+        alElegir: () => this.setState({ fid: x.id, buscando: false, consulta: '', monto: '', referencia: '', ultimo: null }) }; });
+    const pide = metodo !== 'Efectivo';
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      f: { nombre: f.nombre, tel: f.tel, iniciales: this.ini(f.nombre), alumnosTexto: f.ninos.length === 1 ? '1 alumno' : `${f.ninos.length} alumnos`, ninos: f.ninos.map(([nombre, d, grupo]) => ({ nombre, grupo, color: D[d].color, suave: D[d].suave, tinta: D[d].tinta })) },
+      saldoTexto: this.dinero(saldo), hayVencido: nVenc > 0, nadaVencido: nVenc === 0 && saldo > 0, sinCargos: saldo === 0,
+      vencidoTexto: `${nVenc === 1 ? '1 cargo vencido' : nVenc + ' cargos vencidos'} · ${this.dinero(vencido)}`, alCorrienteTexto: 'Nada vencido',
+      grupos, recientes: f.recientes.map((r) => ({ fecha: r.fecha, detalle: r.detalle, monto: this.dinero(r.monto), nuevo: r.nuevo, fondo: r.nuevo ? '#ECEBFC' : '#F3F4F8' })), sinRecientes: f.recientes.length === 0,
+      formulario: !s.ultimo, registrado: !!s.ultimo, ultimo: s.ultimo ? { ...s.ultimo, tintaSaldo: s.ultimo.cero ? '#17603A' : '#171A2C' } : {},
+      monto: s.monto, alMonto: (e) => this.setState({ monto: e.target.value }), bordeMonto: error ? '#B3261E' : '#3A32D1', hayError: !!error, error, atajos,
+      metodos: this.METODOS.map((m) => { const a = m === metodo; return { nombre: m, activo: a, fondo: a ? '#FFFFFF' : 'transparent', tinta: a ? '#171A2C' : '#454B60', peso: a ? 700 : 600, sombra: a ? '0 1px 2px rgba(23,26,44,0.16)' : 'none', alElegir: () => this.setState({ metodo: m }) }; }),
+      pideReferencia: pide, referencia: s.referencia, alReferencia: (e) => this.setState({ referencia: e.target.value }), referenciaEtiqueta: metodo === 'Tarjeta' ? 'Folio del voucher (opcional)' : 'Clave de rastreo (opcional)', referenciaAyuda: metodo === 'Tarjeta' ? 'Folio del voucher' : 'Clave de rastreo del banco',
+      reparto: rep.filter((x) => x.aplica > 0).map((x) => ({ concepto: `${x.concepto} · ${x.nino}${x.aplica < x.monto ? ' (abono)' : ''}`, monto: this.dinero(x.aplica) })), sinReparto: !valido,
+      despuesTexto: this.dinero(despues), tintaDespues: valido && despues === 0 ? '#17603A' : '#171A2C',
+      bloqueado: !valido, textoBoton: valido ? `Registrar pago de ${this.dinero(cents)}` : saldo ? 'Registrar pago' : 'No hay nada por cobrar',
+      fondoBoton: valido ? '#3A32D1' : '#F3F4F8', tintaBoton: valido ? '#FFFFFF' : '#6B7085', bordeBoton: valido ? '#3A32D1' : '#DEE1EA',
+      alRegistrar: () => valido && this.registrar(f, cents, metodo),
+      alOtro: () => this.setState({ ultimo: null }), alImprimir: () => this.aviso('Se abrió la vista para imprimir el recibo.'),
+      buscando: s.buscando, alAbrirBuscador: () => this.setState({ buscando: true }), alCerrarBuscador: () => this.setState({ buscando: false }), detener: (e) => e.stopPropagation(),
+      consulta: s.consulta, alConsulta: (e) => this.setState({ consulta: e.target.value }), resultados, sinResultados: resultados.length === 0,
+      dlgAlinear: movil ? 'flex-end' : 'flex-start', dlgRelleno: movil ? '0' : '72px 24px 24px', dlgAncho: movil ? '100%' : '560px', dlgRadio: movil ? '20px 20px 0 0' : '16px',
+      hayToast: !!s.toast, toast: s.toast || '', toastAbajo: movil ? '84px' : '24px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

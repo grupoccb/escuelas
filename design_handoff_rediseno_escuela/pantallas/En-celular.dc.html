@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#E7E9F1}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+</style>
+</helmet>
+<section style="min-height: 100vh; padding: 56px 64px 72px; display: flex; flex-direction: column; gap: 36px; background: #E7E9F1; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 22px">
+<div style="display: flex; flex-direction: column; gap: 6px; max-width: 760px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 40px; line-height: 44px; letter-spacing: -0.02em">En celular</h1>
+<p style="margin: 0; color: #454B60">Las mismas cuatro pantallas a 390 px. Cada una es la pantalla real: se puede tocar, mover y registrar igual que en escritorio.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start">
+<figure id="asesor" style="margin: 0; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; flex-direction: column; gap: 2px; max-width: 414px"><span style="font-weight: 700; font-size: 17px">Asesor · Embudo</span><span style="color: #5A6074">Etapas en pestañas; «Mover» abre la lista de etapas y «Seleccionar» mueve en lote.</span></figcaption>
+<div style="width: 414px; height: 868px; padding: 12px; background: #171A2C; border-radius: 52px; box-shadow: 0 30px 60px -30px rgba(23,26,44,0.6)">
+<div style="width: 390px; height: 844px; border-radius: 40px; overflow: hidden; background: #F3F4F8">
+<dc-import name="Embudo" hint-size="390px,844px" style="display: block; width: 390px; height: 844px"></dc-import>
+</div>
+</div>
+</figure>
+<figure id="recepcion" style="margin: 0; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; flex-direction: column; gap: 2px; max-width: 414px"><span style="font-weight: 700; font-size: 17px">Recepción · Registrar pago</span><span style="color: #5A6074">Al escribir el monto, cada cargo muestra cuánto cubre el pago.</span></figcaption>
+<div style="width: 414px; height: 868px; padding: 12px; background: #171A2C; border-radius: 52px; box-shadow: 0 30px 60px -30px rgba(23,26,44,0.6)">
+<div style="width: 390px; height: 844px; border-radius: 40px; overflow: hidden; background: #F3F4F8">
+<dc-import name="Registrar-pago" hint-size="390px,844px" style="display: block; width: 390px; height: 844px"></dc-import>
+</div>
+</div>
+</figure>
+<figure id="maestro" style="margin: 0; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; flex-direction: column; gap: 2px; max-width: 414px"><span style="font-weight: 700; font-size: 17px">Maestro · Hoy</span><span style="color: #5A6074">Línea de tiempo del día con la hora actual; la asistencia se abre a la hora de la clase.</span></figcaption>
+<div style="width: 414px; height: 868px; padding: 12px; background: #171A2C; border-radius: 52px; box-shadow: 0 30px 60px -30px rgba(23,26,44,0.6)">
+<div style="width: 390px; height: 844px; border-radius: 40px; overflow: hidden; background: #F3F4F8">
+<dc-import name="Hoy-maestro" hint-size="390px,844px" style="display: block; width: 390px; height: 844px"></dc-import>
+</div>
+</div>
+</figure>
+<figure id="administracion" style="margin: 0; display: flex; flex-direction: column; gap: 14px">
+<figcaption style="display: flex; flex-direction: column; gap: 2px; max-width: 414px"><span style="font-weight: 700; font-size: 17px">Administración · Tableros</span><span style="color: #5A6074">La historia del mes de arriba abajo; las pestañas saltan a cada sección.</span></figcaption>
+<div style="width: 414px; height: 868px; padding: 12px; background: #171A2C; border-radius: 52px; box-shadow: 0 30px 60px -30px rgba(23,26,44,0.6)">
+<div style="width: 390px; height: 844px; border-radius: 40px; overflow: hidden; background: #F3F4F8">
+<dc-import name="Tableros" hint-size="390px,844px" style="display: block; width: 390px; height: 844px"></dc-import>
+</div>
+</div>
+</figure>
+</div>
+</section>
+</x-dc>
+</body>
+</html>

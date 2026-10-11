@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="ventas" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" texto="Academia Nova · Águilas" iniciales="RM" nombre="Rocío Méndez" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+<div style="flex: none; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Ventas</h1>
+<div style="color: #5A6074">Uniformes, playeras y accesorios. El cargo queda a nombre del responsable de pago del alumno.</div>
+</div>
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px">
+<section style="flex: 1.4 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Elige el producto</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px">
+<sc-for list="{{ productos }}" as="p" hint-placeholder-count="6">
+<button type="button" aria-pressed="{{ p.elegido }}" disabled="{{ p.agotado }}" onClick="{{ p.alElegir }}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; background: {{ p.fondo }}; border: {{ p.borde }}; border-radius: 14px; color: #171A2C; text-align: left; cursor: pointer; transition: border-color 120ms, background-color 120ms">
+<span style="font-weight: 700; font-size: 15px; line-height: 20px">{{ p.nombre }}</span>
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 20px; line-height: 24px; font-variant-numeric: tabular-nums">{{ p.precio }}</span>
+<span style="padding: 2px 8px; border-radius: 999px; background: {{ p.fondoEx }}; color: {{ p.tintaEx }}; font-size: 12px; line-height: 16px; font-weight: 700">{{ p.existencia }}</span>
+</button>
+</sc-for>
+</div>
+</section>
+<section style="flex: 1 1 320px; min-width: 0; position: sticky; top: 0; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Nueva venta</h2>
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="alumno" style="font-size: 12.5px; font-weight: 600; color: #5A6074">Alumno</label><select id="alumno" value="{{ alumno }}" onChange="{{ alAlumno }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px"><option value="">Elige al alumno…</option><option>Santino Vivanco · Karate Infantil 3-5</option><option>Valentina Vivanco · Ballet Infantil 5-8</option><option>Diego Núñez · Karate Infantil 9-12</option><option>Martina Salinas · Ballet Infantil 9-12</option></select></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12.5px; font-weight: 600; color: #5A6074">Producto</span><span style="min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: #F3F4F8; border-radius: 10px; font-weight: 600">{{ productoTexto }}</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span id="cantidad-etiqueta" style="font-size: 12.5px; font-weight: 600; color: #5A6074">Cantidad</span><div role="group" aria-labelledby="cantidad-etiqueta" style="display: flex; align-items: center; gap: 8px"><button type="button" onClick="{{ alMenos }}" aria-label="Una menos" style="width: 44px; height: 44px; background: #FFFFFF; border: 1px solid #C5CAD8; border-radius: 10px; font-size: 20px; font-weight: 700; cursor: pointer">−</button><span style="min-width: 40px; text-align: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums">{{ cantidad }}</span><button type="button" onClick="{{ alMas }}" aria-label="Una más" style="width: 44px; height: 44px; background: #FFFFFF; border: 1px solid #C5CAD8; border-radius: 10px; font-size: 20px; font-weight: 700; cursor: pointer">+</button></div></div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #F3F4F8; border-radius: 12px"><span style="font-weight: 700">Total del cargo</span><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; font-variant-numeric: tabular-nums">{{ total }}</span></div>
+<sc-if value="{{ hayFalta }}"><div style="color: #5A6074; font-size: 12.5px">{{ falta }}</div></sc-if>
+<button type="button" disabled="{{ bloqueado }}" onClick="{{ alVender }}" style="min-height: 52px; padding: 0 20px; background: {{ fondoBoton }}; color: {{ tintaBoton }}; border: 1px solid {{ fondoBoton }}; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer">{{ textoBoton }}</button>
+</section>
+</div>
+<section style="flex: none; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Ventas de hoy</h2>
+<sc-for list="{{ ventas }}" as="v" hint-placeholder-count="2">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 14px; background: {{ v.fondo }}; border-radius: 12px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<span style="min-width: 0; display: flex; flex-direction: column"><strong>{{ v.producto }}</strong><span style="color: #5A6074">{{ v.alumno }} · {{ v.hora }}</span></span>
+<span style="display: flex; align-items: center; gap: 10px"><strong style="font-variant-numeric: tabular-nums; text-decoration: {{ v.tachado }}">{{ v.monto }}</strong><sc-if value="{{ v.activa }}"><button type="button" onClick="{{ v.alAnular }}" style="min-height: 40px; padding: 0 12px; background: #FFFFFF; color: #B3261E; border: 1px solid #B3261E; border-radius: 10px; font-weight: 700; cursor: pointer">Anular</button></sc-if><sc-if value="{{ v.anulada }}"><span style="color: #B3261E; font-weight: 700">Anulada · la pieza regresó al inventario</span></sc-if></span>
+</div>
+</sc-for>
+</section>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="recepcion" activa="ventas" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  PRODUCTOS = [['Uniforme de karate', 890, 6], ['Leotardo', 420, 9], ['Zapatillas de media punta', 380, 1], ['Playera de la escuela', 250, 14], ['Termo con logo', 180, 0], ['Protecciones de karate', 640, 4]];
+  state = { movil: false, sel: 0, alumno: '', cantidad: 1, ventas: [{ producto: 'Playera de la escuela × 2', alumno: 'Rosa Delgado', hora: '11:20 am', monto: 500, anulada: false }], ex: null };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  dinero(n) { return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2 }); }
+  renderVals() {
+    const s = this.state, movil = s.movil, ex = s.ex || this.PRODUCTOS.map((p) => p[2]);
+    const [nombre, precio] = this.PRODUCTOS[s.sel], disp = ex[s.sel], cant = Math.min(s.cantidad, Math.max(1, disp));
+    const puede = !!s.alumno && disp >= cant && disp > 0;
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      productos: this.PRODUCTOS.map(([n, p], i) => { const e = ex[i], el = i === s.sel, ag = e === 0; return { nombre: n, precio: this.dinero(p), existencia: ag ? 'Agotado' : e === 1 ? 'Queda 1' : `Quedan ${e}`, fondoEx: ag ? '#FDECEA' : e <= 1 ? '#FFF0D2' : '#E1F3E7', tintaEx: ag ? '#B3261E' : e <= 1 ? '#6B4100' : '#17603A', elegido: el, agotado: ag, fondo: ag ? '#F3F4F8' : el ? '#ECEBFC' : '#FFFFFF', borde: el ? '2px solid #3A32D1' : ag ? '1px dashed #DEE1EA' : '1px solid #DEE1EA', alElegir: () => !ag && this.setState({ sel: i, cantidad: 1 }) }; }),
+      alumno: s.alumno, alAlumno: (e) => this.setState({ alumno: e.target.value }), productoTexto: nombre, cantidad: cant,
+      alMenos: () => this.setState({ cantidad: Math.max(1, cant - 1) }), alMas: () => this.setState({ cantidad: Math.min(disp, cant + 1) }),
+      total: this.dinero(precio * cant), hayFalta: !puede, falta: !s.alumno ? 'Elige al alumno: el cargo queda a nombre de su responsable de pago.' : 'No hay existencia suficiente.',
+      bloqueado: !puede, fondoBoton: puede ? '#3A32D1' : '#F3F4F8', tintaBoton: puede ? '#FFFFFF' : '#6B7085', textoBoton: puede ? `Vender por ${this.dinero(precio * cant)}` : 'Vender',
+      alVender: () => { if (!puede) return; const nx = ex.slice(); nx[s.sel] -= cant; this.setState((st) => ({ ex: nx, ventas: [{ producto: `${nombre} × ${cant}`, alumno: st.alumno.split(' · ')[0], hora: 'Ahora', monto: precio * cant, anulada: false, idx: st.sel, cant }, ...st.ventas], alumno: '', cantidad: 1 })); },
+      ventas: s.ventas.map((v, i) => ({ ...v, monto: this.dinero(v.monto), activa: !v.anulada, fondo: v.anulada ? '#FDECEA' : '#F3F4F8', tachado: v.anulada ? 'line-through' : 'none',
+        alAnular: () => this.setState((st) => { const nx = (st.ex || this.PRODUCTOS.map((p) => p[2])).slice(); if (v.idx !== undefined) nx[v.idx] += v.cant; return { ex: nx, ventas: st.ventas.map((x, j) => (j === i ? { ...x, anulada: true } : x)) }; }) })),
+    };
+  }
+}
+</script>
+</body>
+</html>

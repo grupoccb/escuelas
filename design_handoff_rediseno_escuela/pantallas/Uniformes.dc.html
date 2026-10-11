@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="uniformes" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" texto="Academia Nova · Águilas" iniciales="RM" nombre="Rocío Méndez" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Uniformes</h1>
+<div style="color: #5A6074">Lo que se liberó al pagar la primera mensualidad. Entregar descuenta una pieza del inventario.</div>
+</div>
+<div role="tablist" aria-label="Estado" style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px">
+<sc-for list="{{ pestanas }}" as="t" hint-placeholder-count="2"><button type="button" role="tab" aria-selected="{{ t.activa }}" onClick="{{ t.alElegir }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; background: {{ t.fondo }}; color: #171A2C; border: 0; border-radius: 9px; font-weight: {{ t.peso }}; box-shadow: {{ t.sombra }}; cursor: pointer">{{ t.nombre }}<span style="font-variant-numeric: tabular-nums; font-weight: 700">{{ t.cuenta }}</span></button></sc-for>
+</div>
+</div>
+<div style="flex: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 14px">
+<sc-for list="{{ lista }}" as="u" hint-placeholder-count="5">
+<article style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="display: flex; align-items: flex-start; gap: 12px">
+<span aria-hidden="true" style="flex: none; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: {{ u.suave }}; color: {{ u.tinta }}"><svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3L3 5.5l1.5 3L6.5 8v9h7V8l2 .5 1.5-3L13 3c-.4 1.3-1.5 2-3 2s-2.6-.7-3-2z"></path></svg></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 16px; line-height: 22px">{{ u.producto }}</span><span style="color: #454B60">Para <strong>{{ u.alumno }}</strong> · {{ u.grupo }}</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px; color: #5A6074; font-size: 13px; line-height: 18px"><span>{{ u.origen }}</span><span style="color: {{ u.tintaExistencia }}; font-weight: 700">{{ u.existencia }}</span></div>
+<sc-if value="{{ u.porEntregar }}"><button type="button" disabled="{{ u.sinExistencia }}" onClick="{{ u.alEntregar }}" style="min-height: 48px; padding: 0 16px; background: {{ u.fondoBoton }}; color: {{ u.tintaBoton }}; border: 1px solid {{ u.bordeBoton }}; border-radius: 12px; font-weight: 700; cursor: pointer">{{ u.boton }}</button></sc-if>
+<sc-if value="{{ u.entregado }}"><div style="display: flex; align-items: center; gap: 8px; color: #17603A; font-weight: 700"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>{{ u.cuando }}</div></sc-if>
+</article>
+</sc-for>
+</div>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="recepcion" activa="uniformes" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  D = { karate: ['oklch(0.95 0.035 35)', 'oklch(0.44 0.13 35)'], ballet: ['oklch(0.95 0.035 355)', 'oklch(0.44 0.13 355)'], salsa: ['oklch(0.95 0.03 190)', 'oklch(0.42 0.08 190)'] };
+  DATOS = [['u1', 'Uniforme de karate · talla 6', 'Nicolás Ibáñez', 'Karate Infantil 6-8', 'karate', 'Primera mensualidad pagada el 8 de octubre', 3], ['u2', 'Leotardo · talla 6', 'Carlota Ramos', 'Ballet Infantil 5-8', 'ballet', 'Primera mensualidad pagada el 5 de octubre', 5], ['u3', 'Playera de la escuela · talla M', 'Rosa Delgado', 'Salsa Adultos Principiantes', 'salsa', 'Promoción «Inscripción de otoño»', 0], ['u4', 'Uniforme de karate · talla 8', 'Emiliano Medina', 'Karate Infantil 9-12', 'karate', 'Primera mensualidad pagada el 2 de octubre', 1], ['u5', 'Leotardo · talla 8', 'Ivana Mejía', 'Ballet Infantil 5-8', 'ballet', 'Primera mensualidad pagada el 1 de octubre', 5]];
+  state = { movil: false, pestana: 'pendientes', entregados: { u6: 'Entregado ayer por Rocío Méndez' } };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  renderVals() {
+    const s = this.state, movil = s.movil, e = s.entregados;
+    const datos = this.DATOS.concat([['u6', 'Uniforme de karate · talla 4', 'Matías Zepeda', 'Karate Infantil 3-5', 'karate', 'Primera mensualidad pagada el 9 de octubre', 4]]);
+    const todos = datos.map(([id, producto, alumno, grupo, d, origen, ex]) => { const hecho = !!e[id], sin = ex === 0; return { id, producto, alumno, grupo, suave: this.D[d][0], tinta: this.D[d][1], origen, porEntregar: !hecho, entregado: hecho, cuando: e[id] || '', sinExistencia: sin,
+      existencia: hecho ? 'Se descontó del inventario' : sin ? 'Sin existencia en Águilas: pide más piezas' : `Quedan ${ex} en Águilas`, tintaExistencia: sin ? '#B3261E' : '#454B60',
+      boton: sin ? 'Sin existencia' : 'Marcar como entregado', fondoBoton: sin ? '#F3F4F8' : '#3A32D1', tintaBoton: sin ? '#6B7085' : '#FFFFFF', bordeBoton: sin ? '#DEE1EA' : '#3A32D1',
+      alEntregar: () => !sin && this.setState((st) => ({ entregados: { ...st.entregados, [id]: 'Entregado hace un momento por Rocío Méndez' } })) }; });
+    const pend = todos.filter((t) => t.porEntregar), ent = todos.filter((t) => t.entregado);
+    const seg = (a) => ({ fondo: a ? '#FFFFFF' : 'transparent', peso: a ? 700 : 600, sombra: a ? '0 1px 2px rgba(23,26,44,0.16)' : 'none' });
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '28px 32px 32px',
+      pestanas: [['pendientes', 'Por entregar', pend.length], ['entregados', 'Entregados', ent.length]].map(([id, nombre, cuenta]) => ({ nombre, cuenta, activa: s.pestana === id, ...seg(s.pestana === id), alElegir: () => this.setState({ pestana: id }) })),
+      lista: s.pestana === 'pendientes' ? pend : ent,
+    };
+  }
+}
+</script>
+</body>
+</html>

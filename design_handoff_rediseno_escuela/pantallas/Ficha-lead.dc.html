@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes velo{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 20px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="embudo" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; flex-direction: column; gap: 18px">
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 16px">
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<a href="Embudo.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-weight: 700"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg>Volver al embudo</a>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Gabriela Mora</h1>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button type="button" onClick="{{ alChat }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8; border-color: #8E95AA"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h12a1 1 0 011 1v7.5a1 1 0 01-1 1H9l-4 3v-3H4a1 1 0 01-1-1V5.5a1 1 0 011-1z"></path></svg>Abrir conversación en Chatwoot</button>
+<a href="Conversion.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; background: #3A32D1; color: #FFFFFF; border-radius: 10px; font-weight: 700" style-hover="background: #2B2699; color: #FFFFFF">Inscribir a los niños</a>
+</div>
+</div>
+
+<section aria-label="Contacto" style="flex: none; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px">
+<span style="padding: 4px 12px; border-radius: 999px; background: {{ etapaFondo }}; color: {{ etapaTinta }}; font-size: 13px; line-height: 18px; font-weight: 700">{{ etapaNombre }}</span>
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 20px; line-height: 24px; font-variant-numeric: tabular-nums">55 9901 0045</span>
+</div>
+<button type="button" onClick="{{ alMover }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer" style-hover="background: #F3F4F8"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11M11 5.5l4.5 4.5-4.5 4.5"></path></svg>Mover de etapa</button>
+</div>
+<ol aria-label="Avance en el embudo" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{ pasos }}" as="p" hint-placeholder-count="6">
+<li aria-current="{{ p.actual }}" style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<span aria-hidden="true" style="height: 6px; border-radius: 3px; background: {{ p.barra }}"></span>
+<span style="font-size: 12.5px; line-height: 16px; font-weight: {{ p.peso }}; color: {{ p.tinta }}; overflow: hidden; text-overflow: ellipsis; display: {{ p.verTexto }}">{{ p.nombre }}</span>
+</li>
+</sc-for>
+</ol>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 20px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Sucursal</span><span style="font-weight: 600">Águilas</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Interés</span><span style="font-weight: 600">Karate y Ballet clásico</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Llegó</span><span style="font-weight: 600">Mié 7 oct, 6:12 pm</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #5A6074; font-size: 12.5px; line-height: 16px; font-weight: 600">Último movimiento</span><span style="font-weight: 600">{{ ultimo }}</span></div>
+</div>
+</section>
+
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px">
+<div style="flex: 1.5 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Niños</h2>
+<sc-for list="{{ ninos }}" as="n" hint-placeholder-count="2">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px; background: #F3F4F8; border-radius: 12px">
+<span aria-hidden="true" style="flex: none; width: 10px; height: 40px; border-radius: 999px; background: {{ n.color }}"></span>
+<div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-weight: 700; font-size: 16px; line-height: 22px">{{ n.nombre }} <span style="font-weight: 500; color: #454B60">· {{ n.edad }}</span></span>
+<span style="color: #5A6074">{{ n.disciplina }} · sugerido: {{ n.programa }}</span>
+</div>
+<button type="button" onClick="{{ n.alCotizar }}" style="min-height: 40px; padding: 0 14px; background: {{ n.fondoBoton }}; color: {{ n.tintaBoton }}; border: 1px solid {{ n.bordeBoton }}; border-radius: 10px; font-weight: 700; cursor: pointer">{{ n.textoBoton }}</button>
+</div>
+</sc-for>
+</section>
+
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px"><h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Cotizaciones</h2><span style="color: #5A6074; font-size: 12.5px">Con los precios y lugares de hoy</span></div>
+<sc-if value="{{ sinCotizaciones }}"><div style="padding: 14px 16px; background: #F3F4F8; border-radius: 12px; color: #454B60">Todavía no hay cotizaciones. Cotiza desde la fila de cada niño.</div></sc-if>
+<sc-for list="{{ cotizaciones }}" as="c" hint-placeholder-count="1">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid #DEE1EA; border-radius: 12px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px">
+<span style="font-weight: 700; font-size: 15px">{{ c.nino }} · {{ c.grupo }}</span>
+<span style="color: #5A6074">{{ c.horario }}</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px 22px">
+<span><span style="color: #5A6074">Inscripción </span><strong style="font-variant-numeric: tabular-nums">{{ c.inscripcion }}</strong></span>
+<span><span style="color: #5A6074">Mensualidad </span><strong style="font-variant-numeric: tabular-nums">{{ c.mensualidad }}</strong></span>
+<span><span style="color: #5A6074">Primer pago </span><strong style="font-variant-numeric: tabular-nums">{{ c.total }}</strong></span>
+</div>
+<sc-if value="{{ c.hayPromo }}"><div style="display: flex; align-items: center; gap: 8px; color: #17603A; font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>{{ c.promo }}</div></sc-if>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: #5A6074; font-size: 12.5px"><span>{{ c.estado }}</span><span>Vigente hasta el {{ c.vence }}</span></div>
+</div>
+</sc-for>
+</section>
+
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px"><h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Clases muestra</h2><button type="button" onClick="{{ alAgendar }}" style="min-height: 40px; padding: 0 14px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer">Agendar otra</button></div>
+<sc-for list="{{ clases }}" as="c" hint-placeholder-count="2">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 16px; border: 1px solid #DEE1EA; border-radius: 12px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 15px">{{ c.cuando }} · {{ c.nino }}</span><span style="color: #5A6074">{{ c.grupo }} · con {{ c.maestro }}</span><span style="color: #5A6074; font-size: 12.5px">Registro: <strong style="color: #171A2C">{{ c.registro }}</strong> · interés del maestro: <strong style="color: #171A2C">{{ c.interes }}</strong></span></div>
+<span style="padding: 4px 10px; border-radius: 999px; background: {{ c.fondo }}; color: {{ c.tinta }}; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ c.estado }}</span>
+</div>
+</sc-for>
+</section>
+</div>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Tareas</h2>
+<div style="display: flex; gap: 10px; padding: 12px 14px; background: #E1F3E7; border-radius: 12px; color: #17603A"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg><div><div style="font-weight: 700">Listo para cerrar</div><div>El maestro marcó que Julián quedó listo para inscribirse.</div></div></div>
+</section>
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">De dónde llegó</h2>
+<div style="display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px">
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Fuente</span><span>En sucursal (QR)</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Campaña</span><span>Cartel en recepción</span>
+<span style="color: #5A6074; font-size: 12.5px; line-height: 20px; font-weight: 600">Código de rastreo</span><span style="font-variant-numeric: tabular-nums">AGU-RECEP-01</span>
+</div>
+<p style="margin: 0; color: #5A6074; font-size: 13px; line-height: 18px">Lo que el asistente capturó (nombre, edad, sucursal y de dónde llegó) está aquí y también como nota privada al inicio de la conversación en Chatwoot.</p>
+</section>
+<section style="background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 700">Historial</h2>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+<sc-for list="{{ historial }}" as="h" hint-placeholder-count="4">
+<li style="display: flex; gap: 12px">
+<div aria-hidden="true" style="flex: none; width: 12px; display: flex; flex-direction: column; align-items: center"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 999px; background: {{ h.punto }}; box-shadow: 0 0 0 3px {{ h.halo }}"></span><sc-if value="{{ h.conLinea }}"><span style="flex: 1; width: 2px; margin: 4px 0; background: #DEE1EA"></span></sc-if></div>
+<div style="flex: 1; min-width: 0; padding-bottom: 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700">{{ h.t }}</span><sc-if value="{{ h.hayNota }}"><span style="color: #454B60">{{ h.n }}</span></sc-if><span style="color: #5A6074; font-size: 12.5px; line-height: 16px">{{ h.q }} · {{ h.c }}</span></div>
+</li>
+</sc-for>
+</ol>
+</section>
+</div>
+</div>
+</main>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="asesor" activa="embudo" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+
+<sc-if value="{{ hayDialogo }}">
+<div style="position: absolute; inset: 0; z-index: 60; display: flex; align-items: {{ dlgAlinear }}; justify-content: center; padding: {{ dlgRelleno }}; background: rgba(23,26,44,0.6); animation: velo 180ms cubic-bezier(.2,.8,.2,1)">
+<div role="dialog" aria-modal="true" aria-labelledby="dlg-titulo" style="width: {{ dlgAncho }}; max-width: 100%; max-height: 100%; overflow-y: auto; background: #FFFFFF; border-radius: {{ dlgRadio }}; box-shadow: 0 12px 32px rgba(23,26,44,0.18); display: flex; flex-direction: column; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<div style="padding: 20px 20px 0; display: flex; flex-direction: column; gap: 4px">
+<h2 id="dlg-titulo" style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 22px; line-height: 28px">{{ d.titulo }}</h2>
+<div style="color: #5A6074">{{ d.sub }}</div>
+</div>
+<div style="padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{ d.esMover }}">
+<label for="dlg-etapa" style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Nueva etapa</label>
+<select id="dlg-etapa" value="{{ d.destino }}" onChange="{{ d.alDestino }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px">
+<option value="">Elige…</option><option value="nuevo">Nuevo</option><option value="contactado">Contactado</option><option value="agendada">Clase muestra agendada</option><option value="negociacion">Negociación</option><option value="perdido">Perdido (pide el motivo)</option>
+</select>
+<sc-if value="{{ d.pierde }}">
+<label for="dlg-motivo" style="margin-top: 6px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">Motivo de pérdida</label>
+<select id="dlg-motivo" value="{{ d.motivo }}" onChange="{{ d.alMotivo }}" style="min-height: 44px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 14px"><option value="">Elige…</option><option>Precio</option><option>Horario</option><option>Distancia</option><option>No contestó</option><option>Eligió otra escuela</option><option>Otro</option></select>
+</sc-if>
+<div style="color: #5A6074; font-size: 12.5px">A «Inscrito» se llega inscribiendo: usa «Inscribir a los niños».</div>
+</sc-if>
+<sc-if value="{{ d.esOpciones }}">
+<sc-for list="{{ d.opciones }}" as="o" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{ o.elegido }}" disabled="{{ o.lleno }}" onClick="{{ o.alElegir }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 10px 14px; background: {{ o.fondo }}; color: {{ o.tinta }}; border: {{ o.borde }}; border-radius: 12px; text-align: left; cursor: pointer">
+<span style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 15px; line-height: 22px">{{ o.linea1 }}</span><span style="color: #5A6074">{{ o.linea2 }}</span></span>
+<span style="flex: none; font-weight: 700; font-variant-numeric: tabular-nums">{{ o.lugares }}</span>
+</button>
+</sc-for>
+<sc-if value="{{ d.hayPrecio }}">
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding: 14px 16px; background: #F3F4F8; border-radius: 12px">
+<div style="display: flex; justify-content: space-between"><span>Inscripción</span><strong style="font-variant-numeric: tabular-nums">{{ d.inscripcion }}</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Mensualidad</span><strong style="font-variant-numeric: tabular-nums">{{ d.mensualidad }}</strong></div>
+<div style="display: flex; justify-content: space-between; color: #17603A; font-weight: 600"><span>Promoción «Hermanos»</span><span style="font-variant-numeric: tabular-nums">−10 % en la mensualidad</span></div>
+<div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #C5CAD8; font-weight: 700"><span>Primer pago</span><span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-variant-numeric: tabular-nums">{{ d.total }}</span></div>
+</div>
+</sc-if>
+</sc-if>
+</div>
+<div style="display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; padding: 12px 20px; border-top: 1px solid #DEE1EA">
+<button type="button" disabled="{{ d.bloqueado }}" onClick="{{ d.alConfirmar }}" style="min-height: 48px; padding: 0 20px; background: {{ d.fondoBoton }}; color: {{ d.tintaBoton }}; border: 1px solid {{ d.fondoBoton }}; border-radius: 12px; font-weight: 700; cursor: pointer">{{ d.boton }}</button>
+<button type="button" onClick="{{ alCerrar }}" style="min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 600; cursor: pointer">Cancelar</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 50%; bottom: {{ toastAbajo }}; z-index: 90; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28)">
+<span style="min-width: 0">{{ toast }}</span>
+<button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  D = { karate: ['Karate', 'oklch(0.6 0.16 35)'], ballet: ['Ballet clásico', 'oklch(0.6 0.16 355)'] };
+  ETAPAS = [['nuevo', 'Nuevo'], ['contactado', 'Contactado'], ['agendada', 'Clase muestra agendada'], ['asistida', 'Clase muestra asistida'], ['negociacion', 'Negociación'], ['inscrito', 'Inscrito']];
+  NINOS = [{ id: 'j', n: 'Julián', e: 7, d: 'karate', programa: 'Karate Infantil 6-8', precio: [500, 650] }, { id: 'p', n: 'Paula', e: 5, d: 'ballet', programa: 'Ballet Infantil 5-8', precio: [600, 780] }];
+  GRUPOS = { karate: [['Mar y Jue 4:00 pm', 6], ['Lun y Mié 5:00 pm', 3], ['Sáb 10:00 am', 0]], ballet: [['Lun y Mié 4:00 pm', 2], ['Mar y Jue 5:00 pm', 5], ['Sáb 9:00 am', 0]] };
+  state = { movil: false, etapa: 'asistida', cots: [{ nino: 'j', horario: 'Mar y Jue 4:00 pm', estado: 'Enviada por WhatsApp el jue 8 oct' }], dlg: null, toast: null,
+    hist: [{ t: 'Pasó a Clase muestra asistida', n: 'Julián y Paula tomaron su clase', q: 'Marco Díaz', c: 'sáb 10 oct, 10:55 am' }, { t: 'Pasó a Clase muestra agendada', n: '', q: 'Daniela Ortiz', c: 'jue 8 oct, 12:40 pm' }, { t: 'Pasó a Contactado', n: '', q: 'Daniela Ortiz', c: 'mié 7 oct, 7:05 pm' }, { t: 'Llegó por En sucursal (QR)', n: '', q: 'Código QR en la sucursal', c: 'mié 7 oct, 6:12 pm' }] };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); clearTimeout(this.tt); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  dinero(n) { return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2 }); }
+  ponerDlg(c) { this.setState((s) => ({ dlg: s.dlg ? { ...s.dlg, ...c } : null })); }
+  opcion(el, lleno) { return lleno ? { fondo: '#F3F4F8', tinta: '#6B7085', borde: '1px dashed #DEE1EA' } : el ? { fondo: '#ECEBFC', tinta: '#2B2699', borde: '2px solid #3A32D1' } : { fondo: '#FFFFFF', tinta: '#171A2C', borde: '1px solid #8E95AA' }; }
+  renderVals() {
+    const s = this.state, movil = s.movil, idx = this.ETAPAS.findIndex((e) => e[0] === s.etapa), perdido = s.etapa === 'perdido';
+    const nombreEtapa = perdido ? 'Perdido' : this.ETAPAS[idx][1];
+    const pasos = this.ETAPAS.map(([id, nombre], i) => ({ nombre, actual: i === idx ? 'step' : undefined, barra: perdido ? '#DEE1EA' : i < idx ? '#3A32D1' : i === idx ? '#3A32D1' : '#E7E9F1', tinta: i === idx ? '#171A2C' : '#5A6074', peso: i === idx ? 700 : 500, verTexto: movil && i !== idx ? 'none' : 'block' }));
+    const ninos = this.NINOS.map((n) => { const tiene = s.cots.some((c) => c.nino === n.id); return { nombre: n.n, edad: `${n.e} años`, disciplina: this.D[n.d][0], color: this.D[n.d][1], programa: n.programa, textoBoton: tiene ? 'Cotizar otra vez' : `Cotizar a ${n.n}`, fondoBoton: tiene ? '#FFFFFF' : '#ECEBFC', tintaBoton: tiene ? '#171A2C' : '#2B2699', bordeBoton: tiene ? '#C5CAD8' : '#ECEBFC', alCotizar: () => this.setState({ dlg: { tipo: 'cotizar', nino: n.id, sel: 0 } }) }; });
+    const cotizaciones = s.cots.map((c) => { const n = this.NINOS.find((x) => x.id === c.nino), [ins, men] = n.precio, desc = Math.round(men * 0.9); return { nino: n.n, grupo: n.programa, horario: c.horario, inscripcion: this.dinero(ins), mensualidad: `${this.dinero(desc)} (antes ${this.dinero(men)})`, total: this.dinero(ins + desc), hayPromo: true, promo: 'Promoción «Hermanos»: 10 % menos en la mensualidad mientras los dos estén inscritos', estado: c.estado, vence: '31 de octubre' }; });
+    const dl = s.dlg; let d = {};
+    if (dl && dl.tipo === 'mover') {
+      const pierde = dl.destino === 'perdido', puede = !!dl.destino && (!pierde || !!dl.motivo);
+      d = { esMover: true, titulo: 'Mover a Gabriela Mora', sub: `Ahora está en: ${nombreEtapa}`, destino: dl.destino, alDestino: (e) => this.ponerDlg({ destino: e.target.value }), pierde, motivo: dl.motivo, alMotivo: (e) => this.ponerDlg({ motivo: e.target.value }), boton: 'Mover', bloqueado: !puede, fondoBoton: puede ? '#3A32D1' : '#F3F4F8', tintaBoton: puede ? '#FFFFFF' : '#6B7085',
+        alConfirmar: () => { if (!puede) return; const nombre = dl.destino === 'perdido' ? 'Perdido' : this.ETAPAS.find((e) => e[0] === dl.destino)[1]; this.setState((st) => ({ etapa: dl.destino, dlg: null, hist: [{ t: 'Pasó a ' + nombre, n: dl.motivo ? 'Motivo: ' + dl.motivo : '', q: 'Adela Ramírez', c: 'ahora' }, ...st.hist] })); this.aviso(`Gabriela Mora pasó a ${nombre}.`); } };
+    } else if (dl) {
+      const cot = dl.tipo === 'cotizar', n = cot ? this.NINOS.find((x) => x.id === dl.nino) : this.NINOS[1], gs = this.GRUPOS[n.d];
+      const opciones = gs.map(([horario, lugares], i) => ({ linea1: cot ? `${n.programa} · ${horario}` : ['Hoy · 4:00 pm', 'Mar 13 oct · 5:00 pm', 'Sáb 17 oct · 9:00 am'][i] + ' · ' + (i === 0 ? 'Paula' : 'Paula'), linea2: cot ? 'Águilas · lugares reales de hoy' : `${n.programa} · ${horario}`, lugares: lugares ? `${lugares} lugares` : 'Lleno', lleno: !lugares, elegido: dl.sel === i, ...this.opcion(dl.sel === i, !lugares), alElegir: () => lugares && this.ponerDlg({ sel: i }) }));
+      const [ins, men] = n.precio, desc = Math.round(men * 0.9);
+      d = { esOpciones: true, opciones, titulo: cot ? `Cotizar a ${n.n}` : 'Agendar otra clase muestra', sub: cot ? `${n.e} años · ${this.D[n.d][0]} · Águilas` : 'Para Paula · Ballet clásico · Águilas', hayPrecio: cot, inscripcion: this.dinero(ins), mensualidad: this.dinero(men), total: this.dinero(ins + desc),
+        boton: cot ? 'Guardar y enviar por WhatsApp' : 'Agendar y avisar', bloqueado: false, fondoBoton: '#3A32D1', tintaBoton: '#FFFFFF',
+        alConfirmar: () => { if (cot) { this.setState((st) => ({ cots: [{ nino: n.id, horario: gs[dl.sel][0], estado: 'Enviada por WhatsApp hoy' }, ...st.cots.filter((c) => c.nino !== n.id)], dlg: null })); this.aviso(`Cotización de ${n.n} guardada y enviada a la familia por WhatsApp.`); } else { this.setState({ dlg: null }); this.aviso('Clase muestra agendada. La familia y la maestra ya tienen el aviso.'); } } };
+    }
+    const clases = [['Sáb 10 oct, 10:00 am', 'Julián', 'Karate Infantil 6-8', 'Marco Díaz', 'Completo', 'Alto'], ['Sáb 10 oct, 9:00 am', 'Paula', 'Ballet Infantil 5-8', 'Lucía Ferrer', 'Borrador', 'Medio']].map(([cuando, nino, grupo, maestro, registro, interes]) => ({ cuando, nino, grupo, maestro, registro, interes, estado: 'Asistió', fondo: '#E1F3E7', tinta: '#17603A' }));
+    const tono = s.etapa === 'perdido' ? ['#FDECEA', '#B3261E'] : ['#ECEBFC', '#2B2699'];
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '8px 16px 24px' : '24px 32px 32px',
+      etapaNombre: nombreEtapa, etapaFondo: tono[0], etapaTinta: tono[1], pasos, ultimo: s.hist[0].c === 'ahora' ? 'Ahora' : 'Hace 2 días',
+      ninos, cotizaciones, sinCotizaciones: cotizaciones.length === 0, clases, historial: s.hist.map((h, i, a) => ({ ...h, hayNota: !!h.n, conLinea: i < a.length - 1, punto: i === 0 ? '#3A32D1' : '#A9AEC6', halo: i === 0 ? '#ECEBFC' : '#FFFFFF' })),
+      alChat: () => this.aviso('Se abrió la conversación con Gabriela Mora en Chatwoot.'), alMover: () => this.setState({ dlg: { tipo: 'mover', destino: '', motivo: '' } }), alAgendar: () => this.setState({ dlg: { tipo: 'agendar', sel: 0 } }),
+      hayDialogo: !!dl, d, alCerrar: () => this.setState({ dlg: null }),
+      dlgAlinear: movil ? 'flex-end' : 'center', dlgRelleno: movil ? '0' : '24px', dlgAncho: movil ? '100%' : '520px', dlgRadio: movil ? '20px 20px 0 0' : '16px',
+      hayToast: !!s.toast, toast: s.toast || '', toastAbajo: movil ? '84px' : '24px', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

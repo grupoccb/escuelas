@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#FFFFFF}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #FFFFFF; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 16px; line-height: 24px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px clamp(16px, 4vw, 48px); border-bottom: 1px solid #DEE1EA">
+<div style="display: flex; align-items: center; gap: 12px"><span aria-hidden="true" style="width: 42px; height: 42px; border-radius: 12px; background: #3A32D1; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700">AN</span><span style="display: flex; flex-direction: column"><strong style="font-size: 17px">Academia Nova</strong><span style="color: #5A6074; font-size: 13px; line-height: 18px">Águilas · Norte · Ciudad de México</span></span></div>
+<a href="#pide" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; background: #ECEBFC; color: #2B2699; border-radius: 10px; font-weight: 700">Pide tu clase muestra</a>
+</header>
+<section style="display: flex; flex-wrap: wrap; align-items: center; gap: 32px; padding: clamp(28px, 5vw, 64px) clamp(16px, 4vw, 48px)">
+<div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; gap: 8px" aria-hidden="true"><span style="width: 40px; height: 6px; border-radius: 3px; background: oklch(0.6 0.16 35)"></span><span style="width: 40px; height: 6px; border-radius: 3px; background: oklch(0.6 0.16 355)"></span><span style="width: 40px; height: 6px; border-radius: 3px; background: oklch(0.6 0.11 190)"></span></div>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: clamp(36px, 5vw, 58px); line-height: 1.04; letter-spacing: -0.025em; text-wrap: balance">Karate, ballet clásico y salsa para niños y adultos</h1>
+<p style="margin: 0; color: #454B60; font-size: 19px; line-height: 28px; max-width: 46ch">La primera clase es gratis. Cuéntanos para quién es y te escribimos por WhatsApp con los horarios que tienen lugar.</p>
+<a href="#pide" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 56px; padding: 0 24px; background: #3A32D1; color: #FFFFFF; border-radius: 14px; font-size: 17px; font-weight: 700">Quiero mi clase muestra</a>
+</div>
+<div role="img" aria-label="Espacio para una foto de clase" style="flex: 1 1 360px; min-height: 340px; border-radius: 24px; background: repeating-linear-gradient(135deg, #F3F4F8 0 12px, #ECEDF3 12px 24px); display: flex; align-items: flex-end; padding: 18px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #454B60; background: #FFFFFF; padding: 4px 10px; border-radius: 6px">foto: clase de karate infantil en Águilas</span></div>
+</section>
+<section style="padding: 0 clamp(16px, 4vw, 48px) 48px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px">
+<sc-for list="{{ disciplinas }}" as="d" hint-placeholder-count="3">
+<article style="border: 1px solid #DEE1EA; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column">
+<div role="img" aria-label="{{ d.fotoEtiqueta }}" style="height: 160px; background: repeating-linear-gradient(135deg, {{ d.suave }} 0 10px, #FFFFFF 10px 20px); display: flex; align-items: flex-end; padding: 12px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #454B60; background: #FFFFFF; padding: 3px 8px; border-radius: 6px">{{ d.foto }}</span></div>
+<div aria-hidden="true" style="height: 6px; background: {{ d.color }}"></div>
+<div style="padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 8px"><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; line-height: 30px">{{ d.nombre }}</h2><p style="margin: 0; color: #454B60">{{ d.texto }}</p><span style="color: {{ d.tinta }}; font-weight: 700">{{ d.edades }}</span></div>
+</article>
+</sc-for>
+</section>
+<section id="pide" style="padding: clamp(28px, 5vw, 56px) clamp(16px, 4vw, 48px); background: #171A2C; display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start">
+<div style="flex: 1 1 320px; color: #FFFFFF; display: flex; flex-direction: column; gap: 12px"><h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 42px); line-height: 1.1; letter-spacing: -0.02em">Pide tu clase muestra</h2><p style="margin: 0; color: #C9CDE0; font-size: 17px; line-height: 26px; max-width: 42ch">Te escribimos por WhatsApp en horario de 9:00 a 20:00 con los grupos que tienen lugar para su edad.</p></div>
+<div style="flex: 1 1 420px; min-width: 0; background: #FFFFFF; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 14px">
+<sc-if value="{{ formulario }}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="adulto" style="font-size: 13px; font-weight: 600; color: #454B60">Tu nombre *</label><input id="adulto" autocomplete="name" value="{{ adulto }}" onChange="{{ alAdulto }}" style="min-height: 48px; padding: 0 12px; border: {{ bordeAdulto }}; border-radius: 12px; font-size: 16px"></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><label for="tel" style="font-size: 13px; font-weight: 600; color: #454B60">Tu WhatsApp *</label><input id="tel" type="tel" inputmode="tel" autocomplete="tel" value="{{ tel }}" onChange="{{ alTel }}" placeholder="55 1234 5678" style="min-height: 48px; padding: 0 12px; border: {{ bordeTel }}; border-radius: 12px; font-size: 16px; font-variant-numeric: tabular-nums"></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; font-weight: 600; color: #454B60">¿Para quién es la clase?</span><div style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px"><sc-for list="{{ paraQuien }}" as="o" hint-placeholder-count="2"><button type="button" aria-pressed="{{ o.activa }}" onClick="{{ o.alElegir }}" style="flex: 1 1 0; min-height: 44px; background: {{ o.fondo }}; border: 0; border-radius: 9px; font-weight: {{ o.peso }}; box-shadow: {{ o.sombra }}; cursor: pointer">{{ o.nombre }}</button></sc-for></div></div>
+<sc-if value="{{ esNino }}"><div style="display: grid; grid-template-columns: 1fr 120px; gap: 12px"><div style="display: flex; flex-direction: column; gap: 6px"><label for="nino" style="font-size: 13px; font-weight: 600; color: #454B60">Nombre del niño o niña</label><input id="nino" value="{{ nino }}" onChange="{{ alNino }}" style="min-height: 48px; padding: 0 12px; border: 1px solid #8E95AA; border-radius: 12px; font-size: 16px"></div><div style="display: flex; flex-direction: column; gap: 6px"><label for="edad" style="font-size: 13px; font-weight: 600; color: #454B60">Edad</label><input id="edad" inputmode="numeric" value="{{ edad }}" onChange="{{ alEdad }}" style="min-height: 48px; padding: 0 12px; border: 1px solid #8E95AA; border-radius: 12px; font-size: 16px"></div></div></sc-if>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; font-weight: 600; color: #454B60">Disciplina</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{ opcionesDisc }}" as="o" hint-placeholder-count="3"><button type="button" aria-pressed="{{ o.activa }}" onClick="{{ o.alElegir }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; background: {{ o.fondo }}; color: {{ o.tinta }}; border: {{ o.borde }}; border-radius: 999px; font-weight: 700; cursor: pointer"><span aria-hidden="true" style="width: 9px; height: 9px; border-radius: 999px; background: {{ o.color }}"></span>{{ o.nombre }}</button></sc-for></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; font-weight: 600; color: #454B60">Sucursal</span><div style="display: flex; padding: 4px; background: #E7E9F1; border-radius: 12px"><sc-for list="{{ sucursales }}" as="o" hint-placeholder-count="2"><button type="button" aria-pressed="{{ o.activa }}" onClick="{{ o.alElegir }}" style="flex: 1 1 0; min-height: 44px; background: {{ o.fondo }}; border: 0; border-radius: 9px; font-weight: {{ o.peso }}; box-shadow: {{ o.sombra }}; cursor: pointer">{{ o.nombre }}</button></sc-for></div></div>
+<sc-if value="{{ hayFalta }}"><div style="color: #B3261E; font-size: 13px; font-weight: 600">Escribe tu nombre y tu WhatsApp (10 dígitos) para seguir.</div></sc-if>
+<button type="button" onClick="{{ alEnviar }}" style="min-height: 56px; background: #3A32D1; color: #FFFFFF; border: 0; border-radius: 14px; font-size: 17px; font-weight: 700; cursor: pointer">Continuar por WhatsApp</button>
+<p style="margin: 0; color: #5A6074; font-size: 13px; line-height: 18px">Al continuar aceptas el aviso de privacidad. Solo usamos tu número para darte informes; puedes pedir que no te escribamos más en cualquier momento.</p>
+</sc-if>
+<sc-if value="{{ enviado }}">
+<div role="status" style="display: flex; flex-direction: column; gap: 12px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)"><span aria-hidden="true" style="width: 56px; height: 56px; border-radius: 999px; background: #E1F3E7; color: #17603A; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></span><h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px">Listo, {{ adultoCorto }}</h3><p style="margin: 0; color: #454B60">Te abrimos WhatsApp con este mensaje listo para enviar:</p><div style="padding: 14px; background: #F3F4F8; border-radius: 14px; white-space: pre-wrap">{{ mensaje }}</div><p style="margin: 0; color: #5A6074; font-size: 14px">Si no se abrió, escríbenos al 55 4000 1122.</p></div>
+</sc-if>
+</div>
+</section>
+<footer style="padding: 20px clamp(16px, 4vw, 48px); color: #5A6074; font-size: 14px">Academia Nova · Av. de las Águilas 230 · Calz. Vallejo 1180 · Ciudad de México</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  D = [['karate', 'Karate', 'Disciplina, respeto y condición física. Grupos por edad desde los 3 años.', 'De 3 a 17 años y adultos', 'foto: niños en clase de karate', 'oklch(0.6 0.16 35)', 'oklch(0.95 0.035 35)', 'oklch(0.44 0.13 35)'], ['ballet', 'Ballet clásico', 'Técnica, postura y presentaciones de fin de curso.', 'De 3 a 12 años', 'foto: alumnas en la barra', 'oklch(0.6 0.16 355)', 'oklch(0.95 0.035 355)', 'oklch(0.44 0.13 355)'], ['salsa', 'Salsa', 'Para adultos, con o sin pareja. Principiantes e intermedios.', 'Desde 16 años', 'foto: pareja bailando salsa', 'oklch(0.6 0.11 190)', 'oklch(0.95 0.03 190)', 'oklch(0.42 0.08 190)']];
+  state = { adulto: '', tel: '', para: 'nino', nino: '', edad: '', disc: 'karate', suc: 'Águilas', intento: false, enviado: false };
+  renderVals() {
+    const s = this.state, digitos = s.tel.replace(/\D/g, ''), ok = s.adulto.trim() && digitos.length >= 10;
+    const seg = (a) => ({ fondo: a ? '#FFFFFF' : 'transparent', peso: a ? 700 : 600, sombra: a ? '0 1px 2px rgba(23,26,44,0.16)' : 'none' });
+    const d = this.D.find((x) => x[0] === s.disc);
+    const quien = s.para === 'nino' ? `${s.nino.trim() || 'mi hijo'}${s.edad ? ` (${s.edad} años)` : ''}` : 'mí';
+    return {
+      disciplinas: this.D.map(([, nombre, texto, edades, foto, color, suave, tinta]) => ({ nombre, texto, edades, foto, fotoEtiqueta: 'Espacio para ' + foto.replace('foto: ', 'una foto de '), color, suave, tinta })),
+      formulario: !s.enviado, enviado: s.enviado,
+      adulto: s.adulto, tel: s.tel, nino: s.nino, edad: s.edad, alAdulto: (e) => this.setState({ adulto: e.target.value }), alTel: (e) => this.setState({ tel: e.target.value }), alNino: (e) => this.setState({ nino: e.target.value }), alEdad: (e) => this.setState({ edad: e.target.value }),
+      bordeAdulto: s.intento && !s.adulto.trim() ? '2px solid #B3261E' : '1px solid #8E95AA', bordeTel: s.intento && digitos.length < 10 ? '2px solid #B3261E' : '1px solid #8E95AA',
+      esNino: s.para === 'nino', paraQuien: [['nino', 'Para mi hijo o hija'], ['yo', 'Para mí']].map(([id, nombre]) => ({ nombre, activa: s.para === id, ...seg(s.para === id), alElegir: () => this.setState({ para: id }) })),
+      opcionesDisc: this.D.map(([id, nombre, , , , color, suave, tinta]) => { const a = s.disc === id; return { nombre, color, activa: a, fondo: a ? suave : '#FFFFFF', tinta: a ? tinta : '#171A2C', borde: a ? `2px solid ${color}` : '1px solid #C5CAD8', alElegir: () => this.setState({ disc: id }) }; }),
+      sucursales: ['Águilas', 'Norte'].map((n) => ({ nombre: n, activa: s.suc === n, ...seg(s.suc === n), alElegir: () => this.setState({ suc: n }) })),
+      hayFalta: s.intento && !ok, alEnviar: () => (ok ? this.setState({ enviado: true }) : this.setState({ intento: true })),
+      adultoCorto: s.adulto.trim().split(' ')[0] || '', mensaje: `Hola, soy ${s.adulto.trim()}. Quiero una clase muestra de ${d[1]} para ${quien} en ${s.suc}.`,
+    };
+  }
+}
+</script>
+</body>
+</html>

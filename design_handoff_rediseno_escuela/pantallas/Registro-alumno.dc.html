@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#F3F4F8}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ raiz }}" style="position: relative; height: 100vh; max-height: 100%; display: flex; flex-direction: {{ direccion }}; overflow: hidden; background: #F3F4F8; color: #171A2C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 21px">
+<sc-if value="{{ escritorio }}" hint-placeholder-val="{{ true }}"><dc-import name="Lateral" activa="hoy" hint-size="232px,100%" style="flex: 0 0 232px; height: 100%"></dc-import></sc-if>
+<div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column">
+<sc-if value="{{ movil }}"><dc-import name="Cabecera" texto="Academia Nova · Águilas" iniciales="MD" nombre="Marco Díaz" hint-size="100%,60px"></dc-import></sc-if>
+<main style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: {{ relleno }}; display: flex; justify-content: center">
+<div style="width: 100%; max-width: 760px; align-self: flex-start; display: flex; flex-direction: column; gap: 14px">
+
+<a href="Hoy-maestro.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 700"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10H5M9 5.5L4.5 10 9 14.5"></path></svg>Volver a Hoy</a>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Registro de Matías</h1>
+<div style="color: #454B60">Clase muestra · hoy 4:00 pm · Karate Infantil 3-5 · Águilas</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #DEE1EA; border-radius: 16px">
+<div style="display: flex; justify-content: space-between; gap: 12px; font-weight: 700"><span>{{ avanceTexto }}</span><span style="color: #5A6074; font-weight: 600">{{ guardadoTexto }}</span></div>
+<div aria-hidden="true" style="height: 8px; border-radius: 4px; background: #E7E9F1; overflow: hidden"><div style="height: 100%; width: {{ avance }}; background: #3A32D1; border-radius: 4px; transition: width 180ms cubic-bezier(.2,.8,.2,1)"></div></div>
+</div>
+
+<sc-for list="{{ secciones }}" as="sec" hint-placeholder-count="6">
+<section style="flex: none; background: #FFFFFF; border: 1px solid {{ sec.borde }}; border-radius: 16px; overflow: hidden">
+<button type="button" aria-expanded="{{ sec.abierta }}" onClick="{{ sec.alAbrir }}" style="width: 100%; min-height: 60px; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: transparent; border: 0; color: #171A2C; text-align: left; cursor: pointer">
+<span aria-hidden="true" style="flex: none; width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: {{ sec.fondoNum }}; color: {{ sec.tintaNum }}; font-size: 13px; font-weight: 700">{{ sec.marca }}</span>
+<span style="flex: 1; min-width: 0; font-weight: 700; font-size: 16px">{{ sec.titulo }}</span>
+<span style="flex: none; padding: 3px 10px; border-radius: 999px; background: {{ sec.fondoEstado }}; color: {{ sec.tintaEstado }}; font-size: 12.5px; line-height: 16px; font-weight: 700">{{ sec.estado }}</span>
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; transform: {{ sec.giro }}; transition: transform 120ms"><path d="M10 4v11.5M5.5 11L10 15.5 14.5 11"></path></svg>
+</button>
+<sc-if value="{{ sec.abierta }}">
+<div style="padding: 4px 16px 18px; display: flex; flex-direction: column; gap: 14px; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<sc-if value="{{ sec.esSalud }}"><div style="display: flex; gap: 10px; padding: 10px 12px; background: #ECEBFC; border-radius: 10px; color: #2B2699; font-size: 13.5px; line-height: 19px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M7.5 15.7a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z M9.8 10.2L16.5 3.5M14 6l2 2M12 8l1.5 1.5"></path></svg>Solo lo ven quienes tienen permiso de salud. Nunca sale en un mensaje de WhatsApp.</div></sc-if>
+<sc-for list="{{ sec.campos }}" as="c" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12.5px; line-height: 16px; font-weight: 600; color: #5A6074">{{ c.etiqueta }}<sc-if value="{{ c.requerido }}"><span style="color: #B3261E"> *</span></sc-if></span>
+<sc-if value="{{ c.esTexto }}"><input aria-label="{{ c.etiqueta }}" value="{{ c.valor }}" onChange="{{ c.alCambiar }}" placeholder="{{ c.ayuda }}" style="width: 100%; min-height: 48px; padding: 0 12px; background: #FFFFFF; color: #171A2C; border: {{ c.borde }}; border-radius: 10px; font-size: 16px"></sc-if>
+<sc-if value="{{ c.esArea }}"><textarea aria-label="{{ c.etiqueta }}" value="{{ c.valor }}" onChange="{{ c.alCambiar }}" placeholder="{{ c.ayuda }}" rows="3" style="width: 100%; min-height: 88px; padding: 10px 12px; background: #FFFFFF; color: #171A2C; border: 1px solid #8E95AA; border-radius: 10px; font-size: 16px; resize: vertical"></textarea></sc-if>
+<sc-if value="{{ c.esOpciones }}"><div role="group" aria-label="{{ c.etiqueta }}" style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{ c.opciones }}" as="o" hint-placeholder-count="3"><button type="button" aria-pressed="{{ o.activa }}" onClick="{{ o.alElegir }}" style="flex: 1 1 auto; min-height: 48px; padding: 0 14px; background: {{ o.fondo }}; color: {{ o.tinta }}; border: {{ o.borde }}; border-radius: 10px; font-weight: {{ o.peso }}; cursor: pointer">{{ o.nombre }}</button></sc-for></div></sc-if>
+<sc-if value="{{ c.esAdultos }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: #F3F4F8; border-radius: 12px"><span><strong>Samuel Zepeda</strong> · papá · <span style="font-variant-numeric: tabular-nums">55 9901 0006</span></span><span style="display: flex; gap: 6px"><span style="padding: 2px 8px; background: #E1F3E7; color: #17603A; border-radius: 999px; font-size: 12px; font-weight: 700">Responsable de pago</span><span style="padding: 2px 8px; background: #ECEDF3; color: #3A3F52; border-radius: 6px; font-size: 12px; font-weight: 600">Recoge</span></span></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: #F3F4F8; border-radius: 12px"><span><strong>Laura Ríos</strong> · mamá · <span style="font-variant-numeric: tabular-nums">55 9901 0007</span></span><span style="padding: 2px 8px; background: #ECEDF3; color: #3A3F52; border-radius: 6px; font-size: 12px; font-weight: 600">Recoge</span></div>
+<button type="button" style="align-self: flex-start; min-height: 44px; padding: 0 14px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer">Agregar otro adulto</button>
+</div>
+</sc-if>
+<sc-if value="{{ c.esReglamento }}">
+<div style="max-height: 150px; overflow-y: auto; padding: 12px; background: #F3F4F8; border: 1px solid #DEE1EA; border-radius: 10px; color: #454B60; font-size: 13.5px; line-height: 20px; white-space: pre-wrap">1. El alumno llega 10 minutos antes de su clase, con el uniforme de su disciplina.
+2. La mensualidad se paga el día 15 de cada mes; después del día 20 se suma un cargo por atraso.
+3. Tres faltas seguidas sin aviso liberan el lugar del grupo.
+4. Solo recogen al alumno los adultos registrados en este formulario.
+5. La escuela avisa por WhatsApp cualquier cambio de horario o de salón.</div>
+<label style="display: flex; align-items: center; gap: 12px; min-height: 48px; cursor: pointer"><input type="checkbox" checked="{{ c.acepta }}" onChange="{{ c.alAcepta }}" style="width: 22px; height: 22px; margin: 0; accent-color: #3A32D1"><strong>La familia acepta el reglamento</strong></label>
+</sc-if>
+<sc-if value="{{ c.hayError }}"><span style="color: #B3261E; font-size: 12.5px; line-height: 16px; font-weight: 600">{{ c.error }}</span></sc-if>
+</div>
+</sc-for>
+<button type="button" onClick="{{ sec.alGuardar }}" style="align-self: flex-start; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 10px; font-weight: 600; cursor: pointer">Guardar esta sección</button>
+</div>
+</sc-if>
+</section>
+</sc-for>
+</div>
+</main>
+<div style="flex: none; padding: 10px 16px; background: #FFFFFF; border-top: 1px solid #DEE1EA; display: flex; justify-content: center">
+<div style="width: 100%; max-width: 760px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<span style="color: {{ tintaBarra }}; font-weight: 600">{{ barraTexto }}</span>
+<button type="button" onClick="{{ alGuardarTodo }}" style="min-height: 52px; padding: 0 22px; background: #3A32D1; color: #FFFFFF; border: 0; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer">Guardar borrador</button>
+</div>
+</div>
+<sc-if value="{{ movil }}"><dc-import name="Barra" rol="maestro" activa="hoy" hint-size="100%,72px"></dc-import></sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  raiz = React.createRef();
+  SECCIONES = [
+    ['alumno', 'Alumno', [['nombre', 'Nombre', 'texto', true], ['apellidos', 'Apellidos', 'texto', true, 'Como aparecen en el acta'], ['nacimiento', 'Fecha de nacimiento (del acta)', 'texto', true, 'dd/mm/aaaa'], ['sexo', 'Sexo', ['Femenino', 'Masculino', 'Otro'], true]]],
+    ['adultos', 'Adultos', [['adultos', 'Quién es responsable de pago y quién recoge', 'adultos', false]]],
+    ['salud', 'Salud y seguridad', [['alergias', 'Alergias', 'texto', false, 'Escribe «Ninguna» si no tiene'], ['condiciones', 'Condiciones médicas o lesiones', 'area', false, 'Asma, operaciones, lesiones recientes…'], ['emergencia', 'Contacto de emergencia', 'texto', true, 'Nombre y teléfono']]],
+    ['antecedentes', 'Antecedentes', [['practico', '¿Ha practicado antes?', ['Sí', 'No'], true], ['motivo', '¿Por qué quiere tomar la clase?', ['Disciplina', 'Condición física', 'Socialización', 'Competencia', 'Otro'], true]]],
+    ['observacion', 'Observación del maestro', [['interes', 'Interés percibido', ['Alto', 'Medio', 'Bajo'], true], ['grupo', 'Grupo recomendado', ['Lun y Mié 4:00 pm', 'Mar y Jue 4:00 pm', 'Sáb 10:00 am'], true], ['nota', 'Nota para el asesor', 'area', false, 'Lo que viste en la clase']]],
+    ['reglamento', 'Reglamento e imagen', [['reglamento', 'Reglamento', 'reglamento', true], ['imagen', '¿Autoriza fotos y videos del alumno para la escuela?', ['Sí', 'No'], true]]],
+  ];
+  state = { movil: false, abierta: 'alumno', v: { nombre: 'Matías', apellidos: '', nacimiento: '', sexo: 'Masculino', alergias: 'Ninguna', condiciones: '', emergencia: 'Laura Ríos · 55 9901 0007', practico: 'No', motivo: 'Disciplina', interes: 'Alto', grupo: 'Lun y Mié 4:00 pm', nota: '', reglamento: false, imagen: '' }, guardadas: { adultos: true, salud: true }, intento: {}, ultimo: 'Guardado hace 3 min' };
+  componentDidMount() { const el = this.raiz.current; if (el && window.ResizeObserver) { this.ro = new ResizeObserver(() => this.medir()); this.ro.observe(el); } this.medir(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+  medir() { const el = this.raiz.current; if (!el) return; const movil = el.offsetWidth < 900; if (movil !== this.state.movil) this.setState({ movil }); }
+  faltan(id) { const sec = this.SECCIONES.find((x) => x[0] === id); return sec[2].filter(([k, , tipo, req]) => req && tipo !== 'adultos' && (tipo === 'reglamento' ? !this.state.v.reglamento : !String(this.state.v[k] || '').trim())); }
+  poner(k, valor) { this.setState((s) => ({ v: { ...s.v, [k]: valor }, ultimo: 'Cambios sin guardar' })); }
+  renderVals() {
+    const s = this.state, movil = s.movil;
+    const completas = this.SECCIONES.filter(([id]) => this.faltan(id).length === 0).length;
+    const secciones = this.SECCIONES.map(([id, titulo, campos], i) => {
+      const f = this.faltan(id), ok = f.length === 0, abierta = s.abierta === id, intento = !!s.intento[id];
+      return { titulo, abierta, marca: ok ? '✓' : String(i + 1), fondoNum: ok ? '#17603A' : '#E7E9F1', tintaNum: ok ? '#FFFFFF' : '#454B60',
+        estado: ok ? 'Completa' : f.length === 1 ? 'Falta 1 dato' : `Faltan ${f.length} datos`, fondoEstado: ok ? '#E1F3E7' : '#FFF0D2', tintaEstado: ok ? '#17603A' : '#6B4100', borde: abierta ? '#3A32D1' : '#DEE1EA', giro: abierta ? 'rotate(180deg)' : 'none', esSalud: id === 'salud',
+        alAbrir: () => this.setState({ abierta: abierta ? '' : id }),
+        alGuardar: () => { this.setState((st) => ({ intento: { ...st.intento, [id]: true }, guardadas: { ...st.guardadas, [id]: true }, ultimo: 'Guardado hace un momento' })); if (ok) { const sig = this.SECCIONES.find(([sid]) => this.faltan(sid).length > 0 && sid !== id); this.setState({ abierta: sig ? sig[0] : '' }); } },
+        campos: campos.map(([k, etiqueta, tipo, req, ayuda]) => { const val = s.v[k], vacio = req && tipo !== 'adultos' && (tipo === 'reglamento' ? !s.v.reglamento : !String(val || '').trim());
+          return { etiqueta, requerido: req, ayuda: ayuda || '', valor: val || '', esTexto: tipo === 'texto', esArea: tipo === 'area', esOpciones: Array.isArray(tipo), esAdultos: tipo === 'adultos', esReglamento: tipo === 'reglamento',
+            borde: intento && vacio ? '2px solid #B3261E' : '1px solid #8E95AA', hayError: intento && vacio, error: tipo === 'reglamento' ? 'Falta que la familia acepte el reglamento.' : `Falta: ${etiqueta.replace(' (del acta)', '').replace(/^¿|\?$/g, '')}.`,
+            alCambiar: (e) => this.poner(k, e.target.value), acepta: !!s.v.reglamento, alAcepta: (e) => this.poner('reglamento', e.target.checked),
+            opciones: Array.isArray(tipo) ? tipo.map((o) => { const a = val === o; return { nombre: o, activa: a, fondo: a ? '#ECEBFC' : '#FFFFFF', tinta: a ? '#2B2699' : '#171A2C', borde: a ? '2px solid #3A32D1' : '1px solid #8E95AA', peso: a ? 700 : 600, alElegir: () => this.poner(k, o) }; }) : [] }; }) };
+    });
+    const sin = s.ultimo === 'Cambios sin guardar';
+    return {
+      raiz: this.raiz, escritorio: !movil, movil, direccion: movil ? 'column' : 'row', relleno: movil ? '0 16px 20px' : '20px 32px 24px',
+      secciones, avanceTexto: `${completas} de 6 secciones completas`, avance: (completas / 6) * 100 + '%', guardadoTexto: s.ultimo,
+      barraTexto: sin ? 'Tienes cambios sin guardar' : completas === 6 ? 'Registro completo' : 'Se puede guardar a medias', tintaBarra: sin ? '#6B4100' : completas === 6 ? '#17603A' : '#5A6074',
+      alGuardarTodo: () => this.setState({ ultimo: 'Guardado hace un momento', intento: Object.fromEntries(this.SECCIONES.map(([id]) => [id, true])) }),
+    };
+  }
+}
+</script>
+</body>
+</html>

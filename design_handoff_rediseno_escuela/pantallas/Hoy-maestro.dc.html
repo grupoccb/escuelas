@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#E7E9F1}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#2B2699;text-decoration:none}a:hover{color:#171A2C}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid #3A32D1;outline-offset:2px}
+@keyframes aparece{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="height: 100vh; max-height: 100%; display: flex; justify-content: center; background: #E7E9F1; font-family: 'Figtree', system-ui, sans-serif; color: #171A2C; font-size: 15px; line-height: 21px">
+<div style="position: relative; width: 100%; max-width: 480px; height: 100%; display: flex; flex-direction: column; background: #F3F4F8; overflow: hidden; box-shadow: 0 0 0 1px #DEE1EA">
+
+<header style="flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 22px 20px 12px">
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<div style="color: #5A6074; font-size: 13px; line-height: 18px; font-weight: 600">Academia Nova · Águilas</div>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 34px; line-height: 38px; letter-spacing: -0.015em">Hoy</h1>
+<div style="color: #454B60">{{ resumen }}</div>
+</div>
+<a href="Mas.dc.html" aria-label="Mi cuenta (Marco Díaz)" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #171A2C; color: #FFFFFF; border-radius: 999px; font-size: 14px; font-weight: 700">MD</a>
+</header>
+
+<main style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 20px; display: flex; flex-direction: column; gap: 16px">
+
+<sc-if value="{{ hayAvisos }}">
+<div style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; background: #ECEBFC; border-radius: 14px; color: #2B2699">
+<div style="display: flex; align-items: center; gap: 10px; font-weight: 700; min-width: 0">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M5 8.5a5 5 0 0110 0c0 3.5 1.5 4.5 1.5 4.5h-13S5 12 5 8.5z"></path><path d="M8.5 16a1.6 1.6 0 003 0"></path></svg>
+<span>2 clases nuevas agendadas para ti</span>
+</div>
+<button type="button" onClick="{{ alVerAvisos }}" style="flex: none; min-height: 44px; padding: 0 14px; background: #FFFFFF; color: #2B2699; border: 0; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+
+<sc-for list="{{ dias }}" as="dia" hint-placeholder-count="2">
+<section style="flex: none; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; padding: 4px 4px 0; font-size: 16px; line-height: 22px; font-weight: 700">{{ dia.titulo }}</h2>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+<sc-for list="{{ dia.clases }}" as="c" hint-placeholder-count="2">
+<li style="display: flex; flex-direction: column">
+<sc-if value="{{ c.ahoraAntes }}">
+<div aria-label="{{ ahoraEtiqueta }}" style="display: flex; align-items: center; gap: 10px; padding: 2px 0 12px">
+<span aria-hidden="true" style="flex: none; width: 22px; display: flex; justify-content: center"><span style="width: 12px; height: 12px; border-radius: 999px; background: #3A32D1; box-shadow: 0 0 0 4px #DAD8FA"></span></span>
+<span aria-hidden="true" style="flex: 1; height: 2px; background: #3A32D1; border-radius: 2px"></span>
+<span style="flex: none; padding: 3px 10px; border-radius: 999px; background: #3A32D1; color: #FFFFFF; font-size: 13px; line-height: 18px; font-weight: 700">{{ ahoraTexto }}</span>
+</div>
+</sc-if>
+<div style="display: flex; gap: 10px">
+<div aria-hidden="true" style="flex: none; width: 22px; display: flex; flex-direction: column; align-items: center">
+<span style="width: 10px; height: 10px; margin-top: 30px; border-radius: 999px; background: {{ c.punto }}; box-shadow: 0 0 0 3px #F3F4F8"></span>
+<span style="flex: 1; width: 2px; margin-top: 4px; background: #DEE1EA"></span>
+</div>
+<article style="flex: 1; min-width: 0; margin-bottom: 12px; background: #FFFFFF; border-radius: 18px; overflow: hidden; box-shadow: 0 1px 3px rgba(23,26,44,0.10), 0 8px 20px -14px rgba(23,26,44,0.30); opacity: {{ c.opacidad }}">
+<div aria-hidden="true" style="height: 5px; background: {{ c.color }}"></div>
+<div style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 6px">
+<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 32px; line-height: 34px; font-variant-numeric: tabular-nums">{{ c.hora }}</span>
+<span style="font-weight: 700; color: #454B60">{{ c.ampm }}</span>
+</div>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: {{ c.fondoEstado }}; color: {{ c.tintaEstado }}; border-radius: 999px; font-size: 13px; line-height: 18px; font-weight: 700">{{ c.estado }}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 19px; line-height: 26px; font-weight: 700">{{ c.nombre }} <span style="font-weight: 500; color: #454B60">· {{ c.edad }}</span></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px">
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: {{ c.suave }}; color: {{ c.tinta }}; font-size: 12.5px; line-height: 18px; font-weight: 700"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: {{ c.color }}"></span>{{ c.grupo }}</span>
+<span style="color: #5A6074">{{ c.horario }}</span>
+</div>
+<div style="color: #5A6074; font-size: 13px; line-height: 18px">Registro del alumno: <strong style="color: {{ c.tintaRegistro }}">{{ c.registro }}</strong></div>
+</div>
+<a href="Registro-alumno.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 20px; background: {{ c.fondoRegistro }}; color: {{ c.tintaBotonRegistro }}; border: 1px solid {{ c.bordeRegistro }}; border-radius: 12px; font-size: 16px; font-weight: 700">Registro del alumno</a>
+<sc-if value="{{ c.puedeMarcar }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div role="group" aria-label="{{ c.asistenciaEtiqueta }}" style="display: flex; gap: 10px">
+<button type="button" aria-pressed="{{ c.asistio }}" disabled="{{ c.bloqueada }}" onClick="{{ c.alAsistio }}" style="flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; background: {{ c.si.fondo }}; color: {{ c.si.tinta }}; border: {{ c.si.borde }}; border-radius: 12px; font-weight: 700; cursor: pointer"><sc-if value="{{ c.asistio }}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg></sc-if>Asistió</button>
+<button type="button" aria-pressed="{{ c.falto }}" disabled="{{ c.bloqueada }}" onClick="{{ c.alFalto }}" style="flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; background: {{ c.no.fondo }}; color: {{ c.no.tinta }}; border: {{ c.no.borde }}; border-radius: 12px; font-weight: 700; cursor: pointer">No asistió</button>
+</div>
+<sc-if value="{{ c.hayNota }}"><div style="color: {{ c.tintaNota }}; font-size: 13px; line-height: 18px; font-weight: {{ c.pesoNota }}">{{ c.nota }}</div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ c.asistio }}">
+<sc-if value="{{ c.sinListo }}">
+<button type="button" onClick="{{ c.alListo }}" style="min-height: 48px; padding: 0 16px; background: #FFFFFF; color: #171A2C; border: 1px solid #C5CAD8; border-radius: 12px; font-weight: 700; cursor: pointer">Listo para cerrar la inscripción</button>
+</sc-if>
+<sc-if value="{{ c.listo }}">
+<div role="status" style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: #E1F3E7; border: 1px solid #17603A; border-radius: 12px; color: #17603A; font-weight: 600; animation: aparece 180ms cubic-bezier(.2,.8,.2,1)"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px"><path d="M4.5 10.5l3.5 3.5 7.5-8"></path></svg>Listo: el asesor recibió el aviso para cerrar la inscripción.</div>
+</sc-if>
+</sc-if>
+</div>
+</article>
+</div>
+</li>
+</sc-for>
+</ol>
+</section>
+</sc-for>
+</main>
+
+<nav aria-label="Secciones" style="flex: none; display: flex; background: #FFFFFF; border-top: 1px solid #DEE1EA; padding: 4px 8px 8px">
+<a href="Hoy-maestro.dc.html" aria-current="page" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #3A32D1; font-size: 12.5px; line-height: 16px; font-weight: 700; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path><path d="M3 8h14M7 2.5v3M13 2.5v3"></path></svg>Hoy</a>
+<a href="Pase-de-lista.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5L5 7l2.5-3M3.5 11.5L5 13l2.5-3M10.5 6h6M10.5 12h6M10.5 16.5h6"></path></svg>Pase de lista</a>
+<a href="Alumnos.dc.html" style="flex: 1 1 0; min-width: 0; height: 60px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #454B60; font-size: 12.5px; line-height: 16px; font-weight: 600; text-align: center"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 10a3 3 0 100-6 3 3 0 000 6z"></path><path d="M2.5 16.5c.6-2.8 2.5-4.2 5-4.2s4.4 1.4 5 4.2"></path><path d="M13 4.3a3 3 0 010 5.4M15 12.6c1.4.6 2.2 1.9 2.5 3.9"></path></svg>Alumnos</a>
+</nav>
+
+<sc-if value="{{ hayToast }}">
+<div role="status" style="position: absolute; left: 16px; right: 16px; bottom: 84px; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; background: #171A2C; color: #FFFFFF; border-radius: 12px; box-shadow: 0 12px 32px rgba(23,26,44,0.28); animation: aparece 180ms cubic-bezier(.2,.8,.2,1)">
+<span style="flex: 1; min-width: 0">{{ toast }}</span>
+<button type="button" onClick="{{ alCerrarToast }}" style="flex: none; min-height: 40px; padding: 0 12px; background: #ECEBFC; color: #2B2699; border: 0; border-radius: 9px; font-weight: 700; cursor: pointer">Entendido</button>
+</div>
+</sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;hora&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;3:45 pm&quot;,&quot;4:20 pm&quot;,&quot;7:10 pm&quot;],&quot;default&quot;:&quot;4:20 pm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Hoy&quot;},&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+  KARATE = { color: 'oklch(0.6 0.16 35)', suave: 'oklch(0.95 0.035 35)', tinta: 'oklch(0.44 0.13 35)' };
+  CLASES = [
+    { id: 'm1', dia: 0, min: 960, nombre: 'Matías', edad: 4, grupo: 'Karate Infantil 3-5', horario: 'Lun y Mié 4:00 pm', registro: 'completo' },
+    { id: 'm2', dia: 0, min: 1020, nombre: 'Elena', edad: 7, grupo: 'Karate Infantil 6-8', horario: 'Lun y Mié 5:00 pm', registro: 'sin_captura' },
+    { id: 'm3', dia: 0, min: 1110, nombre: 'Diego', edad: 11, grupo: 'Karate Infantil 9-12', horario: 'Lun y Mié 6:30 pm', registro: 'borrador' },
+    { id: 'm4', dia: 1, min: 960, nombre: 'Renata', edad: 6, grupo: 'Karate Infantil 6-8', horario: 'Mar y Jue 4:00 pm', registro: 'sin_captura' },
+    { id: 'm5', dia: 2, min: 1080, nombre: 'Iker', edad: 9, grupo: 'Karate Infantil 9-12', horario: 'Lun y Mié 6:00 pm', registro: 'sin_captura' },
+  ];
+  DIAS = ['Hoy · lunes 12 de octubre', 'Mañana · martes 13 de octubre', 'Miércoles 14 de octubre'];
+  REGISTRO = { sin_captura: ['Sin captura', '#5A6074'], borrador: ['Borrador', '#6B4100'], completo: ['Completo', '#2B2699'], cerrado: ['Cerrado', '#17603A'] };
+  HORAS = { '3:45 pm': 945, '4:20 pm': 980, '7:10 pm': 1150 };
+  state = { marcas: {}, listos: {}, avisos: true, toast: null };
+  componentWillUnmount() { clearTimeout(this.tt); }
+  aviso(t) { clearTimeout(this.tt); this.setState({ toast: t }); this.tt = setTimeout(() => this.setState({ toast: null }), 4500); }
+  hora(min) { const h = Math.floor(min / 60), m = min % 60, h12 = h > 12 ? h - 12 : h; return [`${h12}:${String(m).padStart(2, '0')}`, h >= 12 ? 'pm' : 'am']; }
+  boton(tipo, activo, bloqueada) {
+    if (bloqueada) return { fondo: '#F3F4F8', tinta: '#6B7085', borde: '1px solid #DEE1EA' };
+    if (activo) return tipo === 'si' ? { fondo: '#E1F3E7', tinta: '#17603A', borde: '2px solid #17603A' } : { fondo: '#FFF0D2', tinta: '#6B4100', borde: '2px solid #F0C56A' };
+    return { fondo: '#FFFFFF', tinta: '#171A2C', borde: '1px solid #8E95AA' };
+  }
+  renderVals() {
+    const s = this.state, K = this.KARATE, etiquetaHora = this.props.hora || '4:20 pm', ahora = this.HORAS[etiquetaHora] || 980;
+    const principal = this.CLASES.find((c) => c.dia === 0 && c.min <= ahora && !s.marcas[c.id]) || this.CLASES.find((c) => !s.marcas[c.id]);
+    const siguiente = this.CLASES.find((c) => c.dia === 0 && c.min > ahora);
+    const tarjeta = (c) => {
+      const marca = s.marcas[c.id], empezo = c.dia === 0 && c.min <= ahora, hoy = c.dia === 0;
+      const [h, ampm] = this.hora(c.min), es = principal && principal.id === c.id;
+      const estado = marca === 'asistio' ? ['Asistió', '#E1F3E7', '#17603A'] : marca === 'no_asistio' ? ['No asistió', '#FFF0D2', '#6B4100'] : ['Agendada', '#ECEBFC', '#2B2699'];
+      const reg = this.REGISTRO[c.registro];
+      return {
+        hora: h, ampm, nombre: c.nombre, edad: `${c.edad} años`, grupo: c.grupo, horario: `${c.horario} · Águilas`, color: K.color, suave: K.suave, tinta: K.tinta,
+        estado: estado[0], fondoEstado: estado[1], tintaEstado: estado[2], punto: marca ? estado[2] : empezo ? '#3A32D1' : '#A9AEC6',
+        registro: reg[0], tintaRegistro: reg[1], opacidad: hoy || !marca ? 1 : 1,
+        fondoRegistro: es ? '#3A32D1' : '#FFFFFF', tintaBotonRegistro: es ? '#FFFFFF' : '#171A2C', bordeRegistro: es ? '#3A32D1' : '#8E95AA',
+        alRegistro: (e) => { e.preventDefault(); this.aviso(`El registro de ${c.nombre} se abre en su propia pantalla, con salud y reglamento.`); },
+        puedeMarcar: hoy, bloqueada: !empezo, asistio: marca === 'asistio', falto: marca === 'no_asistio',
+        asistenciaEtiqueta: `Asistencia de ${c.nombre}`,
+        si: this.boton('si', marca === 'asistio', !empezo), no: this.boton('no', marca === 'no_asistio', !empezo),
+        hayNota: !empezo || marca === 'no_asistio', nota: !empezo ? `La asistencia se marca a partir de las ${h} ${ampm}.` : 'El asesor recibe una tarea para llamar a la familia y ofrecerle otra fecha.',
+        tintaNota: !empezo ? '#5A6074' : '#6B4100', pesoNota: !empezo ? 500 : 600,
+        alAsistio: () => empezo && this.setState((st) => ({ marcas: { ...st.marcas, [c.id]: 'asistio' } })),
+        alFalto: () => empezo && this.setState((st) => ({ marcas: { ...st.marcas, [c.id]: 'no_asistio' } })),
+        sinListo: !s.listos[c.id], listo: !!s.listos[c.id], alListo: () => this.setState((st) => ({ listos: { ...st.listos, [c.id]: true } })),
+        ahoraAntes: hoy && siguiente && siguiente.id === c.id,
+      };
+    };
+    const dias = this.DIAS.map((titulo, i) => ({ titulo, clases: this.CLASES.filter((c) => c.dia === i).map(tarjeta) })).filter((d) => d.clases.length);
+    const resta = siguiente ? siguiente.min - ahora : 0;
+    const hoyN = this.CLASES.filter((c) => c.dia === 0).length;
+    return {
+      resumen: `Lunes 12 de octubre · ${hoyN} clases muestra`, dias,
+      ahoraTexto: siguiente ? `Ahora ${etiquetaHora} · siguiente en ${resta >= 60 ? Math.floor(resta / 60) + ' h ' + (resta % 60 ? (resta % 60) + ' min' : '') : resta + ' min'}` : `Ahora ${etiquetaHora}`,
+      ahoraEtiqueta: `Son las ${etiquetaHora}`,
+      hayAvisos: s.avisos, alVerAvisos: () => this.setState({ avisos: false }),
+      hayToast: !!s.toast, toast: s.toast || '', alCerrarToast: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>
