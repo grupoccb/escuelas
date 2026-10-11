@@ -41,6 +41,11 @@ const SOLO_DESBORDE = new Set<string>([
   "fuera-metricas",
   "fuera-qr-png",
   "fuera-qr-url-json",
+  // R2a: durante un arrastre, la tarjeta de origen queda atenuada al 40 % (README «Profundidad»): es un estado de segundos, con el puntero presionado, y el contraste de lo atenuado no es el de la tarjeta. Sí pasa el desborde.
+  "asesor-embudo-arrastrando",
+  "asesor-embudo-arrastrando-pila",
+  "asesor-embudo-arrastrando-a-perdidos",
+  "asesor-embudo-arrastrando-a-inscrito",
 ]);
 
 for (const e of escenas.filter((x) => coincide(x.id))) {

@@ -14,27 +14,15 @@ import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { ClasesMuestraDeLead } from "./ClasesMuestraDeLead.tsx";
 import { Cotizaciones } from "./Cotizaciones.tsx";
 import { FUENTES } from "./Embudo.tsx";
+import { type Historial, textoDeMotivo } from "./historial-lead.ts";
 import { sePuedeMarcarComoInscrito } from "./inscrito-a-mano.ts";
 import { MarcarInscrito } from "./MarcarInscrito.tsx";
 import { MoverEtapa } from "./MoverEtapa.tsx";
 import { Ninos } from "./Ninos.tsx";
 import { TarjetaDeTarea } from "./Tareas.tsx";
 
-interface Historial {
-  etapa_actual: string;
-  /** V10b: hoy está inscrito a mano (sin inscripción real). */
-  inscrito_a_mano: { por: { id: string; nombre: string } | null; en: string } | null;
-  /** V10b: fechas de las inscripciones reales del lead (solo con el módulo de inscripción encendido). */
-  inscripciones: { fecha: string }[];
-  cambios: { id: string; a_mano: boolean; desde: { id: string; nombre: string | null } | null; hacia: { id: string; nombre: string | null }; origen: string; usuario: { id: string; nombre: string } | null; motivo: string; motivo_perdida: { id: string; nombre: string } | null; nota: string | null; es_recuperacion: boolean; creado_en: string }[];
-}
-
 /** Las claves de la atribución que se pueden mostrar (el resto del referral del proveedor no es para la pantalla). */
 const CLAVES_DE_ATRIBUCION: Record<string, string> = { fuente: "Fuente", utm_source: "Plataforma del anuncio", utm_medium: "Tipo de anuncio", utm_campaign: "Campaña del anuncio", utm_content: "Contenido del anuncio", utm_term: "Palabra clave del anuncio", codigo_rastreo: "Código de rastreo" };
-
-/** El motivo del cambio de etapa, en palabras de la escuela (V10b agrega los de «a mano»). */
-const MOTIVOS_DE_CAMBIO: Record<string, string> = { inscripcion_a_mano: "marcado a mano", correccion_de_inscrito_a_mano: "corrección de una inscripción a mano", inscripcion: "inscripción" };
-const textoDeMotivo = (motivo: string): string => MOTIVOS_DE_CAMBIO[motivo] ?? motivo.replace(/_/g, " ");
 
 function EnlaceAChatwoot({ lead }: { lead: LeadDetalle }) {
   const { yo } = useSesion();

@@ -2,35 +2,22 @@
 
 import { useState } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
-import type { ClaseMuestra, Grupo, LeadDetalle } from "../../api/tipos.ts";
+import type { ClaseMuestra, LeadDetalle } from "../../api/tipos.ts";
 import { ESTATUS_DE_CLASE } from "../../lib/etiquetas.ts";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoArea, CampoSelect, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
-
-interface Sesion {
-  fecha_hora: string;
-  lugares: number;
-  fecha: string;
-  hora: string;
-  completa: string;
-}
+import { guardarClase, useOfertaDeSesiones } from "./clase-muestra-datos.ts";
 
 function DialogoDeSesion({ lead, clase, abierto, alCerrar, alGuardar }: { lead: LeadDetalle; clase: ClaseMuestra | null; abierto: boolean; alCerrar: () => void; alGuardar: () => void }) {
   const reprograma = clase !== null;
-  const aspirantes = lead.prospectos.filter((p) => p.alumno_id === null);
   const [prospectoId, setProspectoId] = useState("");
   const [grupoElegido, setGrupoElegido] = useState("");
   const [fechaHora, setFechaHora] = useState("");
   const [notas, setNotas] = useState("");
   const accion = useAccion();
-
-  const grupos = useCarga((senal) => api.get<Pagina<Grupo>>("/api/grupos", { limite: 100, sucursal_id: lead.sucursal?.id }, senal), [lead.sucursal?.id], abierto);
-  const delLead = (grupos.datos?.datos ?? []).filter((g) => g.activo && g.programa.vertical_id === lead.vertical.id);
-  const grupoId = delLead.some((g) => g.id === grupoElegido) ? grupoElegido : (clase && delLead.some((g) => g.id === clase.grupo_id) ? clase.grupo_id : (delLead[0]?.id ?? ""));
-  const sesiones = useCarga((senal) => api.get<{ datos: Sesion[] }>("/api/clases-muestra/sesiones", { grupo_id: grupoId, maximo: 8 }, senal).then((r) => r.datos), [grupoId], abierto && grupoId !== "");
-  const prospecto = reprograma ? clase.prospecto_id : (prospectoId || aspirantes[0]?.id || "");
+  const { aspirantes, grupos, delLead, grupoId, sesiones, prospecto } = useOfertaDeSesiones({ lead, clase, abierto, prospectoId, grupoElegido });
 
   const cerrar = () => {
     setFechaHora("");
@@ -46,8 +33,7 @@ function DialogoDeSesion({ lead, clase, abierto, alCerrar, alGuardar }: { lead: 
         onSubmit={(e) => {
           e.preventDefault();
           void accion.ejecutar(async () => {
-            if (reprograma) await api.post(`/api/clases-muestra/${clase.id}/reprogramar`, { fecha_hora: fechaHora, grupo_id: grupoId, ...(notas.trim() ? { notas: notas.trim() } : {}) });
-            else await api.post("/api/clases-muestra", { prospecto_id: prospecto, grupo_id: grupoId, fecha_hora: fechaHora, ...(notas.trim() ? { notas: notas.trim() } : {}) });
+            await guardarClase({ clase, prospecto, grupoId, fechaHora, notas });
             cerrar();
             alGuardar();
           });

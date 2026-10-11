@@ -28,14 +28,17 @@ test.describe("embudo", () => {
     await expect(page.getByText("Familia Delta")).toHaveCount(0);
     await expect(page.getByTestId(`lead-${gamma.leadId}`)).toContainText("Sin movimiento 10 d");
     await expect(page.getByTestId(`lead-${beta.leadId}`)).not.toContainText("Sin movimiento");
-    await expect(page.getByText("1 lead lleva días sin movimiento")).toBeVisible();
+    // R2a: el indicador «Llevan días sin movimiento» lleva la cifra aparte (ya no es una frase con el número adentro).
+    const estancados = page.getByTestId("indicador-estancados");
+    await expect(estancados).toContainText("Llevan días sin movimiento");
+    await expect(estancados.locator(".indicador-valor")).toHaveText("1");
     await capturar(page, "20-embudo", "escritorio");
     await capturar(page, "20-embudo", "celular");
   });
 
   test("filtros: solo estancados, por fuente, y la vista de lista", async ({ page }) => {
     await page.goto("/embudo");
-    await page.getByRole("button", { name: "Ver solo los estancados" }).click();
+    await page.getByRole("button", { name: "Ver solo estos" }).click();
     await expect(page.getByTestId(`lead-${gamma.leadId}`)).toBeVisible();
     await expect(page.getByTestId(`lead-${alfa.leadId}`)).toHaveCount(0);
     await page.getByLabel("Solo estancados").uncheck();

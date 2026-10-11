@@ -439,10 +439,13 @@ test.describe("un día de Alba", () => {
     cuenta("11. estancados");
     await foto(page, "embudo-completo", true);
     // V7-ASESOR-13: el aviso concuerda en número («1 lead lleva…» / «3 leads llevan…», nunca «lead(s)»).
-    const aviso = page.getByRole("alert").filter({ hasText: /días sin movimiento/ });
-    await expect(aviso).toContainText(/^(1 lead lleva|\d+ leads llevan) días sin movimiento/);
+    // R2a: ahora es el indicador «Llevan días sin movimiento» con su cifra (nunca «lead(s)») y el botón «Ver solo estos».
+    const aviso = page.getByTestId("indicador-estancados");
+    await expect(aviso).toContainText("Llevan días sin movimiento");
+    await expect(aviso.locator(".indicador-valor")).toHaveText(/^[1-9]\d*$/);
     await expect(aviso).not.toContainText("(s)");
-    await page.getByRole("button", { name: "Ver solo los estancados" }).click();
+    await page.getByRole("button", { name: "Ver solo estos" }).click();
+    await expect(page.getByRole("button", { name: "Ver todos" })).toBeVisible();
     paso();
     await expect(page.getByTestId(`lead-${f.id}`)).toBeVisible();
     await expect(page.getByTestId(`lead-${f.id}`)).toContainText("Sin movimiento 10 d");

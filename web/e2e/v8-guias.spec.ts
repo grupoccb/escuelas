@@ -261,7 +261,7 @@ test.describe("asesor", () => {
   test("embudo, ficha, mover de etapa y tareas", async ({ page }) => {
     await entrarAlInicio(page, "/embudo");
     await expect(page.getByRole("heading", { name: "Embudo" })).toBeVisible();
-    await foto(page, "asesor-01-embudo", { resaltar: [page.getByRole("button", { name: "Ver solo los estancados" })] });
+    await foto(page, "asesor-01-embudo", { resaltar: [page.getByRole("button", { name: "Ver solo estos" })] });
 
     await page.getByRole("link", { name: "Mariana Vázquez" }).first().click();
     await expect(page.getByRole("heading", { name: "Mariana Vázquez" })).toBeVisible();

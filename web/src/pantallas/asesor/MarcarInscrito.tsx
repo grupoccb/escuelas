@@ -14,7 +14,7 @@ import type { LeadParaMover } from "./MoverEtapa.tsx";
 
 type Paso = "escribir" | "confirmar" | "listo";
 
-export function MarcarInscrito({ lead, etapas, abierto, alCerrar, alMarcar }: { lead: LeadParaMover | null; etapas: Etapa[]; abierto: boolean; alCerrar: () => void; alMarcar: () => void }) {
+export function MarcarInscrito({ lead, etapas, abierto, alCerrar, alMarcar }: { lead: LeadParaMover | null; etapas: Etapa[]; abierto: boolean; alCerrar: () => void; alMarcar: (hecho: boolean) => void }) {
   const [paso, setPaso] = useState<Paso>("escribir");
   const [nota, setNota] = useState("");
   const [tocada, setTocada] = useState(false);
@@ -31,7 +31,7 @@ export function MarcarInscrito({ lead, etapas, abierto, alCerrar, alMarcar }: { 
     setTocada(false);
     accion.limpiar();
     alCerrar();
-    if (hecho || huboConflicto) alMarcar();
+    if (hecho || huboConflicto) alMarcar(hecho);
   };
 
   return (

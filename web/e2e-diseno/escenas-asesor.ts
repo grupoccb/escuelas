@@ -97,11 +97,13 @@ const FUENTES_MUESTRA = ["facebook", "instagram", "tiktok", "google", "referido"
 /** Una lista de `n` leads repartidos entre todas las etapas, con fuentes y sucursales variadas (el total se ajusta: no es el «×12» de las ayudas genéricas). */
 async function conMuchosLeads(c: Contexto, ruta: string, n = 60): Promise<void> {
   const etapas = Object.values(c.mundo.etapas);
+  const disciplinas = await conDisciplinas(c);
   await editarGet(c, enApi("/api/leads"), (cuerpo) => {
     const base = (cuerpo.datos as Json[])[0];
     const datos = Array.from({ length: n }, (_, i) => ({
       ...base,
       id: `muchos-${i}`,
+      vertical_interes_id: disciplinas[i % disciplinas.length],
       nombre_contacto: `${NOMBRES[i % NOMBRES.length]} ${Math.floor(i / NOMBRES.length) + 1}`,
       telefono: `+52 55 ${String(1000 + i).padStart(4, "0")} ${String(2000 + i * 7).slice(0, 4)}`,
       etapa_id: etapas[(i * 3) % etapas.length],
@@ -114,6 +116,17 @@ async function conMuchosLeads(c: Contexto, ruta: string, n = 60): Promise<void> 
   });
   await editarGet(c, enApi("/api/leads/estancados"), (cuerpo) => ({ ...cuerpo, datos: Array.from({ length: 6 }, (_, i) => ({ id: `muchos-${i * 5}`, dias_sin_movimiento: 4 + i })), paginacion: { ...cuerpo.paginacion, total: 6 } }));
   await irA(c, ruta);
+}
+
+/** La prueba trae una sola disciplina y sin color: aquí son tres, con color de marca, para ver el color por disciplina (píldoras, avatares, etiquetas). Devuelve sus ids (la primera es la real). */
+const COLORES_DE_MUESTRA = ["#c2410c", "#be185d", "#0f766e"];
+async function conDisciplinas(c: Contexto): Promise<string[]> {
+  const ids = [c.mundo.verticalId, "disciplina-1", "disciplina-2"];
+  await editarGet(c, enApi("/api/verticales"), (cuerpo) => {
+    const base = (cuerpo.datos as Json[])[0];
+    return { ...cuerpo, datos: COLORES_DE_MUESTRA.map((color, i) => ({ ...base, id: ids[i], nombre: `Disciplina ${"ABC"[i]}`, color_marca: color })) };
+  });
+  return ids;
 }
 
 /** El embudo sin ningún lead (las etapas siguen ahí). */
@@ -141,6 +154,107 @@ async function conBetaPerdido(c: Contexto): Promise<void> {
   const { leadId } = c.mundo.asesor.beta;
   await editarGet(c, enApi("/api/leads"), (cuerpo) => ({ ...cuerpo, datos: (cuerpo.datos as Json[]).map((l) => (l.id === leadId ? { ...l, etapa_id: c.mundo.etapas["perdido"], recuperaciones: 0 } : l)) }));
   await irA(c, "/embudo");
+  // R2a: la columna de perdidos empieza plegada: se despliega para ver (y abrir) la tarjeta.
+  await c.page.getByRole("button", { name: /^Desplegar la columna Etapa G/ }).click();
+  await listo(c);
+}
+
+// ─── R2a: arrastrar, seleccionar, plegar y la versión de celular ──────────────────────────────
+
+/** En celular el embudo muestra UNA etapa a la vez: se elige la píldora de la etapa donde está el lead (en escritorio no hace falta). */
+async function mostrarEtapa(c: Contexto, nombre: string): Promise<void> {
+  if (c.vista !== "celular") return;
+  await c.page.getByRole("group", { name: "Etapas" }).getByRole("button", { name: new RegExp(`^${nombre}\\b`) }).click();
+  await listo(c);
+}
+
+const columnaDe = (c: Contexto, tipo: string) => c.page.getByTestId(`columna-${c.mundo.etapas[tipo]}`);
+
+/** Las tarjetas (no los botones) de una columna. */
+const tarjetasDe = (c: Contexto, tipo: string) => columnaDe(c, tipo).locator("li.lead-tarjeta");
+
+/** Selecciona las primeras tarjetas de una columna con su avatar (el mismo gesto del ratón o del dedo). */
+async function seleccionar(c: Contexto, tipo: string, cuantas: number): Promise<void> {
+  for (let i = 0; i < cuantas; i++) await tarjetasDe(c, tipo).nth(i).locator(".lead-seleccion").click();
+  await listo(c);
+}
+
+/**
+ * Presiona una tarjeta, la arrastra hasta la columna y la deja AHÍ sin soltar el botón (el estado intermedio del arrastre: la tarjeta fantasma, la columna resaltada). Con `soltar`, suelta.
+ * Se agarra por el extremo derecho de la fila de la disciplina (un hueco de la tarjeta, no un botón ni un enlace, que no arrastran): así la tarjeta fantasma queda a la izquierda del puntero.
+ */
+async function arrastrarA(c: Contexto, tarjeta: ReturnType<typeof tarjetaDe>, destino: ReturnType<typeof columnaDe>, soltar = false): Promise<void> {
+  const fila = (await tarjeta.locator(".lead-disciplina").boundingBox())!;
+  const origen = { x: fila.x + fila.width - 14, y: fila.y, height: fila.height };
+  await c.page.mouse.move(origen.x, origen.y + origen.height / 2);
+  await c.page.mouse.down();
+  await c.page.mouse.move(origen.x + 10, origen.y + origen.height / 2 + 24, { steps: 4 });
+  // Si la columna queda fuera de la ventana, el puntero se queda cerca del borde del tablero: el tablero se desplaza solo (el autodesplazamiento) hasta que aparece.
+  const ancho = c.page.viewportSize()!.width;
+  const tablero = (await c.page.locator(".tablero").boundingBox())!;
+  for (let i = 0; i < 40; i++) {
+    const caja = (await destino.boundingBox())!;
+    if (caja.x + caja.width / 2 < tablero.x + tablero.width - 120 && caja.x > tablero.x) break;
+    await c.page.mouse.move(Math.min(ancho - 8, tablero.x + tablero.width - 30), origen.y + 60, { steps: 2 });
+    await c.page.waitForTimeout(120);
+  }
+  const caja = (await destino.boundingBox())!;
+  await c.page.mouse.move(caja.x + caja.width / 2, caja.y + Math.min(caja.height - 40, 260), { steps: 14 });
+  await c.page.waitForTimeout(250);
+  if (soltar) {
+    await c.page.mouse.up();
+    await listo(c);
+  }
+}
+
+/** El PATCH de mover responde bien sin tocar la base (el aviso «ya quedó» sale igual). */
+async function moverSinEscribir(c: Contexto): Promise<void> {
+  await responder(c, "PATCH", (u) => /^\/api\/leads\/[^/]+\/etapa$/.test(u.pathname), 200, { id: "x" });
+}
+
+/** Una clase muestra de muestra para un lead (la API de clases devuelve las agendadas y las asistidas por separado). */
+const claseDeMuestra = (leadId: string, id: string, estatus: "agendada" | "asistio", prospecto: string, edad: number, fecha: string, hora: string): Json => ({
+  id,
+  lead_id: leadId,
+  prospecto_id: `p-${id}`,
+  prospecto,
+  edad_declarada: edad,
+  grupo_id: "g",
+  grupo: "Grupo",
+  programa_id: "pr",
+  programa: "Programa",
+  sucursal_id: "s",
+  sucursal: "Sucursal",
+  zona_horaria: "America/Mexico_City",
+  fecha_hora: "2026-10-14T23:00:00.000Z",
+  sesion: { fecha, hora },
+  estatus,
+  agendada_por: "usuario",
+  reprogramada_de_id: null,
+  motivo_cancelacion: null,
+  notas: null,
+  asistencia_marcada_en: null,
+  creado_en: "2026-10-01T12:00:00.000Z",
+});
+
+/** El embudo con datos de colores: tres disciplinas, una clase agendada, una a la que asistió y un lead perdido con su motivo. */
+async function conTarjetasCompletas(c: Contexto): Promise<void> {
+  const { alfa, beta, gamma } = c.mundo.asesor;
+  const ids = await conDisciplinas(c);
+  await editarGet(c, enApi("/api/leads"), (cuerpo) => ({
+    ...cuerpo,
+    datos: (cuerpo.datos as Json[]).map((l, i) => ({ ...l, vertical_interes_id: ids[i % ids.length], ...(l.id === gamma.leadId ? { etapa_id: c.mundo.etapas["perdido"], motivo_perdida_id: c.mundo.asesor.motivos.precio } : {}) })),
+  }));
+  await c.page.route(
+    (u) => u.pathname === "/api/clases-muestra",
+    (r) => {
+      if (r.request().method() !== "GET") return r.fallback();
+      const estatus = new URL(r.request().url()).searchParams.get("estatus");
+      const datos = estatus === "agendada" ? [claseDeMuestra(alfa.leadId, "c1", "agendada", "Niña Alfa", 6, "miércoles 14 de octubre", "17:00")] : estatus === "asistio" ? [claseDeMuestra(beta.leadId, "c2", "asistio", "Niño Beta", 8, "lunes 12 de octubre", "16:00")] : [];
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pagina(datos)) });
+    },
+  );
+  await irA(c, "/embudo");
 }
 
 // ─── Mover de etapa (se comparte entre el embudo y la ficha) ──────────────────────────────────
@@ -155,16 +269,246 @@ async function moverConDestinoYMotivo(c: Contexto, destino: string): Promise<voi
   await dlg(c).getByLabel(/^Nota/).fill("La familia lo pensó y prefiere esperar al próximo ciclo.");
 }
 
+// ─── R2b: la ficha lateral y los diálogos del embudo ──────────────────────────────────────────
+
+const FICHA_LATERAL = [`${P}FichaLateral.tsx`, `${P}historial-lead.ts`];
+const CIERRE = [`${P}DialogosDeCierre.tsx`];
+const INSCRIBIR = [`${P}InscribirEnTresPasos.tsx`];
+const AGENDAR = [`${P}DialogoAgendar.tsx`, `${P}clase-muestra-datos.ts`];
+
+const fichaLateral = (c: Contexto) => c.page.getByRole("dialog", { name: /^Ficha de / });
+
+/** Una escritura (POST/PATCH…) que nunca termina: el botón se queda en «Procesando…». */
+async function colgarEscritura(c: Contexto, coincide: Coincide = (u) => u.pathname.startsWith("/api/")): Promise<void> {
+  await c.page.route(
+    (u) => coincide(u),
+    (r) => (r.request().method() === "GET" ? r.fallback() : new Promise<void>(() => undefined)),
+  );
+}
+
+/** Abre la ficha lateral de un lead con un clic en un hueco de su tarjeta (en celular, primero la píldora de su etapa). */
+async function abrirFichaLateral(c: Contexto, leadId: string, etapa: string): Promise<void> {
+  await mostrarEtapa(c, etapa);
+  const t = tarjetaDe(c, leadId);
+  await t.scrollIntoViewIfNeeded();
+  const caja = (await t.boundingBox())!;
+  const fila = (await t.locator(".lead-disciplina").boundingBox())!;
+  // En el centro de la tarjeta (un hueco que no es botón ni enlace): las del borde derecho del tablero quedan a medias y el extremo de la fila cae fuera de él.
+  await c.page.mouse.click(caja.x + caja.width / 2, fila.y + fila.height / 2);
+  await fichaLateral(c).waitFor();
+  await listo(c);
+  await c.page.waitForTimeout(300);
+}
+
+/** Lo mismo, sin esperar a que la ficha termine de cargar (las escenas de «cargando» y de error). */
+async function abrirFichaLateralSinEsperar(c: Contexto, leadId: string, etapa: string): Promise<void> {
+  await mostrarEtapa(c, etapa);
+  const t = tarjetaDe(c, leadId);
+  await t.scrollIntoViewIfNeeded();
+  const caja = (await t.boundingBox())!;
+  const fila = (await t.locator(".lead-disciplina").boundingBox())!;
+  // En el centro de la tarjeta (un hueco que no es botón ni enlace): las del borde derecho del tablero quedan a medias y el extremo de la fila cae fuera de él.
+  await c.page.mouse.click(caja.x + caja.width / 2, fila.y + fila.height / 2);
+  await fichaLateral(c).waitFor();
+  await c.page.waitForTimeout(300);
+}
+
+/** Edita lo que dice `GET /api/leads/:id` (la ficha lateral lee ese detalle, no la lista del tablero). */
+async function enDetalle(c: Contexto, leadId: string, editar: (lead: Json) => Json): Promise<void> {
+  await editarGet(c, enApi(`/api/leads/${leadId}`), editar);
+}
+
+const ETAPA_DE = (c: Contexto, tipo: string, nombre: string, extra: Json = {}): Json => ({ id: c.mundo.etapas[tipo], nombre, tipo_sistema: tipo, es_ganado: tipo === "inscrito", es_perdido: tipo === "perdido", ...extra });
+
+/** Un historial de muestra (de lo más antiguo a lo más reciente, como lo entrega la API). */
+async function conHistorial(c: Contexto, leadId: string, cambios: Json[]): Promise<void> {
+  await editarGet(c, enApi(`/api/leads/${leadId}/historial`), (h) => ({ ...h, cambios }));
+}
+
+const cambioDeMuestra = (id: string, desde: Json | null, hacia: Json, creado: string, extra: Json = {}): Json => ({
+  id,
+  a_mano: false,
+  desde,
+  hacia,
+  origen: "usuario",
+  usuario: { id: "u1", nombre: "Alba Asesora" },
+  motivo: "cambio_manual",
+  motivo_perdida: null,
+  nota: null,
+  es_recuperacion: false,
+  creado_en: creado,
+  ...extra,
+});
+
+/** Las clases muestra de muestra: la de Alfa agendada y la de Beta a la que asistió, tanto en el tablero (por estatus) como en la ficha (por lead). */
+async function conClasesDeMuestra(c: Contexto): Promise<void> {
+  const { alfa, beta } = c.mundo.asesor;
+  const agendada = claseDeMuestra(alfa.leadId, "c1", "agendada", "Niña Alfa", 6, "miércoles 14 de octubre", "17:00");
+  const asistida = claseDeMuestra(beta.leadId, "c2", "asistio", "Niño Beta", 8, "lunes 12 de octubre", "16:00");
+  await c.page.route(
+    (u) => u.pathname === "/api/clases-muestra",
+    (r) => {
+      if (r.request().method() !== "GET") return r.fallback();
+      const q = new URL(r.request().url()).searchParams;
+      const todas = [agendada, asistida];
+      const datos = todas.filter((x) => (!q.get("estatus") || x.estatus === q.get("estatus")) && (!q.get("lead_id") || x.lead_id === q.get("lead_id")));
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pagina(datos)) });
+    },
+  );
+}
+
+/** Una tarea de «lead frío» pendiente de ese lead (la que crea el seguimiento cuando lleva días sin respuesta). */
+async function conTareaFria(c: Contexto, leadId: string, descripcion: string): Promise<void> {
+  await editarGet(c, enApi("/api/tareas"), (cuerpo, u) =>
+    u.searchParams.get("lead_id") === leadId ? pagina([{ id: "tarea-fria", tipo: "lead_frio", estado: "pendiente", descripcion, codigo_error: null, lead_id: leadId, conversacion_id: null, inscripcion_id: null, cargo_id: null, vence_en: null, resuelta_en: null, creado_en: new Date().toISOString() }]) : cuerpo,
+  );
+}
+
+/** Perder: abre la ficha de Beta y elige «perdido» en «Mover de etapa»; sale el diálogo del motivo. */
+async function abrirPerdido(c: Contexto): Promise<void> {
+  await ir(c, "/embudo");
+  await abrirFichaLateral(c, c.mundo.asesor.beta.leadId, "Etapa B");
+  await fichaLateral(c).getByLabel("Mover de etapa").selectOption({ label: "Etapa G (pide el motivo)" });
+  await c.page.getByRole("dialog", { name: /^¿Por qué se perdió/ }).waitFor();
+  await listo(c);
+}
+
+const dialogoPerdido = (c: Contexto) => c.page.getByRole("dialog", { name: /^¿Por qué se perd/ });
+const dialogoRecuperar = (c: Contexto) => c.page.getByRole("dialog", { name: /^Recuperar / });
+
+/** Lo mismo con DOS leads seleccionados y «Mover a…» de la barra de selección. */
+async function abrirPerdidoDeVarios(c: Contexto): Promise<void> {
+  await ir(c, "/embudo");
+  await mostrarEtapa(c, "Etapa B");
+  await seleccionar(c, "contactado", 2);
+  await c.page.getByRole("region", { name: "Leads seleccionados" }).getByRole("button", { name: "Mover a…" }).click();
+  await c.page.getByRole("menuitem", { name: /^Etapa G/ }).click();
+  await dialogoPerdido(c).waitFor();
+  await listo(c);
+}
+
+/** Beta ya está en la etapa de perdidos (la lista y el detalle lo dicen), con su motivo. */
+async function conBetaPerdidoEnFicha(c: Contexto): Promise<void> {
+  const { leadId } = c.mundo.asesor.beta;
+  const perdido = ETAPA_DE(c, "perdido", "Etapa G");
+  await editarGet(c, enApi("/api/leads"), (cuerpo) => ({ ...cuerpo, datos: (cuerpo.datos as Json[]).map((l) => (l.id === leadId ? { ...l, etapa_id: c.mundo.etapas["perdido"], motivo_perdida_id: c.mundo.asesor.motivos.precio } : l)) }));
+  await enDetalle(c, leadId, (l) => ({ ...l, etapa_id: c.mundo.etapas["perdido"], etapa: perdido, motivo_perdida_id: c.mundo.asesor.motivos.precio, motivo_perdida: { id: c.mundo.asesor.motivos.precio, nombre: "Precio" } }));
+  await conHistorial(c, leadId, [
+    cambioDeMuestra("h1", null, { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, "2026-10-01T15:00:00.000Z", { origen: "sistema", usuario: null, motivo: "alta" }),
+    cambioDeMuestra("h2", { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, { id: c.mundo.etapas["contactado"], nombre: "Etapa B" }, "2026-10-02T16:30:00.000Z", { nota: "Contestó por WhatsApp" }),
+    cambioDeMuestra("h3", { id: c.mundo.etapas["contactado"], nombre: "Etapa B" }, { id: c.mundo.etapas["perdido"], nombre: "Etapa G" }, "2026-10-08T18:10:00.000Z", { motivo_perdida: { id: c.mundo.asesor.motivos.precio, nombre: "Precio" }, nota: "Le pareció caro" }),
+  ]);
+  await ir(c, "/embudo");
+  if (c.vista === "escritorio") await c.page.getByRole("button", { name: /^Desplegar la columna Etapa G/ }).click();
+  await listo(c);
+}
+
+/** Recuperar: la ficha de Beta (perdido) y su acción principal. */
+async function abrirRecuperar(c: Contexto): Promise<void> {
+  await conBetaPerdidoEnFicha(c);
+  await abrirFichaLateral(c, c.mundo.asesor.beta.leadId, "Etapa G");
+  await fichaLateral(c).getByRole("button", { name: "Recuperar lead" }).click();
+  await dialogoRecuperar(c).waitFor();
+  await listo(c);
+}
+
+const NOTA_DE_RECUPERACION = "Volvió a escribir: pregunta por el horario de los sábados.";
+
+// ── Inscribir en 3 pasos ──
+
+type Faltas = "solo-apellidos" | "varias" | "reglamento" | "ninguna";
+
+/**
+ * Beta pasa a la etapa de la clase asistida (la tarjeta ofrece «Inscribir a …») y lo que dice `GET /api/leads/:id/conversion` se arma a la medida de la escena: solo los apellidos (el maestro
+ * ya capturó lo demás), varias faltas (sin registro del maestro), el reglamento sin aceptar, nada, dos niños por inscribir o un lead ya inscrito. El cotizador, los grupos y sus lugares son los reales.
+ */
+async function conInscripcionPreparada(c: Contexto, o: { faltas?: Faltas; dosNinos?: boolean; yaConvertido?: boolean } = {}): Promise<void> {
+  const { beta } = c.mundo.asesor;
+  const pid = beta.prospectoId;
+  const falta = (resto: string, mensaje: string) => ({ campo: `prospectos.${pid}.${resto}`, mensaje });
+  const faltantes = {
+    "solo-apellidos": [falta("alumno.apellidos", "Falta el apellido del alumno"), falta("grupo_id", "Falta el grupo")],
+    varias: [{ campo: "tutor.parentesco", mensaje: "Falta el parentesco" }, falta("alumno.apellidos", "Falta el apellido del alumno"), falta("alumno.fecha_nacimiento", "Falta la fecha de nacimiento"), falta("grupo_id", "Falta el grupo")],
+    reglamento: [falta("alumno.apellidos", "Falta el apellido del alumno"), falta("reglamento", "Falta el reglamento")],
+    ninguna: [],
+  }[o.faltas ?? "solo-apellidos"];
+  await editarGet(c, enApi("/api/leads"), (cuerpo) => ({ ...cuerpo, datos: (cuerpo.datos as Json[]).map((l) => (l.id === beta.leadId ? { ...l, etapa_id: c.mundo.etapas["muestra_asistida"] } : l)) }));
+  await editarGet(c, enApi(`/api/leads/${beta.leadId}/conversion`), () => ({
+    lead_id: beta.leadId,
+    listo: faltantes.length === 0,
+    ya_convertido: o.yaConvertido === true,
+    faltantes,
+    prospectos: [{ prospecto_id: pid, ya_convertido: o.yaConvertido === true }, ...(o.dosNinos ? [{ prospecto_id: "segundo-nino", ya_convertido: false }] : [])],
+    previsiones: [{ prospecto_id: pid, hermanos_previstos: 0, reglamento_pendiente: false, grupo_nombre: null }],
+  }));
+  await ir(c, "/embudo");
+}
+
+/** Abre el diálogo de inscribir con el botón de la tarjeta de Beta (que ya está después de la clase). */
+async function abrirInscribir(c: Contexto): Promise<void> {
+  await mostrarEtapa(c, "Etapa D");
+  await tarjetaDe(c, c.mundo.asesor.beta.leadId).getByRole("button", { name: /^Inscribir a / }).click();
+  await c.page.getByRole("dialog", { name: /^Inscribir/ }).waitFor();
+  await listo(c);
+}
+
+const dialogoInscribir = (c: Contexto) => c.page.getByRole("dialog", { name: /^Inscribir/ });
+
+/** Pasa por el paso 1 (escribe lo que falta) y queda en el 2. */
+async function irAlPasoDelGrupo(c: Contexto, faltas: Faltas = "solo-apellidos"): Promise<void> {
+  await dialogoInscribir(c).getByLabel(/^Apellidos del alumno/).fill("Beta Rivas");
+  if (faltas === "varias") {
+    await dialogoInscribir(c).getByLabel(/^Parentesco con el alumno/).fill("madre");
+    await dialogoInscribir(c).getByLabel(/^Fecha de nacimiento del alumno/).fill("2018-03-02");
+  }
+  await dialogoInscribir(c).getByRole("button", { name: "Siguiente", exact: true }).click();
+  await c.page.getByTestId("paso-grupo").waitFor();
+  await listo(c);
+}
+
+/** Elige el primer grupo con lugar y queda en el paso 3 (Confirmar). */
+async function irAConfirmar(c: Contexto, faltas: Faltas = "solo-apellidos"): Promise<void> {
+  await irAlPasoDelGrupo(c, faltas);
+  await c.page.getByTestId("paso-grupo").locator("button:not([disabled])").first().click();
+  await dialogoInscribir(c).getByRole("button", { name: "Siguiente", exact: true }).click();
+  await c.page.getByTestId("paso-confirmar").waitFor();
+  await listo(c);
+}
+
+const rechazo409 = (c: Contexto, codigo: string, mensaje: string, extra: Json[] = []) => ({ error: { codigo: "conflicto", mensaje, detalles: [{ campo: "motivo", mensaje: codigo }, { campo: "prospecto_id", mensaje: c.mundo.asesor.beta.prospectoId }, ...extra] } });
+const esConvertir = (u: URL): boolean => /^\/api\/leads\/[^/]+\/convertir$/.test(u.pathname);
+
+// ── Agendar ──
+
+/** Abre «Agendar la clase muestra de …» con el botón de la tarjeta de Alfa (sin clase todavía). */
+async function abrirAgendarDelEmbudo(c: Contexto): Promise<void> {
+  await ir(c, "/embudo");
+  await mostrarEtapa(c, "Primera");
+  await tarjetaDe(c, c.mundo.asesor.alfa.leadId).getByRole("button", { name: /^Agendar la clase muestra de / }).click();
+  await c.page.getByRole("dialog", { name: /^Agendar la clase muestra/ }).waitFor();
+  await c.page.getByRole("group", { name: "Elige día y hora" }).waitFor();
+  await listo(c);
+}
+
+const dialogoAgendar = (c: Contexto) => c.page.getByRole("dialog", { name: /^(Agendar|Cambiar) la clase muestra/ });
+
 // ─── Escenas ──────────────────────────────────────────────────────────────────────────────────
 
 const e = (x: Omit<Escena, "rol" | "grupo"> & { rol?: Escena["rol"] }): Escena => ({ rol: "asesor", grupo: "Asesor", ...x });
 
-const CON_DIALOGO = /^asesor-(marcar-inscrito|nino-(agregar|corregir|quitar)|clase-|ficha-mover|ficha-marcar)/;
+const CON_DIALOGO = /^asesor-(marcar-inscrito|nino-(agregar|corregir|quitar)|clase-|ficha-mover|ficha-marcar|ficha-lateral|dialogo-)/;
 
 /** Una escena con un `<dialog>` abierto se captura solo en la ventana (de página entera, el fondo gris y el diálogo, fijos a la ventana, salen descuadrados). */
 const conVentana = (lista: Escena[]): Escena[] => lista.map((x) => (CON_DIALOGO.test(x.id) && x.id !== "asesor-nino-agregado-con-aviso" ? { ...x, completa: false } : x));
 
-export const ESCENAS: Escena[] = conVentana([
+/**
+ * R2a: en celular el embudo no tiene vista de lista, y «Mover de etapa» de una tarjeta abre la hoja «Mover a…» (la alternativa sin arrastre), no el diálogo de mover con su selector de etapa: esas
+ * escenas son de escritorio. En celular, ese diálogo se ve desde la ficha del lead (`asesor-ficha-mover-*`) y la hoja tiene su propia escena.
+ */
+const SOLO_ESCRITORIO = /^asesor-(mover-|embudo-lista)/;
+const conVistas = (lista: Escena[]): Escena[] => lista.map((x) => (SOLO_ESCRITORIO.test(x.id) && !x.vistas ? { ...x, vistas: ["escritorio" as const] } : x));
+
+export const ESCENAS: Escena[] = conVistas(conVentana([
   // ── Embudo: tablero ─────────────────────────────────────────────────────────────────────────
   e({ id: "asesor-embudo-tablero-datos", titulo: "Embudo en tablero, con datos (asesor y administrador); aviso de estancados, «Descargar lista» y filtros", tipo: "pantalla", ruta: "/embudo", fuentes: EMBUDO, ir: (c) => ir(c, "/embudo") }),
   e({ id: "asesor-embudo-tablero-muchos", titulo: "Embudo en tablero, con muchos leads", tipo: "estado", ruta: "/embudo", fuentes: EMBUDO, ir: (c) => conMuchosLeads(c, "/embudo") }),
@@ -197,13 +541,13 @@ export const ESCENAS: Escena[] = conVentana([
   }),
   e({
     id: "asesor-embudo-solo-estancados",
-    titulo: "Embudo con «Solo estancados» marcado (el indicador «Sin movimiento N d»)",
+    titulo: "Embudo con el par de alerta activo: «Ver solo estos» ya pulsado (el botón dice «Ver todos»), «Solo estancados» marcado y la insignia «N d» en las tarjetas",
     tipo: "estado",
     ruta: "/embudo",
     fuentes: EMBUDO,
     ir: async (c) => {
       await ir(c, "/embudo");
-      await c.page.getByRole("button", { name: "Ver solo los estancados" }).click();
+      await c.page.getByRole("button", { name: "Ver solo estos" }).click();
       await listo(c);
     },
   }),
@@ -221,19 +565,256 @@ export const ESCENAS: Escena[] = conVentana([
     },
   }),
   e({
-    id: "asesor-embudo-tablero-celular-desplazado",
-    titulo: "Embudo en tablero en celular, desplazado a las últimas columnas (scroll horizontal)",
+    id: "asesor-embudo-celular-etapa-cierre",
+    titulo: "Embudo en celular con la píldora de la etapa de perdidos elegida (la lista de esa etapa, con el motivo de cada uno)",
     tipo: "estado",
     ruta: "/embudo",
-    fuentes: EMBUDO,
+    fuentes: [...EMBUDO, `${P}TarjetaDeLead.tsx`],
     vistas: ["celular"],
     ir: async (c) => {
-      await ir(c, "/embudo");
-      await c.page.getByTestId(`columna-${c.mundo.etapas["perdido"]}`).scrollIntoViewIfNeeded();
-      await c.page.waitForTimeout(300);
+      await conTarjetasCompletas(c);
+      await mostrarEtapa(c, "Etapa G");
     },
   }),
   e({ id: "asesor-embudo-administrador-tablero", rol: "administrador", titulo: "Embudo en tablero visto por el administrador (leads de las dos sucursales)", tipo: "pantalla", ruta: "/embudo", fuentes: EMBUDO, ir: (c) => ir(c, "/embudo") }),
+
+  // ── Embudo (R2a): color por disciplina, columnas, selección en lote, arrastre y celular ─────────
+  e({
+    id: "asesor-embudo-tablero-disciplinas",
+    titulo: "Embudo en tablero con tres disciplinas de color: píldoras con punto y conteo, avatares y etiquetas con su tono, la clase muestra, «Asistió el…» y el motivo de un perdido",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}TarjetaDeLead.tsx`, `${P}ColumnaDeEtapa.tsx`],
+    ir: async (c) => {
+      await conTarjetasCompletas(c);
+      if (c.vista === "escritorio") await c.page.getByRole("button", { name: /^Desplegar la columna Etapa G/ }).click();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-filtro-disciplina",
+    titulo: "Embudo con una píldora de disciplina elegida (la píldora activa va en oscuro y solo quedan los leads de esa disciplina)",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: EMBUDO,
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 30);
+      await c.page.getByRole("group", { name: "Disciplina" }).getByRole("button", { name: /^Disciplina B/ }).click();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-columnas-cierre",
+    titulo: "Embudo en tablero con las dos columnas de cierre desplegadas (inscrito en verde, perdido en rojo) y cuatro columnas abiertas plegadas a 56 px",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}ColumnaDeEtapa.tsx`],
+    vistas: ["escritorio"],
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 30);
+      for (const nombre of ["Etapa B", "Etapa C", "Etapa D", "Etapa E"]) await c.page.getByRole("button", { name: `Plegar la columna ${nombre}` }).click();
+      await c.page.getByRole("button", { name: /^Desplegar la columna Etapa F/ }).click();
+      await c.page.getByRole("button", { name: /^Desplegar la columna Etapa G/ }).click();
+      await c.page.locator(".tablero").evaluate((t) => (t.scrollLeft = 0));
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-tarjeta-seleccionada",
+    titulo: "Embudo con una tarjeta seleccionada (el avatar pasa al primario con su palomita, contorno de 2 px) y la barra flotante de selección",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}TarjetaDeLead.tsx`, `${P}BarraDeSeleccion.tsx`],
+    ir: async (c) => {
+      await ir(c, "/embudo");
+      await tarjetaDe(c, c.mundo.asesor.alfa.leadId).locator(".lead-seleccion").click();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-seleccion-lote",
+    titulo: "Embudo con tres leads seleccionados: la barra flotante oscura con el conteo, «Mover a…» y «Quitar la selección»",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}BarraDeSeleccion.tsx`],
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await seleccionar(c, "nuevo", 3);
+    },
+  }),
+  e({
+    id: "asesor-embudo-menu-mover-a",
+    titulo: "Menú «Mover a…» de la barra de selección con tres leads (la etapa de inscrito deshabilitada: «De una en una»; perdidos «Pide el motivo»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}BarraDeSeleccion.tsx`],
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await seleccionar(c, "nuevo", 3);
+      await c.page.getByRole("button", { name: "Mover a…" }).click();
+      await c.page.getByRole("menu").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-menu-mover-a-uno",
+    titulo: "Menú «Mover a…» con un solo lead seleccionado (inscrito disponible: «Abre la inscripción»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}BarraDeSeleccion.tsx`],
+    vistas: ["escritorio"],
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await seleccionar(c, "nuevo", 1);
+      await c.page.getByRole("button", { name: "Mover a…" }).click();
+      await c.page.getByRole("menu").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-aviso-movido",
+    titulo: "Embudo después de mover tres leads con «Mover a…»: el aviso global «3 leads pasaron a …» y la selección vacía",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}BarraDeSeleccion.tsx`],
+    ir: async (c) => {
+      await moverSinEscribir(c);
+      await conMuchosLeads(c, "/embudo", 24);
+      await seleccionar(c, "nuevo", 3);
+      await c.page.getByRole("button", { name: "Mover a…" }).click();
+      await c.page.getByRole("menuitem", { name: /^Etapa C/ }).click();
+      await c.page.getByTestId("aviso-global").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-conflicto-en-lote",
+    titulo: "Embudo cuando uno de los leads movidos ya había cambiado de etapa (409): aviso de alerta «cambió de etapa mientras lo veías» y el tablero recargado",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: EMBUDO,
+    ir: async (c) => {
+      await responder(c, "PATCH", (u) => /^\/api\/leads\/[^/]+\/etapa$/.test(u.pathname), 409, falla("El lead ya cambió de etapa."));
+      await conMuchosLeads(c, "/embudo", 24);
+      await seleccionar(c, "nuevo", 2);
+      await c.page.getByRole("button", { name: "Mover a…" }).click();
+      await c.page.getByRole("menuitem", { name: /^Etapa C/ }).click();
+      await c.page.getByRole("alert").filter({ hasText: "cambiaron de etapa" }).waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-arrastrando",
+    titulo: "Arrastre en curso: la tarjeta fantasma (rotada 2°, con la sombra de arrastre) sigue al puntero y la columna de abajo se resalta con «Suelta para mover aquí»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}useArrastre.ts`, `${P}ColumnaDeEtapa.tsx`],
+    vistas: ["escritorio"],
+    completa: false,
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await arrastrarA(c, tarjetasDe(c, "contactado").first(), columnaDe(c, "muestra_agendada"));
+    },
+  }),
+  e({
+    id: "asesor-embudo-arrastrando-pila",
+    titulo: "Arrastre de una selección de tres leads: la pila de tarjetas con el contador y las tarjetas de origen atenuadas",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}useArrastre.ts`],
+    vistas: ["escritorio"],
+    completa: false,
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await seleccionar(c, "nuevo", 3);
+      await arrastrarA(c, tarjetasDe(c, "nuevo").first(), columnaDe(c, "negociacion"));
+    },
+  }),
+  e({
+    id: "asesor-embudo-arrastrando-a-perdidos",
+    titulo: "Arrastre sobre la columna de perdidos, plegada: se resalta en rojo con «Suelta y elige el motivo» en vertical",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}useArrastre.ts`, `${P}ColumnaDeEtapa.tsx`],
+    vistas: ["escritorio"],
+    completa: false,
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await arrastrarA(c, tarjetasDe(c, "contactado").first(), columnaDe(c, "perdido"));
+    },
+  }),
+  e({
+    id: "asesor-embudo-arrastrando-a-inscrito",
+    titulo: "Arrastre sobre la columna de inscritos, desplegada: se resalta en verde con «Suelta para inscribir»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}useArrastre.ts`, `${P}ColumnaDeEtapa.tsx`],
+    vistas: ["escritorio"],
+    completa: false,
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await c.page.getByRole("button", { name: /^Desplegar la columna Etapa F/ }).click();
+      await arrastrarA(c, tarjetasDe(c, "negociacion").first(), columnaDe(c, "inscrito"));
+    },
+  }),
+  e({
+    id: "asesor-embudo-soltado-en-perdidos",
+    titulo: "Soltar un lead sobre la columna de perdidos: se abre «¿Por qué se perdió …?» con los motivos en botones (R2b sustituyó al selector de «Mover a …»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    vistas: ["escritorio"],
+    completa: false,
+    ir: async (c) => {
+      await ir(c, "/embudo");
+      await arrastrarA(c, tarjetaDe(c, c.mundo.asesor.beta.leadId), columnaDe(c, "perdido"), true);
+      await dialogoAbierto(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-hoja-mover-a",
+    titulo: "Hoja «Mover a …» en celular (la alternativa sin arrastre): la lista de etapas, la actual deshabilitada y las notas «Pide el motivo» / «Abre la inscripción»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}HojaMoverA.tsx`],
+    vistas: ["celular"],
+    completa: false,
+    ir: async (c) => {
+      await ir(c, "/embudo");
+      await mostrarEtapa(c, "Etapa B");
+      await tarjetaDe(c, c.mundo.asesor.beta.leadId).getByRole("button", { name: "Mover de etapa", exact: true }).click();
+      await dialogoAbierto(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-celular-seleccionar",
+    titulo: "Embudo en celular en modo «Seleccionar» («Listo» activo): dos tarjetas seleccionadas y la barra flotante sobre la barra inferior",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, `${P}TarjetaDeLead.tsx`, `${P}BarraDeSeleccion.tsx`],
+    vistas: ["celular"],
+    completa: false,
+    ir: async (c) => {
+      await conMuchosLeads(c, "/embudo", 24);
+      await c.page.getByRole("button", { name: "Seleccionar", exact: true }).click();
+      await tarjetasDe(c, "nuevo").nth(0).click();
+      await tarjetasDe(c, "nuevo").nth(1).click();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-embudo-lista-seleccion",
+    titulo: "Embudo en lista con una fila seleccionada (avatar con palomita, fila en tono suave) y la barra flotante",
+    tipo: "estado",
+    ruta: "/embudo",
+    fuentes: EMBUDO,
+    ir: async (c) => {
+      await ir(c, "/embudo");
+      await verLista(c);
+      await tarjetaDe(c, c.mundo.asesor.alfa.leadId).locator(".lead-seleccion").click();
+      await listo(c);
+    },
+  }),
 
   // ── Embudo: lista ───────────────────────────────────────────────────────────────────────────
   e({
@@ -570,6 +1151,564 @@ export const ESCENAS: Escena[] = conVentana([
     ir: async (c) => {
       await editarGet(c, enApi("/api/etapas"), (cuerpo) => ({ ...cuerpo, datos: (cuerpo.datos as Json[]).map((x) => (x.tipo_sistema === "inscrito" ? { ...x, tipo_sistema: null, es_ganado: false } : x)) }));
       await abrirMarcarDesdeEmbudo(c);
+    },
+  }),
+
+  // ── R2b: la ficha lateral del embudo ───────────────────────────────────────────────────────
+  e({
+    id: "asesor-ficha-lateral",
+    titulo: "Ficha lateral de un lead nuevo (clic en la tarjeta): identidad, acción principal «Agendar clase muestra», «Abrir conversación», «Mover de etapa», para quién son las clases, de dónde llegó e historial vacío",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      await conTarjetasCompletas(c);
+      await abrirFichaLateral(c, c.mundo.asesor.alfa.leadId, "Primera");
+    },
+  }),
+  e({
+    id: "asesor-ficha-lateral-con-clase",
+    titulo: "Ficha lateral de un lead con clase muestra agendada: la clase con su estado, «Cambiar la clase muestra» como acción principal y el historial en línea de tiempo",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      const { alfa } = c.mundo.asesor;
+      await conClasesDeMuestra(c);
+      await enDetalle(c, alfa.leadId, (l) => ({ ...l, etapa_id: c.mundo.etapas["muestra_agendada"], etapa: ETAPA_DE(c, "muestra_agendada", "Etapa C") }));
+      await editarGet(c, enApi("/api/leads"), (cuerpo) => ({ ...cuerpo, datos: (cuerpo.datos as Json[]).map((l) => (l.id === alfa.leadId ? { ...l, etapa_id: c.mundo.etapas["muestra_agendada"] } : l)) }));
+      await conHistorial(c, alfa.leadId, [
+        cambioDeMuestra("h1", null, { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, "2026-10-01T15:00:00.000Z", { origen: "sistema", usuario: null, motivo: "alta" }),
+        cambioDeMuestra("h2", { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, { id: c.mundo.etapas["muestra_agendada"], nombre: "Etapa C" }, "2026-10-09T17:20:00.000Z", { origen: "sistema", usuario: null, motivo: "clase_muestra_agendada", nota: "Clase muestra agendada" }),
+      ]);
+      await ir(c, "/embudo");
+      await abrirFichaLateral(c, alfa.leadId, "Etapa C");
+    },
+  }),
+  e({
+    id: "asesor-ficha-lateral-estancado",
+    titulo: "Ficha lateral de un lead estancado: el aviso «N días sin movimiento» con su tarea pendiente y el historial con varios cambios",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      const { gamma } = c.mundo.asesor;
+      await conTareaFria(c, gamma.leadId, "Retomar a Familia Gamma: lleva 10 días sin responder.");
+      await conHistorial(c, gamma.leadId, [
+        cambioDeMuestra("h1", null, { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, "2026-09-25T15:00:00.000Z", { origen: "sistema", usuario: null, motivo: "alta" }),
+        cambioDeMuestra("h2", { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, { id: c.mundo.etapas["contactado"], nombre: "Etapa B" }, "2026-09-30T16:30:00.000Z", { nota: "Contestó y pidió informes" }),
+      ]);
+      await ir(c, "/embudo");
+      await abrirFichaLateral(c, gamma.leadId, "Etapa B");
+    },
+  }),
+  e({
+    id: "asesor-ficha-lateral-perdido",
+    titulo: "Ficha lateral de un lead perdido: «Recuperar lead» como acción principal, el motivo y la línea de tiempo con el motivo de la pérdida",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      await conBetaPerdidoEnFicha(c);
+      await abrirFichaLateral(c, c.mundo.asesor.beta.leadId, "Etapa G");
+    },
+  }),
+  e({
+    id: "asesor-ficha-lateral-inscrito",
+    titulo: "Ficha lateral de un lead ya inscrito: «Ver expediente» como acción principal y «Mover de etapa» deshabilitado (los cambios se hacen desde el expediente)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      const { beta } = c.mundo.asesor;
+      // Beta va primero en la lista: su tarjeta queda arriba de la columna de inscritos, a la vista.
+      await editarGet(c, enApi("/api/leads"), (cuerpo) => {
+        const datos = (cuerpo.datos as Json[]).map((l) => (l.id === beta.leadId ? { ...l, etapa_id: c.mundo.etapas["inscrito"] } : l));
+        return { ...cuerpo, datos: [...datos.filter((l) => l.id === beta.leadId), ...datos.filter((l) => l.id !== beta.leadId)] };
+      });
+      await enDetalle(c, beta.leadId, (l) => ({ ...l, etapa_id: c.mundo.etapas["inscrito"], etapa: ETAPA_DE(c, "inscrito", "Etapa F"), prospectos: (l.prospectos as Json[]).map((p) => ({ ...p, alumno_id: "alumno-de-muestra" })) }));
+      await conHistorial(c, beta.leadId, [
+        cambioDeMuestra("h1", null, { id: c.mundo.etapas["nuevo"], nombre: "Primera" }, "2026-10-01T15:00:00.000Z", { origen: "sistema", usuario: null, motivo: "alta" }),
+        cambioDeMuestra("h2", { id: c.mundo.etapas["negociacion"], nombre: "Etapa E" }, { id: c.mundo.etapas["inscrito"], nombre: "Etapa F" }, "2026-10-10T18:00:00.000Z", { motivo: "inscripcion" }),
+      ]);
+      await ir(c, "/embudo");
+      if (c.vista === "escritorio") await c.page.getByRole("button", { name: /^Desplegar la columna Etapa F/ }).click();
+      await abrirFichaLateral(c, beta.leadId, "Etapa F");
+    },
+  }),
+  e({
+    id: "asesor-ficha-lateral-cargando",
+    titulo: "Ficha lateral mientras carga el lead («Abriendo la ficha…»; el encabezado y «Abrir completa» ya están)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      const { alfa } = c.mundo.asesor;
+      await ir(c, "/embudo");
+      await colgar(c, enApi(`/api/leads/${alfa.leadId}`));
+      await abrirFichaLateralSinEsperar(c, alfa.leadId, "Primera");
+      await c.page.getByText("Abriendo la ficha…").waitFor();
+    },
+  }),
+  e({
+    id: "asesor-ficha-lateral-error",
+    titulo: "Ficha lateral con error de carga (con «Reintentar»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...FICHA_LATERAL],
+    ir: async (c) => {
+      const { alfa } = c.mundo.asesor;
+      await ir(c, "/embudo");
+      await responder(c, "GET", enApi(`/api/leads/${alfa.leadId}`), 500, falla());
+      await abrirFichaLateralSinEsperar(c, alfa.leadId, "Primera");
+      await fichaLateral(c).getByRole("button", { name: "Reintentar" }).waitFor();
+      await listo(c);
+    },
+  }),
+
+  // ── R2b: perdido ────────────────────────────────────────────────────────────────────────────
+  e({
+    id: "asesor-dialogo-perdido-vacio",
+    titulo: "Diálogo «¿Por qué se perdió …?» recién abierto: los motivos como botones, nota opcional, «Mover a …» deshabilitado y «Elige el motivo de pérdida.»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirPerdido(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-perdido-con-motivo",
+    titulo: "Diálogo de perdido con un motivo elegido y una nota (listo para enviar)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirPerdido(c);
+      await dialogoPerdido(c).getByRole("button", { name: "Precio", exact: true }).click();
+      await dialogoPerdido(c).getByLabel("Nota (opcional)").fill("Le pareció caro; quizá más adelante.");
+    },
+  }),
+  e({
+    id: "asesor-dialogo-perdido-varios",
+    titulo: "Diálogo de perdido con DOS leads seleccionados («¿Por qué se perdieron estos 2 leads?» y los nombres)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirPerdidoDeVarios(c);
+      await dialogoPerdido(c).getByRole("button", { name: "Horario", exact: true }).click();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-perdido-error-servidor",
+    titulo: "Diálogo de perdido con error del servidor al enviar",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirPerdido(c);
+      await dialogoPerdido(c).getByRole("button", { name: "Precio", exact: true }).click();
+      await fallarLaSiguienteEscritura(c, 500, "No se pudo mover al lead. Inténtalo de nuevo.");
+      await dialogoPerdido(c).getByRole("button", { name: /^Mover a / }).click();
+      await dialogoPerdido(c).getByRole("alert").first().waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-perdido-conflicto",
+    titulo: "Diálogo de perdido cuando el lead ya cambió de etapa (409: «El lead cambió mientras lo veías»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirPerdido(c);
+      await dialogoPerdido(c).getByRole("button", { name: "Precio", exact: true }).click();
+      await fallarLaSiguienteEscritura(c, 409, "El lead ya cambió de etapa.");
+      await dialogoPerdido(c).getByRole("button", { name: /^Mover a / }).click();
+      await dialogoPerdido(c).getByText("El lead cambió mientras lo veías").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-perdido-ocupado",
+    titulo: "Diálogo de perdido mientras se envía (el botón dice «Procesando…»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirPerdido(c);
+      await dialogoPerdido(c).getByRole("button", { name: "Precio", exact: true }).click();
+      await colgarEscritura(c);
+      await dialogoPerdido(c).getByRole("button", { name: /^Mover a / }).click();
+      await dialogoPerdido(c).getByRole("button", { name: "Procesando…" }).waitFor();
+    },
+  }),
+
+  // ── R2b: recuperar ──────────────────────────────────────────────────────────────────────────
+  e({
+    id: "asesor-dialogo-recuperar-vacio",
+    titulo: "Diálogo «Recuperar …» recién abierto: aviso azul, nota obligatoria vacía y «Escribe una nota: por qué se recupera.»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirRecuperar(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-recuperar-con-nota",
+    titulo: "Diálogo de recuperar con su nota (listo para enviar)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirRecuperar(c);
+      await dialogoRecuperar(c).getByLabel(/^Nota/).fill(NOTA_DE_RECUPERACION);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-recuperar-error-servidor",
+    titulo: "Diálogo de recuperar con error del servidor al enviar",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirRecuperar(c);
+      await dialogoRecuperar(c).getByLabel(/^Nota/).fill(NOTA_DE_RECUPERACION);
+      await fallarLaSiguienteEscritura(c, 500, "No se pudo recuperar al lead. Inténtalo de nuevo.");
+      await dialogoRecuperar(c).getByRole("button", { name: /^Mover a / }).click();
+      await dialogoRecuperar(c).getByRole("alert").first().waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-recuperar-ocupado",
+    titulo: "Diálogo de recuperar mientras se envía («Procesando…»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...CIERRE],
+    ir: async (c) => {
+      await abrirRecuperar(c);
+      await dialogoRecuperar(c).getByLabel(/^Nota/).fill(NOTA_DE_RECUPERACION);
+      await colgarEscritura(c);
+      await dialogoRecuperar(c).getByRole("button", { name: /^Mover a / }).click();
+      await dialogoRecuperar(c).getByRole("button", { name: "Procesando…" }).waitFor();
+    },
+  }),
+
+  // ── R2b: inscribir en 3 pasos ───────────────────────────────────────────────────────────────
+  e({
+    id: "asesor-dialogo-inscribir-alumno",
+    titulo: "Inscribir en 3 pasos, paso 1 (Alumno): lo ya capturado con «Capturado» y solo el campo de lo que falta (los apellidos), con «Escribe los apellidos del alumno para seguir.»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-alumno-varias-faltas",
+    titulo: "Inscribir, paso 1 sin registro del maestro: faltan el parentesco, los apellidos y la fecha de nacimiento («Para seguir falta: …»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c, { faltas: "varias" });
+      await abrirInscribir(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-alumno-completo",
+    titulo: "Inscribir, paso 1 con lo que faltaba ya escrito (se puede seguir)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await dialogoInscribir(c).getByLabel(/^Apellidos del alumno/).fill("Beta Rivas");
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-grupo",
+    titulo: "Inscribir, paso 2 (Grupo): los grupos de su edad con los lugares que quedan hoy; sin elegir, «Elige un grupo con lugar.»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAlPasoDelGrupo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-grupo-elegido",
+    titulo: "Inscribir, paso 2 con un grupo elegido",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAlPasoDelGrupo(c);
+      await c.page.getByTestId("paso-grupo").locator("button:not([disabled])").first().click();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-grupo-sin-oferta",
+    titulo: "Inscribir, paso 2 sin grupos para esa edad (aviso y «Abrir la inscripción completa»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await editarGet(c, enApi("/api/cotizador"), (cuerpo) => ({ ...cuerpo, programas: [] }));
+      await abrirInscribir(c);
+      await irAlPasoDelGrupo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-confirmar",
+    titulo: "Inscribir, paso 3 (Confirmar): alumno, grupo, cuándo empieza, responsable de pago y los montos que calcula el servidor",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAConfirmar(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-error-servidor",
+    titulo: "Inscribir, paso 3 con un error del servidor al confirmar (dentro del diálogo)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAConfirmar(c);
+      await responder(c, "POST", esConvertir, 500, falla("No se pudo inscribir. Inténtalo de nuevo."));
+      await dialogoInscribir(c).getByRole("button", { name: /^Inscribir a / }).click();
+      await dialogoInscribir(c).getByRole("alert").first().waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-rechazo-grupo-lleno",
+    titulo: "Inscribir, rechazo del servidor «grupo lleno»: se dice dentro del diálogo y ofrece «Elegir otro grupo»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAConfirmar(c);
+      await responder(c, "POST", esConvertir, 409, rechazo409(c, "grupo_lleno", "El grupo ya no tiene lugares"));
+      await dialogoInscribir(c).getByRole("button", { name: /^Inscribir a / }).click();
+      await c.page.getByTestId("rechazo-de-grupo").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-rechazo-a-la-completa",
+    titulo: "Inscribir, rechazo del servidor por datos o reglamento: se dice dentro del diálogo y manda a «Abrir la inscripción completa»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAConfirmar(c);
+      await responder(c, "POST", esConvertir, 409, rechazo409(c, "faltan_datos", "Faltan datos para convertir al lead", [{ campo: `prospectos.${c.mundo.asesor.beta.prospectoId}.reglamento`, mensaje: "Falta el reglamento" }]));
+      await dialogoInscribir(c).getByRole("button", { name: /^Inscribir a / }).click();
+      await c.page.getByTestId("rechazo-a-completa").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-ocupado",
+    titulo: "Inscribir, paso 3 mientras se envía («Procesando…»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAConfirmar(c);
+      await colgarEscritura(c, esConvertir);
+      await dialogoInscribir(c).getByRole("button", { name: /^Inscribir a / }).click();
+      await dialogoInscribir(c).getByRole("button", { name: "Procesando…" }).waitFor();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-listo",
+    titulo: "Inscribir terminado: el diálogo se cierra y el aviso «ya quedó» confirma («… quedó inscrito en …»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c);
+      await abrirInscribir(c);
+      await irAConfirmar(c);
+      await responder(c, "POST", esConvertir, 200, { ya_convertido: false, tutor_id: null, alumnos: [] });
+      await dialogoInscribir(c).getByRole("button", { name: /^Inscribir a / }).click();
+      await c.page.getByTestId("aviso-global").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-varios-ninos",
+    titulo: "Inscribir cuando la familia tiene dos niños por inscribir: no cabe en el diálogo, se explica y ofrece «Abrir la inscripción completa»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c, { dosNinos: true });
+      await abrirInscribir(c);
+      await c.page.getByTestId("no-cabe-en-el-dialogo").waitFor();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-reglamento",
+    titulo: "Inscribir cuando falta el reglamento: no cabe en el diálogo, se explica y ofrece «Abrir la inscripción completa»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c, { faltas: "reglamento" });
+      await abrirInscribir(c);
+      await c.page.getByTestId("no-cabe-en-el-dialogo").waitFor();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-ya-inscrito",
+    titulo: "Inscribir un lead que ya quedó inscrito mientras tanto («Todo está convertido e inscrito»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    ir: async (c) => {
+      await conInscripcionPreparada(c, { yaConvertido: true, faltas: "ninguna" });
+      await abrirInscribir(c);
+      await c.page.getByTestId("no-cabe-en-el-dialogo").waitFor();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-inscribir-de-uno-en-uno",
+    titulo: "Soltar dos leads seleccionados sobre «Inscrito»: el diálogo explica que la inscripción es de una familia a la vez",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...INSCRIBIR],
+    vistas: ["escritorio"],
+    ir: async (c) => {
+      await ir(c, "/embudo");
+      await seleccionar(c, "contactado", 2);
+      await arrastrarA(c, tarjetasDe(c, "contactado").first(), columnaDe(c, "inscrito"), true);
+      await c.page.getByTestId("inscribir-de-uno-en-uno").waitFor();
+      await listo(c);
+    },
+  }),
+
+  // ── R2b: agendar la clase muestra ───────────────────────────────────────────────────────────
+  e({
+    id: "asesor-dialogo-agendar-vacio",
+    titulo: "Diálogo «Agendar la clase muestra de …» recién abierto: las sesiones con lugar (la primera, «El más próximo»), nada elegido y «Elige el día y la hora.»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      await abrirAgendarDelEmbudo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-agendar-sesion-elegida",
+    titulo: "Diálogo de agendar con una sesión elegida (listo para «Agendar y avisar»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      await abrirAgendarDelEmbudo(c);
+      await dialogoAgendar(c).getByRole("group", { name: "Elige día y hora" }).getByRole("button").nth(1).click();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-agendar-cambiar",
+    titulo: "Diálogo «Cambiar la clase muestra de …» (el lead ya tiene una agendada): «Reprogramar y avisar»",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      const { alfa } = c.mundo.asesor;
+      await conClasesDeMuestra(c);
+      await ir(c, "/embudo");
+      await mostrarEtapa(c, "Primera");
+      await tarjetaDe(c, alfa.leadId).getByRole("button", { name: /^Cambiar la clase muestra de / }).click();
+      await c.page.getByRole("dialog", { name: /^Cambiar la clase muestra/ }).waitFor();
+      await c.page.getByRole("group", { name: "Elige día y hora" }).waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-agendar-error-servidor",
+    titulo: "Diálogo de agendar con un rechazo del servidor (el horario ya no tiene lugares) dentro del diálogo",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      await abrirAgendarDelEmbudo(c);
+      await dialogoAgendar(c).getByRole("group", { name: "Elige día y hora" }).getByRole("button").first().click();
+      await fallarLaSiguienteEscritura(c, 409, "Ese horario ya no tiene lugares.");
+      await dialogoAgendar(c).getByRole("button", { name: "Agendar y avisar", exact: true }).click();
+      await dialogoAgendar(c).getByRole("alert").first().waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-agendar-ocupado",
+    titulo: "Diálogo de agendar mientras se envía («Procesando…»)",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      await abrirAgendarDelEmbudo(c);
+      await dialogoAgendar(c).getByRole("group", { name: "Elige día y hora" }).getByRole("button").first().click();
+      await colgarEscritura(c);
+      await dialogoAgendar(c).getByRole("button", { name: "Agendar y avisar", exact: true }).click();
+      await dialogoAgendar(c).getByRole("button", { name: "Procesando…" }).waitFor();
+    },
+  }),
+  e({
+    id: "asesor-dialogo-agendar-sin-sesiones",
+    titulo: "Diálogo de agendar cuando el grupo no tiene sesiones con lugar en los próximos días",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      await editarGet(c, enApi("/api/clases-muestra/sesiones"), (cuerpo) => ({ ...cuerpo, datos: [] }));
+      await ir(c, "/embudo");
+      await mostrarEtapa(c, "Primera");
+      await tarjetaDe(c, c.mundo.asesor.alfa.leadId).getByRole("button", { name: /^Agendar la clase muestra de / }).click();
+      await c.page.getByText("no tiene sesiones con lugar").waitFor();
+      await listo(c);
+    },
+  }),
+  e({
+    id: "asesor-dialogo-agendar-listo",
+    titulo: "Agendar terminado: el diálogo se cierra y el aviso «ya quedó» confirma la clase",
+    tipo: "flotante",
+    ruta: "/embudo",
+    fuentes: [...EMBUDO, ...AGENDAR],
+    ir: async (c) => {
+      await abrirAgendarDelEmbudo(c);
+      await dialogoAgendar(c).getByRole("group", { name: "Elige día y hora" }).getByRole("button").first().click();
+      await responder(c, "POST", (u) => u.pathname === "/api/clases-muestra", 201, { id: "nueva" });
+      await dialogoAgendar(c).getByRole("button", { name: "Agendar y avisar", exact: true }).click();
+      await c.page.getByTestId("aviso-global").waitFor();
+      await listo(c);
     },
   }),
 
@@ -1628,13 +2767,14 @@ export const ESCENAS: Escena[] = conVentana([
       await listo(c);
     },
   }),
-]);
+]));
 
 // ─── Pasos y datos de apoyo (se usan arriba; las funciones se elevan) ─────────────────────────
 
 async function abrirMarcarDesdeEmbudo(c: Contexto): Promise<void> {
   await conYo(c, { apagar: ["inscripcion"] });
   await ir(c, "/embudo");
+  await mostrarEtapa(c, "Etapa B");
   await c.page.getByTestId(`marcar-inscrito-${c.mundo.asesor.beta.leadId}`).first().click();
   await dialogoAbierto(c);
 }

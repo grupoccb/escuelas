@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1014**.
+Filas: **1071**.
 
 ## Acceso y cuenta (47)
 
@@ -433,7 +433,7 @@ Filas: **1014**.
 | `admins-automatizaciones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar el ajuste de una automatización sin cambiar nada («quedó guardada. Vale para los avisos que se programen…») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
 | `admins-configuracion-guardada` | administrador | formulario | Configuración después de guardar sin cambiar nada: el aviso «Configuración guardada.» sobre el botón | `/admin/configuracion` | ✔ · ✔ | ✔ · ✔ |
 
-## Asesor (133)
+## Asesor (190)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -445,27 +445,44 @@ Filas: **1014**.
 | `asesor-embudo-error` | asesor | estado | Embudo con error de carga (con «Reintentar») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-embudo-truncado` | asesor | estado | Embudo con aviso de «se muestran los primeros N de M leads» | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-embudo-filtro-fuente` | asesor | estado | Embudo con el filtro de fuente desplegado y una fuente elegida | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-solo-estancados` | asesor | estado | Embudo con «Solo estancados» marcado (el indicador «Sin movimiento N d») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
+| `asesor-embudo-solo-estancados` | asesor | estado | Embudo con el par de alerta activo: «Ver solo estos» ya pulsado (el botón dice «Ver todos»), «Solo estancados» marcado y la insignia «N d» en las tarjetas | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-embudo-filtros-sin-resultados` | asesor | estado | Embudo con filtros que no dejan ningún lead («No hay leads con estos filtros») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-tablero-celular-desplazado` | asesor | estado | Embudo en tablero en celular, desplazado a las últimas columnas (scroll horizontal) | `/embudo` | · · ✔ | · · ✔ |
+| `asesor-embudo-celular-etapa-cierre` | asesor | estado | Embudo en celular con la píldora de la etapa de perdidos elegida (la lista de esa etapa, con el motivo de cada uno) | `/embudo` | · · ✘ | · · ✔ |
 | `asesor-embudo-administrador-tablero` | administrador | pantalla | Embudo en tablero visto por el administrador (leads de las dos sucursales) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-lista-datos` | asesor | estado | Embudo en lista, con datos | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-lista-muchos` | asesor | estado | Embudo en lista, con muchos leads | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-lista-vacio` | asesor | estado | Embudo en lista, sin ningún lead | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-lista-solo-estancados` | asesor | estado | Embudo en lista con «Solo estancados» (insignia «Estancado») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-abierto` | asesor | flotante | Diálogo «Mover a …» abierto, sin elegir (la etapa de inscrito aparece deshabilitada y se avisa qué falta) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-lista-abierto` | asesor | flotante | Diálogo «Mover a …» abierto desde la fila de la lista | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-etapa-elegida` | asesor | flotante | Diálogo de mover con una etapa abierta elegida y una nota (listo para enviar) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-perder-sin-motivo` | asesor | flotante | Diálogo de mover a «perdido» sin motivo (error de validación: «Elige el motivo de pérdida») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-perder-con-motivo` | asesor | flotante | Diálogo de mover a «perdido» con motivo y nota (listo para enviar) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-recuperar-sin-nota` | asesor | flotante | Diálogo de recuperar un lead perdido sin nota (aviso azul y error: «Escribe una nota: por qué se recupera») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-recuperar-con-nota` | asesor | flotante | Diálogo de recuperar un lead perdido con su nota (listo para enviar) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-error-servidor` | asesor | flotante | Diálogo de mover con error del servidor al enviar | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-conflicto` | asesor | flotante | Diálogo de mover cuando el lead ya cambió de etapa (409: «El lead cambió mientras lo veías») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-sin-conexion` | asesor | flotante | Diálogo de mover sin conexión al enviar («No hay conexión») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
+| `asesor-embudo-tablero-disciplinas` | asesor | estado | Embudo en tablero con tres disciplinas de color: píldoras con punto y conteo, avatares y etiquetas con su tono, la clase muestra, «Asistió el…» y el motivo de un perdido | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-filtro-disciplina` | asesor | estado | Embudo con una píldora de disciplina elegida (la píldora activa va en oscuro y solo quedan los leads de esa disciplina) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-columnas-cierre` | asesor | estado | Embudo en tablero con las dos columnas de cierre desplegadas (inscrito en verde, perdido en rojo) y cuatro columnas abiertas plegadas a 56 px | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-tarjeta-seleccionada` | asesor | estado | Embudo con una tarjeta seleccionada (el avatar pasa al primario con su palomita, contorno de 2 px) y la barra flotante de selección | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-seleccion-lote` | asesor | estado | Embudo con tres leads seleccionados: la barra flotante oscura con el conteo, «Mover a…» y «Quitar la selección» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-menu-mover-a` | asesor | flotante | Menú «Mover a…» de la barra de selección con tres leads (la etapa de inscrito deshabilitada: «De una en una»; perdidos «Pide el motivo») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-menu-mover-a-uno` | asesor | flotante | Menú «Mover a…» con un solo lead seleccionado (inscrito disponible: «Abre la inscripción») | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-aviso-movido` | asesor | estado | Embudo después de mover tres leads con «Mover a…»: el aviso global «3 leads pasaron a …» y la selección vacía | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-conflicto-en-lote` | asesor | estado | Embudo cuando uno de los leads movidos ya había cambiado de etapa (409): aviso de alerta «cambió de etapa mientras lo veías» y el tablero recargado | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-embudo-arrastrando` | asesor | flotante | Arrastre en curso: la tarjeta fantasma (rotada 2°, con la sombra de arrastre) sigue al puntero y la columna de abajo se resalta con «Suelta para mover aquí» | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-arrastrando-pila` | asesor | flotante | Arrastre de una selección de tres leads: la pila de tarjetas con el contador y las tarjetas de origen atenuadas | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-arrastrando-a-perdidos` | asesor | flotante | Arrastre sobre la columna de perdidos, plegada: se resalta en rojo con «Suelta y elige el motivo» en vertical | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-arrastrando-a-inscrito` | asesor | flotante | Arrastre sobre la columna de inscritos, desplegada: se resalta en verde con «Suelta para inscribir» | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-soltado-en-perdidos` | asesor | flotante | Soltar un lead sobre la columna de perdidos: se abre «¿Por qué se perdió …?» con los motivos en botones (R2b sustituyó al selector de «Mover a …») | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-hoja-mover-a` | asesor | flotante | Hoja «Mover a …» en celular (la alternativa sin arrastre): la lista de etapas, la actual deshabilitada y las notas «Pide el motivo» / «Abre la inscripción» | `/embudo` | · · ✘ | · · ✔ |
+| `asesor-embudo-celular-seleccionar` | asesor | estado | Embudo en celular en modo «Seleccionar» («Listo» activo): dos tarjetas seleccionadas y la barra flotante sobre la barra inferior | `/embudo` | · · ✘ | · · ✔ |
+| `asesor-embudo-lista-seleccion` | asesor | estado | Embudo en lista con una fila seleccionada (avatar con palomita, fila en tono suave) y la barra flotante | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-embudo-lista-datos` | asesor | estado | Embudo en lista, con datos | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-embudo-lista-muchos` | asesor | estado | Embudo en lista, con muchos leads | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-embudo-lista-vacio` | asesor | estado | Embudo en lista, sin ningún lead | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-embudo-lista-solo-estancados` | asesor | estado | Embudo en lista con «Solo estancados» (insignia «Estancado») | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-abierto` | asesor | flotante | Diálogo «Mover a …» abierto, sin elegir (la etapa de inscrito aparece deshabilitada y se avisa qué falta) | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-lista-abierto` | asesor | flotante | Diálogo «Mover a …» abierto desde la fila de la lista | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-etapa-elegida` | asesor | flotante | Diálogo de mover con una etapa abierta elegida y una nota (listo para enviar) | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-perder-sin-motivo` | asesor | flotante | Diálogo de mover a «perdido» sin motivo (error de validación: «Elige el motivo de pérdida») | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-perder-con-motivo` | asesor | flotante | Diálogo de mover a «perdido» con motivo y nota (listo para enviar) | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-recuperar-sin-nota` | asesor | flotante | Diálogo de recuperar un lead perdido sin nota (aviso azul y error: «Escribe una nota: por qué se recupera») | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-recuperar-con-nota` | asesor | flotante | Diálogo de recuperar un lead perdido con su nota (listo para enviar) | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-error-servidor` | asesor | flotante | Diálogo de mover con error del servidor al enviar | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-conflicto` | asesor | flotante | Diálogo de mover cuando el lead ya cambió de etapa (409: «El lead cambió mientras lo veías») | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-sin-conexion` | asesor | flotante | Diálogo de mover sin conexión al enviar («No hay conexión») | `/embudo` | ✔ · · | ✔ · · |
 | `asesor-embudo-inscripcion-apagada` | asesor | estado | Embudo en tablero con la inscripción apagada (cada tarjeta ofrece «Marcar como inscrito») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-embudo-lista-inscripcion-apagada` | asesor | estado | Embudo en lista con la inscripción apagada («Marcar como inscrito» en cada fila) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-mover-inscripcion-apagada` | asesor | flotante | Diálogo de mover con la inscripción apagada (la etapa de inscrito dice «usa Marcar como inscrito») | `/embudo` | ✔ · ✔ | ✔ · ✔ |
+| `asesor-embudo-lista-inscripcion-apagada` | asesor | estado | Embudo en lista con la inscripción apagada («Marcar como inscrito» en cada fila) | `/embudo` | ✔ · · | ✔ · · |
+| `asesor-mover-inscripcion-apagada` | asesor | flotante | Diálogo de mover con la inscripción apagada (la etapa de inscrito dice «usa Marcar como inscrito») | `/embudo` | ✔ · · | ✔ · · |
 | `asesor-marcar-inscrito-nota` | asesor | paso | Diálogo «Marcar a … como inscrito», paso 1: la nota (vacío) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-marcar-inscrito-nota-vacia` | asesor | formulario | Marcar como inscrito, paso 1 con error de validación (nota vacía) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-marcar-inscrito-nota-corta` | asesor | formulario | Marcar como inscrito, paso 1 con error de validación (nota demasiado corta) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
@@ -475,6 +492,46 @@ Filas: **1014**.
 | `asesor-marcar-inscrito-sin-conexion` | asesor | paso | Marcar como inscrito, paso 2 sin conexión | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-marcar-inscrito-listo` | asesor | paso | Marcar como inscrito, paso 3: «Listo» | `/embudo` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-marcar-inscrito-sin-etapa` | asesor | estado | Marcar como inscrito cuando la escuela no tiene etapa de inscrito (aviso rojo y «Continuar» deshabilitado) | `/embudo` | ✔ · ✔ | ✔ · ✔ |
+| `asesor-ficha-lateral` | asesor | flotante | Ficha lateral de un lead nuevo (clic en la tarjeta): identidad, acción principal «Agendar clase muestra», «Abrir conversación», «Mover de etapa», para quién son las clases, de dónde llegó e historial vacío | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-ficha-lateral-con-clase` | asesor | flotante | Ficha lateral de un lead con clase muestra agendada: la clase con su estado, «Cambiar la clase muestra» como acción principal y el historial en línea de tiempo | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-ficha-lateral-estancado` | asesor | flotante | Ficha lateral de un lead estancado: el aviso «N días sin movimiento» con su tarea pendiente y el historial con varios cambios | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-ficha-lateral-perdido` | asesor | flotante | Ficha lateral de un lead perdido: «Recuperar lead» como acción principal, el motivo y la línea de tiempo con el motivo de la pérdida | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-ficha-lateral-inscrito` | asesor | flotante | Ficha lateral de un lead ya inscrito: «Ver expediente» como acción principal y «Mover de etapa» deshabilitado (los cambios se hacen desde el expediente) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-ficha-lateral-cargando` | asesor | flotante | Ficha lateral mientras carga el lead («Abriendo la ficha…»; el encabezado y «Abrir completa» ya están) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-ficha-lateral-error` | asesor | flotante | Ficha lateral con error de carga (con «Reintentar») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-perdido-vacio` | asesor | flotante | Diálogo «¿Por qué se perdió …?» recién abierto: los motivos como botones, nota opcional, «Mover a …» deshabilitado y «Elige el motivo de pérdida.» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-perdido-con-motivo` | asesor | flotante | Diálogo de perdido con un motivo elegido y una nota (listo para enviar) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-perdido-varios` | asesor | flotante | Diálogo de perdido con DOS leads seleccionados («¿Por qué se perdieron estos 2 leads?» y los nombres) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-perdido-error-servidor` | asesor | flotante | Diálogo de perdido con error del servidor al enviar | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-perdido-conflicto` | asesor | flotante | Diálogo de perdido cuando el lead ya cambió de etapa (409: «El lead cambió mientras lo veías») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-perdido-ocupado` | asesor | flotante | Diálogo de perdido mientras se envía (el botón dice «Procesando…») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-recuperar-vacio` | asesor | flotante | Diálogo «Recuperar …» recién abierto: aviso azul, nota obligatoria vacía y «Escribe una nota: por qué se recupera.» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-recuperar-con-nota` | asesor | flotante | Diálogo de recuperar con su nota (listo para enviar) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-recuperar-error-servidor` | asesor | flotante | Diálogo de recuperar con error del servidor al enviar | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-recuperar-ocupado` | asesor | flotante | Diálogo de recuperar mientras se envía («Procesando…») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-alumno` | asesor | flotante | Inscribir en 3 pasos, paso 1 (Alumno): lo ya capturado con «Capturado» y solo el campo de lo que falta (los apellidos), con «Escribe los apellidos del alumno para seguir.» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-alumno-varias-faltas` | asesor | flotante | Inscribir, paso 1 sin registro del maestro: faltan el parentesco, los apellidos y la fecha de nacimiento («Para seguir falta: …») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-alumno-completo` | asesor | flotante | Inscribir, paso 1 con lo que faltaba ya escrito (se puede seguir) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-grupo` | asesor | flotante | Inscribir, paso 2 (Grupo): los grupos de su edad con los lugares que quedan hoy; sin elegir, «Elige un grupo con lugar.» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-grupo-elegido` | asesor | flotante | Inscribir, paso 2 con un grupo elegido | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-grupo-sin-oferta` | asesor | flotante | Inscribir, paso 2 sin grupos para esa edad (aviso y «Abrir la inscripción completa») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-confirmar` | asesor | flotante | Inscribir, paso 3 (Confirmar): alumno, grupo, cuándo empieza, responsable de pago y los montos que calcula el servidor | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-error-servidor` | asesor | flotante | Inscribir, paso 3 con un error del servidor al confirmar (dentro del diálogo) | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-rechazo-grupo-lleno` | asesor | flotante | Inscribir, rechazo del servidor «grupo lleno»: se dice dentro del diálogo y ofrece «Elegir otro grupo» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-rechazo-a-la-completa` | asesor | flotante | Inscribir, rechazo del servidor por datos o reglamento: se dice dentro del diálogo y manda a «Abrir la inscripción completa» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-ocupado` | asesor | flotante | Inscribir, paso 3 mientras se envía («Procesando…») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-listo` | asesor | flotante | Inscribir terminado: el diálogo se cierra y el aviso «ya quedó» confirma («… quedó inscrito en …») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-varios-ninos` | asesor | flotante | Inscribir cuando la familia tiene dos niños por inscribir: no cabe en el diálogo, se explica y ofrece «Abrir la inscripción completa» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-reglamento` | asesor | flotante | Inscribir cuando falta el reglamento: no cabe en el diálogo, se explica y ofrece «Abrir la inscripción completa» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-ya-inscrito` | asesor | flotante | Inscribir un lead que ya quedó inscrito mientras tanto («Todo está convertido e inscrito») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-inscribir-de-uno-en-uno` | asesor | flotante | Soltar dos leads seleccionados sobre «Inscrito»: el diálogo explica que la inscripción es de una familia a la vez | `/embudo` | ✘ · · | ✔ · · |
+| `asesor-dialogo-agendar-vacio` | asesor | flotante | Diálogo «Agendar la clase muestra de …» recién abierto: las sesiones con lugar (la primera, «El más próximo»), nada elegido y «Elige el día y la hora.» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-agendar-sesion-elegida` | asesor | flotante | Diálogo de agendar con una sesión elegida (listo para «Agendar y avisar») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-agendar-cambiar` | asesor | flotante | Diálogo «Cambiar la clase muestra de …» (el lead ya tiene una agendada): «Reprogramar y avisar» | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-agendar-error-servidor` | asesor | flotante | Diálogo de agendar con un rechazo del servidor (el horario ya no tiene lugares) dentro del diálogo | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-agendar-ocupado` | asesor | flotante | Diálogo de agendar mientras se envía («Procesando…») | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-agendar-sin-sesiones` | asesor | flotante | Diálogo de agendar cuando el grupo no tiene sesiones con lugar en los próximos días | `/embudo` | ✘ · ✘ | ✔ · ✔ |
+| `asesor-dialogo-agendar-listo` | asesor | flotante | Agendar terminado: el diálogo se cierra y el aviso «ya quedó» confirma la clase | `/embudo` | ✘ · ✘ | ✔ · ✔ |
 | `asesor-tareas-pendientes-datos` | asesor | pantalla | Tareas pendientes, con datos (asesor y administrador) | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-pendientes-muchos` | asesor | estado | Tareas pendientes, con muchas | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-pendientes-vacio` | asesor | estado | Tareas pendientes, vacías | `/tareas` | ✔ · ✔ | ✔ · ✔ |

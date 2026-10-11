@@ -45,7 +45,7 @@ test("cada elemento interactivo tiene hover, estado deshabilitado y transición"
   for (const clase of [".boton", ".boton-primario", ".boton-sutil", ".boton-peligro", ".boton-icono"]) assert.ok(tienen(clase, ":hover"), `${clase} sin :hover`);
   assert.ok(css.includes(".boton:disabled"), ".boton sin :disabled");
   assert.ok(css.includes(".boton:active"), ".boton sin :active");
-  for (const clase of [".opcion", ".pestanas button", ".barra-inferior a", ".lateral-enlaces a", "table.tabla tbody tr", ".ficha-lead"]) assert.ok(tienen(clase, ":hover"), `${clase} sin :hover`);
+  for (const clase of [".opcion", ".pestanas button", ".barra-inferior a", ".lateral-enlaces a", "table.tabla tbody tr", ".tarjeta-movil"]) assert.ok(tienen(clase, ":hover"), `${clase} sin :hover`);
   assert.match(css, /input:disabled,\s*select:disabled,\s*textarea:disabled/);
 });
 

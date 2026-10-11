@@ -66,7 +66,11 @@ async function revisar(browser: Browser, baseURL: string, p: (typeof PANTALLAS)[
         if (e.classList.contains("solo-lectores") || e.closest(".solo-lectores") || e.matches(".salto")) continue;
         // R1 (handoff v2): los enlaces de la barra lateral de ESCRITORIO miden 40 px (36 en una pantalla de menos de 820 px de alto, para que quepan las 13 secciones del administrador); el de 44 es para el toque, o sea el celular.
         const enLateral = e.tagName === "A" && e.closest(".lateral-enlaces") !== null && window.innerWidth >= 900;
-        if (r.height < (enLateral ? 35.5 : 43.5)) problemas.push(`${nombre(e)} mide ${Math.round(r.height)} px de alto`);
+        // R2a (README «Medidas nuevas»): en el tablero de ESCRITORIO los botones de ícono de una tarjeta miden 36 (44 en celular), el avatar que selecciona y el botón de plegar una columna, 32: son
+        // objetivos de ratón y todos tienen alternativa más grande (la tarjeta entera con Espacio, «Mover de etapa» en la hoja, la columna plegada que se despliega con un clic de 56 de ancho).
+        const enTablero = window.innerWidth >= 900 && e.closest(".tablero") !== null && e.matches(".boton-icono-tarjeta, .lead-seleccion, .columna-plegar");
+        const minimo = enLateral ? 35.5 : enTablero ? 31.5 : 43.5;
+        if (r.height < minimo) problemas.push(`${nombre(e)} mide ${Math.round(r.height)} px de alto`);
       }
       return problemas;
     }, !ampliado);
