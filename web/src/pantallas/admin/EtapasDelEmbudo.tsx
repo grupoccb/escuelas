@@ -3,12 +3,13 @@
 
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo } from "./patron.tsx";
 import { esDeCierre, esPropia, moverEtapa, type EtapaDeLista } from "./etapas.ts";
 
 function Formulario({ etapa, alGuardar, alCerrar }: { etapa: EtapaDeLista | null; alGuardar: () => void; alCerrar: () => void }) {
@@ -71,45 +72,54 @@ export default function EtapasDelEmbudo() {
   const mover = useAccion();
   const lista = carga.datos?.datos ?? [];
   return (
-    <Pagina titulo="Etapas del embudo" subtitulo="Cómo se llaman las etapas por las que pasa una familia, en qué orden y cuándo avisan." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Agregar una etapa</Boton></>}>
-      <Aviso>Las etapas con la insignia «Del sistema» las usa el bot y la inscripción: puedes cambiarles el nombre y los días de aviso, pero no quitarlas ni cambiarlas de lugar entre sí. Las tuyas se pueden mover y quitar (si no tienen leads).</Aviso>
-      <ErrorDeAccion error={mover.error} />
-      {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
-      {carga.cargando && !carga.datos ? <Cargando /> : null}
-      {carga.datos && lista.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay etapas">Las crea la plantilla de la escuela.</Vacio></div> : null}
-      <ol className="lista-tarjetas" data-prueba="lista-de-etapas">
-        {lista.map((e, i) => {
-          const subir = moverEtapa(lista, i, -1);
-          const bajar = moverEtapa(lista, i, 1);
-          const ir = (nueva: EtapaDeLista[] | null) => {
-            if (!nueva) return;
-            void mover.ejecutar(async () => {
-              await api.put("/api/etapas/orden", { ids: nueva.map((x) => x.id) });
-              carga.recargar();
-            });
-          };
-          return (
-            <li key={e.id} className="item-admin" data-prueba={`etapa-${e.id}`}>
-              <div className="item-admin-principal">
-                <strong className="item-admin-nombre">
-                  {i + 1}. {e.nombre}
-                </strong>
-                <p className="item-admin-meta">{esDeCierre(e) ? "No avisa por días sin movimiento." : e.dias_alerta_sin_movimiento === null ? "No avisa por días sin movimiento." : `Avisa a los ${e.dias_alerta_sin_movimiento} días sin movimiento.`}</p>
-              </div>
-              <div className="item-admin-etiquetas">
-                {e.tipo_sistema !== null || esDeCierre(e) ? <Insignia>Del sistema</Insignia> : <Insignia tono="exito">Tuya</Insignia>}
-                {esDeCierre(e) ? <Insignia tono="info">Cierre</Insignia> : null}
-              </div>
-              <div className="item-admin-acciones">
-                <BotonDeIcono icono="lapiz" nombre="Cambiar" onClick={() => edicion.editar(e)} />
-                <BotonDeIcono icono="flecha_arriba" nombre={`Subir ${e.nombre}`} disabled={!subir || mover.ocupado} onClick={() => ir(subir)} />
-                <BotonDeIcono icono="flecha_abajo" nombre={`Bajar ${e.nombre}`} disabled={!bajar || mover.ocupado} onClick={() => ir(bajar)} />
-                {esPropia(e) ? <BotonDeIcono icono="papelera" nombre="Quitar" peligro onClick={() => setQuitando(e)} /> : null}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+    <PaginaDeCatalogo
+      titulo="Etapas del embudo"
+      ayuda="Nombres, orden y días sin movimiento de cada etapa; agrega las tuyas. «Inscrito» y «Perdido» son del sistema: se renombran pero no se borran."
+      nota="Las etapas con la insignia «Del sistema» las usa el bot y la inscripción: puedes cambiarles el nombre y los días de aviso, pero no quitarlas ni cambiarlas de lugar entre sí. Las tuyas se pueden mover y quitar (si no tienen leads)."
+    >
+      <ListaDeCatalogo titulo="Etapas" cuenta={carga.datos ? lista.length : undefined} nuevo="Agregar una etapa" alNuevo={edicion.nuevo}>
+        <ErrorDeAccion error={mover.error} />
+        {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
+        {carga.cargando && !carga.datos ? <Cargando /> : null}
+        {carga.datos && lista.length === 0 ? <VacioDeLista titulo="Todavía no hay etapas">Las crea la plantilla de la escuela.</VacioDeLista> : null}
+        <ol className="lista-filas" data-prueba="lista-de-etapas">
+          {lista.map((e, i) => {
+            const subir = moverEtapa(lista, i, -1);
+            const bajar = moverEtapa(lista, i, 1);
+            const ir = (nueva: EtapaDeLista[] | null) => {
+              if (!nueva) return;
+              void mover.ejecutar(async () => {
+                await api.put("/api/etapas/orden", { ids: nueva.map((x) => x.id) });
+                carga.recargar();
+              });
+            };
+            return (
+              <FilaDeCatalogo
+                key={e.id}
+                data-prueba={`etapa-${e.id}`}
+                orden={i + 1}
+                titulo={e.nombre}
+                etiquetas={
+                  <>
+                    {e.tipo_sistema !== null || esDeCierre(e) ? <Insignia tono="info">Del sistema</Insignia> : <Insignia tono="exito">Tuya</Insignia>}
+                    {esDeCierre(e) ? <Insignia>Cierre</Insignia> : null}
+                  </>
+                }
+                detalle={esDeCierre(e) ? "No avisa por días sin movimiento." : e.dias_alerta_sin_movimiento === null ? "No avisa por días sin movimiento." : `Avisa a los ${e.dias_alerta_sin_movimiento} días sin movimiento.`}
+                acciones={
+                  <AccionesDeTarjeta
+                    nombreEditar="Cambiar"
+                    nombreBaja="Quitar"
+                    ordenar={{ nombre: e.nombre, alSubir: subir ? () => ir(subir) : null, alBajar: bajar ? () => ir(bajar) : null, ocupado: mover.ocupado }}
+                    alEditar={() => edicion.editar(e)}
+                    {...(esPropia(e) ? { alDarDeBaja: () => setQuitando(e) } : {})}
+                  />
+                }
+              />
+            );
+          })}
+        </ol>
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Agregar una etapa" : "Cambiar la etapa"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? <Formulario key={edicion.actual === "nuevo" ? "nuevo" : edicion.actual.id} etapa={edicion.actual === "nuevo" ? null : edicion.actual} alGuardar={() => { edicion.cerrar(); carga.recargar(); }} alCerrar={edicion.cerrar} /> : null}
       </Dialogo>
@@ -125,6 +135,6 @@ export default function EtapasDelEmbudo() {
       >
         <p>¿Quitar la etapa «{quitando?.nombre}»? Si tiene leads, el sistema no te deja: primero muévelos a otra etapa.</p>
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

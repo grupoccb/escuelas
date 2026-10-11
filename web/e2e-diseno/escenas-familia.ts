@@ -16,6 +16,9 @@ const FAMILIAS = `${P}Familias.tsx`;
 const FICHA = `${P}FichaFamilia.tsx`;
 const SALUD_PANTALLA = `${P}SaludDelAlumno.tsx`;
 const ACCIONES = `${P}AccionesDeInscripcion.tsx`;
+/** R6a: lo que pinta «Alumnos» (la lista, la tarjeta, las píldoras de disciplina y la barra de asistencia) y el expediente (el encabezado y un panel por pestaña). */
+const ALUMNOS_FUENTES = [ALUMNOS, `${P}TarjetaDeAlumno.tsx`, `${P}PildorasDeDisciplina.tsx`, `${P}BarraDeAvance.tsx`];
+const EXPEDIENTE_FUENTES = [EXPEDIENTE, `${P}PanelTrayectoria.tsx`, `${P}PanelAsistencia.tsx`, `${P}PanelEconomico.tsx`, `${P}PanelComercial.tsx`, `${P}PanelSalud.tsx`, `${P}BarraDeAvance.tsx`];
 const VISTA_SALUD = "web/src/salud/VistaDeSalud.tsx";
 const DIALOGO = "web/src/ui/Dialogo.tsx";
 
@@ -80,13 +83,13 @@ const rutaExpediente = (alumnoId: string): string => `/alumnos/${alumnoId}`;
 const rutaFicha = (c: Contexto): string => `/familias/${rivera(c).tutorId}`;
 const rutaSalud = (c: Contexto): string => `/alumnos/${c.mundo.familia.salud.alumnoId}/salud`;
 
-async function abrirPestana(c: Contexto, nombre: "Trayectoria" | "Económico" | "Operativo" | "Comercial"): Promise<void> {
+async function abrirPestana(c: Contexto, nombre: "Trayectoria" | "Asistencia" | "Económico" | "Comercial" | "Salud"): Promise<void> {
   await c.page.getByRole("tab", { name: nombre }).click();
   await esperarListo(c.page);
 }
 
 /** El expediente del hijo mayor, en la pestaña que se pide. */
-async function expediente(c: Contexto, pestana: "Trayectoria" | "Económico" | "Operativo" | "Comercial" = "Trayectoria", alumnoId = mayor(c).alumnoId): Promise<void> {
+async function expediente(c: Contexto, pestana: "Trayectoria" | "Asistencia" | "Económico" | "Comercial" | "Salud" = "Trayectoria", alumnoId = mayor(c).alumnoId): Promise<void> {
   await irA(c, rutaExpediente(alumnoId));
   if (pestana !== "Trayectoria") await abrirPestana(c, pestana);
 }
@@ -100,13 +103,16 @@ async function abrirAccion(c: Contexto, boton: "Cambiar de grupo" | "Congelar" |
 
 const dialogo = (c: Contexto) => c.page.locator("dialog[open]");
 
-/** Un `<select>` nativo cerrado no deja ver sus opciones en la captura (el desplegable es del sistema): se muestra como lista abierta (`size`) solo en el arnés, para que se lean todas las opciones, también las apagadas. */
-async function mostrarOpciones(c: Contexto, etiqueta: string | RegExp): Promise<void> {
-  await dialogo(c).getByLabel(etiqueta).evaluate((el) => {
-    const s = el as HTMLSelectElement;
-    s.size = Math.max(s.options.length, 3);
-  });
-  await c.page.waitForTimeout(150);
+/** Elige un grupo en el cuadro de cambiar de grupo (R6a: botones grandes; el nombre lleva el texto «· N lugares» después). */
+async function elegirGrupo(c: Contexto, nombre: string): Promise<void> {
+  await dialogo(c).getByRole("button", { name: `${nombre} · ` }).click();
+  await esperarListo(c.page);
+}
+
+/** Elige el motivo de baja del catálogo de la prueba en el cuadro de dar de baja. */
+async function elegirMotivo(c: Contexto): Promise<void> {
+  await dialogo(c).getByRole("group", { name: "Motivo de la baja" }).getByRole("button", { name: c.mundo.familia.motivoBaja.nombre, exact: true }).click();
+  await esperarListo(c.page);
 }
 
 /** Escritura que el servidor rechaza con un 409 (un rechazo de negocio): el mensaje sale dentro del cuadro. */
@@ -172,7 +178,7 @@ function conEconomicoSinCuenta(b: Json): Json {
 
 function conOperativoCompleto(b: Json): Json {
   const o = b.operativo;
-  o.asistencia = { porcentaje_30_dias: "62", racha_de_faltas: 3, umbral_de_faltas: 3, por_inscripcion: [] };
+  o.asistencia = { porcentaje_30_dias: 62, racha_de_faltas: 3, umbral_de_faltas: 3, por_inscripcion: [] };
   o.eventos = [
     { evento: { id: "e-muestra-1", nombre: "Examen de verano", tipo: "examen", fecha: "2026-07-18" }, estatus: "asistio", resultado: "aprobado", nivel_otorgado: { id: "n-muestra-1", nombre: "Nivel 2" } },
     { evento: { id: "e-muestra-2", nombre: "Muestra de primavera", tipo: "evento", fecha: "2026-04-25" }, estatus: "inscrito", resultado: null, nivel_otorgado: null },
@@ -230,20 +236,73 @@ function fichaCompleta(b: Json): Json {
 
 const sinHijos = (b: Json): Json => ({ ...b, alumnos: [] });
 
+// R6a: colores de ejemplo para las disciplinas (en la aplicación salen del dato `color_marca` de cada una, nunca de aquí) y datos armados para las tarjetas y las clases del expediente.
+const COLORES_DE_EJEMPLO = ["#c8402a", "#c43a73", "#1f7a8c"];
+
+type Variedad = { asistencia: number | null; cuenta: "con_vencido" | "por_pagar" | "al_corriente" };
+const VARIEDAD: Variedad[] = [
+  { asistencia: 62, cuenta: "con_vencido" },
+  { asistencia: 94, cuenta: "por_pagar" },
+  { asistencia: 71, cuenta: "con_vencido" },
+  { asistencia: 97, cuenta: "al_corriente" },
+  { asistencia: 100, cuenta: "al_corriente" },
+  { asistencia: null, cuenta: "al_corriente" },
+];
+
+/** Las tarjetas de «Alumnos» con disciplinas de colores, asistencia y cuenta variadas (el resumen real trae pocas). `conCuenta: false`: la cuenta se queda como la mandó el servidor (el maestro no la ve). */
+async function conResumenVariado(c: Contexto, variedad: Variedad[] = VARIEDAD, conCuenta = true): Promise<void> {
+  await editarGet(c, esRuta("/api/alumnos/resumen"), (b) => ({
+    ...b,
+    datos: b.datos.map((r: Json, i: number) => {
+      const v = variedad[i % variedad.length]!;
+      const color = COLORES_DE_EJEMPLO[i % COLORES_DE_EJEMPLO.length];
+      return { ...r, inscripciones: r.inscripciones.map((x: Json) => ({ ...x, vertical: { ...x.vertical, color_marca: color } })), asistencia_30_dias: v.asistencia, cuenta: conCuenta ? v.cuenta : r.cuenta };
+    }),
+  }));
+}
+
+/** Tres píldoras de disciplina con color: la primera es la real (filtra de verdad); las otras dos solo se ven. */
+async function conDisciplinasDeColor(c: Contexto): Promise<void> {
+  await editarGet(c, esRuta("/api/verticales"), (b) => {
+    const base = b.datos[0];
+    return { ...b, datos: [0, 1, 2].map((i) => (i === 0 ? { ...base, color_marca: COLORES_DE_EJEMPLO[0], activo: true } : { ...base, id: `v-muestra-${i}`, nombre: `Disciplina ${i + 1}`, slug: `disciplina-${i + 1}`, color_marca: COLORES_DE_EJEMPLO[i], activo: true })) };
+  });
+}
+
+/** Las disciplinas del expediente armado (la real y las `v-muestra-N` de `conTrayectoriaCompleta`) con su color. */
+async function conColoresDeDisciplina(c: Contexto): Promise<void> {
+  await editarGet(c, esRuta("/api/verticales"), (b) => {
+    const base = b.datos[0];
+    const propias = b.datos.map((v: Json, i: number) => ({ ...v, color_marca: COLORES_DE_EJEMPLO[i % COLORES_DE_EJEMPLO.length] }));
+    const armadas = ["v-muestra-1", "v-muestra-2", "v-muestra-3"].map((id, i) => ({ ...base, id, nombre: `Disciplina ${i + 2}`, slug: id, color_marca: COLORES_DE_EJEMPLO[(i + 1) % COLORES_DE_EJEMPLO.length] }));
+    return { ...b, datos: [...propias, ...armadas] };
+  });
+}
+
+/** Dieciséis clases con pase de lista, la más reciente primero (como las manda la API): la mayoría presente, una justificada y las últimas tres faltas. */
+function clasesDeEjemplo(b: Json): Json {
+  const dias = ["2026-10-12", "2026-10-07", "2026-10-05", "2026-09-14", "2026-09-09", "2026-09-07", "2026-09-02", "2026-08-31", "2026-08-26", "2026-08-24", "2026-08-19", "2026-08-17", "2026-08-12", "2026-08-10", "2026-08-05", "2026-08-03"];
+  const marcas = ["falta", "falta", "falta", "presente", "presente", "falta", "presente", "presente", "presente", "falta", "presente", "presente", "justificada", "presente", "presente", "presente"];
+  return { ...b, datos: dias.map((fecha, i) => ({ id: `pase-${i}`, fecha, estatus: marcas[i], metodo: "manual", grupo_id: "g-muestra" })), paginacion: { ...b.paginacion, total: dias.length } };
+}
+
+/** Un alumno con otro estatus en el expediente (la píldora del encabezado). */
+const conEstatusDelAlumno = (estatus: "activo" | "congelado" | "baja"): ((b: Json) => Json) => (b) => ({ ...b, alumno: { ...b.alumno, estatus } });
+
 // ─── Escenas ─────────────────────────────────────────────────────────────────────────────────
 
 const esc = (e: Omit<Escena, "grupo">): Escena => ({ grupo: GRUPO, ...e });
 
 const escenasDeAlumnos: Escena[] = [
   // ═══ Alumnos (lista) ═══
-  esc({ id: "familia-alumnos-lista", rol: "recepcion", titulo: "Alumnos: buscador y lista con datos (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => irA(c, "/alumnos") }),
+  esc({ id: "familia-alumnos-lista", rol: "recepcion", titulo: "Alumnos: buscador y lista con datos (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos", fuentes: ALUMNOS_FUENTES, ir: (c) => irA(c, "/alumnos") }),
   esc({
     id: "familia-alumnos-lista-buscar-nombre",
     rol: "recepcion",
     titulo: "Alumnos: búsqueda por nombre con resultados («Hija»)",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Nombre o teléfono").fill("Hija");
@@ -257,7 +316,7 @@ const escenasDeAlumnos: Escena[] = [
     titulo: "Alumnos: búsqueda por el teléfono de un adulto de la familia",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Nombre o teléfono").fill("(55) 5503 0303");
@@ -271,7 +330,7 @@ const escenasDeAlumnos: Escena[] = [
     titulo: "Alumnos: búsqueda sin resultados («No hay alumnos que coincidan»)",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Nombre o teléfono").fill("Zzzzzz");
@@ -286,7 +345,7 @@ const escenasDeAlumnos: Escena[] = [
     titulo: "Alumnos: filtrada por estatus «Congelados»",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Estatus").selectOption("congelado");
@@ -299,22 +358,22 @@ const escenasDeAlumnos: Escena[] = [
     titulo: "Alumnos: filtrada por estatus «Bajas»",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Estatus").selectOption("baja");
       await esperarListo(c.page);
     },
   }),
-  esc({ id: "familia-alumnos-lista-vacio", rol: "recepcion", titulo: "Alumnos: lista vacía («No hay alumnos que coincidan»)", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conVacio(c, "/alumnos") }),
-  esc({ id: "familia-alumnos-lista-muchos", rol: "recepcion", titulo: "Alumnos: lista con muchos datos (veinte tarjetas)", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conMuchosDatos(c, "/alumnos", 3) }),
+  esc({ id: "familia-alumnos-lista-vacio", rol: "recepcion", titulo: "Alumnos: lista vacía («No hay alumnos que coincidan»)", tipo: "estado", ruta: "/alumnos", fuentes: ALUMNOS_FUENTES, ir: (c) => conVacio(c, "/alumnos") }),
+  esc({ id: "familia-alumnos-lista-muchos", rol: "recepcion", titulo: "Alumnos: lista con muchos datos (veinte tarjetas)", tipo: "estado", ruta: "/alumnos", fuentes: ALUMNOS_FUENTES, ir: (c) => conMuchosDatos(c, "/alumnos", 3) }),
   esc({
     id: "familia-alumnos-lista-paginacion",
     rol: "recepcion",
     titulo: "Alumnos: paginador «Página 2 de 4» (tras pulsar «Siguiente»)",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS, "web/src/ui/Paginador.tsx"],
+    fuentes: [...ALUMNOS_FUENTES, "web/src/ui/Paginador.tsx"],
     ir: async (c) => {
       await editarGet(c, esRuta("/api/alumnos"), conTotal(65));
       await irA(c, "/alumnos");
@@ -329,7 +388,7 @@ const escenasDeAlumnos: Escena[] = [
     titulo: "Alumnos: aviso «Hay más resultados de los que se pudieron revisar» (búsqueda por nombre incompleta)",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS, "web/src/ui/basicos.tsx"],
+    fuentes: [...ALUMNOS_FUENTES, "web/src/ui/basicos.tsx"],
     ir: async (c) => {
       await editarGet(c, esRuta("/api/alumnos"), conTotal(30, true));
       await irA(c, "/alumnos");
@@ -339,15 +398,15 @@ const escenasDeAlumnos: Escena[] = [
       await esperarListo(c.page);
     },
   }),
-  esc({ id: "familia-alumnos-lista-cargando", rol: "recepcion", titulo: "Alumnos: cargando", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conCargando(c, "/alumnos", "Alumnos") }),
-  esc({ id: "familia-alumnos-lista-error", rol: "recepcion", titulo: "Alumnos: error de carga con «Reintentar»", tipo: "estado", ruta: "/alumnos", fuentes: [ALUMNOS], ir: (c) => conError(c, "/alumnos") }),
+  esc({ id: "familia-alumnos-lista-cargando", rol: "recepcion", titulo: "Alumnos: cargando", tipo: "estado", ruta: "/alumnos", fuentes: ALUMNOS_FUENTES, ir: (c) => conCargando(c, "/alumnos", "Alumnos") }),
+  esc({ id: "familia-alumnos-lista-error", rol: "recepcion", titulo: "Alumnos: error de carga con «Reintentar»", tipo: "estado", ruta: "/alumnos", fuentes: ALUMNOS_FUENTES, ir: (c) => conError(c, "/alumnos") }),
   esc({
     id: "familia-alumnos-lista-sin-conexion",
     rol: "recepcion",
     titulo: "Alumnos: al buscar sin conexión («No hay conexión con el servidor»)",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Nombre o teléfono").fill("Hija");
@@ -362,14 +421,14 @@ const escenasDeAlumnos: Escena[] = [
 
 const escenasDeExpediente: Escena[] = [
   // ═══ Expediente (/alumnos/:id) ═══
-  esc({ id: "familia-expediente-trayectoria-recepcion", rol: "recepcion", titulo: "Expediente, «Trayectoria», con datos y las acciones sobre la inscripción (recepción)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => expediente(c) }),
+  esc({ id: "familia-expediente-trayectoria-recepcion", rol: "recepcion", titulo: "Expediente, «Trayectoria», con datos y las acciones sobre la inscripción (recepción)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => expediente(c) }),
   esc({
     id: "familia-expediente-trayectoria-asesor",
     rol: "asesor",
     titulo: "Expediente, «Trayectoria», con datos (asesor)",
     tipo: "pantalla",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: (c) => expediente(c),
   }),
   esc({
@@ -378,12 +437,12 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente, «Trayectoria», con datos y el botón «Salud» (administrador)",
     tipo: "pantalla",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: (c) => expediente(c, "Trayectoria", c.mundo.familia.salud.alumnoId),
   }),
-  esc({ id: "familia-expediente-economico", rol: "recepcion", titulo: "Expediente, «Económico»: mensualidad, cuenta (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => expediente(c, "Económico") }),
-  esc({ id: "familia-expediente-operativo", rol: "recepcion", titulo: "Expediente, «Operativo»: asistencia, eventos, productos (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => expediente(c, "Operativo") }),
-  esc({ id: "familia-expediente-comercial", rol: "recepcion", titulo: "Expediente, «Comercial»: cómo llegó, hermanos (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => expediente(c, "Comercial") }),
+  esc({ id: "familia-expediente-economico", rol: "recepcion", titulo: "Expediente, «Económico»: mensualidad, cuenta (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => expediente(c, "Económico") }),
+  esc({ id: "familia-expediente-asistencia", rol: "recepcion", titulo: "Expediente, «Asistencia»: porcentaje, últimas clases, eventos y productos (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => expediente(c, "Asistencia") }),
+  esc({ id: "familia-expediente-comercial", rol: "recepcion", titulo: "Expediente, «Comercial»: cómo llegó, hermanos (recepción, asesor y administrador)", tipo: "pantalla", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => expediente(c, "Comercial") }),
 
   // Con todo lo que puede haber (armado)
   esc({
@@ -392,7 +451,7 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente, «Trayectoria» con todo: inscripción activa, congelada y en baja, cambios de grupo, avance y próximo evento",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conTrayectoriaCompleta);
       await expediente(c);
@@ -404,7 +463,7 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente, «Económico» con promoción aplicada y beneficios pendientes",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conEconomicoCompleto);
       await expediente(c, "Económico");
@@ -416,34 +475,34 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente, «Económico» con «El estado de cuenta todavía no está disponible»",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conEconomicoSinCuenta);
       await expediente(c, "Económico");
     },
   }),
   esc({
-    id: "familia-expediente-operativo-completo",
+    id: "familia-expediente-asistencia-completa",
     rol: "recepcion",
-    titulo: "Expediente, «Operativo» con faltas en el umbral, eventos con resultado y productos comprados",
+    titulo: "Expediente, «Asistencia» con faltas en el umbral, eventos con resultado y productos comprados",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conOperativoCompleto);
-      await expediente(c, "Operativo");
+      await expediente(c, "Asistencia");
     },
   }),
   esc({
-    id: "familia-expediente-operativo-sin-datos",
+    id: "familia-expediente-asistencia-sin-datos",
     rol: "recepcion",
-    titulo: "Expediente, «Operativo» sin asistencia, sin eventos y con «No disponible todavía»",
+    titulo: "Expediente, «Asistencia» sin asistencia, sin eventos y con «No disponible todavía»",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conOperativoSinDatos);
-      await expediente(c, "Operativo");
+      await expediente(c, "Asistencia");
     },
   }),
   esc({
@@ -452,7 +511,7 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente, «Comercial» con campaña, hermanos inscritos y bajas",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conComercialCompleto);
       await expediente(c, "Comercial");
@@ -464,7 +523,7 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente con la inscripción congelada (la acción pasa a «Reactivar»)",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE, ACCIONES],
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conEstatus("congelada"));
       await expediente(c);
@@ -476,7 +535,7 @@ const escenasDeExpediente: Escena[] = [
     titulo: "Expediente con la inscripción en baja (sin acciones)",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE, ACCIONES],
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
     ir: async (c) => {
       await editarGet(c, termina("/expediente"), conEstatus("baja"));
       await expediente(c);
@@ -484,7 +543,7 @@ const escenasDeExpediente: Escena[] = [
   }),
 
   // Vacío, muchos datos, cargando y error de cada sección
-  ...(["Trayectoria", "Económico", "Operativo", "Comercial"] as const).flatMap((pestana): Escena[] => {
+  ...(["Trayectoria", "Asistencia", "Económico", "Comercial"] as const).flatMap((pestana): Escena[] => {
     const p = pestana.toLowerCase().replace("ó", "o");
     return [
       esc({
@@ -493,7 +552,7 @@ const escenasDeExpediente: Escena[] = [
         titulo: `Expediente, «${pestana}» sin nada que mostrar (listas vacías)`,
         tipo: "estado",
         ruta: "/alumnos/:id",
-        fuentes: [EXPEDIENTE],
+        fuentes: EXPEDIENTE_FUENTES,
         ir: async (c) => {
           await conVacio(c, rutaExpediente(mayor(c).alumnoId));
           if (pestana !== "Trayectoria") await abrirPestana(c, pestana);
@@ -505,18 +564,18 @@ const escenasDeExpediente: Escena[] = [
         titulo: `Expediente, «${pestana}» con muchos datos (listas repetidas)`,
         tipo: "estado",
         ruta: "/alumnos/:id",
-        fuentes: [EXPEDIENTE],
+        fuentes: EXPEDIENTE_FUENTES,
         ir: async (c) => {
-          await editarGet(c, termina("/expediente"), pestana === "Trayectoria" ? conTrayectoriaCompleta : pestana === "Económico" ? conEconomicoCompleto : pestana === "Operativo" ? conOperativoCompleto : conComercialCompleto);
+          await editarGet(c, termina("/expediente"), pestana === "Trayectoria" ? conTrayectoriaCompleta : pestana === "Económico" ? conEconomicoCompleto : pestana === "Asistencia" ? conOperativoCompleto : conComercialCompleto);
           await conMuchosDatos(c, rutaExpediente(mayor(c).alumnoId), 6);
           if (pestana !== "Trayectoria") await abrirPestana(c, pestana);
         },
       }),
     ];
   }),
-  esc({ id: "familia-expediente-cargando", rol: "recepcion", titulo: "Expediente: cargando", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conCargando(c, rutaExpediente(mayor(c).alumnoId), "Expediente") }),
-  esc({ id: "familia-expediente-error", rol: "recepcion", titulo: "Expediente: error de carga con «Reintentar»", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conError(c, rutaExpediente(mayor(c).alumnoId)) }),
-  esc({ id: "familia-expediente-no-encontrado", rol: "recepcion", titulo: "Expediente de un alumno que no existe (404)", tipo: "estado", ruta: "/alumnos/:id", fuentes: [EXPEDIENTE], ir: (c) => conError(c, rutaExpediente(mayor(c).alumnoId), 404) }),
+  esc({ id: "familia-expediente-cargando", rol: "recepcion", titulo: "Expediente: cargando", tipo: "estado", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => conCargando(c, rutaExpediente(mayor(c).alumnoId), "Expediente") }),
+  esc({ id: "familia-expediente-error", rol: "recepcion", titulo: "Expediente: error de carga con «Reintentar»", tipo: "estado", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => conError(c, rutaExpediente(mayor(c).alumnoId)) }),
+  esc({ id: "familia-expediente-no-encontrado", rol: "recepcion", titulo: "Expediente de un alumno que no existe (404)", tipo: "estado", ruta: "/alumnos/:id", fuentes: EXPEDIENTE_FUENTES, ir: (c) => conError(c, rutaExpediente(mayor(c).alumnoId), 404) }),
 ];
 
 // ═══ Cuadros de las acciones sobre la inscripción (no escriben) ═══
@@ -544,7 +603,7 @@ const escenasDeAcciones: Escena[] = [
     ir: async (c) => {
       await expediente(c);
       await abrirAccion(c, "Cambiar de grupo");
-      await dialogo(c).getByLabel("Grupo nuevo").selectOption(c.mundo.familia.grupoDeUnLugar.id);
+      await elegirGrupo(c, c.mundo.familia.grupoDeUnLugar.nombre);
       await esperarListo(c.page);
     },
   }),
@@ -560,7 +619,6 @@ const escenasDeAcciones: Escena[] = [
       await editarGet(c, esRuta("/api/reportes/ocupacion"), (b) => ({ ...b, datos: b.datos.map((f: Json) => (f.grupo.id === lleno ? { ...f, ocupados: f.cupo_maximo } : f)) }));
       await expediente(c);
       await abrirAccion(c, "Cambiar de grupo");
-      await mostrarOpciones(c, "Grupo nuevo");
     },
   }),
   esc({
@@ -615,7 +673,7 @@ const escenasDeAcciones: Escena[] = [
     ir: async (c) => {
       await expediente(c);
       await abrirAccion(c, "Cambiar de grupo");
-      await dialogo(c).getByLabel("Grupo nuevo").selectOption(c.mundo.familia.grupoDeUnLugar.id);
+      await elegirGrupo(c, c.mundo.familia.grupoDeUnLugar.nombre);
       await rechazo(c, "El grupo ya no tiene lugares: no se cambió nada");
       await dialogo(c).getByRole("button", { name: "Confirmar el cambio" }).click();
       await dialogo(c).getByTestId("error-de-guardado").waitFor();
@@ -632,7 +690,7 @@ const escenasDeAcciones: Escena[] = [
     ir: async (c) => {
       await expediente(c);
       await abrirAccion(c, "Cambiar de grupo");
-      await dialogo(c).getByLabel("Grupo nuevo").selectOption(c.mundo.familia.grupoDestino.id);
+      await elegirGrupo(c, c.mundo.familia.grupoDestino.nombre);
       await cortarLaRed(c);
       await dialogo(c).getByRole("button", { name: "Confirmar el cambio" }).click();
       await dialogo(c).getByText("No hay conexión con el servidor").first().waitFor();
@@ -726,7 +784,7 @@ const escenasDeAcciones: Escena[] = [
     ir: async (c) => {
       await expediente(c);
       await abrirAccion(c, "Dar de baja");
-      await dialogo(c).getByLabel(/Motivo de la baja/).selectOption(c.mundo.familia.motivoBaja.id);
+      await elegirMotivo(c);
       await esperarListo(c.page);
     },
   }),
@@ -741,7 +799,6 @@ const escenasDeAcciones: Escena[] = [
       await editarGet(c, esRuta("/api/motivos-baja"), (b) => ({ ...b, datos: [] }));
       await expediente(c);
       await abrirAccion(c, "Dar de baja");
-      await mostrarOpciones(c, /Motivo de la baja/);
     },
   }),
   esc({
@@ -783,7 +840,7 @@ const escenasDeAcciones: Escena[] = [
     ir: async (c) => {
       await expediente(c);
       await abrirAccion(c, "Dar de baja");
-      await dialogo(c).getByLabel(/Motivo de la baja/).selectOption(c.mundo.familia.motivoBaja.id);
+      await elegirMotivo(c);
       await rechazo(c, "La inscripción ya está dada de baja");
       await dialogo(c).getByRole("button", { name: "Dar de baja", exact: true }).click();
       await dialogo(c).getByTestId("error-de-guardado").waitFor();
@@ -800,7 +857,7 @@ const escenasDeAcciones: Escena[] = [
     ir: async (c) => {
       await expediente(c);
       await abrirAccion(c, "Dar de baja");
-      await dialogo(c).getByLabel(/Motivo de la baja/).selectOption(c.mundo.familia.motivoBaja.id);
+      await elegirMotivo(c);
       await cortarLaRed(c);
       await dialogo(c).getByRole("button", { name: "Dar de baja", exact: true }).click();
       await dialogo(c).getByText("No hay conexión con el servidor").first().waitFor();
@@ -909,7 +966,6 @@ const escenasDeFamilias: Escena[] = [
     ir: async (c) => {
       await irA(c, "/familias");
       await c.page.getByLabel("Teléfono o nombre de la familia").fill("(55) 5503 0303");
-      await c.page.getByRole("button", { name: "Buscar" }).click();
       await c.page.getByTestId(`familia-${rivera(c).tutorId}`).waitFor();
       await esperarListo(c.page);
     },
@@ -924,7 +980,6 @@ const escenasDeFamilias: Escena[] = [
     ir: async (c) => {
       await irA(c, "/familias");
       await c.page.getByLabel("Teléfono o nombre de la familia").fill("Rivera");
-      await c.page.getByRole("button", { name: "Buscar" }).click();
       await c.page.getByTestId(`familia-${rivera(c).tutorId}`).waitFor();
       await esperarListo(c.page);
     },
@@ -939,7 +994,6 @@ const escenasDeFamilias: Escena[] = [
     ir: async (c) => {
       await irA(c, "/familias");
       await c.page.getByLabel("Teléfono o nombre de la familia").fill("Zzzzzz");
-      await c.page.getByRole("button", { name: "Buscar" }).click();
       await c.page.getByText("No encontré a esa familia").waitFor();
       await esperarListo(c.page);
     },
@@ -972,7 +1026,6 @@ const escenasDeFamilias: Escena[] = [
       await editarGet(c, esRuta("/api/tutores"), conTotal(30, true));
       await irA(c, "/familias");
       await c.page.getByLabel("Teléfono o nombre de la familia").fill("Ri");
-      await c.page.getByRole("button", { name: "Buscar" }).click();
       await c.page.getByText("Hay más resultados de los que se pudieron revisar").waitFor();
       await esperarListo(c.page);
     },
@@ -988,9 +1041,8 @@ const escenasDeFamilias: Escena[] = [
     fuentes: [FAMILIAS],
     ir: async (c) => {
       await irA(c, "/familias");
-      await c.page.getByLabel("Teléfono o nombre de la familia").fill("Rivera");
       await cortarLaRed(c);
-      await c.page.getByRole("button", { name: "Buscar" }).click();
+      await c.page.getByLabel("Teléfono o nombre de la familia").fill("Rivera");
       await c.page.getByText("No hay conexión con el servidor").first().waitFor();
       await c.page.context().setOffline(false);
       await esperarListo(c.page);
@@ -1082,7 +1134,7 @@ const escenasDeFicha: Escena[] = [
     ir: async (c) => {
       await colgar(c, termina("/estado-cuenta"));
       await c.page.goto(rutaFicha(c));
-      await c.page.getByRole("heading", { name: /^Familia/ }).waitFor();
+      await c.page.getByRole("heading", { level: 1 }).waitFor();
       await c.page.getByText("Cargando…").waitFor();
       await c.page.waitForTimeout(150);
     },
@@ -1119,7 +1171,7 @@ const escenasQueEnvian: Escena[] = [
     titulo: "Expediente tras congelar de verdad la inscripción (escritorio: hijo mayor; celular: hijo menor): «Congelada» y la acción «Reactivar»",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE, ACCIONES],
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
     ir: async (c) => {
       await irA(c, rutaExpediente(cadena(c).alumnoId));
       await abrirAccion(c, "Congelar", cadena(c));
@@ -1145,7 +1197,7 @@ const escenasQueEnvian: Escena[] = [
     titulo: "Expediente tras reactivar de verdad la inscripción: vuelve a «Activa»",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE, ACCIONES],
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
     ir: async (c) => {
       await irA(c, rutaExpediente(cadena(c).alumnoId));
       await abrirAccion(c, "Reactivar", cadena(c));
@@ -1159,11 +1211,11 @@ const escenasQueEnvian: Escena[] = [
     titulo: "Expediente tras cambiar de verdad de grupo (al grupo con lugares de sobra): el grupo nuevo y «Cambios de grupo»",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE, ACCIONES],
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
     ir: async (c) => {
       await irA(c, rutaExpediente(cadena(c).alumnoId));
       await abrirAccion(c, "Cambiar de grupo", cadena(c));
-      await dialogo(c).getByLabel("Grupo nuevo").selectOption(c.mundo.familia.grupoDestino.id);
+      await elegirGrupo(c, c.mundo.familia.grupoDestino.nombre);
       await dialogo(c).getByRole("button", { name: "Confirmar el cambio" }).click();
       await c.page.getByTestId("historial-de-grupo").waitFor();
       await esperarListo(c.page);
@@ -1175,11 +1227,11 @@ const escenasQueEnvian: Escena[] = [
     titulo: "Expediente tras dar de baja de verdad la inscripción: «Baja», sin acciones y el alumno en baja",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE, ACCIONES],
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
     ir: async (c) => {
       await irA(c, rutaExpediente(cadena(c).alumnoId));
       await abrirAccion(c, "Dar de baja", cadena(c));
-      await dialogo(c).getByLabel(/Motivo de la baja/).selectOption(c.mundo.familia.motivoBaja.id);
+      await elegirMotivo(c);
       await dialogo(c).getByRole("button", { name: "Dar de baja", exact: true }).click();
       await esperarEstatusDeLaInscripcion(c, "Baja");
     },
@@ -1190,7 +1242,7 @@ const escenasQueEnvian: Escena[] = [
     titulo: "Expediente, «Comercial», con la tarjeta «Bajas» y el motivo de la baja que se acaba de dar",
     tipo: "estado",
     ruta: "/alumnos/:id",
-    fuentes: [EXPEDIENTE],
+    fuentes: EXPEDIENTE_FUENTES,
     ir: (c) => expediente(c, "Comercial", cadena(c).alumnoId),
   }),
   esc({
@@ -1208,7 +1260,7 @@ const escenasQueEnvian: Escena[] = [
     titulo: "Alumnos filtrada por «Bajas», con los dos hijos que se dieron de baja",
     tipo: "estado",
     ruta: "/alumnos",
-    fuentes: [ALUMNOS],
+    fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
       await irA(c, "/alumnos");
       await c.page.getByLabel("Estatus").selectOption("baja");
@@ -1217,4 +1269,269 @@ const escenasQueEnvian: Escena[] = [
   }),
 ];
 
-export const ESCENAS: Escena[] = [...escenasDeAlumnos, ...escenasDeExpediente, ...escenasDeAcciones, ...escenasDeSalud, ...escenasDeFamilias, ...escenasDeFicha, ...escenasQueEnvian];
+// ─── R6a: «Alumnos» con tarjetas de disciplina y el expediente con encabezado de color, línea de tiempo, últimas clases y salud en su pestaña ───
+
+const escenasDeAlumnosR6a: Escena[] = [
+  esc({
+    id: "familia-alumnos-lista-disciplinas",
+    rol: "recepcion",
+    titulo: "Alumnos: tarjetas con el grupo en el color de su disciplina, la sucursal, la asistencia (en ámbar si es baja) y la situación de la cuenta; píldoras de disciplina",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await conDisciplinasDeColor(c);
+      await conResumenVariado(c);
+      await irA(c, "/alumnos");
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-filtro-disciplina",
+    rol: "recepcion",
+    titulo: "Alumnos: filtrada por una disciplina (la píldora activa va en oscuro y la lista es solo de esa disciplina)",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await conDisciplinasDeColor(c);
+      await conResumenVariado(c);
+      await irA(c, "/alumnos");
+      await c.page.getByRole("group", { name: "Disciplina" }).getByRole("button").nth(1).click();
+      await esperarListo(c.page);
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-solo-atencion",
+    rol: "recepcion",
+    titulo: "Alumnos: «Solo con atraso o faltas» marcado (con vencido o con asistencia baja, de la página que se ve)",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await conDisciplinasDeColor(c);
+      await conResumenVariado(c);
+      await irA(c, "/alumnos");
+      await c.page.getByLabel("Solo con atraso o faltas").check();
+      await esperarListo(c.page);
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-solo-atencion-vacio",
+    rol: "recepcion",
+    titulo: "Alumnos: «Solo con atraso o faltas» y nadie lo cumple («No hay alumnos que coincidan»)",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await conResumenVariado(c, [{ asistencia: 100, cuenta: "al_corriente" }]);
+      await irA(c, "/alumnos");
+      await c.page.getByLabel("Solo con atraso o faltas").check();
+      await c.page.getByText("No hay alumnos que coincidan").waitFor();
+      await esperarListo(c.page);
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-sin-resumen",
+    rol: "recepcion",
+    titulo: "Alumnos: el resumen no se pudo leer (las tarjetas dicen solo nombre, edad y familia)",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await romper(c, esRuta("/api/alumnos/resumen"));
+      await irA(c, "/alumnos");
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-sin-inscripcion",
+    rol: "recepcion",
+    titulo: "Alumnos: un alumno sin inscripción vigente («Sin grupo vigente», sin asistencia ni cuenta)",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await editarGet(c, esRuta("/api/alumnos/resumen"), (b) => ({ ...b, datos: b.datos.map((r: Json) => ({ ...r, inscripciones: [], asistencia_30_dias: null, cuenta: null })) }));
+      await irA(c, "/alumnos");
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-foco-tarjeta",
+    rol: "recepcion",
+    titulo: "Alumnos: el foco del teclado en la primera tarjeta (el anillo rodea toda la tarjeta)",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await conResumenVariado(c);
+      await irA(c, "/alumnos");
+      await c.page.keyboard.press("Tab");
+      await c.page.getByTestId("lista-de-alumnos").getByRole("link").first().focus();
+      await c.page.waitForTimeout(150);
+    },
+  }),
+  esc({
+    id: "familia-alumnos-lista-maestro-tarjetas",
+    rol: "maestro",
+    titulo: "Alumnos (maestro): tarjetas con disciplina y asistencia, sin la situación de la cuenta ni datos de la familia",
+    tipo: "estado",
+    ruta: "/alumnos",
+    fuentes: ALUMNOS_FUENTES,
+    ir: async (c) => {
+      await conDisciplinasDeColor(c);
+      await conResumenVariado(c, VARIEDAD, false);
+      await irA(c, "/alumnos");
+    },
+  }),
+];
+
+const escenasDeExpedienteR6a: Escena[] = [
+  esc({
+    id: "familia-expediente-trayectoria-colores",
+    rol: "recepcion",
+    titulo: "Expediente, «Trayectoria» con el color de cada disciplina: banda y avatar del encabezado y la barra del avance hacia el próximo evento",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await conColoresDeDisciplina(c);
+      await editarGet(c, termina("/expediente"), conTrayectoriaCompleta);
+      await expediente(c);
+    },
+  }),
+  esc({
+    id: "familia-expediente-sin-inscripciones",
+    rol: "recepcion",
+    titulo: "Expediente de un alumno sin inscripciones: encabezado neutro («Sin grupo vigente») y la trayectoria vacía",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await editarGet(c, termina("/expediente"), (b) => ({ ...b, trayectoria: { ...b.trayectoria, fecha_de_inicio: null, antiguedad: null, grupo_actual: null, inscripciones: [], historial_de_cambios_de_grupo: [], niveles: [], proximo_examen: [] } }));
+      await expediente(c);
+    },
+  }),
+  esc({
+    id: "familia-expediente-alumno-congelado",
+    rol: "recepcion",
+    titulo: "Expediente de un alumno congelado: la píldora «Congelado» y la acción de la inscripción pasa a «Reactivar»",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
+    ir: async (c) => {
+      await editarGet(c, termina("/expediente"), (b) => conEstatusDelAlumno("congelado")(conEstatus("congelada")(b)));
+      await expediente(c);
+    },
+  }),
+  esc({
+    id: "familia-expediente-alumno-baja",
+    rol: "recepcion",
+    titulo: "Expediente de un alumno dado de baja: la píldora «Baja desde el …», sin acciones y con el hito de la baja en la trayectoria",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: [...EXPEDIENTE_FUENTES, ACCIONES],
+    ir: async (c) => {
+      await editarGet(c, termina("/expediente"), (b) => conEstatusDelAlumno("baja")(conEstatus("baja")(b)));
+      await expediente(c);
+    },
+  }),
+  esc({
+    id: "familia-expediente-asistencia-clases",
+    rol: "recepcion",
+    titulo: "Expediente, «Asistencia» con las últimas 16 clases (presente, falta y justificada con texto) y el aviso de tres faltas seguidas",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await editarGet(c, termina("/expediente"), conOperativoCompleto);
+      await editarGet(c, termina("/asistencia"), clasesDeEjemplo);
+      await expediente(c, "Asistencia");
+    },
+  }),
+  esc({
+    id: "familia-expediente-asistencia-clases-vacio",
+    rol: "recepcion",
+    titulo: "Expediente, «Asistencia» sin clases con pase de lista («Todavía no hay clases con pase de lista»)",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await editarGet(c, termina("/asistencia"), (b) => ({ ...b, datos: [], paginacion: { ...b.paginacion, total: 0 } }));
+      await expediente(c, "Asistencia");
+    },
+  }),
+  esc({
+    id: "familia-expediente-asistencia-clases-cargando",
+    rol: "recepcion",
+    titulo: "Expediente, «Asistencia» mientras llegan las últimas clases («Cargando las últimas clases…»)",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await colgar(c, termina("/asistencia"));
+      await expediente(c, "Asistencia");
+      await c.page.getByText("Cargando las últimas clases…").waitFor();
+    },
+  }),
+  esc({
+    id: "familia-expediente-asistencia-clases-error",
+    rol: "recepcion",
+    titulo: "Expediente, «Asistencia» cuando no se pudieron leer las clases (el panel sigue con lo del expediente, sin la rejilla)",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await romper(c, termina("/asistencia"));
+      await expediente(c, "Asistencia");
+    },
+  }),
+  esc({
+    id: "familia-expediente-economico-vencido",
+    rol: "recepcion",
+    titulo: "Expediente, «Económico» con lo vencido en ámbar, el saldo, la mensualidad con su precio congelado y el responsable de pago",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: async (c) => {
+      await editarGet(c, termina("/expediente"), (b) => {
+        if (b.economico) b.economico.estado_de_cuenta = { disponible: true, saldo: "1300.00", vencido: "650.00", antiguedadCarteraVencidaDias: 12 };
+        return b;
+      });
+      await expediente(c, "Económico");
+    },
+  }),
+  esc({
+    id: "familia-expediente-salud-pestana",
+    rol: "administrador",
+    titulo: "Expediente, pestaña «Salud»: se pide el motivo de la consulta antes de leer nada",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: [...EXPEDIENTE_FUENTES, VISTA_SALUD],
+    ir: (c) => expediente(c, "Salud", c.mundo.familia.salud.alumnoId),
+  }),
+  esc({
+    id: "familia-expediente-salud-pestana-ficha",
+    rol: "administrador",
+    titulo: "Expediente, pestaña «Salud» con la ficha vista y la cuenta atrás «Se ocultan en … s»",
+    tipo: "estado",
+    ruta: "/alumnos/:id",
+    fuentes: [...EXPEDIENTE_FUENTES, VISTA_SALUD],
+    ir: async (c) => {
+      await expediente(c, "Salud", c.mundo.familia.salud.alumnoId);
+      await c.page.getByLabel(/Motivo de la consulta/).fill("Llamada de la familia");
+      await c.page.getByRole("button", { name: "Ver datos de salud" }).click();
+      await c.page.getByTestId("ficha-de-salud").waitFor();
+      await esperarListo(c.page);
+    },
+  }),
+  esc({
+    id: "familia-expediente-maestro",
+    rol: "maestro",
+    titulo: "Expediente (maestro): Trayectoria, Asistencia y Salud, sin importes ni «Económico» ni «Comercial», y sin acciones sobre la inscripción",
+    tipo: "pantalla",
+    ruta: "/alumnos/:id",
+    fuentes: EXPEDIENTE_FUENTES,
+    ir: (c) => expediente(c, "Trayectoria", c.mundo.familia.salud.alumnoId),
+  }),
+];
+
+export const ESCENAS: Escena[] = [...escenasDeAlumnos, ...escenasDeAlumnosR6a, ...escenasDeExpediente, ...escenasDeExpedienteR6a, ...escenasDeAcciones, ...escenasDeSalud, ...escenasDeFamilias, ...escenasDeFicha, ...escenasQueEnvian];

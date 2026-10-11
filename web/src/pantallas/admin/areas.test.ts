@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import { coincide } from "../../lib/texto.ts";
-import { filtrarAreas, GRUPOS_DE_ADMINISTRACION } from "./areas.ts";
+import { areasDelMenu, filtrarAreas, GRUPOS_DE_ADMINISTRACION } from "./areas.ts";
 
 const APP = readFileSync(resolve(import.meta.dirname, "../../app.tsx"), "utf8");
 const RUTAS = new Set([...APP.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]));
@@ -37,4 +37,14 @@ test("el buscador solo muestra lo que el rol puede administrar y no deja grupos 
   assert.deepEqual(soloUsuarios.map((g) => g.titulo), ["Mensajería y usuarios"]);
   assert.deepEqual(soloUsuarios[0]!.areas.map((a) => a.ruta), ["/admin/usuarios"]);
   assert.deepEqual(filtrarAreas(GRUPOS_DE_ADMINISTRACION, "", () => false, coincide), []);
+});
+
+test("el menú de áreas del patrón de catálogo trae solo las que lo usan, por permisos y sin grupos vacíos", () => {
+  const todas = areasDelMenu(GRUPOS_DE_ADMINISTRACION, todo);
+  assert.deepEqual(todas.map((g) => g.titulo), ["Catálogo", "Canales y organización"]);
+  const rutas = todas.flatMap((g) => g.areas.map((a) => a.ruta));
+  for (const r of ["/admin/verticales", "/admin/sucursales", "/admin/programas", "/admin/grupos", "/admin/instructores", "/admin/etapas", "/admin/motivos"]) assert.ok(rutas.includes(r), r);
+  for (const r of ["/admin/catalogo", "/admin/precios", "/admin/promociones", "/admin/plantillas", "/admin/usuarios", "/admin/modulos", "/admin/configuracion", "/admin/textos", "/admin/automatizaciones", "/admin/bandeja"]) assert.ok(!rutas.includes(r), `${r} no usa el patrón`);
+  assert.deepEqual(areasDelMenu(GRUPOS_DE_ADMINISTRACION, () => false), []);
+  assert.deepEqual(areasDelMenu(GRUPOS_DE_ADMINISTRACION, (p) => p === "usuarios:administrar").flatMap((g) => g.areas.map((a) => a.ruta)), []);
 });

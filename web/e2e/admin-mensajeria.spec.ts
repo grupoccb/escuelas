@@ -82,12 +82,13 @@ test.describe("administrador", () => {
     await page.goto("/admin/automatizaciones");
     const tarjeta = page.getByTestId(`automatizacion-${automatizaciones.recordatorio.id}`);
     await expect(tarjeta).toContainText("1 día antes");
-    await expect(tarjeta).toContainText("Encendida");
-    await tarjeta.getByRole("button", { name: "Apagar" }).click();
-    await expect(tarjeta).toContainText("Apagada");
+    // R7b: el estado lo dice el interruptor (rol «switch»; su nombre es la acción que hará: «Apagar …» / «Encender …»).
+    await expect(tarjeta.getByRole("switch", { name: /^Apagar / })).toBeChecked();
+    await tarjeta.getByRole("switch", { name: /^Apagar / }).click();
+    await expect(tarjeta.getByRole("switch", { name: /^Encender / })).not.toBeChecked();
     expect((await json<{ activo: boolean }[] | { datos: { id: string; activo: boolean }[] }>(admin, "/api/automatizaciones?limite=50") as { datos: { id: string; activo: boolean }[] }).datos.find((a) => a.id === automatizaciones.recordatorio.id)?.activo).toBe(false);
-    await tarjeta.getByRole("button", { name: "Encender" }).click();
-    await expect(tarjeta).toContainText("Encendida");
+    await tarjeta.getByRole("switch", { name: /^Encender / }).click();
+    await expect(tarjeta.getByRole("switch", { name: /^Apagar / })).toBeChecked();
 
     await tarjeta.getByRole("button", { name: "Ajustar" }).click();
     const d = dialogo(page);

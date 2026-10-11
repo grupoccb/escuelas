@@ -161,7 +161,7 @@ test.describe("ESCRITORIO: el administrador carga un catálogo", () => {
     await page.goto("/admin");
     await page.getByRole("link", { name: "Cargar catálogo" }).click();
     await expect(page.getByRole("heading", { name: "Cargar catálogo" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "1. Descarga las plantillas" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Descarga las plantillas y llénalas" })).toBeVisible();
     const [descarga] = await Promise.all([page.waitForEvent("download"), page.getByTestId("descarga-todas").click()]);
     expect(descarga.suggestedFilename()).toBe("plantillas-catalogo.zip");
     await page.getByText("Descargar una por una").click();

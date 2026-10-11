@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, BotonDeIcono, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, useAlternarActivo } from "./patron.tsx";
 import type { CanalAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 /** Cómo califica Meta al número (lo dice el proveedor; aquí solo se lee). */
@@ -124,38 +125,64 @@ export default function Canales() {
   const [bajaBandeja, setBajaBandeja] = useState<CanalAdmin | null>(null);
   const nombreV = (id: string) => verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—";
   const nombreS = (id: string | null) => (id ? (sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—") : "Todas");
+  const colorV = (id: string) => verticales.datos?.datos.find((v) => v.id === id)?.color_marca ?? null;
+  const cambiarActivo = useAlternarActivo(lista.recargar);
   return (
-    <Pagina titulo="Canales de WhatsApp" subtitulo="A qué número escribe cada disciplina y en qué bandeja la atiende el asesor." acciones={<><Regreso /><Boton variante="primario" onClick={edCanal.nuevo}>Nuevo canal</Boton></>}>
-      <Aviso>Las claves de acceso de Twilio y de Chatwoot no se capturan en esta pantalla: las pone quien instala el sistema. Aquí solo dices qué número es de cada disciplina y en qué bandeja lo atiende el asesor.</Aviso>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay canales">Da de alta el primero con «Nuevo canal».</Vacio></div> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-canales">
-        {(lista.datos?.datos ?? []).map((c) => (
-          <li key={c.id} className="item-admin" data-prueba={`canal-${c.id}`}>
-            <div className="item-admin-principal">
-              <strong className="item-admin-nombre">{c.nombre_publico}</strong>
-              <p className="item-admin-meta">
-                {nombreV(c.vertical_id)} · sucursal: {nombreS(c.sucursal_id)} · <span className="numero">{c.numero_whatsapp ?? "sin número"}</span>
-              </p>
-            </div>
-            <div className="item-admin-etiquetas">
-              <Insignia tono={c.activo ? "exito" : "neutro"}>{c.activo ? "Activo" : "Inactivo"}</Insignia>
-              <Insignia>Calidad del número: {CALIDAD[c.calidad_meta] ?? c.calidad_meta}</Insignia>
-            </div>
-            <div className="item-admin-acciones">
-              <BotonDeIcono icono="lapiz" nombre="Editar canal" onClick={() => edCanal.editar(c)} />
-              <BotonDeIcono icono="chatwoot" nombre={c.bandeja ? "Editar bandeja" : "Agregar bandeja"} onClick={() => setConBandeja(c)} />
-              {c.bandeja ? <BotonDeIcono icono="cerrar" nombre="Quitar bandeja" peligro onClick={() => setBajaBandeja(c)} /> : null}
-              <BotonDeIcono icono="papelera" nombre="Dar de baja" peligro onClick={() => setBajaCanal(c)} />
-            </div>
-            <p className="item-admin-detalle item-admin-bandeja">
-              <Icono nombre="chatwoot" tamano={16} />
-              <span>{c.bandeja ? `Bandeja: ${c.bandeja.nombre}${c.bandeja.chatwoot_inbox_id ? ` (cuenta ${c.bandeja.chatwoot_account_id ?? "?"}, bandeja ${c.bandeja.chatwoot_inbox_id})` : ""}` : "Sin bandeja de Chatwoot"}</span>
-            </p>
-          </li>
-        ))}
-      </ul>
+    <PaginaDeCatalogo
+      titulo="Canales de WhatsApp"
+      ayuda="Números y bandejas de Chatwoot. Cada número contesta a las familias de su disciplina y de su sucursal."
+      nota="Las claves de acceso de Twilio y de Chatwoot no se capturan en esta pantalla: las pone quien instala el sistema. Aquí solo dices qué número es de cada disciplina y en qué bandeja lo atiende el asesor."
+    >
+      <ListaDeCatalogo titulo="Canales" cuenta={lista.datos?.datos.length} nuevo="Nuevo canal" alNuevo={edCanal.nuevo}>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay canales">Da de alta el primero con «Nuevo canal».</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-canales">
+          {(lista.datos?.datos ?? []).map((c) => (
+            <FilaDeCatalogo
+              key={c.id}
+              data-prueba={`canal-${c.id}`}
+              color={colorV(c.vertical_id)}
+              inactiva={!c.activo}
+              titulo={c.nombre_publico}
+              etiquetas={
+                <>
+                  {c.activo ? null : <Insignia>Inactivo</Insignia>}
+                  <Insignia>Calidad del número: {CALIDAD[c.calidad_meta] ?? c.calidad_meta}</Insignia>
+                </>
+              }
+              detalle={
+                <>
+                  {nombreV(c.vertical_id)} · sucursal: {nombreS(c.sucursal_id)} · <span className="numero">{c.numero_whatsapp ?? "sin número"}</span>
+                </>
+              }
+              extra={
+                <p className="item-admin-detalle item-admin-bandeja">
+                  <Icono nombre="chatwoot" tamano={16} />
+                  <span>{c.bandeja ? `Bandeja: ${c.bandeja.nombre}${c.bandeja.chatwoot_inbox_id ? ` (cuenta ${c.bandeja.chatwoot_account_id ?? "?"}, bandeja ${c.bandeja.chatwoot_inbox_id})` : ""}` : "Sin bandeja de Chatwoot"}</span>
+                </p>
+              }
+              acciones={
+                <AccionesDeTarjeta
+                  nombreEditar="Editar canal"
+                  extra={
+                    <>
+                      <BotonDeIcono icono="chatwoot" nombre={c.bandeja ? "Editar bandeja" : "Agregar bandeja"} onClick={() => setConBandeja(c)} />
+                      {c.bandeja ? <BotonDeIcono icono="cerrar" nombre="Quitar bandeja" peligro onClick={() => setBajaBandeja(c)} /> : null}
+                    </>
+                  }
+                  alEditar={() => edCanal.editar(c)}
+                  activo={c.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/canales-whatsapp/${c.id}`, c.activo, { desactivada: `El canal «${c.nombre_publico}» quedó desactivado.`, activada: `El canal «${c.nombre_publico}» quedó activo otra vez.` })}
+                  alDarDeBaja={() => setBajaCanal(c)}
+                />
+              }
+            />
+          ))}
+        </ul>
+      </ListaDeCatalogo>
       <Dialogo abierto={edCanal.actual !== null} titulo={edCanal.actual === "nuevo" ? "Nuevo canal" : "Editar canal"} alCerrar={edCanal.cerrar}>
         {edCanal.actual !== null ? <FormularioCanal canal={edCanal.actual === "nuevo" ? null : edCanal.actual} verticales={verticales.datos?.datos ?? []} sucursales={sucursales.datos?.datos ?? []} alGuardar={(nombre) => { edCanal.cerrar(); lista.recargar(); avisar(`El canal «${nombre}» se guardó.`); }} alCerrar={edCanal.cerrar} /> : null}
       </Dialogo>
@@ -168,6 +195,6 @@ export default function Canales() {
       <ConfirmarAccion abierto={bajaBandeja !== null} titulo="Quitar la bandeja" textoDeConfirmar="Quitar" alCerrar={() => setBajaBandeja(null)} alConfirmar={async () => { await api.delete(`/api/bandejas-chatwoot/${bajaBandeja!.bandeja!.id}`); lista.recargar(); avisar("La bandeja se quitó del canal."); }}>
         <Aviso tono="alerta">Sin bandeja, los mensajes de este número ya no llegan a los asesores. Si la bandeja ya tiene conversaciones, el sistema no la dejará quitar.</Aviso>
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

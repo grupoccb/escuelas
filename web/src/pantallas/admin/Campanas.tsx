@@ -5,12 +5,13 @@
 import { useState } from "react";
 import { api, armarConsulta, type Pagina as Pag } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Vacio } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import type { CampanaAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 /** Dónde se anuncia (los valores son los del servidor; el texto es el de la escuela). */
@@ -129,45 +130,44 @@ export default function Campanas() {
   const [baja, setBaja] = useState<CampanaAdmin | null>(null);
   const nombreV = (id: string | null) => (id ? (verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—") : "Todas las disciplinas");
   const nombreS = (id: string | null) => (id ? (sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—") : "todas las sucursales");
+  const colorV = (id: string | null) => (id ? (verticales.datos?.datos.find((v) => v.id === id)?.color_marca ?? null) : null);
+  const cambiarActivo = useAlternarActivo(lista.recargar);
   return (
-    <Pagina
-      titulo="Campañas y códigos QR"
-      subtitulo="Dónde anuncia la escuela. Cada campaña tiene su QR para imprimir: así sabes de dónde llega cada familia y cuánto cuesta."
-      acciones={
-        <>
-          <Regreso />
-          <Boton variante="primario" onClick={edicion.nuevo}>
-            Nueva campaña
-          </Boton>
-        </>
-      }
-    >
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay campañas">Da de alta la primera con «Nueva campaña»: un anuncio, un volante o el letrero de una sucursal.</Vacio></div> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-campanas">
-        {(lista.datos?.datos ?? []).map((c) => (
-          <li key={c.id} className="item-admin" data-prueba={`campana-${c.id}`}>
-            <div className="item-admin-principal">
-              <strong className="item-admin-nombre">{c.nombre}</strong>
-              <p className="item-admin-meta">
-                {nombreDeOrigen(c.origen)} · {nombreV(c.vertical_id)} · {nombreS(c.sucursal_id)}
-              </p>
-            </div>
-            <div className="item-admin-etiquetas">
-              <Insignia tono={c.activo ? "exito" : "neutro"}>{c.activo ? "Activa" : "Inactiva"}</Insignia>
-            </div>
-            <div className="item-admin-acciones">
-              <Boton variante="sutil" onClick={() => setConQr(c)}>
-                <Icono nombre="qr" tamano={18} />
-                Código QR
-              </Boton>
-              <BotonDeIcono icono="lapiz" nombre="Editar" onClick={() => edicion.editar(c)} />
-              <BotonDeIcono icono="papelera" nombre="Dar de baja" peligro onClick={() => setBaja(c)} />
-            </div>
-          </li>
-        ))}
-      </ul>
+    <PaginaDeCatalogo titulo="Campañas y códigos QR" ayuda="Dónde anuncias y el QR para imprimir: así sabes de dónde llega cada familia y cuánto cuesta cada alumno.">
+      <ListaDeCatalogo titulo="Campañas" cuenta={lista.datos?.datos.length} nuevo="Nueva campaña" alNuevo={edicion.nuevo}>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay campañas">Da de alta la primera con «Nueva campaña»: un anuncio, un volante o el letrero de una sucursal.</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-campanas">
+          {(lista.datos?.datos ?? []).map((c) => (
+            <FilaDeCatalogo
+              key={c.id}
+              data-prueba={`campana-${c.id}`}
+              color={colorV(c.vertical_id)}
+              inactiva={!c.activo}
+              titulo={c.nombre}
+              etiquetas={c.activo ? null : <Insignia>Inactiva</Insignia>}
+              detalle={unir([nombreDeOrigen(c.origen), nombreV(c.vertical_id), nombreS(c.sucursal_id)])}
+              acciones={
+                <AccionesDeTarjeta
+                  extra={
+                    <Boton variante="sutil" onClick={() => setConQr(c)}>
+                      <Icono nombre="qr" tamano={18} />
+                      Código QR
+                    </Boton>
+                  }
+                  alEditar={() => edicion.editar(c)}
+                  activo={c.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/campanas/${c.id}`, c.activo, { desactivada: `La campaña «${c.nombre}» quedó desactivada.`, activada: `La campaña «${c.nombre}» quedó activa otra vez.` })}
+                  alDarDeBaja={() => setBaja(c)}
+                />
+              }
+            />
+          ))}
+        </ul>
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nueva campaña" : "Editar campaña"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? (
           <Formulario
@@ -199,6 +199,6 @@ export default function Campanas() {
       >
         <AvisoDeBaja cosa="campaña" genero="f" nombre={baja?.nombre} consecuencia="Si ya tiene códigos QR en uso, el sistema no la dejará (los QR impresos seguirían atribuyendo a algo que ya no existe)." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

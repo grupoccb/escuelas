@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import { nombreDeZona, opcionesDeZona } from "./zonas.ts";
 import type { SucursalAdmin, Vertical } from "./tipos.ts";
 
@@ -96,29 +97,38 @@ export default function Sucursales() {
   const { avisar } = useAvisos();
   const edicion = useEdicion<SucursalAdmin>();
   const [baja, setBaja] = useState<SucursalAdmin | null>(null);
+  const cambiarActivo = useAlternarActivo(lista.recargar);
+  const filas = lista.datos?.datos ?? [];
   return (
-    <Pagina titulo="Sucursales" subtitulo="Dónde se imparte, en qué zona horaria y qué disciplinas." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva sucursal</Boton></>}>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay sucursales">Da de alta la primera con «Nueva sucursal».</VacioDeLista> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-sucursales">
-        {(lista.datos?.datos ?? []).map((s) => (
-          <li key={s.id} className="item-catalogo" data-prueba={`sucursal-${s.id}`}>
-            <div className="item-catalogo-cabeza">
-              <div className="item-catalogo-titulo">
-                <strong className="nombre-tarjeta">{s.nombre}</strong>
-                <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activa" : "Inactiva"}</Insignia>
-              </div>
-              <AccionesDeTarjeta alEditar={() => edicion.editar(s)} alDarDeBaja={() => setBaja(s)} />
-            </div>
-            <p className="meta-linea">
-              <span>{s.direccion ?? "Sin dirección"}</span>
-              <span>{nombreDeZona(s.zona_horaria)}</span>
-            </p>
-            <Ofrece sucursal={s} verticales={verticales.datos?.datos ?? []} alCambiar={lista.recargar} />
-          </li>
-        ))}
-      </ul>
+    <PaginaDeCatalogo titulo="Sucursales" ayuda="Dirección, zona horaria y qué disciplinas se imparten en cada una.">
+      <ListaDeCatalogo titulo="Sucursales" cuenta={lista.datos ? filas.length : undefined} nuevo="Nueva sucursal" alNuevo={edicion.nuevo}>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && filas.length === 0 ? <VacioDeLista titulo="Todavía no hay sucursales">Da de alta la primera con «Nueva sucursal».</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-sucursales">
+          {filas.map((s) => (
+            <FilaDeCatalogo
+              key={s.id}
+              data-prueba={`sucursal-${s.id}`}
+              inactiva={!s.activo}
+              titulo={s.nombre}
+              etiquetas={s.activo ? null : <Insignia>Inactiva</Insignia>}
+              detalle={unir([s.direccion ?? "Sin dirección", nombreDeZona(s.zona_horaria)])}
+              extra={<Ofrece sucursal={s} verticales={verticales.datos?.datos ?? []} alCambiar={lista.recargar} />}
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edicion.editar(s)}
+                  activo={s.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/sucursales/${s.id}`, s.activo, { desactivada: `La sucursal «${s.nombre}» quedó desactivada.`, activada: `La sucursal «${s.nombre}» quedó activa otra vez.` })}
+                  alDarDeBaja={() => setBaja(s)}
+                />
+              }
+            />
+          ))}
+        </ul>
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nueva sucursal" : "Editar sucursal"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? (
           <Formulario
@@ -135,6 +145,6 @@ export default function Sucursales() {
       <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la sucursal" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/sucursales/${baja!.id}`); lista.recargar(); avisar(`La sucursal «${baja!.nombre}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="sucursal" genero="f" nombre={baja?.nombre} consecuencia="Solo se puede si nada la usa: si ya tiene programas, usuarios, leads o alumnos, el sistema lo dirá." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

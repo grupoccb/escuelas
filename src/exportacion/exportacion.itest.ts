@@ -119,6 +119,25 @@ test("estado de cuenta: una fila por cargo con el dinero EXACTO como texto, una 
   }
 });
 
+test("familias con un solo hijo (R6b): una fila por familia con lo que ya toma y lo que podría probar, solo para quien puede ver la lista y solo lo de su alcance", async () => {
+  const norte = await m.inscribir({ sucursalId: m.norte });
+  const sur = await m.inscribir({ sucursalId: m.sur });
+  await prisma.tutor.update({ where: { id: norte.tutorId }, data: { nombre: "=Mamá", apellidos: "Norte, Prueba" } });
+  const d = await bajar(m.recepcion, "/api/exportaciones/familias-un-solo-hijo");
+  esDescargaCsv(d);
+  assert.match(d.disposicion, /filename="familias-con-un-solo-hijo\.csv"/);
+  const filas = leerCsv(d.texto);
+  assert.deepEqual(filas[0], ["Familia", "Teléfono", "Hijo", "Edad", "Ya está en", "Podría probar"]);
+  const suya = filas.find((f) => f[0]?.includes("Norte, Prueba"));
+  assert.ok(suya, "la familia del norte está");
+  assert.ok(!suya![0]!.startsWith("="), "la fórmula queda neutralizada");
+  assert.ok(suya![4]!.length > 0, "dice en qué disciplina ya está");
+  const telefonoDelSur = (await prisma.tutor.findFirstOrThrow({ where: { id: sur.tutorId } })).telefono;
+  assert.ok(!filas.some((f) => f[1] === telefonoDelSur), "recepción del norte no baja la familia del sur");
+  assert.equal((await bajar(m.maestro, "/api/exportaciones/familias-un-solo-hijo")).estado, 403);
+  assert.equal((await bajar(m.asesorSur, "/api/exportaciones/familias-un-solo-hijo")).estado, 200);
+});
+
 test("uniformes por entregar: lo liberado, con la talla y el responsable, solo para quien puede verlo", async () => {
   const p = await prisma.promocion.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Uniforme", codigo: `U${randomUUID().slice(0, 8)}`, vigencia_desde: new Date("2020-01-01"), condicion_tipo: "al_pagar_primera_mensualidad", acumulable: true, prioridad: 5 } });
   await prisma.promocion_beneficio.create({ data: { organizacion_id: m.org.organizacionId, promocion_id: p.id, tipo: "producto_gratis", modo: "total", momento_disparo: "al_cumplir_condicion", descripcion: "Uniforme" } });

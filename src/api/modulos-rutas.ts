@@ -19,7 +19,7 @@ import { permisosDe, type Permiso } from "./permisos.ts";
 const REGLAS: readonly (readonly [Modulo, readonly string[]])[] = [
   // ── Excepciones: un detalle de un árbol de captación o de catálogo que es de otro módulo ──────────────
   ["cotizador", ["/api/leads/:id/cotizaciones", "/api/cotizador", "/api/lista-espera", "/api/lista-espera/*"]],
-  ["inscripcion", ["/api/leads/:id/conversion", "/api/leads/:id/convertir", "/api/leads/:id/prospectos/:pid/aceptaciones-del-hermano", "/api/reportes/ocupacion"]],
+  ["inscripcion", ["/api/leads/:id/conversion", "/api/leads/:id/convertir", "/api/leads/:id/prospectos/:pid/aceptaciones-del-hermano", "/api/reportes/ocupacion", "/api/exportaciones/familias-un-solo-hijo"]],
   ["clase_muestra", ["/api/documentos-legales/vigentes", "/api/salud/prospecto/:id"]],
   ["inscripcion", ["/api/salud/alumno/:id"]],
   ["tableros", ["/api/campanas/:id/gastos", "/api/campanas/:id/gastos/:gasto_id"]],

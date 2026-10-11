@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1157**.
+Filas: **1209**.
 
 ## Acceso y cuenta (47)
 
@@ -58,7 +58,7 @@ Filas: **1157**.
 | `acceso-marco-impresion` | administrador | impresion | Marco al imprimir: solo el contenido y el marcador «escuela · impreso el … por …» (sin barras ni cabecera) |  | ✔ · ✔ | ✔ · ✔ |
 | `acceso-aviso-ya-quedo` | asesor | flotante | Aviso global «ya quedó» sobre la pantalla (al cambiar la contraseña; la API se simula, la contraseña no cambia) | `/mas` | ✔ · ✔ | ✔ · ✔ |
 
-## Administración, catálogo (185)
+## Administración, catálogo (193)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -158,6 +158,7 @@ Filas: **1157**.
 | `adminc-precios-sin-programa` | administrador | pantalla | Precios sin programa elegido (solo el selector «Elige un programa») | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-precios-con-datos` | administrador | estado | Precios de un programa: historial con un precio vigente y el botón «Nueva vigencia» | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-precios-historial-completo` | administrador | estado | Historial de precios con una vigencia pasada, una vigente y una futura (insignias «Pasada», «Vigente» y «Futura»; «Abierta» y fechas de cierre) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-precios-sin-vigente` | administrador | estado | Historial de precios sin una vigencia que rija hoy (solo una pasada y una futura: no hay cifras de «vigente» arriba) | `/admin/precios` | ✘ · ✘ | ✔ · ✔ |
 | `adminc-precios-muchos` | administrador | estado | Precios con muchos datos (historial largo) | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-precios-programa-sin-precio` | administrador | estado | Precios de un programa sin ningún precio («Este programa todavía no tiene precio») | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-precios-cargando-programas` | administrador | estado | Precios mientras cargan los programas | `/admin/precios` | ✔ · ✔ | ✔ · ✔ |
@@ -247,8 +248,15 @@ Filas: **1157**.
 | `adminc-promociones-aviso-beneficio` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «Beneficio agregado. Se guarda con la promoción.» (al agregar un beneficio a una promoción nueva) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-promociones-aviso-baja` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «La promoción … se dio de baja.» (la escritura se simula) | `/admin/promociones` | ✔ · ✔ | ✔ · ✔ |
 | `adminc-catalogo-aplicado` | administrador | estado | Cargar catálogo ya aplicado: «Listo: el catálogo se cargó» con su frase en pasado y el resumen (la aplicación se simula; la base no cambia) | `/admin/catalogo` | ✔ · ✔ | ✔ · ✔ |
+| `adminc-patron-color-programas` | administrador | estado | Programas con la barra del color de su disciplina (el dato `color_marca`, parchado en la respuesta), la etiqueta de la disciplina y «Alternativa» | `/admin/programas` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-patron-color-grupos` | administrador | estado | Grupos con la barra del color de su disciplina, «Cupo N», «Lista de espera», el horario y salón, y uno inactivo | `/admin/grupos` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-patron-color-canales` | administrador | estado | Canales de WhatsApp con la barra del color de su disciplina y la nota de las claves (el patrón con su `nota`) | `/admin/canales` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-patron-color-campanas` | administrador | estado | Campañas con la barra del color de su disciplina y el botón «Código QR» entre las acciones de la fila | `/admin/campanas` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-sucursales-desactivar-error-servidor` | administrador | estado | Sucursales con el error de «Desactivar» (el servidor lo rechaza) sobre la lista | `/admin/sucursales` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-sucursales-aviso-desactivada` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «La sucursal … quedó desactivada.» (la escritura se simula) | `/admin/sucursales` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-catalogo-arrastrando` | administrador | estado | Cargar catálogo con archivos arrastrados sobre la zona (el borde y el fondo del primario; soltar o tocar hacen lo mismo) | `/admin/catalogo` | ✘ · ✘ | ✔ · ✔ |
 
-## Administración: sistema y mensajería (180)
+## Administración: sistema y mensajería (185)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -303,14 +311,14 @@ Filas: **1157**.
 | `admins-textos-error` | administrador | estado | Textos del asistente con error de carga (500, «Reintentar») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
 | `admins-textos-personalizados` | administrador | estado | Textos del asistente con uno personalizado (insignia «Personalizado») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
 | `admins-textos-modulos-apagados` | administrador | estado | Textos del asistente con los módulos de cotizador y clase muestra apagados (aviso «Puedes dejar estos textos listos…») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» con el texto de siempre (huecos disponibles y «Así se vería») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-vista-previa` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» con huecos agregados al texto y su vista previa | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-sin-huecos` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» de un mensaje sin huecos («Este mensaje no lleva huecos») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-personalizado` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» de un texto personalizado (con «Volver al texto de siempre») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-validacion-vacio` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» con el texto borrado («Escribe el mensaje…») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-validacion-hueco` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» con un hueco que no existe («no se puede usar en este mensaje») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-validacion-obligatorio` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» sin un hueco obligatorio («Falta {…}») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
-| `admins-textos-cambiar-error-servidor` | administrador | flotante | Diálogo «Cambiar lo que dice el asistente» con el error del servidor bajo el campo | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar` | administrador | estado | Editor de un paso del asistente con el texto de siempre (huecos disponibles y «Así se vería») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-vista-previa` | administrador | estado | Editor de un paso del asistente con huecos agregados al texto y su vista previa | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-sin-huecos` | administrador | estado | Editor de un paso del asistente de un mensaje sin huecos («Este mensaje no lleva huecos») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-personalizado` | administrador | estado | Editor de un paso del asistente de un texto personalizado (con «Volver al texto de siempre») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-validacion-vacio` | administrador | estado | Editor de un paso del asistente con el texto borrado («Escribe el mensaje…») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-validacion-hueco` | administrador | estado | Editor de un paso del asistente con un hueco que no existe («no se puede usar en este mensaje») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-validacion-obligatorio` | administrador | estado | Editor de un paso del asistente sin un hueco obligatorio («Falta {…}») | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
+| `admins-textos-cambiar-error-servidor` | administrador | estado | Editor de un paso del asistente con el error del servidor bajo el campo | `/admin/textos` | ✔ · ✔ | ✔ · ✔ |
 | `admins-etapas-con-datos` | administrador | pantalla | Etapas del embudo con las del sistema (y las de cierre) | `/admin/etapas` | ✔ · ✔ | ✔ · ✔ |
 | `admins-etapas-muchos` | administrador | estado | Etapas del embudo con muchos datos (la lista repetida doce veces) | `/admin/etapas` | ✔ · ✔ | ✔ · ✔ |
 | `admins-etapas-vacio` | administrador | estado | Etapas del embudo vacía | `/admin/etapas` | ✔ · ✔ | ✔ · ✔ |
@@ -431,7 +439,12 @@ Filas: **1157**.
 | `admins-bandeja-aviso-descartada` | administrador | flotante | Aviso «ya quedó» al descartar una tarea sin lead («Se descartó: ya no aparece…»; el cambio se simula) | `/admin/bandeja` | ✔ · ✔ | ✔ · ✔ |
 | `admins-usuarios-aviso-guardado` | administrador | flotante | Aviso «ya quedó» al guardar los cambios de un usuario sin cambiar nada («Los cambios de … se guardaron.») | `/admin/usuarios` | ✔ · ✔ | ✔ · ✔ |
 | `admins-automatizaciones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar el ajuste de una automatización sin cambiar nada («quedó guardada. Vale para los avisos que se programen…») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
-| `admins-configuracion-guardada` | administrador | formulario | Configuración después de guardar sin cambiar nada: el aviso «Configuración guardada.» sobre el botón | `/admin/configuracion` | ✔ · ✔ | ✔ · ✔ |
+| `admins-configuracion-guardada` | administrador | formulario | Configuración después de guardar: el aviso «Configuración guardada.» y la barra de cambios ya sin mostrarse (el guardado se simula con lo que ya hay) | `/admin/configuracion` | ✔ · ✔ | ✔ · ✔ |
+| `admins-configuracion-cambios-sin-guardar` | administrador | estado | Configuración con un ajuste cambiado: la barra «Tienes cambios sin guardar» con «Descartar» y «Guardar la configuración» | `/admin/configuracion` | ✘ · ✘ | ✔ · ✔ |
+| `admins-configuracion-descartado` | administrador | estado | Configuración después de «Descartar»: lo escrito vuelve a lo guardado y la barra de cambios desaparece | `/admin/configuracion` | ✘ · ✘ | ✔ · ✔ |
+| `admins-textos-paso-elegido` | administrador | estado | Textos del asistente con un paso del cotizador elegido (el editor a la derecha en escritorio; hoja inferior en el celular) | `/admin/textos` | ✘ · ✘ | ✔ · ✔ |
+| `admins-textos-borrador-sin-guardar` | administrador | estado | Textos del asistente con lo escrito en un paso y sin guardar (la insignia «Sin guardar» en la lista; el texto no se pierde al pasar a otro paso) | `/admin/textos` | ✘ · ✘ | ✔ · ✔ |
+| `admins-textos-aviso-guardado` | administrador | flotante | Aviso «Texto guardado. El asistente lo usa desde el siguiente mensaje.» al guardar un paso (el guardado se simula) | `/admin/textos` | ✘ · ✘ | ✔ · ✔ |
 
 ## Asesor (189)
 
@@ -706,10 +719,29 @@ Filas: **1157**.
 | `conv-hermanos-dejar-fuera` | asesor | estado | Tras «Dejar fuera a …» en el rechazo por grupo lleno: solo queda marcado el primero y el asistente vuelve a calcular lo que falta | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 | `conv-hermanos-exito` | asesor | pantalla | Pantalla «Listo: familia e inscripción creadas» con dos niños inscritos (el POST final se responde en la escena) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 
-## Familias, alumnos y expediente (101)
+## Familias, alumnos y expediente (140)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
+| `familia-familias-lista-disciplinas-color` | recepcion | estado | Familias: tarjetas con los hijos en el color de su disciplina y el estado de la cuenta (con vencido, por pagar y al corriente) | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-familias-lista-sin-resumen` | recepcion | estado | Familias: si el resumen no carga, las tarjetas salen con etiquetas neutras y sin estado de cuenta | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-familias-lista-tarjeta-hover` | recepcion | estado | Familias: una tarjeta con el ratón encima (borde y sombra) | `/familias` | ✘ · · | ✔ · · |
+| `familia-familias-lista-tarjeta-foco` | recepcion | estado | Familias: una tarjeta con el foco del teclado (el anillo rodea toda la tarjeta) | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-familias-lista-hijos-no-activos` | recepcion | estado | Familias: hijos dados de baja o congelados («· baja», «· congelado») y una familia sin alumnos | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-familias-lista-nombres-largos` | recepcion | estado | Familias: nombres muy largos de la familia y de los hijos (se parten en varias líneas, sin desbordar) | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-un-solo-hijo-colores` | asesor | estado | Familias con un solo hijo: el hijo y «Ya está en» con el color de su disciplina, el aviso con «Descargar la lista (CSV)» | `/familias/un-solo-hijo` | ✘ · ✘ | ✔ · ✔ |
+| `familia-un-solo-hijo-sin-resumen` | asesor | estado | Familias con un solo hijo: si el resumen no carga, todo en el neutro del sistema | `/familias/un-solo-hijo` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-disciplinas-color` | recepcion | estado | Ficha de la familia: hijos con su monograma en el tono de su disciplina, grupo, horario y sucursal, y la promoción activa | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-con-vencido` | recepcion | estado | Ficha de la familia: saldo con un cargo vencido («1 cargo vencido · $650.00») | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-adultos` | recepcion | estado | Ficha de la familia: dos adultos con sus banderas por hijo («Marisol paga», «Recogen …», «Responsable de pago», «Contacto de urgencia») | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-con-conversacion` | recepcion | estado | Ficha de la familia: «Abrir conversación» (hay conversación y Chatwoot configurado) y «Mensajes» completos | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-mensajes-sin-datos` | recepcion | estado | Ficha de la familia: «Mensajes» sin recordatorio, sin registro de consentimiento y sin asesor | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-mensajes-no-acepta` | recepcion | estado | Ficha de la familia: «Mensajes» de una familia que pidió no recibir promociones | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-mensajes-cargando` | recepcion | estado | Ficha de la familia: «Mensajes» cargando | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-mensajes-error` | recepcion | estado | Ficha de la familia: error al cargar «Mensajes» con «Reintentar» dentro de la tarjeta | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-sin-resumen` | recepcion | estado | Ficha de la familia: si el resumen no carga, los hijos salen en el neutro del sistema y sin grupo | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-nombres-largos` | recepcion | estado | Ficha de la familia: nombres muy largos (se parten en varias líneas, sin desbordar) | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
+| `familia-ficha-asesor-vencido` | asesor | estado | Ficha de la familia (asesor): ve el saldo y «Ver estado de cuenta» pero no «Registrar pago» | `/familias/:tutorId` | ✘ · ✘ | ✔ · ✔ |
 | `familia-alumnos-lista` | recepcion | pantalla | Alumnos: buscador y lista con datos (recepción, asesor y administrador) | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-buscar-nombre` | recepcion | estado | Alumnos: búsqueda por nombre con resultados («Hija») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-buscar-telefono` | recepcion | estado | Alumnos: búsqueda por el teléfono de un adulto de la familia | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
@@ -723,31 +755,51 @@ Filas: **1157**.
 | `familia-alumnos-lista-cargando` | recepcion | estado | Alumnos: cargando | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-error` | recepcion | estado | Alumnos: error de carga con «Reintentar» | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-sin-conexion` | recepcion | estado | Alumnos: al buscar sin conexión («No hay conexión con el servidor») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
+| `familia-alumnos-lista-disciplinas` | recepcion | estado | Alumnos: tarjetas con el grupo en el color de su disciplina, la sucursal, la asistencia (en ámbar si es baja) y la situación de la cuenta; píldoras de disciplina | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-filtro-disciplina` | recepcion | estado | Alumnos: filtrada por una disciplina (la píldora activa va en oscuro y la lista es solo de esa disciplina) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-solo-atencion` | recepcion | estado | Alumnos: «Solo con atraso o faltas» marcado (con vencido o con asistencia baja, de la página que se ve) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-solo-atencion-vacio` | recepcion | estado | Alumnos: «Solo con atraso o faltas» y nadie lo cumple («No hay alumnos que coincidan») | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-sin-resumen` | recepcion | estado | Alumnos: el resumen no se pudo leer (las tarjetas dicen solo nombre, edad y familia) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-sin-inscripcion` | recepcion | estado | Alumnos: un alumno sin inscripción vigente («Sin grupo vigente», sin asistencia ni cuenta) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-foco-tarjeta` | recepcion | estado | Alumnos: el foco del teclado en la primera tarjeta (el anillo rodea toda la tarjeta) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-maestro-tarjetas` | maestro | estado | Alumnos (maestro): tarjetas con disciplina y asistencia, sin la situación de la cuenta ni datos de la familia | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
 | `familia-expediente-trayectoria-recepcion` | recepcion | pantalla | Expediente, «Trayectoria», con datos y las acciones sobre la inscripción (recepción) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-trayectoria-asesor` | asesor | pantalla | Expediente, «Trayectoria», con datos (asesor) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-trayectoria-administrador` | administrador | pantalla | Expediente, «Trayectoria», con datos y el botón «Salud» (administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-economico` | recepcion | pantalla | Expediente, «Económico»: mensualidad, cuenta (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
-| `familia-expediente-operativo` | recepcion | pantalla | Expediente, «Operativo»: asistencia, eventos, productos (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-asistencia` | recepcion | pantalla | Expediente, «Asistencia»: porcentaje, últimas clases, eventos y productos (recepción, asesor y administrador) | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
 | `familia-expediente-comercial` | recepcion | pantalla | Expediente, «Comercial»: cómo llegó, hermanos (recepción, asesor y administrador) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-trayectoria-completa` | recepcion | estado | Expediente, «Trayectoria» con todo: inscripción activa, congelada y en baja, cambios de grupo, avance y próximo evento | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-economico-completo` | recepcion | estado | Expediente, «Económico» con promoción aplicada y beneficios pendientes | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-economico-sin-cuenta` | recepcion | estado | Expediente, «Económico» con «El estado de cuenta todavía no está disponible» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
-| `familia-expediente-operativo-completo` | recepcion | estado | Expediente, «Operativo» con faltas en el umbral, eventos con resultado y productos comprados | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
-| `familia-expediente-operativo-sin-datos` | recepcion | estado | Expediente, «Operativo» sin asistencia, sin eventos y con «No disponible todavía» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-asistencia-completa` | recepcion | estado | Expediente, «Asistencia» con faltas en el umbral, eventos con resultado y productos comprados | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-asistencia-sin-datos` | recepcion | estado | Expediente, «Asistencia» sin asistencia, sin eventos y con «No disponible todavía» | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
 | `familia-expediente-comercial-completo` | recepcion | estado | Expediente, «Comercial» con campaña, hermanos inscritos y bajas | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-inscripcion-congelada` | recepcion | estado | Expediente con la inscripción congelada (la acción pasa a «Reactivar») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-inscripcion-baja` | recepcion | estado | Expediente con la inscripción en baja (sin acciones) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-trayectoria-vacio` | recepcion | estado | Expediente, «Trayectoria» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-trayectoria-muchos` | recepcion | estado | Expediente, «Trayectoria» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-asistencia-vacio` | recepcion | estado | Expediente, «Asistencia» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-asistencia-muchos` | recepcion | estado | Expediente, «Asistencia» con muchos datos (listas repetidas) | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
 | `familia-expediente-economico-vacio` | recepcion | estado | Expediente, «Económico» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-economico-muchos` | recepcion | estado | Expediente, «Económico» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
-| `familia-expediente-operativo-vacio` | recepcion | estado | Expediente, «Operativo» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
-| `familia-expediente-operativo-muchos` | recepcion | estado | Expediente, «Operativo» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-comercial-vacio` | recepcion | estado | Expediente, «Comercial» sin nada que mostrar (listas vacías) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-comercial-muchos` | recepcion | estado | Expediente, «Comercial» con muchos datos (listas repetidas) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-cargando` | recepcion | estado | Expediente: cargando | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-error` | recepcion | estado | Expediente: error de carga con «Reintentar» | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-expediente-no-encontrado` | recepcion | estado | Expediente de un alumno que no existe (404) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `familia-expediente-trayectoria-colores` | recepcion | estado | Expediente, «Trayectoria» con el color de cada disciplina: banda y avatar del encabezado y la barra del avance hacia el próximo evento | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-sin-inscripciones` | recepcion | estado | Expediente de un alumno sin inscripciones: encabezado neutro («Sin grupo vigente») y la trayectoria vacía | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-alumno-congelado` | recepcion | estado | Expediente de un alumno congelado: la píldora «Congelado» y la acción de la inscripción pasa a «Reactivar» | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-alumno-baja` | recepcion | estado | Expediente de un alumno dado de baja: la píldora «Baja desde el …», sin acciones y con el hito de la baja en la trayectoria | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-asistencia-clases` | recepcion | estado | Expediente, «Asistencia» con las últimas 16 clases (presente, falta y justificada con texto) y el aviso de tres faltas seguidas | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-asistencia-clases-vacio` | recepcion | estado | Expediente, «Asistencia» sin clases con pase de lista («Todavía no hay clases con pase de lista») | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-asistencia-clases-cargando` | recepcion | estado | Expediente, «Asistencia» mientras llegan las últimas clases («Cargando las últimas clases…») | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-asistencia-clases-error` | recepcion | estado | Expediente, «Asistencia» cuando no se pudieron leer las clases (el panel sigue con lo del expediente, sin la rejilla) | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-economico-vencido` | recepcion | estado | Expediente, «Económico» con lo vencido en ámbar, el saldo, la mensualidad con su precio congelado y el responsable de pago | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-salud-pestana` | administrador | estado | Expediente, pestaña «Salud»: se pide el motivo de la consulta antes de leer nada | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-salud-pestana-ficha` | administrador | estado | Expediente, pestaña «Salud» con la ficha vista y la cuenta atrás «Se ocultan en … s» | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
+| `familia-expediente-maestro` | maestro | pantalla | Expediente (maestro): Trayectoria, Asistencia y Salud, sin importes ni «Económico» ni «Comercial», y sin acciones sobre la inscripción | `/alumnos/:id` | ✘ · ✘ | ✔ · ✔ |
 | `familia-acciones-cambiar-vacio` | recepcion | flotante | Cuadro «Cambiar de grupo» vacío (elegir el grupo nuevo; «Confirmar el cambio» apagado) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-acciones-cambiar-elegido` | recepcion | flotante | Cuadro «Cambiar de grupo» con el grupo de un solo lugar elegido («· 1 lugar») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `familia-acciones-cambiar-grupo-lleno` | recepcion | flotante | Cuadro «Cambiar de grupo» con el grupo de un solo lugar ya lleno («· lleno», no se puede elegir) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |

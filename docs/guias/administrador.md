@@ -4,11 +4,11 @@
 
 ## Para qué sirve «Administración»
 
-Al entrar llegas al «Embudo», como los asesores. Tu trabajo está en «Administración» (en la barra): ahí cambias lo que la escuela puede cambiar sin pedir ayuda. Arriba está «Para empezar» y un buscador, «Buscar una pantalla» (prueba con «precio», «contraseña» o «excel»).
+Al entrar llegas al «Embudo», como los asesores. Tu trabajo está en «Administración» (en la barra): ahí cambias lo que la escuela puede cambiar sin pedir ayuda. Arriba está «Para empezar» y un buscador (prueba con «precio», «contraseña» o «excel»).
 
 ## Primeros pasos, en orden
 
-«Para empezar» lista ocho pasos y los marca solos conforme los haces; «Hacerlo ahora» te lleva al que sigue («Ver los pasos» los despliega):
+«Para empezar» lista ocho pasos y los marca solos conforme los haces; el botón blanco, que empieza con Ir a y lleva el nombre de la pantalla, te lleva al que sigue («Ver los pasos» los despliega):
 
 1. Da de alta lo que imparte la escuela (una disciplina).
 2. Da de alta una sucursal y marca qué disciplinas imparte.
@@ -19,7 +19,7 @@ Al entrar llegas al «Embudo», como los asesores. Tu trabajo está en «Adminis
 7. Conecta el número de WhatsApp de la escuela.
 8. Enciende las partes del sistema que vas a usar.
 
-Los pasos 1 a 5 se pueden hacer de una sola vez desde Excel: «Cargar catálogo». «Descargar todas las plantillas» baja un archivo comprimido: ábrelo, llena las hojas en Excel y guárdalas como CSV UTF-8 (qué pedirle a la escuela para cada hoja: [lista para mandarse](../QUE-PEDIRLE-A-LA-ESCUELA.md)), súbelas y toca «Revisar»: no guarda nada y te dice, por fila y columna, qué corregir. Cuando salga limpia, «Aplicar» y «Sí, aplicar». Subir lo mismo otra vez no duplica nada.
+Los pasos 1 a 5 se pueden hacer de una sola vez desde Excel: «Cargar catálogo». «Descargar todas las plantillas» baja un archivo comprimido: ábrelo, llena las hojas en Excel y guárdalas como CSV UTF-8 (qué pedirle a la escuela para cada hoja: [lista para mandarse](../QUE-PEDIRLE-A-LA-ESCUELA.md)), súbelas y toca «Revisar»: no guarda nada y te dice, por fila y columna, qué corregir. Cuando salga limpia, «Aplicar los cambios» y «Sí, aplicar». Subir lo mismo otra vez no duplica nada.
 
 ## Tu día en 5 pasos
 

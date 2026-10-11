@@ -21,6 +21,9 @@ const PRECIOS = `${P}Precios.tsx`;
 const PROMOCIONES = `${P}Promociones.tsx`;
 const CATALOGO = `${P}CargarCatalogo.tsx`;
 const COMUNES = `${P}comunes.tsx`;
+const PATRON = `${P}patron.tsx`;
+const CANALES = `${P}Canales.tsx`;
+const CAMPANAS = `${P}Campanas.tsx`;
 const DIALOGO = "web/src/ui/Dialogo.tsx";
 const AVISOS = "web/src/ui/avisos.tsx";
 const PAGINADOR = "web/src/ui/Paginador.tsx";
@@ -122,7 +125,7 @@ async function esperarAviso(c: Contexto): Promise<void> {
 
 /** Las cinco vistas de una lista: con datos (la pantalla), muchos datos, vacía, cargando y con error de carga. */
 function estadosDeLista(prefijo: string, ruta: string, fuente: string, nombre: string, vacioEn = "lista vacía"): Escena[] {
-  const base = { rol: "administrador" as const, grupo: GRUPO, ruta, fuentes: [fuente] };
+  const base = { rol: "administrador" as const, grupo: GRUPO, ruta, fuentes: [fuente, PATRON] };
   return [
     { ...base, id: `${prefijo}-con-datos`, titulo: `${nombre}, con datos`, tipo: "pantalla", ir: (c) => irA(c, ruta) },
     { ...base, id: `${prefijo}-muchos`, titulo: `${nombre}, con muchos datos`, tipo: "estado", ir: (c) => conMuchosDatos(c, ruta) },
@@ -150,6 +153,11 @@ const PASOS = enApi("/api/administracion/primeros-pasos");
 // datos opcionales) para ver cómo se ven los casos que una escuela de verdad tiene. Se usan solo en las escenas que lo dicen.
 
 const SALON_1 = "salon-de-muestra-1";
+
+/** Le pone color de marca (un hex) a la disciplina del mundo de pruebas, solo en la respuesta, para ver la barra de color de las filas que la usan. */
+async function colorDeLaDisciplina(c: Contexto): Promise<void> {
+  await editarGet(c, enApi("/api/verticales"), (b) => ({ ...b, datos: (b.datos as Json[]).map((v) => ({ ...v, color_marca: "#C2461E" })) }));
+}
 
 /** Dos salones: uno activo con capacidad y otro inactivo sin capacidad. */
 async function salonesFalsos(c: Contexto): Promise<void> {
@@ -1400,6 +1408,28 @@ export const ESCENAS: Escena[] = [
           { id: "precio-futuro", programa_id: c.mundo.programaId, costo_inscripcion: "550.00", costo_mensualidad: "1150.50", moneda: "MXN", vigencia_desde: "2099-01-01", vigencia_hasta: null },
         ],
         paginacion: { ...b.paginacion, total: 3 },
+      }));
+      await irA(c, "/admin/precios");
+      await c.page.getByLabel(rx("Programa")).selectOption(c.mundo.programaId);
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "adminc-precios-sin-vigente",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Historial de precios sin una vigencia que rija hoy (solo una pasada y una futura: no hay cifras de «vigente» arriba)",
+    tipo: "estado",
+    ruta: "/admin/precios",
+    fuentes: [PRECIOS],
+    ir: async (c) => {
+      await editarGet(c, enApi("/api/precios"), (b) => ({
+        ...b,
+        datos: [
+          { id: "precio-pasado", programa_id: c.mundo.programaId, costo_inscripcion: "400.00", costo_mensualidad: "850.00", moneda: "MXN", vigencia_desde: "2020-01-01", vigencia_hasta: "2024-12-31" },
+          { id: "precio-futuro", programa_id: c.mundo.programaId, costo_inscripcion: "550.00", costo_mensualidad: "1150.50", moneda: "MXN", vigencia_desde: "2099-01-01", vigencia_hasta: null },
+        ],
+        paginacion: { ...b.paginacion, total: 2 },
       }));
       await irA(c, "/admin/precios");
       await c.page.getByLabel(rx("Programa")).selectOption(c.mundo.programaId);
@@ -2704,6 +2734,111 @@ export const ESCENAS: Escena[] = [
       await esperarDialogo(c);
       await guardar(c, "Sí, aplicar");
       await c.page.getByText("Listo: el catálogo se cargó").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+
+  // ═══ R7a: el patrón compartido de catálogo (color de la disciplina, activar/desactivar) y la zona de archivos ═══
+  {
+    id: "adminc-patron-color-programas",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Programas con la barra del color de su disciplina (el dato `color_marca`, parchado en la respuesta), la etiqueta de la disciplina y «Alternativa»",
+    tipo: "estado",
+    ruta: "/admin/programas",
+    fuentes: [PROGRAMAS, PATRON],
+    ir: async (c) => {
+      await colorDeLaDisciplina(c);
+      await programasFalsos(c);
+      await irA(c, "/admin/programas");
+    },
+  },
+  {
+    id: "adminc-patron-color-grupos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Grupos con la barra del color de su disciplina, «Cupo N», «Lista de espera», el horario y salón, y uno inactivo",
+    tipo: "estado",
+    ruta: "/admin/grupos",
+    fuentes: [GRUPOS, PATRON],
+    ir: async (c) => {
+      await colorDeLaDisciplina(c);
+      await gruposFalsos(c);
+      await irA(c, "/admin/grupos");
+    },
+  },
+  {
+    id: "adminc-patron-color-canales",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Canales de WhatsApp con la barra del color de su disciplina y la nota de las claves (el patrón con su `nota`)",
+    tipo: "estado",
+    ruta: "/admin/canales",
+    fuentes: [CANALES, PATRON],
+    ir: async (c) => {
+      await colorDeLaDisciplina(c);
+      await irA(c, "/admin/canales");
+    },
+  },
+  {
+    id: "adminc-patron-color-campanas",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Campañas con la barra del color de su disciplina y el botón «Código QR» entre las acciones de la fila",
+    tipo: "estado",
+    ruta: "/admin/campanas",
+    fuentes: [CAMPANAS, PATRON],
+    ir: async (c) => {
+      await colorDeLaDisciplina(c);
+      // La primera campaña es de esa disciplina (la otra, de todas: sin barra).
+      await editarGet(c, enApi("/api/campanas"), (b) => ({ ...b, datos: (b.datos as Json[]).map((x, i) => (i === 0 ? { ...x, vertical_id: c.mundo.verticalId } : x)) }));
+      await irA(c, "/admin/campanas");
+    },
+  },
+  {
+    id: "adminc-sucursales-desactivar-error-servidor",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sucursales con el error de «Desactivar» (el servidor lo rechaza) sobre la lista",
+    tipo: "estado",
+    ruta: "/admin/sucursales",
+    fuentes: [SUCURSALES, PATRON, COMUNES],
+    ir: async (c) => {
+      await irA(c, "/admin/sucursales");
+      await fallarLaSiguienteEscritura(c, 409, "No se puede desactivar: tiene alumnos inscritos.");
+      await c.page.getByRole("button", { name: /^(Desactivar|Activar)$/ }).first().click();
+      await c.page.getByText("No se puede desactivar: tiene alumnos inscritos.").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "adminc-sucursales-aviso-desactivada",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Aviso «ya quedó» sobre Sucursales: «La sucursal … quedó desactivada.» (la escritura se simula)",
+    tipo: "flotante",
+    ruta: "/admin/sucursales",
+    fuentes: [SUCURSALES, PATRON, AVISOS],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, "/admin/sucursales");
+      await simularEscritura(c);
+      await c.page.getByRole("button", { name: "Desactivar", exact: true }).first().click();
+      await esperarAviso(c);
+    },
+  },
+  {
+    id: "adminc-catalogo-arrastrando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Cargar catálogo con archivos arrastrados sobre la zona (el borde y el fondo del primario; soltar o tocar hacen lo mismo)",
+    tipo: "estado",
+    ruta: "/admin/catalogo",
+    fuentes: [CATALOGO, PATRON],
+    ir: async (c) => {
+      await irA(c, "/admin/catalogo");
+      await c.page.locator(".zona-archivos").dispatchEvent("dragover");
+      await c.page.locator(".zona-archivos[data-arrastrando]").waitFor();
       await esperarListo(c.page);
     },
   },

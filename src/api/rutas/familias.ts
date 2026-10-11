@@ -5,7 +5,7 @@
 //   POST   /api/tutores        { nombre, apellidos?, telefono, correo?, direccion?, como_nos_conocio?, sucursal_id? }   (tutores:escribir)
 //   PATCH  /api/tutores/:id    { …lo mismo, todo opcional }                            (tutores:escribir)
 //   DELETE /api/tutores/:id                                                            (tutores:escribir)  baja lógica; 409 si tiene alumnos
-//   GET    /api/alumnos?nombre=&telefono=&tutor_id=&estatus=&sucursal_id=&limite=&pagina=   (alumnos:leer)
+//   GET    /api/alumnos?nombre=&telefono=&tutor_id=&estatus=&sucursal_id=&vertical_id=&limite=&pagina=   (alumnos:leer)   (R6a: `vertical_id` = con una inscripción vigente en esa disciplina)
 //   GET    /api/alumnos/:id                                                            (alumnos:leer)
 //   POST   /api/alumnos        { nombre, apellidos, fecha_nacimiento, …, tutores: [ { tutor_id | tutor: {…}, parentesco, banderas } ] }   (alumnos:escribir)
 //   PATCH  /api/alumnos/:id    { nombre?, apellidos?, fecha_nacimiento?, sexo?, … }     (alumnos:escribir)
@@ -14,6 +14,8 @@
 //   DELETE /api/alumnos/:id/tutores/:tutor_id                                              (alumnos:escribir)  409 si es el único
 //
 //   GET    /api/familias/un-solo-hijo?sin_vertical_id=&sucursal_id=&limite=&pagina=         (tutores:leer)   F7: la lista de cross-sell
+//   GET    /api/familias/resumen?tutor_ids=a,b,c                                   (tutores:leer)   R6b: por familia, la disciplina, grupo y horario de cada hijo y el estado de su cuenta
+//   GET    /api/familias/:id/mensajes                                              (tutores:leer)   R6b: promociones, último recordatorio de pago, asesor y conversación
 //
 // Un tutor por teléfono normalizado (`normalizarTelefono()`, invariante 7): el mismo teléfono es la misma familia (detección de familia).
 // Alta de un alumno con un `tutor` nuevo cuyo teléfono ya existe: se LIGA al tutor que hay (no se duplica ni se le pisan los datos).
@@ -29,6 +31,10 @@ import type { Consultas } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { dondeAlumnoVisible, dondeTutorVisible } from "../../familias/alcance.ts";
 import { familiasConUnHijo } from "../../familias/cross-sell.ts";
+import { mensajesDeFamilia } from "../../familias/mensajes.ts";
+import { resumenDeFamilias } from "../../familias/resumen.ts";
+import { leerModulos } from "../../modulos/index.ts";
+import { tienePermiso } from "../permisos.ts";
 import { crearAlumno, encontrarOCrearTutor, PARENTESCO_MAX, vincularTutor, type DatosDeAlumno } from "../../familias/familia.ts";
 import { autorizaUsoDeImagen } from "../../legal/aceptaciones.ts";
 import { edadCumplida } from "../../lib/edad.ts";
@@ -121,6 +127,7 @@ const esquemaCambioAlumno = objeto({
 const esquemaCrossSell = objeto({ ...esquemaPaginacion, sin_vertical_id: opcional(uuid()), sucursal_id: opcional(uuid()) });
 const ESTATUS_ALUMNO = ["activo", "baja", "congelado"] as const;
 const esquemaId = objeto({ id: uuid() });
+const esquemaResumen = objeto({ tutor_ids: listaDe(uuid(), { max: 50, unicos: true }) });
 const esquemaIdYTutor = objeto({ id: uuid(), tutor_id: uuid() });
 const esquemaListadoTutores = objeto({ ...esquemaPaginacion, telefono: opcional(texto({ max: 30 })), nombre: opcional(texto({ max: 120 })), sucursal_id: opcional(uuid()) });
 const esquemaListadoAlumnos = objeto({
@@ -130,6 +137,8 @@ const esquemaListadoAlumnos = objeto({
   tutor_id: opcional(uuid()),
   estatus: opcional(enumerado(ESTATUS_ALUMNO)),
   sucursal_id: opcional(uuid()),
+  /** R6a: los alumnos con una inscripción vigente (activa o congelada) en esa disciplina. */
+  vertical_id: opcional(uuid()),
 });
 
 // ── Presentación ──────────────────────────────────────────────────────────────────────────────────────
@@ -506,6 +515,7 @@ export function rutasDeFamilias(deps: DepsApi): Router {
     const condiciones: Record<string, unknown>[] = [await dondeAlumnoVisible(ctx)];
     if (q.estatus) condiciones.push({ estatus: q.estatus });
     if (q.sucursal_id) condiciones.push({ sucursal_id: q.sucursal_id });
+    if (q.vertical_id) condiciones.push({ inscripciones: { some: { eliminado_en: null, estatus: { in: ["activa", "congelada"] }, grupo: { programa: { vertical_id: q.vertical_id } } } } });
     if (q.tutor_id) condiciones.push({ tutores: { some: { tutor_id: q.tutor_id, eliminado_en: null } } });
     if (q.telefono !== undefined) {
       // Por el teléfono de algún adulto de la familia. El maestro no busca por teléfono (no ve cómo contactar a la familia).
@@ -706,6 +716,29 @@ export function rutasDeFamilias(deps: DepsApi): Router {
       })),
       paginacion: { pagina: pag.pagina, limite: pag.limite, total: todas.length },
     });
+  });
+
+  // R6b: lo que la lista y la ficha de familias muestran de cada tutor, en una lectura por lote. Solo las familias que quien pregunta ve (las demás ni aparecen); sin permiso de importes
+  // o con finanzas apagado, `saldo` va en null.
+  r.get("/familias/resumen", requierePermiso("tutores:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const crudo = typeof req.query["tutor_ids"] === "string" ? req.query["tutor_ids"].split(",").map((x) => x.trim()).filter((x) => x !== "") : [];
+    const { tutor_ids: pedidos } = parsear(esquemaResumen, { tutor_ids: crudo });
+    const visibles = await ctx.db.tutor.findMany({ where: { AND: [{ id: { in: pedidos } }, await dondeTutorVisible(ctx)] }, select: { id: true } });
+    const ids = new Set(visibles.map((t) => t.id));
+    const verImportes = tienePermiso(ctx.usuario.rol, "estado_cuenta:leer");
+    const modulos = await leerModulos(ctx.db);
+    const familias = await resumenDeFamilias(ctx.db, pedidos.filter((id) => ids.has(id)), { ahora: ctx.ahora(), conSaldo: verImportes && modulos.finanzas, conImportes: verImportes });
+    res.json({ datos: familias });
+  });
+
+  r.get("/familias/:id/mensajes", requierePermiso("tutores:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const { id } = parsear(esquemaId, req.params);
+    const tutor = await ctx.db.tutor.findFirst({ where: { id, ...(await dondeTutorVisible(ctx)) }, select: { id: true, telefono: true } });
+    if (!tutor) throw noEncontrado();
+    const modulos = await leerModulos(ctx.db);
+    res.json(await mensajesDeFamilia(ctx.db, tutor, { conCobranza: modulos.finanzas }));
   });
 
   return r;

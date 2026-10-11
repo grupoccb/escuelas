@@ -37,7 +37,7 @@ async function estadoDelFoco(page: Page): Promise<{ descripcion: string; visible
     let visible = anillo(el);
     // Un campo dentro de una caja (contraseña, búsqueda) muestra el anillo en la caja.
     for (let p: Element | null = el.parentElement; p && !visible && p !== document.body; p = p.parentElement) {
-      if (p.matches(":focus-within, :has(:focus-visible)") && anillo(p) && /campo-clave|campo-busqueda|opcion|area-tarjeta/.test(p.className)) visible = true;
+      if (p.matches(":focus-within, :has(:focus-visible)") && anillo(p) && /campo-clave|campo-busqueda|opcion|area-tarjeta|familia-tarjeta/.test(p.className)) visible = true;
     }
     const r = el.getBoundingClientRect();
     const dentro = r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;

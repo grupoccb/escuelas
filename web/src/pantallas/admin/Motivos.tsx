@@ -4,12 +4,13 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Tarjeta, Vacio, Pagina } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, useAlternarActivo } from "./patron.tsx";
 import { NOMBRE_DE_MODULO } from "./mensajeria.ts";
 
 interface Motivo {
@@ -61,33 +62,57 @@ function Formulario({ ruta, motivo, alGuardar, alCerrar }: { ruta: string; motiv
   );
 }
 
-function Lista({ ruta, titulo, ayuda, modulo, claveDePrueba }: { ruta: string; titulo: string; ayuda: string; modulo: "captacion" | "inscripcion"; claveDePrueba: string }) {
+function Lista({ ruta, titulo, ayuda, modulo, claveDePrueba, nuevo, secundaria = false }: { ruta: string; titulo: string; ayuda: string; modulo: "captacion" | "inscripcion"; claveDePrueba: string; nuevo: string; secundaria?: boolean }) {
   const carga = useCarga((senal) => api.get<{ datos: Motivo[] }>(ruta, undefined, senal), [ruta]);
   const edicion = useEdicion<Motivo>();
   const [quitando, setQuitando] = useState<Motivo | null>(null);
   const { moduloEncendido } = useSesion();
+  const alternar = useAlternarActivo(carga.recargar);
+  const ordenar = useAccion();
+  const lista = carga.datos?.datos ?? [];
+  /** Sube o baja un lugar: se numera la lista 1, 2, 3… y solo se escriben los que cambian de número. */
+  const mover = (i: number, delta: -1 | 1): void => {
+    const j = i + delta;
+    if (j < 0 || j >= lista.length) return;
+    const nueva = [...lista];
+    [nueva[i], nueva[j]] = [nueva[j]!, nueva[i]!];
+    void ordenar.ejecutar(async () => {
+      for (const [k, m] of nueva.entries()) if (m.orden !== k + 1) await api.patch(`${ruta}/${m.id}`, { orden: k + 1 });
+      carga.recargar();
+    });
+  };
   return (
-    <Tarjeta titulo={titulo} acciones={<Boton variante="sutil" onClick={edicion.nuevo}>Agregar un motivo</Boton>}>
+    <ListaDeCatalogo titulo={titulo} cuenta={carga.datos ? lista.length : undefined} nuevo={nuevo} alNuevo={edicion.nuevo} secundaria={secundaria}>
       <div className="pila" data-prueba={claveDePrueba}>
         <p className="muted">{ayuda}</p>
         {!moduloEncendido(modulo) ? <Aviso tono="alerta">El módulo «{NOMBRE_DE_MODULO[modulo]}» está apagado. Puedes dejar la lista lista, pero no se usa hasta que lo enciendas.</Aviso> : null}
         {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
         {carga.cargando && !carga.datos ? <Cargando /> : null}
-        {carga.datos && carga.datos.datos.length === 0 ? <Vacio titulo="Todavía no hay motivos">Agrega el primero con «Agregar un motivo».</Vacio> : null}
-        <ul className="lista-tarjetas">
-          {(carga.datos?.datos ?? []).map((m) => (
-            <li key={m.id} className="item-admin" data-prueba={`motivo-${m.id}`}>
-              <div className="item-admin-principal">
-                <strong className="item-admin-nombre">{m.nombre}</strong>
-              </div>
-              <div className="item-admin-etiquetas">
-                <Insignia tono={m.activo ? "exito" : "neutro"}>{m.activo ? "Se ofrece" : "Apagado"}</Insignia>
-              </div>
-              <div className="item-admin-acciones">
-                <BotonDeIcono icono="lapiz" nombre="Cambiar" onClick={() => edicion.editar(m)} />
-                <BotonDeIcono icono="papelera" nombre="Quitar" peligro onClick={() => setQuitando(m)} />
-              </div>
-            </li>
+        {carga.datos && lista.length === 0 ? <VacioDeLista titulo="Todavía no hay motivos">Agrega el primero con «{nuevo}».</VacioDeLista> : null}
+        <ErrorDeAccion error={ordenar.error} />
+        <ErrorDeAccion error={alternar.error} />
+        <ul className="lista-filas">
+          {lista.map((m, i) => (
+            <FilaDeCatalogo
+              key={m.id}
+              data-prueba={`motivo-${m.id}`}
+              orden={i + 1}
+              inactiva={!m.activo}
+              titulo={m.nombre}
+              etiquetas={<Insignia tono={m.activo ? "exito" : "neutro"}>{m.activo ? "Se ofrece" : "Apagado"}</Insignia>}
+              acciones={
+                <AccionesDeTarjeta
+                  nombreEditar="Cambiar"
+                  nombreBaja="Quitar"
+                  ordenar={{ nombre: m.nombre, alSubir: i > 0 ? () => mover(i, -1) : null, alBajar: i < lista.length - 1 ? () => mover(i, 1) : null, ocupado: ordenar.ocupado }}
+                  activo={m.activo}
+                  ocupado={alternar.ocupado}
+                  alDesactivar={() => alternar.alternar(`${ruta}/${m.id}`, m.activo, { desactivada: `«${m.nombre}» quedó apagado: ya no se ofrece al elegir un motivo.`, activada: `«${m.nombre}» se ofrece otra vez.` })}
+                  alEditar={() => edicion.editar(m)}
+                  alDarDeBaja={() => setQuitando(m)}
+                />
+              }
+            />
           ))}
         </ul>
       </div>
@@ -106,16 +131,16 @@ function Lista({ ruta, titulo, ayuda, modulo, claveDePrueba }: { ruta: string; t
       >
         <p>¿Quitar «{quitando?.nombre}»? Ya no aparece al elegir un motivo. Lo que se registró con él se conserva tal cual.</p>
       </ConfirmarAccion>
-    </Tarjeta>
+    </ListaDeCatalogo>
   );
 }
 
 export default function Motivos() {
   useTitulo("Motivos de pérdida y de baja");
   return (
-    <Pagina titulo="Motivos de pérdida y de baja" subtitulo="Por qué se va una familia, en las palabras de la escuela." acciones={<Regreso />}>
-      <Lista ruta="/api/motivos-perdida" titulo="Motivos de pérdida de un lead" ayuda="Se elige al marcar un lead como perdido. Sirven para ver, en los reportes, por qué no se inscriben." modulo="captacion" claveDePrueba="motivos-de-perdida" />
-      <Lista ruta="/api/motivos-baja" titulo="Motivos de baja de una inscripción" ayuda="Se elige al dar de baja a un alumno. Sirven para ver por qué se van las familias que ya estaban inscritas." modulo="inscripcion" claveDePrueba="motivos-de-baja" />
-    </Pagina>
+    <PaginaDeCatalogo titulo="Motivos de pérdida y de baja" ayuda="Por qué se va una familia, en tus palabras. Aparecen al perder un lead y al dar de baja a un alumno.">
+      <Lista ruta="/api/motivos-perdida" titulo="Motivos de pérdida" nuevo="Nuevo motivo de pérdida" ayuda="Se elige al marcar un lead como perdido. Sirven para ver, en los reportes, por qué no se inscriben." modulo="captacion" claveDePrueba="motivos-de-perdida" />
+      <Lista ruta="/api/motivos-baja" titulo="Motivos de baja" nuevo="Nuevo motivo de baja" secundaria ayuda="Se elige al dar de baja a un alumno. Sirven para ver por qué se van las familias que ya estaban inscritas." modulo="inscripcion" claveDePrueba="motivos-de-baja" />
+    </PaginaDeCatalogo>
   );
 }

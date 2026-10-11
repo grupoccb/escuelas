@@ -30,13 +30,27 @@ export function VacioDeLista({ titulo, icono, children }: { titulo: string; icon
   );
 }
 
-/** Las acciones de una tarjeta de catálogo, siempre en este orden: editar, activar o desactivar (si aplica) y dar de baja. */
-export function AccionesDeTarjeta({ alEditar, alDesactivar, activo, ocupado = false, alDarDeBaja }: { alEditar: () => void; alDesactivar?: () => void; activo?: boolean; ocupado?: boolean; alDarDeBaja: () => void }) {
+/**
+ * Las acciones de una fila de catálogo (R7a), en el orden del prototipo: subir y bajar (si la lista se ordena), una acción propia (`extra`), «Activar»/«Desactivar» con texto (si aplica),
+ * editar y dar de baja, estas dos de solo ícono. Los nombres accesibles son los de siempre («Editar», «Desactivar», «Dar de baja»); las listas con otro vocabulario («Cambiar», «Quitar») los pasan.
+ */
+export function AccionesDeTarjeta({ alEditar, nombreEditar = "Editar", alDesactivar, activo, ocupado = false, alDarDeBaja, nombreBaja = "Dar de baja", extra, ordenar }: { alEditar: () => void; nombreEditar?: string; alDesactivar?: () => void; activo?: boolean; ocupado?: boolean; alDarDeBaja?: () => void; nombreBaja?: string; extra?: ReactNode; ordenar?: { nombre: string; alSubir: (() => void) | null; alBajar: (() => void) | null; ocupado?: boolean } }) {
   return (
-    <div className="item-catalogo-acciones">
-      <BotonDeIcono icono="lapiz" nombre="Editar" onClick={alEditar} />
-      {alDesactivar ? <BotonDeIcono icono={activo ? "pausa" : "reanudar"} nombre={activo ? "Desactivar" : "Activar"} onClick={alDesactivar} disabled={ocupado} /> : null}
-      <BotonDeIcono icono="papelera" nombre="Dar de baja" onClick={alDarDeBaja} peligro />
+    <div className="acciones-fila">
+      {ordenar ? (
+        <>
+          <BotonDeIcono icono="flecha_arriba" nombre={`Subir ${ordenar.nombre}`} disabled={!ordenar.alSubir || ordenar.ocupado === true} onClick={() => ordenar.alSubir?.()} />
+          <BotonDeIcono icono="flecha_abajo" nombre={`Bajar ${ordenar.nombre}`} disabled={!ordenar.alBajar || ordenar.ocupado === true} onClick={() => ordenar.alBajar?.()} />
+        </>
+      ) : null}
+      {extra}
+      {alDesactivar ? (
+        <Boton className="acciones-fila-activar" onClick={alDesactivar} disabled={ocupado}>
+          {activo ? "Desactivar" : "Activar"}
+        </Boton>
+      ) : null}
+      <BotonDeIcono icono="lapiz" nombre={nombreEditar} onClick={alEditar} />
+      {alDarDeBaja ? <BotonDeIcono icono="papelera" nombre={nombreBaja} onClick={alDarDeBaja} peligro /> : null}
     </div>
   );
 }

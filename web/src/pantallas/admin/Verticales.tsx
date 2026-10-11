@@ -4,24 +4,15 @@
 import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { colorDe } from "./ayudas.ts";
 import { Icono } from "../../ui/Icono.tsx";
-import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import type { Vertical } from "./tipos.ts";
-
-function Muestra({ color }: { color: string | null }) {
-  // Sin color de marca no se dibuja nada: un círculo vacío se lee como un control sin marcar.
-  if (color === null) return null;
-  return (
-    <svg className="muestra-color" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
-      <circle cx="11" cy="11" r="10" fill={color} stroke="currentColor" strokeWidth="1" />
-    </svg>
-  );
-}
 
 function Formulario({ vertical, alGuardar, alCerrar }: { vertical: Vertical | null; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [nombre, setNombre] = useState(vertical?.nombre ?? "");
@@ -110,54 +101,61 @@ export default function Verticales() {
   const { avisar } = useAvisos();
   const edicion = useEdicion<Vertical>();
   const [baja, setBaja] = useState<Vertical | null>(null);
-  const cambiarActivo = useAccion();
+  const cambiarActivo = useAlternarActivo(lista.recargar);
+  const filas = lista.datos?.datos ?? [];
 
   return (
-    <Pagina titulo="Disciplinas" subtitulo="Lo que imparte la escuela. Cada una se da de alta aquí, sin tocar código." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva disciplina</Boton></>}>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay disciplinas">Da de alta la primera con «Nueva disciplina».</VacioDeLista> : null}
-      <ErrorDeAccion error={cambiarActivo.error} />
-      <ul className="lista-tarjetas" data-prueba="lista-de-verticales">
-        {(lista.datos?.datos ?? []).map((v) => (
-          <li key={v.id} className="item-catalogo" data-prueba={`vertical-${v.slug}`}>
-            <div className="item-catalogo-cabeza">
-              <div className="item-catalogo-titulo">
-                <Muestra color={v.color_marca} />
-                <strong className="nombre-tarjeta">{v.nombre}</strong>
-              </div>
-              <AccionesDeTarjeta
-                alEditar={() => edicion.editar(v)}
-                activo={v.activo}
-                ocupado={cambiarActivo.ocupado}
-                alDesactivar={() =>
-                  void cambiarActivo.ejecutar(async () => {
-                    await api.patch(`/api/verticales/${v.id}`, { activo: !v.activo });
-                    lista.recargar();
-                    avisar(v.activo ? `${v.nombre} quedó desactivada: deja de recibir captación nueva, y lo ya registrado se conserva.` : `${v.nombre} quedó activa otra vez.`);
-                  })
-                }
-                alDarDeBaja={() => setBaja(v)}
-              />
-            </div>
-            <div className="item-catalogo-etiquetas">
-              <Insignia tono={v.activo ? "exito" : "neutro"}>{v.activo ? "Activa" : "Inactiva"}</Insignia>
-              {v.cotizador_whatsapp_activo ? <Insignia tono="info">Cotiza por WhatsApp</Insignia> : null}
-            </div>
-            <p className="meta-linea">
-              <span>
-                Página para recibir familias:{" "}
-                <a className="enlace-con-icono" href={`/l/${v.slug}`} target="_blank" rel="noopener noreferrer">
-                  abrir
-                  <Icono nombre="enlace_externo" tamano={14} />
-                </a>
-              </span>
-              <span>{v.usa_progresion ? `Avance: ${v.etiqueta_progresion ?? "—"}` : "Sin progresión"}</span>
-              {v.etiqueta_evento ? <span>{`Evento: ${v.etiqueta_evento}`}</span> : null}
-            </p>
-          </li>
-        ))}
-      </ul>
+    <PaginaDeCatalogo titulo="Disciplinas" ayuda="Lo que imparte la escuela, sus etiquetas y su color. El color se usa en el embudo, los tableros y las tarjetas de clase.">
+      <ListaDeCatalogo titulo="Disciplinas" cuenta={lista.datos ? filas.length : undefined} nuevo="Nueva disciplina" alNuevo={edicion.nuevo}>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && filas.length === 0 ? <VacioDeLista titulo="Todavía no hay disciplinas">Da de alta la primera con «Nueva disciplina».</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-verticales">
+          {filas.map((v) => (
+            <FilaDeCatalogo
+              key={v.id}
+              data-prueba={`vertical-${v.slug}`}
+              color={v.color_marca}
+              inactiva={!v.activo}
+              titulo={v.nombre}
+              etiquetas={
+                <>
+                  {v.activo ? null : <Insignia>Inactiva</Insignia>}
+                  {v.cotizador_whatsapp_activo ? <Insignia>Cotiza por WhatsApp</Insignia> : null}
+                  {v.clase_muestra_whatsapp_activo ? <Insignia>Clase muestra</Insignia> : null}
+                </>
+              }
+              detalle={
+                <>
+                  <p>{unir([v.usa_progresion ? `Avance: ${v.etiqueta_progresion ?? "—"}` : "Sin progresión", v.etiqueta_evento ? `evento: ${v.etiqueta_evento}` : null])}</p>
+                  <p>
+                    Página para recibir familias:{" "}
+                    <a className="enlace-con-icono" href={`/l/${v.slug}`} target="_blank" rel="noopener noreferrer">
+                      abrir
+                      <Icono nombre="enlace_externo" tamano={14} />
+                    </a>
+                  </p>
+                </>
+              }
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edicion.editar(v)}
+                  activo={v.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() =>
+                    cambiarActivo.alternar(`/api/verticales/${v.id}`, v.activo, {
+                      desactivada: `${v.nombre} quedó desactivada: deja de recibir captación nueva, y lo ya registrado se conserva.`,
+                      activada: `${v.nombre} quedó activa otra vez.`,
+                    })
+                  }
+                  alDarDeBaja={() => setBaja(v)}
+                />
+              }
+            />
+          ))}
+        </ul>
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nueva disciplina" : "Editar disciplina"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? (
           <Formulario
@@ -174,6 +172,6 @@ export default function Verticales() {
       <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la disciplina" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/verticales/${baja!.id}`); lista.recargar(); avisar(`La disciplina «${baja!.nombre}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="disciplina" genero="f" nombre={baja?.nombre} consecuencia="Solo se puede si nada la usa (sin programas, canales, campañas ni leads): si ya se usa, el sistema lo dirá." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

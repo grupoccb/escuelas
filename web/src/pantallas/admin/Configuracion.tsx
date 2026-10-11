@@ -6,12 +6,12 @@ import { useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { horaDeMinutos } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
-import { Icono } from "../../ui/Icono.tsx";
+import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { problemaDeAjuste } from "./ayudas.ts";
-import { Regreso } from "./comunes.tsx";
+import { EncimaDeSistema } from "./sistema.tsx";
 import { NOMBRE_DE_MODULO } from "./mensajeria.ts";
 import type { Configuracion as Datos, LimiteDeAjuste } from "./tipos.ts";
 
@@ -26,13 +26,24 @@ const verValor = (l: LimiteDeAjuste, n: number): string => (l.unidad === "hora_d
 
 function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) => void }) {
   const { moduloEncendido } = useSesion();
+  const { avisar } = useAvisos();
   const claves = Object.keys(datos.limites) as Clave[];
-  const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(claves.map((k) => [k, verValor(datos.limites[k]!, datos[k])])));
+  const delServidor = (d: Datos): Record<string, string> => Object.fromEntries(claves.map((k) => [k, verValor(d.limites[k]!, d[k])]));
+  const [valores, setValores] = useState<Record<string, string>>(() => delServidor(datos));
   const [modo, setModo] = useState<string>(datos.modo_cierre);
   const [politica, setPolitica] = useState<string>(datos.sucursal_sin_programa);
   const [local, setLocal] = useState<Record<string, string>>({});
-  const [guardado, setGuardado] = useState(false);
   const guardar = useAccion();
+  // R7b: la barra de abajo solo sale cuando hay algo por guardar o por descartar (lo escrito contra lo que dice el servidor).
+  const base = delServidor(datos);
+  const hayCambios = claves.some((k) => (valores[k] ?? "") !== base[k]) || modo !== datos.modo_cierre || politica !== datos.sucursal_sin_programa;
+  const descartar = () => {
+    setValores(base);
+    setModo(datos.modo_cierre);
+    setPolitica(datos.sucursal_sin_programa);
+    setLocal({});
+    guardar.limpiar();
+  };
   const servidor = guardar.error?.porCampo() ?? {};
   const err = (k: string) => local[k] ?? servidor[k];
 
@@ -97,16 +108,27 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
         if (!e["horario_envio_inicio_min"] && !e["horario_envio_fin_min"] && (nuevos["horario_envio_inicio_min"] ?? 0) >= (nuevos["horario_envio_fin_min"] ?? 0)) e["horario_envio_inicio_min"] = "La hora de inicio debe ser antes que la hora de fin. Cambia una de las dos.";
         if (!e["ocupacion_vacio_pct"] && !e["ocupacion_a_reventar_pct"] && (nuevos["ocupacion_vacio_pct"] ?? 0) >= (nuevos["ocupacion_a_reventar_pct"] ?? 0)) e["ocupacion_vacio_pct"] = "El porcentaje de «vacío» debe ser menor que el de «a reventar». Baja uno o sube el otro.";
         setLocal(e);
-        setGuardado(false);
         if (Object.keys(e).length > 0) return;
         void guardar.ejecutar(async () => {
           const nuevo = await api.patch<Datos>("/api/configuracion", cuerpo);
-          setGuardado(true);
+          // Lo que quedó guardado manda: lo escrito se vuelve a leer del servidor (así «  45 » queda «45» y la barra se va).
+          setValores(delServidor(nuevo));
+          setModo(nuevo.modo_cierre);
+          setPolitica(nuevo.sucursal_sin_programa);
           alGuardar(nuevo);
+          avisar("Configuración guardada. Surte efecto en los próximos mensajes.");
         });
       }}
     >
-      <div className="config-pares">
+      <div className="config-rejilla">
+        {grupos.map((g) => (
+          <Tarjeta key={g.titulo} titulo={g.titulo}>
+            {g.titulo === "Horario de los mensajes automáticos" ? (
+              <Aviso>Puedes dejar el horario más corto, pero nunca más largo: los mensajes que inicia el sistema (recordatorios, reenganche, avisos de pago) jamás salen antes de las 09:00 ni después de las 20:00, hora de cada sucursal. Responder a quien acaba de escribir no tiene horario. La zona horaria se ajusta en cada sucursal.</Aviso>
+            ) : null}
+            <div className="config-campos">{g.claves.map(campo)}</div>
+          </Tarjeta>
+        ))}
         <Tarjeta titulo="Quién cierra la inscripción">
           <CampoSelect
             etiqueta="Modo de cierre"
@@ -132,26 +154,26 @@ function Formulario({ datos, alGuardar }: { datos: Datos; alGuardar: (d: Datos) 
           />
         </Tarjeta>
       </div>
-      {grupos.map((g) => (
-        <Tarjeta key={g.titulo} titulo={g.titulo}>
-          {g.titulo === "Horario de los mensajes automáticos" ? (
-            <Aviso>Puedes dejar el horario más corto, pero nunca más largo: los mensajes que inicia el sistema (recordatorios, reenganche, avisos de pago) jamás salen antes de las 09:00 ni después de las 20:00, hora de cada sucursal. Responder a quien acaba de escribir no tiene horario. La zona horaria se ajusta en cada sucursal.</Aviso>
-          ) : null}
-          <div className="config-campos">{g.claves.map(campo)}</div>
-        </Tarjeta>
-      ))}
-      <ErrorDeAccion error={guardar.error} />
-      <div className="barra-guardado">
-        {guardado ? (
-          <p className="barra-guardado-estado barra-guardado-estado-ok" role="status">
-            <Icono nombre="exito" tamano={20} />
-            Configuración guardada.
-          </p>
-        ) : null}
-        <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
-          Guardar la configuración
-        </Boton>
-      </div>
+      {hayCambios ? (
+        <div className="barra-guardado config-barra" data-prueba="barra-de-cambios">
+          <div className="config-barra-texto">
+            <p className="config-barra-aviso" role="status">
+              Tienes cambios sin guardar
+            </p>
+            <ErrorDeAccion error={guardar.error} />
+          </div>
+          <div className="config-barra-botones">
+            <Boton onClick={descartar} disabled={guardar.ocupado}>
+              Descartar
+            </Boton>
+            <Boton type="submit" variante="primario" cargando={guardar.ocupado}>
+              Guardar la configuración
+            </Boton>
+          </div>
+        </div>
+      ) : (
+        <ErrorDeAccion error={guardar.error} />
+      )}
     </form>
   );
 }
@@ -160,7 +182,7 @@ export default function Configuracion() {
   useTitulo("Configuración");
   const carga = useCarga((senal) => api.get<Datos>("/api/configuracion", undefined, senal), []);
   return (
-    <Pagina titulo="Configuración de la escuela" subtitulo="Horario de los mensajes automáticos, topes de mensajes, tiempos del asistente, vigencias y umbrales." acciones={<Regreso />}>
+    <Pagina titulo="Configuración de la escuela" subtitulo="Horario de los mensajes automáticos, topes, tiempos del asistente, vigencias, umbrales y modo de cierre." encima={<EncimaDeSistema />}>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
       {carga.datos ? <Formulario datos={carga.datos} alGuardar={carga.poner} /> : null}

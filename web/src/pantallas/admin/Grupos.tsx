@@ -5,15 +5,16 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { coincide } from "../../lib/texto.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { DIAS, enteroDe, filaDeHorario, horariosParaApi, resumenDeHorarios, type FilaDeHorario } from "./ayudas.ts";
 import { Icono } from "../../ui/Icono.tsx";
-import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
-import type { GrupoAdmin, InstructorAdmin, ProgramaAdmin, SalonAdmin } from "./tipos.ts";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
+import type { GrupoAdmin, InstructorAdmin, ProgramaAdmin, SalonAdmin, Vertical } from "./tipos.ts";
 
 function Formulario({ grupo, programas, instructores, salones, alGuardar, alCerrar }: { grupo: GrupoAdmin | null; programas: ProgramaAdmin[]; instructores: InstructorAdmin[]; salones: SalonAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
   const [programaId, setProgramaId] = useState(grupo?.programa.id ?? "");
@@ -109,6 +110,7 @@ export default function Grupos() {
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
   const programas = useCarga((senal) => api.get<Pag<ProgramaAdmin>>("/api/programas", { limite: 100 }, senal), []);
+  const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal), []);
   const instructores = useCarga((senal) => api.get<Pag<InstructorAdmin>>("/api/instructores", { limite: 100 }, senal), []);
   const salones = useCarga((senal) => api.get<Pag<SalonAdmin>>("/api/salones", { limite: 100 }, senal), []);
   const lista = useCarga((senal) => api.get<Pag<GrupoAdmin>>("/api/grupos", { ...(programaId ? { programa_id: programaId } : {}), limite: 100, pagina }, senal), [programaId, pagina]);
@@ -117,41 +119,58 @@ export default function Grupos() {
   const nombreInstructor = (id: string | null) => instructores.datos?.datos.find((i) => i.id === id)?.nombre ?? "Sin instructor";
   // V7: con muchos grupos hay que poder encontrar uno escribiendo su nombre, el del programa, el salón o el instructor (sin acentos ni mayúsculas).
   const visibles = (lista.datos?.datos ?? []).filter((g) => coincide(`${g.nombre} ${g.programa.nombre} ${g.salon?.nombre ?? ""} ${nombreInstructor(g.instructor_id)}`, busqueda));
+  const colorV = (id: string) => verticales.datos?.datos.find((v) => v.id === id)?.color_marca ?? null;
+  const cambiarActivo = useAlternarActivo(lista.recargar);
   return (
-    <Pagina titulo="Grupos y horarios" subtitulo="Cupo, salón, instructor y los días de clase." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo grupo</Boton></>}>
-      <div className="rejilla rejilla-2 rejilla-arriba">
-        <CampoSelect etiqueta="Programa" value={programaId} vacio="Todos" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => { setPagina(1); setProgramaId(e.target.value); }} />
-        <CampoTexto etiqueta="Buscar un grupo" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} ayuda="Por nombre, programa, salón o instructor." />
-      </div>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay grupos con ese filtro">Prueba con otro programa, o da de alta el primero con «Nuevo grupo».</VacioDeLista> : null}
-      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <VacioDeLista titulo={`Ningún grupo coincide con «${busqueda.trim()}»`} icono="buscar">Prueba con otra palabra, o borra lo escrito.</VacioDeLista> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-grupos">
-        {visibles.map((g) => (
-          <li key={g.id} className="item-catalogo" data-prueba={`grupo-${g.id}`}>
-            <div className="item-catalogo-cabeza">
-              <div className="item-catalogo-titulo">
-                <strong className="nombre-tarjeta">{g.nombre}</strong>
-                <Insignia tono={g.activo ? "exito" : "neutro"}>{g.activo ? "Activo" : "Inactivo"}</Insignia>
-                {g.permite_lista_espera ? <Insignia tono="info">Lista de espera</Insignia> : null}
-                <span className="item-catalogo-contexto">{g.programa.nombre}</span>
-              </div>
-              <AccionesDeTarjeta alEditar={() => edicion.editar(g)} alDarDeBaja={() => setBaja(g)} />
-            </div>
-            <p className="item-catalogo-destacado">
-              <Icono nombre="hoy" tamano={18} />
-              <span>{resumenDeHorarios(g.horarios)}</span>
-            </p>
-            <p className="meta-linea">
-              <span className="meta-destacada">Cupo {g.cupo_maximo}</span>
-              <span>{g.salon?.nombre ?? "Sin salón"}</span>
-              <span>{nombreInstructor(g.instructor_id)}</span>
-            </p>
-          </li>
-        ))}
-      </ul>
-      {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+    <PaginaDeCatalogo titulo="Grupos y horarios" ayuda="Cupo, salón, instructor, lista de espera y días de clase. Un grupo sin horario no aparece en el cotizador.">
+      <ListaDeCatalogo titulo="Grupos" cuenta={lista.datos?.paginacion.total} nuevo="Nuevo grupo" alNuevo={edicion.nuevo}>
+        <div className="rejilla rejilla-2 rejilla-arriba">
+          <CampoSelect etiqueta="Programa" value={programaId} vacio="Todos" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => { setPagina(1); setProgramaId(e.target.value); }} />
+          <CampoTexto etiqueta="Buscar un grupo" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} ayuda="Por nombre, programa, salón o instructor." />
+        </div>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay grupos con ese filtro">Prueba con otro programa, o da de alta el primero con «Nuevo grupo».</VacioDeLista> : null}
+        {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <VacioDeLista titulo={`Ningún grupo coincide con «${busqueda.trim()}»`} icono="buscar">Prueba con otra palabra, o borra lo escrito.</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-grupos">
+          {visibles.map((g) => (
+            <FilaDeCatalogo
+              key={g.id}
+              data-prueba={`grupo-${g.id}`}
+              color={colorV(g.programa.vertical_id)}
+              inactiva={!g.activo}
+              titulo={g.nombre}
+              etiquetas={
+                <>
+                  {g.activo ? null : <Insignia>Inactivo</Insignia>}
+                  <Insignia>Cupo {g.cupo_maximo}</Insignia>
+                  {g.permite_lista_espera ? <Insignia tono="info">Lista de espera</Insignia> : null}
+                </>
+              }
+              detalle={
+                <>
+                  <p className="item-catalogo-destacado">
+                    <Icono nombre="hoy" tamano={18} />
+                    <span>{resumenDeHorarios(g.horarios)}</span>
+                  </p>
+                  <p>{unir([g.programa.nombre, g.salon?.nombre ?? "Sin salón", nombreInstructor(g.instructor_id)])}</p>
+                </>
+              }
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edicion.editar(g)}
+                  activo={g.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/grupos/${g.id}`, g.activo, { desactivada: `El grupo «${g.nombre}» quedó desactivado.`, activada: `El grupo «${g.nombre}» quedó activo otra vez.` })}
+                  alDarDeBaja={() => setBaja(g)}
+                />
+              }
+            />
+          ))}
+        </ul>
+        {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nuevo grupo" : "Editar grupo"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? (
           <Formulario
@@ -171,6 +190,6 @@ export default function Grupos() {
       <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja el grupo" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/grupos/${baja!.id}`); lista.recargar(); avisar(`El grupo «${baja!.nombre}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="grupo" genero="m" nombre={baja?.nombre} consecuencia="Si tiene alumnos inscritos, el sistema no lo dejará: pásalos antes a otro grupo." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

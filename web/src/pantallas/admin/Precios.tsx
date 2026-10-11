@@ -6,11 +6,12 @@ import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatear, normalizarCaptura } from "../../lib/dinero.ts";
 import { formatearFecha, hoyLocal } from "../../lib/fechas.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { Regreso } from "./comunes.tsx";
+import { estadoDeVigencia, rangoDeVigencia, TEXTO_DE_VIGENCIA } from "./precios.ts";
+import { RegresoAAdministracion } from "./sistema.tsx";
 import type { PrecioAdmin, ProgramaAdmin } from "./tipos.ts";
 
 function NuevaVigencia({ programa, alGuardar, alCerrar }: { programa: ProgramaAdmin; alGuardar: (v: { desde: string; inscripcion: string; mensualidad: string }) => void; alCerrar: () => void }) {
@@ -71,21 +72,24 @@ export default function Precios() {
   const programa = programas.datos?.datos.find((p) => p.id === programaId);
   const historial = [...(precios.datos?.datos ?? [])].sort((a, b) => (a.vigencia_desde < b.vigencia_desde ? 1 : -1));
   const hoy = hoyLocal();
-  const estaVigente = (p: PrecioAdmin): boolean => p.vigencia_desde <= hoy && (p.vigencia_hasta === null || p.vigencia_hasta >= hoy);
-  const vigente = historial.find(estaVigente);
+  const vigente = historial.find((p) => estadoDeVigencia(p, hoy) === "vigente");
   return (
-    <Pagina titulo="Precios" subtitulo="Inscripción y mensualidad por programa, con vigencia." acciones={<Regreso />}>
-      <div className="filtros-catalogo">
-        <CampoSelect etiqueta="Programa" value={programaId} vacio="Elige un programa" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => setProgramaId(e.target.value)} />
+    <Pagina titulo="Precios" subtitulo="Inscripción y mensualidad con vigencia. Lo ya inscrito conserva el precio con el que se inscribió." encima={<RegresoAAdministracion />}>
+      <div className="precios-fila">
+        <div className="filtros-precios">
+          <CampoSelect etiqueta="Programa" value={programaId} vacio="Elige un programa" opciones={(programas.datos?.datos ?? []).map((p) => ({ valor: p.id, texto: p.nombre }))} onChange={(e) => setProgramaId(e.target.value)} />
+        </div>
+        {programa ? (
+          <Boton variante="primario" onClick={() => setAbierto(true)}>
+            Nueva vigencia
+          </Boton>
+        ) : null}
       </div>
       {programas.error ? <ErrorDeCarga error={programas.error} alReintentar={programas.recargar} /> : null}
       {programa ? (
-        <Tarjeta className="tarjeta-precios" titulo={`Historial de ${programa.nombre}`} acciones={<Boton variante="primario" onClick={() => setAbierto(true)}>Nueva vigencia</Boton>}>
-          {precios.error ? <ErrorDeCarga error={precios.error} alReintentar={precios.recargar} /> : null}
-          {precios.cargando && !precios.datos ? <Cargando /> : null}
-          {precios.datos && historial.length === 0 ? <Vacio titulo="Este programa todavía no tiene precio">Sin precio no aparece en el cotizador ni se puede inscribir a nadie. Captura el primero con «Nueva vigencia».</Vacio> : null}
+        <>
           {vigente ? (
-            <div className="indicadores" data-prueba="precio-vigente">
+            <div className="indicadores precios-vigente" data-prueba="precio-vigente">
               <div className="indicador indicador-principal">
                 <div>Mensualidad vigente</div>
                 <div className="indicador-valor">{formatear(vigente.costo_mensualidad)}</div>
@@ -97,33 +101,55 @@ export default function Precios() {
               </div>
             </div>
           ) : null}
-          {historial.length > 0 ? (
-            <div className="tabla-scroll tabla-apilada">
-              <table className="tabla" data-prueba="historial-de-precios">
-                <thead>
-                  <tr>
-                    <th>Desde</th>
-                    <th>Hasta</th>
-                    <th className="derecha">Inscripción</th>
-                    <th className="derecha">Mensualidad</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historial.map((p) => (
-                    <tr key={p.id} className={estaVigente(p) ? "fila-vigente" : undefined}>
-                      <td data-etiqueta="Desde">{formatearFecha(p.vigencia_desde)}</td>
-                      <td data-etiqueta="Hasta">{p.vigencia_hasta ? formatearFecha(p.vigencia_hasta) : "Abierta"}</td>
-                      <td className="derecha numero" data-etiqueta="Inscripción">{formatear(p.costo_inscripcion)}</td>
-                      <td className="derecha numero" data-etiqueta="Mensualidad">{formatear(p.costo_mensualidad)}</td>
-                      <td data-etiqueta="Estado">{estaVigente(p) ? <Insignia tono="exito">Vigente</Insignia> : p.vigencia_desde > hoy ? <Insignia tono="info">Futura</Insignia> : <Insignia>Pasada</Insignia>}</td>
+          <Tarjeta titulo="Historial">
+            {precios.error ? <ErrorDeCarga error={precios.error} alReintentar={precios.recargar} /> : null}
+            {precios.cargando && !precios.datos ? <Cargando /> : null}
+            {precios.datos && historial.length === 0 ? (
+              <p className="precios-sin-precio" role="status">
+                <strong>Este programa todavía no tiene precio</strong>
+                <span>: el asistente no puede cotizarlo y no se puede inscribir a nadie. Agrega su primera vigencia con «Nueva vigencia».</span>
+              </p>
+            ) : null}
+            {historial.length > 0 ? (
+              <div className="precios-historial" data-prueba="historial-de-precios">
+                <table role="table">
+                  <caption className="solo-lectores">Historial de precios de {programa.nombre}</caption>
+                  <thead className="solo-lectores">
+                    <tr role="row">
+                      <th scope="col">Estado</th>
+                      <th scope="col">Vigencia</th>
+                      <th scope="col">Inscripción</th>
+                      <th scope="col">Mensualidad</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </Tarjeta>
+                  </thead>
+                  <tbody>
+                    {historial.map((p) => {
+                      const estado = estadoDeVigencia(p, hoy);
+                      return (
+                        <tr key={p.id} role="row" className={`precios-fila-historial precios-${estado}`}>
+                          <td role="cell">
+                            <Insignia tono={estado === "vigente" ? "exito" : estado === "futura" ? "info" : "neutro"}>{TEXTO_DE_VIGENCIA[estado]}</Insignia>
+                          </td>
+                          <td role="cell" className="precios-rango">
+                            {rangoDeVigencia(p)}
+                          </td>
+                          <td role="cell">
+                            <span className="muted">Inscripción </span>
+                            <strong className="numero">{formatear(p.costo_inscripcion)}</strong>
+                          </td>
+                          <td role="cell">
+                            <span className="muted">Mensualidad </span>
+                            <strong className="numero">{formatear(p.costo_mensualidad)}</strong>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </Tarjeta>
+        </>
       ) : null}
       <Dialogo abierto={abierto} titulo="Nueva vigencia de precio" alCerrar={() => setAbierto(false)}>
         {abierto && programa ? <NuevaVigencia

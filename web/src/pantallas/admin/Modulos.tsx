@@ -11,8 +11,9 @@ import { useAvisos } from "../../ui/avisos.tsx";
 import { Aviso, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
 import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
-import { ConfirmarAccion, Regreso } from "./comunes.tsx";
+import { ConfirmarAccion } from "./comunes.tsx";
 import { Interruptor } from "./piezas.tsx";
+import { EncimaDeSistema } from "./sistema.tsx";
 import { explicarCambioDeModulo, queCambia, type ModuloDeLista } from "./modulos.ts";
 
 interface Lista {
@@ -37,7 +38,7 @@ export default function Modulos() {
 
   const modulos = carga.datos?.modulos ?? [];
   return (
-    <Pagina titulo="Módulos" subtitulo="Lo que la escuela tiene encendido. Lo apagado no aparece en pantalla y no manda mensajes." acciones={<Regreso />}>
+    <Pagina titulo="Módulos" subtitulo="Qué partes del sistema tiene encendidas la escuela. Un módulo apagado no aparece en la barra y sus pantallas dicen «No disponible»." encima={<EncimaDeSistema />}>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
       <ErrorDeAccion error={cambio.error} />
@@ -50,36 +51,41 @@ export default function Modulos() {
               return (
                 <li key={m.id} className="item-admin item-modulo" data-prueba={`modulo-${m.id}`}>
                   <div className="item-admin-principal">
-                    <h2 className="item-admin-nombre">{m.nombre}</h2>
+                    <div className="modulo-titulo">
+                      <h2 className="item-admin-nombre">{m.nombre}</h2>
+                      <Insignia tono={m.encendido ? "exito" : "neutro"}>{m.obligatorio ? "Siempre encendido" : m.encendido ? "Encendido" : "Apagado"}</Insignia>
+                    </div>
                     <p className="item-admin-meta">{m.incluye}</p>
-                    {m.obligatorio ? null : (
+                    {m.obligatorio ? (
+                      <p className="modulo-bloqueo">
+                        <Icono nombre="bloquear" tamano={14} />
+                        <span>Es la base del sistema</span>
+                      </p>
+                    ) : (
                       <p className="modulo-efecto" data-prueba={`efecto-${m.id}`}>
                         <strong>{m.encendido ? "Si lo apagas:" : "Si lo enciendes:"}</strong> {queCambia(m.id, !m.encendido)}
                       </p>
                     )}
                     {bloqueo ? (
-                      <p className="campo-ayuda modulo-bloqueo" id={`bloqueo-${m.id}`}>
-                        <Icono nombre="info" tamano={16} />
+                      <p className="modulo-bloqueo" id={`bloqueo-${m.id}`}>
+                        <Icono nombre="bloquear" tamano={14} />
                         <span>{bloqueo}</span>
                       </p>
                     ) : null}
                   </div>
-                  <div className="item-admin-etiquetas">
-                    <Insignia tono={m.encendido ? "exito" : "neutro"}>{m.obligatorio ? "Siempre encendido" : m.encendido ? "Encendido" : "Apagado"}</Insignia>
-                    <Interruptor
-                      checked={m.encendido}
-                      disabled={m.obligatorio || bloqueo !== null || cambio.ocupado}
-                      onChange={(e) => {
-                        // Apagar toca lo que ven otras personas: se confirma. Encender no quita nada: va directo.
-                        if (m.encendido) setPorApagar(m);
-                        else void cambio.ejecutar(() => cambiar(m, e.target.checked));
-                      }}
-                      data-prueba={`interruptor-${m.id}`}
-                      aria-describedby={bloqueo ? `bloqueo-${m.id}` : undefined}
-                    >
-                      {m.obligatorio ? "Siempre encendido" : "Encendido"}
-                    </Interruptor>
-                  </div>
+                  <Interruptor
+                    checked={m.encendido}
+                    disabled={m.obligatorio || bloqueo !== null || cambio.ocupado}
+                    onChange={(e) => {
+                      // Apagar toca lo que ven otras personas: se confirma. Encender no quita nada: va directo.
+                      if (m.encendido) setPorApagar(m);
+                      else void cambio.ejecutar(() => cambiar(m, e.target.checked));
+                    }}
+                    data-prueba={`interruptor-${m.id}`}
+                    aria-describedby={bloqueo ? `bloqueo-${m.id}` : undefined}
+                  >
+                    {m.obligatorio ? "Siempre encendido" : "Encendido"}
+                  </Interruptor>
                 </li>
               );
             })}

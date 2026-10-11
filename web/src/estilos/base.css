@@ -123,6 +123,16 @@
   --radio-panel: 16px;
   --radio-pildora: 999px;
   --radio-segmento: 9px;
+  /* R7b (administración, sistema): el interruptor grande de módulos y automatizaciones (60 × 34, bola de 28), el mosaico del aviso de la bandeja, la burbuja del vista previa (esquina de arriba recta) y el ancho de lectura de la ayuda. */
+  --interruptor-ancho: 60px;
+  --interruptor-alto: 34px;
+  --interruptor-bola: 28px;
+  --interruptor-margen: 3px;
+  --icono-bandeja: 40px;
+  --radio-burbuja: 4px 14px 14px 14px;
+  --ancho-lectura: 72ch;
+  --ancho-ajuste: 7.5rem;
+  --ancho-programa: 26.25rem;
   --radio-indicador: 14px;
   --radio-marca: 5px;
   --radio-trazo: 1px;
@@ -165,6 +175,15 @@
   /* R5a: la barra de avance del lead (una barra de 6 por etapa) y la de pasos de la inscripción (una de 6 por paso, con la marca numerada de 24). */
   --alto-avance: 6px;
   --radio-avance: 3px;
+  /* R6a (alumnos y expediente): la tarjeta del alumno (ancho mínimo, avatar y la barra de asistencia), el encabezado del expediente (avatar y banda de la disciplina) y las celdas de las últimas clases. */
+  --ancho-min-alumno: 300px;
+  --avatar-alumno: 42px;
+  --ancho-barra-asistencia: 64px;
+  --avatar-expediente: 64px;
+  --banda-expediente: 8px;
+  --ancho-min-clase: 76px;
+  --alto-clase: 56px;
+  --alto-barra-grande: 8px;
   --marca-paso: 24px;
 
   /* R1 (README «Tipografía»): título de pantalla 34/38 (-0.015em, escritorio y celular); titular del héroe 42 (32 en celular) con interlínea 1.08 y -0.02em; secciones numeradas (número 15, título 24/30);
@@ -240,6 +259,36 @@
   --cifra-cierre-linea: 3.25rem;
   --cifra-efectivo-tam: 2rem;
   --cifra-efectivo-linea: 2.25rem;
+
+  /* R7a (README «Administración»): el panel «Para empezar» (el paso hecho en verde suave con su marca; el pendiente usa --heroe-kpi-fondo), el buscador, el menú de áreas, la fila de catálogo (número de orden y barra
+     de color de la disciplina), la tarjeta de área y la zona de archivos de «Cargar catálogo». */
+  --paso-hecho-fondo: rgb(143 216 168 / 12%);
+  --paso-hecho-tinta: #c9f0d6;
+  --paso-hecho-marca: #0e3b22;
+  --alto-barra-pasos: 8px;
+  --radio-barra-pasos: 4px;
+  --ancho-buscador: 380px;
+  --ancho-menu-areas: 220px;
+  --orden-fila: 28px;
+  --marca-color-ancho: 12px;
+  --marca-color-alto: 40px;
+  --sombra-area: 0 10px 24px -14px rgb(23 26 44 / 35%);
+  --zona-archivos-fondo: #f7f7fe;
+  --zona-archivos-borde: #8c87e6;
+  --alto-zona-archivos: 120px;
+  --marca-paso-carga: 28px;
+
+  /* R6b (README «Familias» y «Ficha de la familia»): el monograma de la tarjeta de familia (42), el de la ficha (56) y el del hijo (44); el ancho de la búsqueda y de la tarjeta, la separación
+     de la ficha (18), el título de la ficha (32/36) y la sombra al pasar el ratón sobre una tarjeta de familia. */
+  --avatar-familia-lista: 42px;
+  --avatar-ficha: 56px;
+  --avatar-hijo: 44px;
+  --ancho-busqueda-familias: 360px;
+  --ancho-min-familia: 320px;
+  --separacion-ficha: 18px;
+  --titulo-ficha-tam: 2rem;
+  --titulo-ficha-linea: 2.25rem;
+  --sombra-familia: 0 10px 24px -14px rgb(23 26 44 / 35%);
 
   /* Movimiento (SISTEMA-VISUAL.md): 120 ms para hover y foco, 180 ms para entradas y salidas. */
   --t-rapido: 120ms;
@@ -690,13 +739,6 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 /* ───────── Administración ───────── */
 .lista-simple { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e2); }
 .vista-previa { background: var(--fondo); border-radius: var(--radio); padding: var(--e3); margin: 0; overflow-wrap: anywhere; }
-.lista-pasos { list-style: none; margin: var(--e2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.lista-pasos li { padding: 6px 0; border-bottom: 1px solid var(--borde); }
-.lista-pasos li:last-child { border-bottom: 0; }
-.lista-pasos p { margin: 0; }
-.primeros-pasos summary { cursor: pointer; min-height: var(--alto-toque); display: flex; align-items: center; font-weight: 700; color: var(--primario-fuerte); }
-.lista-areas li { padding-bottom: 6px; }
-.lista-areas li p { margin: 0; }
 .lista-simple a { display: inline-flex; align-items: center; min-height: var(--alto-toque); }
 .qr-vista { display: flex; justify-content: center; padding: var(--e2); background: var(--papel); border: 1px solid var(--borde); border-radius: var(--radio); }
 [data-prueba="error-de-guardado"] { scroll-margin-bottom: 5rem; }
@@ -950,12 +992,7 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .salud-datos { padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
 @media (max-width: 479px) { .salud-datos dt { padding-top: 0; } .salud-datos dd { font-size: 1rem; line-height: 1.375rem; font-weight: 600; margin-bottom: var(--e3); } .salud-datos dd:last-child { margin-bottom: 0; } }
 
-/* Alumnos y expediente, como los ve el maestro. */
-.alumno-fila { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); }
-.alumno-fila-texto { min-width: 0; display: flex; flex-direction: column; }
-.alumno-fila .enlace-tactil.alumno-fila-nombre { color: var(--texto); font-weight: 700; font-size: 0.9375rem; line-height: 1.375rem; text-decoration: none; min-height: var(--alto-toque); }
-.alumno-fila .enlace-tactil.alumno-fila-nombre:hover { color: var(--primario); }
-.alumno-fila .insignia { flex: none; }
+/* Expediente, como lo ve el maestro. */
 .expediente-panel .tarjeta .lista-tarjetas > li { background: var(--fondo); border-color: transparent; box-shadow: none; }
 
 /* ───────── Conversión e inscripción ───────── */
@@ -1108,17 +1145,12 @@ table.tabla th:last-child { width: 1%; }
 .item-catalogo { display: flex; flex-direction: column; gap: var(--e2); min-width: 0; }
 .item-catalogo-cabeza { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
 .item-catalogo-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--e2); min-width: 0; overflow-wrap: anywhere; }
-.item-catalogo-acciones { flex: none; display: flex; margin: calc(-1 * var(--e1)) calc(-1 * var(--e2)) calc(-1 * var(--e1)) 0; }
 .item-catalogo-etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
 .item-catalogo-destacado { margin: 0; display: flex; align-items: center; gap: var(--e2); color: var(--primario-fuerte); font-weight: 600; }
 .item-catalogo-destacado > svg { flex: none; }
 .meta-linea { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e5); color: var(--texto-suave); overflow-wrap: anywhere; }
 .meta-destacada { color: var(--texto); font-weight: 600; font-variant-numeric: tabular-nums; }
-.muestra-color { flex: none; color: var(--texto-medio); }
 .enlace-con-icono { display: inline-flex; align-items: center; gap: var(--e1); min-height: var(--alto-toque); }
-.seccion-catalogo { display: flex; flex-direction: column; gap: var(--e3); }
-.seccion-catalogo-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e3); }
-.filtros-catalogo { max-width: 28rem; }
 /* Casillas dentro de una tarjeta o de un formulario: en rejilla, sobre un recuadro gris. */
 .bloque-casillas { padding: var(--e3) var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); gap: var(--e1); }
 .casillas-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0 var(--e4); }
@@ -1138,29 +1170,11 @@ table.tabla th:last-child { width: 1%; }
 .lista-beneficios-form li { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); min-height: var(--alto-toque); padding: 0 0 0 var(--e3); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); font-weight: 600; }
 .captura-beneficio { padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); }
 /* Precios: la fila que rige hoy se distingue por su fondo (además de su etiqueta «Vigente»). */
-table.tabla tbody tr.fila-vigente { background: var(--primario-suave); }
-.tarjeta .tabla-apilada table.tabla tr.fila-vigente { background: var(--primario-suave); }
 /* Cargar catálogo: la zona de archivos, la lista de lo elegido y los detalles de la revisión. */
-.carga-archivos input[type="file"] { min-height: 56px; padding: var(--e2) var(--e3); border: 2px dashed var(--borde-campo); background: var(--fondo); cursor: pointer; }
-.carga-archivos input[type="file"]::file-selector-button { min-height: 36px; margin-right: var(--e3); padding: 0 var(--e4); border: 0; border-radius: var(--radio); background: var(--primario-suave); color: var(--primario-fuerte); font: inherit; font-weight: 700; cursor: pointer; }
-.lista-archivos li { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); min-height: var(--alto-toque); padding: 0 0 0 var(--e3); background: var(--fondo); border-radius: var(--radio); }
 .archivo-nombre { display: flex; align-items: center; gap: var(--e2); min-width: 0; overflow-wrap: anywhere; }
 .archivo-nombre > svg { flex: none; color: var(--texto-suave); }
 .lista-detalle li { padding: var(--e1) 0; }
-.lista-errores li { padding: var(--e2) var(--e3); background: var(--fondo); border: 1px solid var(--peligro); border-radius: var(--radio); }
 /* Inicio de Administración: el avance de los primeros pasos (la cifra es lo más grande), lo que sigue y las áreas como tarjetas que se tocan enteras. */
-.avance-pasos { display: flex; flex-direction: column; gap: var(--e3); }
-.avance-texto { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--e2); }
-.barra-avance { appearance: none; -webkit-appearance: none; width: 100%; height: 8px; border: 0; border-radius: var(--radio-pildora); background: var(--columna); overflow: hidden; }
-.barra-avance::-webkit-progress-bar { background: var(--columna); border-radius: var(--radio-pildora); }
-.barra-avance::-webkit-progress-value { background: var(--primario); border-radius: var(--radio-pildora); }
-.barra-avance::-moz-progress-bar { background: var(--primario); border-radius: var(--radio-pildora); }
-.siguiente-paso { align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.siguiente-paso-texto { flex: 1 1 16rem; min-width: 0; }
-.siguiente-paso-texto p { margin: 0; }
-.buscador-areas { display: flex; flex-direction: column; gap: var(--e2); }
-.buscador-areas .campo-busqueda { width: 100%; max-width: 28rem; }
-.buscador-areas p { margin: 0; }
 .grupo-areas { display: flex; flex-direction: column; gap: var(--e3); }
 .rejilla-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
 .area-tarjeta { position: relative; display: flex; flex-direction: column; gap: var(--e1); padding-right: 44px; transition: border-color var(--t-rapido) var(--curva); }
@@ -1206,25 +1220,19 @@ table.tabla tbody tr.fila-vigente { background: var(--primario-suave); }
 /* Módulos: un interruptor claro (rol «switch», 44 px de alto con su caja de toque) y la explicación de lo que cambia al moverlo. */
 .item-modulo .item-admin-etiquetas { gap: var(--e2); }
 .modulo-efecto { margin: 0; }
-.modulo-bloqueo { display: flex; align-items: flex-start; gap: 6px; }
-.modulo-bloqueo svg { flex: none; margin-top: 0; }
+.modulo-bloqueo { margin: 0; display: flex; align-items: flex-start; gap: 6px; color: var(--alerta); font-weight: 600; }
+.modulo-bloqueo svg { flex: none; margin-top: 3px; }
 .interruptor { display: inline-flex; align-items: center; justify-content: center; min-width: var(--alto-toque); min-height: var(--alto-toque); flex: none; cursor: pointer; }
-.interruptor input { appearance: none; position: relative; flex: none; width: 48px; height: 28px; margin: 0; border-radius: var(--radio-pildora); background: var(--borde-campo); cursor: inherit; transition: background-color var(--t-rapido) var(--curva); }
-.interruptor input::before { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: var(--radio-pildora); background: var(--superficie); box-shadow: var(--sombra); transition: transform var(--t-rapido) var(--curva); }
+.interruptor input { appearance: none; position: relative; flex: none; width: var(--interruptor-ancho); height: var(--interruptor-alto); margin: 0; border-radius: var(--radio-pildora); background: var(--borde-campo); cursor: inherit; transition: background-color var(--t-rapido) var(--curva); }
+.interruptor input::before { content: ""; position: absolute; top: var(--interruptor-margen); left: var(--interruptor-margen); width: var(--interruptor-bola); height: var(--interruptor-bola); border-radius: var(--radio-pildora); background: var(--superficie); box-shadow: var(--sombra); transition: transform var(--t-rapido) var(--curva); }
 .interruptor input:checked { background: var(--primario); }
-.interruptor input:checked::before { transform: translateX(20px); }
+.interruptor input:checked::before { transform: translateX(calc(var(--interruptor-ancho) - var(--interruptor-bola) - 2 * var(--interruptor-margen))); }
 .interruptor input:focus-visible { border-radius: var(--radio-pildora); }
 .interruptor input:disabled { background: var(--borde); cursor: not-allowed; }
 .interruptor input:disabled:checked { background: var(--deshabilitado-texto); }
 .interruptor:has(input:disabled) { cursor: not-allowed; }
 
-/* Configuración: los ajustes en dos columnas en escritorio y la barra de guardado a la vista. */
-.config-pares { display: grid; gap: var(--e4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); align-items: start; }
-.config-campos { display: grid; gap: var(--e5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); align-items: start; }
-.config-formulario .barra-guardado { justify-content: flex-end; }
-.barra-guardado-estado { margin: 0 auto 0 0; display: flex; align-items: center; gap: var(--e2); font-weight: 600; color: var(--texto-medio); }
-.barra-guardado-estado-ok { color: var(--exito); }
-.barra-guardado-estado > svg { flex: none; }
+/* Configuración: las tarjetas de ajustes en rejilla y la barra «Tienes cambios sin guardar» (bloque «R7b: sistema y precios», al final). */
 .formulario-incrustado .rejilla { align-items: start; }
 /* Un estado vacío suelto sobre el fondo de la página: recuadro blanco con borde discontinuo (el recuadro --fondo no se vería). Una lista sin filas no deja hueco. */
 .vacio-admin .vacio { background: var(--superficie); border: 1px dashed var(--borde-campo); }
@@ -1240,27 +1248,7 @@ ul.lista-tarjetas:empty { display: none; }
   .familia-filtros { grid-template-columns: minmax(0, 1fr) 14rem auto; }
   .familia-filtros.familia-filtros-sin-estatus { grid-template-columns: minmax(0, 1fr) auto; }
 }
-/* Fila de una lista: monograma, nombre con sus datos y estado; el dato secundario se parte en vez de salirse de la tarjeta. */
-.alumno-fila { align-items: flex-start; }
-.alumno-fila .avatar-familia { align-self: flex-start; margin-top: var(--e1); }
-.alumno-fila > .insignia { align-self: flex-start; margin-top: var(--e2); }
-.alumno-fila-texto { flex: 1; }
-.alumno-fila-texto .muted, .alumno-fila-texto .familia-nombre { overflow-wrap: anywhere; }
-.alumno-fila .boton-icono { margin: 0; }
-.familia-verticales { display: flex; flex-wrap: wrap; gap: var(--e3) var(--e5); }
-.familia-vertical-grupo { display: flex; flex-direction: column; gap: var(--e1); min-width: 0; }
-/* Ficha de la familia: el saldo y los hijos primero; en escritorio, los hijos a la izquierda y el saldo y el adulto a la derecha. */
-.ficha-familia { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--e5); align-items: start; }
-.ficha-familia-saldo .fila-entre { align-items: center; }
-@media (min-width: 1100px) {
-  .ficha-familia { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-areas: "hijos saldo" "hijos adulto"; grid-template-rows: auto 1fr; }
-  .ficha-familia.ficha-familia-sin-saldo { grid-template-areas: "hijos adulto"; grid-template-rows: auto; }
-  .ficha-familia-saldo { grid-area: saldo; }
-  .ficha-familia-hijos { grid-area: hijos; }
-  .ficha-familia-adulto { grid-area: adulto; }
-}
-/* Expediente: quién es (monograma, estado, edad y adultos), dónde está inscrito y cómo va. */
-.expediente-quien { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e1) var(--e3); }
+/* Expediente: dónde está inscrito y cómo va (el encabezado y las pestañas, en el bloque R6a del final). */
 .expediente-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--e5); align-items: start; }
 .inscripcion-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--e3); }
 .inscripcion-cabecera .insignia { flex: none; }
@@ -1277,8 +1265,6 @@ ul.lista-tarjetas:empty { display: none; }
 .salud-progreso::-webkit-progress-bar { background: var(--columna); }
 .salud-progreso::-webkit-progress-value { background: var(--primario); border-radius: var(--radio-pildora); }
 .salud-progreso::-moz-progress-bar { background: var(--primario); border-radius: var(--radio-pildora); }
-.buscador-areas .campo-busqueda input:not([type="checkbox"]):not([type="radio"]) { min-height: var(--alto-toque); }
-.carga-aplicar { align-items: center; gap: var(--e3); }
 /* Registro: lo que falta, en etiquetas compactas (el formulario queda a la vista en la primera pantalla). */
 .registro-clase .aviso { padding: var(--e2) var(--e3); }
 .registro-clase [data-prueba="faltantes"] { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
@@ -1318,11 +1304,6 @@ table.tabla-leads td a:hover { color: var(--primario); }
   .formulario-incrustado select option { min-height: var(--alto-toque); padding: var(--e2) var(--e3); white-space: normal; border-radius: var(--radio-etiqueta); }
   .formulario-incrustado select option:checked { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
 }
-/* Las cuatro secciones del expediente caben en 390 px: el texto de cada pestaña se parte en dos líneas en vez de cortarse. */
-@media (max-width: 639px) {
-  .expediente-pestanas .pestanas { overflow-x: visible; }
-  .expediente-pestanas .pestanas button { flex: 1 1 0; min-width: 0; padding: 6px var(--e1); white-space: normal; line-height: 1.2; text-align: center; }
-}
 /* La acción principal del celular mide 52 px; en escritorio vuelve a los 44 de las demás. */
 @media (max-width: 899px) { .boton-accion-celular { min-height: var(--alto-accion); font-size: 1rem; } }
 /* Los diálogos de la inscripción dejan siempre la acción principal arriba y «cancelar» debajo en celular. */
@@ -1340,21 +1321,19 @@ table.tabla-leads td a:hover { color: var(--primario); }
   .dialogo .formulario-acciones-tres > .boton { flex: none; width: 100%; }
 }
 /* Ajustes con opciones de texto largo (Configuración): la caja crece y el texto envuelve, no se corta. Donde el navegador no lo soporta queda el texto con puntos suspensivos. */
-.config-pares select { text-overflow: ellipsis; }
+.config-rejilla select { text-overflow: ellipsis; }
 @supports (appearance: base-select) {
-  .config-pares select, .config-pares select::picker(select) { appearance: base-select; }
-  .config-pares select { height: auto; padding-block: 10px; white-space: normal; text-align: left; line-height: 1.25rem; }
-  .config-pares select::picker(select) { border: 1px solid var(--borde-campo); border-radius: var(--radio); padding: var(--e1); background: var(--superficie); box-shadow: var(--sombra-flotante); }
-  .config-pares select option { min-height: var(--alto-toque); padding: var(--e2) var(--e3); white-space: normal; border-radius: var(--radio-etiqueta); }
-  .config-pares select option:checked { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
+  .config-rejilla select, .config-rejilla select::picker(select) { appearance: base-select; }
+  .config-rejilla select { height: auto; padding-block: 10px; white-space: normal; text-align: left; line-height: 1.25rem; }
+  .config-rejilla select::picker(select) { border: 1px solid var(--borde-campo); border-radius: var(--radio); padding: var(--e1); background: var(--superficie); box-shadow: var(--sombra-flotante); }
+  .config-rejilla select option { min-height: var(--alto-toque); padding: var(--e2) var(--e3); white-space: normal; border-radius: var(--radio-etiqueta); }
+  .config-rejilla select option:checked { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
 }
 /* Administración, ajustes de la revisión: contexto del nombre, vacíos visibles, campos alineados por arriba, errores de horario, avisos con un diálogo abierto. */
 .item-catalogo-contexto { flex-basis: 100%; color: var(--texto-suave); overflow-wrap: anywhere; }
 .vacio-catalogo > .vacio { background: var(--superficie); border: 1px dashed var(--borde-campo); }
 .rejilla-arriba { align-items: start; }
 .horario-con-error select, .horario-con-error input:not([type="checkbox"]):not([type="radio"]) { border: 2px solid var(--peligro); padding-left: 11px; padding-right: 11px; }
-.tarjeta-precios .tarjeta-cabecera { flex-wrap: wrap; }
-.tarjeta-precios .tarjeta-cabecera .boton { white-space: nowrap; }
 /* El aviso de «ya quedó» va abajo, como siempre (SISTEMA-VISUAL: los avisos entran desde abajo). Con un diálogo abierto, en celular y pantallas medianas el diálogo se sube y se acorta lo justo para que el aviso no le tape ni el título ni los botones; en pantallas anchas el aviso se va al lado libre. */
 body:has(dialog.dialogo[open]) .avisos-vivos { bottom: var(--e4); }
 @media (max-width: 1199px) {
@@ -2401,3 +2380,378 @@ input.corte-dia:not([type="checkbox"]):not([type="radio"]) { width: auto; font-w
 .resultado-punto { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
 .resultado-nombre { display: flex; align-items: flex-start; gap: 10px; }
 @media (max-width: 899px) { .tarea-acciones .boton { padding: 0 14px; } }
+
+/* === R7a: administración (inicio, patrón de catálogo y carga del catálogo) === */
+/* Inicio: el buscador a la derecha del título, el panel oscuro «Para empezar» (cifra, barra, lo que sigue y los ocho pasos) y las áreas como tarjetas que se tocan enteras. */
+.admin-buscador { width: var(--ancho-buscador); max-width: 100%; min-width: 0; }
+.admin-buscador .campo-busqueda { width: 100%; max-width: none; color: var(--texto-suave); }
+@media (max-width: 899px) { .pagina-acciones:has(.admin-buscador) { width: 100%; margin-left: 0; } .admin-buscador { width: 100%; } }
+.paso-panel { display: flex; flex-wrap: wrap; gap: var(--e5) 28px; padding: 22px 24px; background: var(--lateral); color: var(--superficie); border-radius: var(--radio-panel-oscuro); box-shadow: var(--sombra-panel-oscuro); }
+.paso-panel-resumen { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.paso-panel-etiqueta { color: var(--lateral-suave); font-size: var(--grupo-lateral-tam); line-height: var(--grupo-lateral-linea); font-weight: 700; letter-spacing: var(--grupo-lateral-espaciado); text-transform: uppercase; }
+.paso-panel-cifra { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.875rem; line-height: 2.125rem; font-variant-numeric: tabular-nums; }
+.paso-panel-barra { appearance: none; -webkit-appearance: none; width: 100%; height: var(--alto-barra-pasos); border: 0; border-radius: var(--radio-barra-pasos); background: var(--lateral-linea); overflow: hidden; }
+.paso-panel-barra::-webkit-progress-bar { background: var(--lateral-linea); border-radius: var(--radio-barra-pasos); }
+.paso-panel-barra::-webkit-progress-value { background: var(--heroe-bien); border-radius: var(--radio-barra-pasos); }
+.paso-panel-barra::-moz-progress-bar { background: var(--heroe-bien); border-radius: var(--radio-barra-pasos); }
+.paso-panel-sigue { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.paso-panel-sigue p { margin: 0; color: var(--lateral-texto); }
+.paso-panel-sigue strong, .paso-panel-resumen > p strong { color: var(--superficie); }
+.paso-panel-resumen > p { margin: 0; color: var(--lateral-texto); }
+.paso-panel .paso-panel-ir { background: var(--superficie); border-color: var(--superficie); color: var(--texto); font-weight: 700; }
+.paso-panel .paso-panel-ir:hover { background: var(--primario-suave); border-color: var(--primario-suave); color: var(--texto); }
+.paso-panel-detalle { flex: 1.2 1 320px; min-width: 0; }
+.paso-panel-detalle > summary { display: flex; align-items: center; min-height: var(--alto-toque); width: fit-content; cursor: pointer; color: var(--lateral-texto); font-weight: 700; }
+.paso-panel-detalle > summary:hover { color: var(--superficie); }
+.paso-panel-detalle > summary:focus-visible { outline: 2px solid var(--superficie); outline-offset: 2px; border-radius: var(--radio); }
+.paso-panel-pasos { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--e2); }
+.paso-panel-detalle[open] > summary + .paso-panel-pasos { margin-top: var(--e1); }
+.paso-panel-paso { display: flex; align-items: center; gap: 10px; min-height: var(--alto-toque); padding: var(--e2) var(--e3); border-radius: var(--radio); background: var(--heroe-kpi-fondo); color: var(--superficie); font-weight: 600; text-decoration: none; transition: background-color var(--t-rapido) var(--curva); }
+.paso-panel-paso:hover { background: var(--lateral-linea); color: var(--superficie); }
+.paso-panel-paso:focus-visible { outline: 2px solid var(--superficie); outline-offset: 2px; }
+.paso-panel-paso[data-hecho] { background: var(--paso-hecho-fondo); color: var(--paso-hecho-tinta); }
+.paso-panel-paso[data-hecho]:hover { color: var(--paso-hecho-tinta); }
+.paso-panel-marca { flex: none; width: 24px; height: 24px; border-radius: var(--radio-pildora); display: flex; align-items: center; justify-content: center; background: var(--lateral-linea); color: var(--superficie); font-size: 0.75rem; font-weight: 700; }
+.paso-panel-paso[data-hecho] .paso-panel-marca { background: var(--heroe-bien); color: var(--paso-hecho-marca); }
+.admin-busqueda-aviso { padding: var(--e3) 14px; background: var(--primario-suave); border-radius: var(--radio-tarjeta); color: var(--primario-fuerte); font-weight: 600; }
+.admin-sin-resultados { padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); color: var(--texto-suave); }
+.grupo-areas { display: flex; flex-direction: column; gap: 10px; }
+.grupo-areas h2 { font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.rejilla-areas { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
+.area-tarjeta { position: relative; display: flex; flex-direction: column; gap: var(--e1); padding: var(--e4) 44px var(--e4) var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-indicador); transition: border-color var(--t-rapido) var(--curva), box-shadow var(--t-rapido) var(--curva); }
+.area-tarjeta:hover { border-color: var(--borde-campo); box-shadow: var(--sombra-area); }
+.area-tarjeta p { margin: 0; color: var(--texto-suave); text-wrap: pretty; }
+.area-enlace { display: inline-flex; align-items: center; min-height: var(--alto-toque); margin: calc(-1 * var(--e3)) 0 calc(-1 * var(--e2)); color: var(--texto); font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; text-decoration: none; }
+.area-enlace::after { content: ""; position: absolute; inset: 0; border-radius: var(--radio-indicador); }
+.area-enlace:focus-visible { outline: none; }
+.area-tarjeta:has(.area-enlace:focus-visible) { outline: 2px solid var(--foco); outline-offset: 2px; }
+.area-flecha { position: absolute; right: var(--e4); top: var(--e4); color: var(--texto-suave); display: flex; }
+
+/* Patrón de catálogo: el menú de áreas a la izquierda (en celular, el selector «Área»), el título con su ayuda y las listas con su «Nombre · N» y su botón «Nueva …». */
+.catalogo-marco { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: var(--e5); }
+.catalogo-menu { display: none; flex: 0 0 var(--ancho-menu-areas); position: sticky; top: 0; flex-direction: column; gap: 2px; }
+.catalogo-contenido { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.catalogo-movil { display: flex; flex-direction: column; gap: var(--e3); }
+.catalogo-selector { font-weight: 600; }
+@media (min-width: 900px) { .catalogo-menu { display: flex; } .catalogo-movil { display: none; } }
+.catalogo-volver { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: var(--alto-toque); padding: 0 var(--e2); margin-left: calc(-1 * var(--e2)); font-weight: 700; color: var(--primario-fuerte); text-decoration: none; border-radius: var(--radio); }
+.catalogo-volver:hover { color: var(--texto); }
+.catalogo-menu-grupo { display: flex; flex-direction: column; gap: 2px; }
+.catalogo-menu-etiqueta { padding: 14px 10px var(--e1); font-size: var(--grupo-lateral-tam); line-height: var(--grupo-lateral-linea); font-weight: 700; letter-spacing: var(--grupo-lateral-espaciado); text-transform: uppercase; color: var(--texto-suave); }
+.catalogo-menu-enlace { display: flex; align-items: center; min-height: var(--alto-toque); padding: 0 10px; border-radius: var(--radio); color: var(--texto); font-weight: 500; text-decoration: none; transition: background-color var(--t-rapido) var(--curva); }
+.catalogo-menu-enlace:hover { background: var(--columna); color: var(--texto); }
+.catalogo-menu-enlace[aria-current="page"] { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
+.catalogo-cabecera { display: flex; flex-direction: column; gap: var(--e1); }
+.catalogo-ayuda { margin: 0; max-width: 70ch; color: var(--texto-suave); }
+.catalogo-lista { display: flex; flex-direction: column; gap: 10px; }
+.catalogo-lista-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.catalogo-lista-cabeza h2 { font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.catalogo-lista-cuenta { color: var(--texto-suave); font-weight: 600; }
+.lista-filas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.lista-filas:empty { display: none; }
+.fila-catalogo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; min-width: 0; padding: 14px var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-indicador); animation: aparece var(--t-entrada) var(--curva); }
+.fila-catalogo[data-inactiva] { background: var(--fondo); border-color: var(--borde-boton); }
+.fila-catalogo-orden { flex: none; width: var(--orden-fila); height: var(--orden-fila); border-radius: var(--radio-pildora); background: var(--columna); display: flex; align-items: center; justify-content: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fila-catalogo-color { flex: none; width: var(--marca-color-ancho); height: var(--marca-color-alto); border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.fila-catalogo-cuerpo { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); }
+.fila-catalogo-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e1) 10px; }
+.fila-catalogo-titulo > strong { font-size: 0.9375rem; line-height: 1.375rem; overflow-wrap: anywhere; }
+.fila-catalogo-detalle { color: var(--texto-suave); text-wrap: pretty; overflow-wrap: anywhere; }
+.fila-catalogo-detalle > p { margin: 0; }
+.fila-catalogo-acciones { flex: none; margin-left: auto; }
+.acciones-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px; }
+.acciones-fila .boton:not(.boton-icono) { padding: 0 var(--e3); font-weight: 600; }
+.acciones-fila .boton-icono-peligro { color: var(--texto-medio); }
+.acciones-fila .boton-icono-peligro:hover:not(:disabled) { background: var(--peligro-suave); color: var(--peligro); }
+.acciones-fila .boton-icono:disabled { background: transparent; border-color: transparent; }
+@media (max-width: 899px) { .fila-catalogo-acciones { flex: 1 0 100%; margin-left: 0; } }
+
+/* Cargar catálogo: los pasos como tarjetas con su número, la zona de archivos (se toca o se suelta encima), la revisión con errores o limpia y el resumen en tarjetas. */
+.carga-paso { display: flex; flex-direction: column; gap: var(--e3); padding: var(--e5); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); min-width: 0; }
+.carga-paso-cabeza { display: flex; align-items: center; gap: 10px; }
+.carga-paso-cabeza h2 { font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.carga-paso-numero { flex: none; width: var(--marca-paso-carga); height: var(--marca-paso-carga); border-radius: var(--radio-pildora); display: flex; align-items: center; justify-content: center; background: var(--primario); color: var(--primario-texto); font-weight: 700; }
+.carga-descargas { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); }
+.carga-plantillas { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--e2); }
+.carga-plantilla { display: flex; gap: 10px; padding: 10px var(--e3); background: var(--fondo); border-radius: var(--radio); }
+.carga-plantilla > svg { flex: none; margin-top: 1px; color: var(--texto-medio); }
+.carga-plantilla-texto { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.carga-plantilla-texto > a { display: inline-flex; align-items: center; min-height: var(--alto-toque); margin-block: -10px; font-weight: 700; }
+.zona-archivos { position: relative; min-height: var(--alto-zona-archivos); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e2); padding: 18px; background: var(--zona-archivos-fondo); border: 2px dashed var(--zona-archivos-borde); border-radius: var(--radio-indicador); color: var(--primario-fuerte); text-align: center; cursor: pointer; transition: background-color var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.zona-archivos:hover, .zona-archivos[data-arrastrando] { background: var(--primario-suave); border-color: var(--primario); }
+.zona-archivos:has(input:focus-visible) { outline: 2px solid var(--foco); outline-offset: 2px; }
+.zona-archivos-ayuda { color: var(--texto-medio); }
+.carga-archivos { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--e2); }
+.carga-archivo { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: var(--e1) var(--e1) var(--e1) var(--e3); background: var(--fondo); border-radius: var(--radio); }
+.carga-archivo .archivo-nombre { display: flex; align-items: center; gap: var(--e2); min-width: 0; overflow-wrap: anywhere; }
+.carga-resultado { display: flex; flex-direction: column; gap: var(--e3); padding: var(--e5); background: var(--superficie); border: 2px solid var(--borde); border-radius: var(--radio-panel); min-width: 0; animation: aparece var(--t-entrada) var(--curva); }
+.carga-resultado[data-estado="errores"] { border-color: var(--peligro); }
+.carga-resultado[data-estado="limpio"] { border-color: var(--exito); }
+.carga-resultado-titulo { display: flex; align-items: center; gap: 10px; }
+.carga-resultado-titulo h2 { font-size: 1.125rem; line-height: 1.5rem; font-weight: 700; }
+.carga-resultado[data-estado="errores"] .carga-resultado-titulo { color: var(--peligro); }
+.carga-resultado[data-estado="limpio"] .carga-resultado-titulo { color: var(--exito); }
+.carga-resultado-texto { margin: 0; color: var(--texto-medio); }
+.carga-errores-archivo { display: flex; flex-direction: column; gap: var(--e1); padding-top: var(--e2); border-top: 1px solid var(--borde); }
+.carga-errores-archivo h3 { font-size: 0.9375rem; line-height: 1.375rem; display: flex; align-items: center; gap: var(--e2); }
+.carga-errores { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.carga-errores li { overflow-wrap: anywhere; }
+.carga-resumen { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--e2); }
+.carga-resumen-tarjeta { display: flex; flex-direction: column; gap: 2px; padding: var(--e3) 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); }
+.carga-resumen-nombre { color: var(--texto-suave); font-size: 0.78125rem; font-weight: 600; }
+.carga-resumen-valor { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; font-variant-numeric: tabular-nums; }
+.carga-resumen-valor small { font-family: var(--fuente-texto); font-size: 0.78125rem; font-weight: 600; color: var(--texto-suave); }
+.carga-resumen-resto { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.carga-aplicar { align-items: center; gap: var(--e3); }
+
+/* === R7b: administración, sistema y precios === */
+/* Lo de arriba de «Sistema»: el regreso y las pestañas fijas (enlaces, cada pantalla conserva su dirección). */
+.sistema-encima { display: flex; flex-direction: column; gap: var(--e3); margin-bottom: var(--e2); }
+.sistema-pestanas { scrollbar-width: none; }
+.sistema-pestanas::-webkit-scrollbar { display: none; }
+.pagina-cabecera:has(.sistema-encima) p { max-width: var(--ancho-lectura); }
+.modulo-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); }
+.item-modulo, .item-auto { padding: 16px 18px; }
+.item-modulo > .interruptor, .item-auto > .interruptor { margin-left: auto; }
+.auto-cuando { margin: 0; color: var(--texto-medio); }
+.item-auto .item-admin-plantilla { padding-top: var(--e2); border-top: 1px solid var(--borde); }
+
+/* Configuración: tarjetas en rejilla (340 de mínimo), cada ajuste con su campo corto y su ayuda debajo. */
+.config-rejilla { display: grid; gap: var(--e4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 21.25rem), 1fr)); align-items: start; }
+.config-campos { display: flex; flex-direction: column; gap: var(--e4); }
+.config-campos .campo input { max-width: var(--ancho-ajuste); }
+.config-barra { justify-content: space-between; flex-wrap: wrap; }
+.config-barra-texto { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); }
+.config-barra-aviso { margin: 0; font-weight: 600; color: var(--alerta); }
+.config-barra-botones { display: flex; flex-wrap: wrap; gap: var(--e2); }
+@media (max-width: 899px) {
+  .config-barra { flex-direction: column; align-items: stretch; }
+  .config-barra-botones > * { flex: 1 1 0; }
+}
+
+/* Textos del asistente: la lista de pasos y, a la derecha, el editor que se queda a la vista. */
+.textos-maestro { display: flex; flex-wrap: wrap; gap: var(--e5); align-items: flex-start; }
+.textos-lista { flex: 1.3 1 23.75rem; min-width: 0; display: flex; flex-direction: column; gap: var(--e5); }
+.textos-pasos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.texto-paso { width: 100%; min-height: var(--alto-toque); display: flex; flex-direction: column; align-items: flex-start; gap: var(--e1); padding: 14px var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-indicador); color: var(--texto); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--sombra-tarjeta); transition: box-shadow var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.texto-paso:hover { box-shadow: var(--sombra-tarjeta-hover); }
+.texto-paso[aria-pressed="true"] { border-color: var(--primario); box-shadow: inset 0 0 0 1px var(--primario); }
+.texto-paso-cabecera { width: 100%; display: flex; align-items: center; gap: var(--e2); }
+.texto-paso-nombre { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.texto-paso-numero { flex: none; width: 24px; height: 24px; border-radius: var(--radio-pildora); background: var(--columna); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+.texto-paso-resumen { display: block; max-width: 100%; color: var(--texto-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.textos-panel { flex: 1 1 20rem; min-width: 0; position: sticky; top: var(--e4); max-height: calc(100dvh - 2 * var(--e4)); overflow-y: auto; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); padding: var(--e5); }
+.texto-editor-titulo { margin: 0; font-size: 1rem; line-height: 1.5rem; font-weight: 700; }
+.hueco-chip { min-height: var(--alto-toque); padding: 0 var(--e3); border: 0; border-radius: var(--radio-etiqueta); background: var(--primario-suave); color: var(--primario-fuerte); font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: pointer; }
+.hueco-chip:hover { background: var(--primario-fuerte); color: var(--primario-texto); }
+.whatsapp-fondo { padding: var(--e3); background: var(--columna); border-radius: var(--radio-indicador); }
+.whatsapp-burbuja { margin: 0; max-width: 88%; padding: 10px var(--e3); background: var(--superficie); border-radius: var(--radio-burbuja); box-shadow: var(--sombra); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Bandeja del administrador: una tarjeta por aviso, con su mosaico de ícono (ámbar; neutro cuando ya se atendió). */
+.lista-bandeja { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.bandeja-tarjeta { display: flex; gap: 14px; padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.bandeja-icono { flex: none; width: var(--icono-bandeja); height: var(--icono-bandeja); border-radius: var(--radio-tarjeta); display: flex; align-items: center; justify-content: center; background: var(--alerta-suave); color: var(--alerta); }
+.bandeja-tarjeta-atendida .bandeja-icono { background: var(--etiqueta); color: var(--etiqueta-texto); }
+.bandeja-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); }
+.bandeja-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--e1) var(--e3); }
+.bandeja-titulo { font-size: 0.9375rem; overflow-wrap: anywhere; }
+.bandeja-cuando, .bandeja-dato { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.bandeja-texto { color: var(--texto-medio); overflow-wrap: anywhere; }
+.bandeja-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); margin-top: var(--e1); }
+
+/* Precios: el programa y «Nueva vigencia» en una fila, lo vigente en dos cifras y el historial en filas (Futura, Vigente, Pasada). */
+.precios-fila { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--e3); }
+.filtros-precios { flex: 1 1 17.5rem; max-width: var(--ancho-programa); }
+.precios-vigente .indicador { flex: 1 1 12.5rem; }
+.precios-historial table, .precios-historial tbody { display: block; width: 100%; }
+.precios-fila-historial { display: grid; grid-template-columns: 96px 1.4fr 1fr 1fr; gap: 6px var(--e4); align-items: center; padding: 12px 0; border-top: 1px solid var(--borde); animation: aparece var(--t-entrada) var(--curva); }
+.precios-fila-historial td { display: block; padding: 0; border: 0; }
+.precios-fila-historial td:first-child { justify-self: start; }
+.precios-rango { font-weight: 600; }
+.precios-sin-precio { margin: 0; padding: var(--e3) var(--e4); background: var(--alerta-suave); color: var(--alerta-fuerte); border-radius: var(--radio-tarjeta); }
+@media (max-width: 899px) { .precios-fila-historial { grid-template-columns: 1fr 1fr; } }
+
+/* === R6b: familias y ficha de la familia === */
+.familias-busqueda { flex: 0 1 var(--ancho-busqueda-familias); width: var(--ancho-busqueda-familias); min-width: 0; max-width: 100%; }
+.familias-busqueda .campo-busqueda { width: 100%; }
+@media (max-width: 899px) { .familias-busqueda { flex: 1 1 100%; width: 100%; } }
+/* Las dos vistas («Todas» y «Con un solo hijo inscrito») son enlaces con el aspecto del selector segmentado: cada vista conserva su dirección. */
+.pestanas-segmentadas a.pestana-enlace { border-bottom: 0; border-radius: var(--radio-segmento); padding: 0 18px; color: var(--texto-medio); transition: background-color var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva); }
+.pestanas-segmentadas a.pestana-enlace:hover { color: var(--texto); }
+.pestanas-segmentadas a.pestana-enlace[aria-current="page"] { background: var(--superficie); color: var(--texto); font-weight: 700; box-shadow: var(--sombra); }
+/* La lista: una tarjeta por familia; el enlace del nombre se estira sobre toda la tarjeta. */
+.familias-rejilla { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ancho-min-familia)), 1fr)); gap: var(--e3); }
+.familia-tarjeta { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); transition: border-color var(--t-rapido) var(--curva), box-shadow var(--t-rapido) var(--curva); }
+.familia-tarjeta:hover { border-color: var(--borde-campo); box-shadow: var(--sombra-familia); }
+.familia-tarjeta:has(.familia-tarjeta-enlace:focus-visible) { outline: 2px solid var(--foco); outline-offset: 2px; }
+.familia-tarjeta-cabeza { display: flex; align-items: center; gap: var(--e3); }
+.avatar-familia-lista { width: var(--avatar-familia-lista); height: var(--avatar-familia-lista); font-size: 0.875rem; }
+.familia-tarjeta-datos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.familia-tarjeta-enlace { color: var(--texto); font-weight: 700; font-size: 0.9375rem; line-height: 1.375rem; text-decoration: none; overflow-wrap: anywhere; }
+.familia-tarjeta-enlace::after { content: ""; position: absolute; inset: 0; border-radius: var(--radio-panel); }
+.familia-tarjeta-enlace:focus-visible { outline: none; }
+.familia-tarjeta-sin-hijos { margin: 0; }
+.etiquetas-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.etiqueta-nota { font-weight: 500; }
+.familia-tarjeta-pie { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); min-height: 24px; }
+.familia-tarjeta-pie .muted { font-size: 0.8125rem; overflow-wrap: anywhere; }
+/* «Con un solo hijo inscrito»: el aviso con la descarga, y en cada tarjeta lo que ya toma y lo que podría probar. */
+.familias-aviso { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px var(--e4); padding: 14px var(--e4); background: var(--primario-suave); border: 1px solid var(--primario); border-radius: var(--radio-aviso); color: var(--primario-fuerte); }
+.familias-aviso-boton { background: var(--superficie); border-color: transparent; color: var(--primario-fuerte); font-weight: 700; }
+.familia-venta { display: flex; flex-direction: column; gap: var(--e2); }
+.familia-venta-grupo { display: flex; flex-direction: column; gap: var(--e1); min-width: 0; }
+/* La ficha: cabecera con el monograma, dos columnas (hijos y adultos; saldo y mensajes) y, en celular, una sola. */
+.ficha-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px var(--e4); }
+.ficha-identidad { flex: 1 1 24rem; min-width: 0; display: flex; align-items: center; gap: 14px; }
+.avatar-ficha { width: var(--avatar-ficha); height: var(--avatar-ficha); font-family: var(--fuente-titulo); font-size: 1.25rem; }
+.ficha-identidad-texto { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ficha-identidad-texto h1 { font-size: var(--titulo-ficha-tam); line-height: var(--titulo-ficha-linea); overflow-wrap: anywhere; }
+.ficha-identidad-texto .muted { overflow-wrap: anywhere; }
+.ficha-acciones { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 899px) { .ficha-acciones { width: 100%; } .ficha-acciones > * { flex: 1 1 auto; } }
+.ficha-columnas { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--separacion-ficha); }
+.ficha-columna { min-width: 0; display: flex; flex-direction: column; gap: var(--separacion-ficha); }
+.ficha-columna-principal { flex: 1.5 1 420px; }
+.ficha-columna-lateral { flex: 1 1 300px; }
+.ficha-hijos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
+.ficha-hijo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px var(--e4); padding: 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); }
+.avatar-hijo { flex: none; width: var(--avatar-hijo); height: var(--avatar-hijo); display: flex; align-items: center; justify-content: center; border-radius: var(--radio-pildora); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-weight: 700; }
+.ficha-hijo-datos { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); }
+.ficha-hijo-nombre { font-size: 1rem; line-height: 1.375rem; overflow-wrap: anywhere; }
+.ficha-hijo-edad { font-weight: 500; color: var(--texto-medio); }
+.ficha-hijo-grupo { color: var(--texto-medio); overflow-wrap: anywhere; }
+.ficha-hijo-grupo:empty { display: none; }
+.ficha-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ficha-chips:empty { display: none; }
+.ficha-chip { padding: 2px var(--e2); background: var(--superficie); color: var(--etiqueta-texto); border-radius: var(--radio-etiqueta); font-size: 0.75rem; line-height: 1rem; font-weight: 600; }
+.ficha-chip-adulto { background: var(--etiqueta); }
+.ficha-promo { display: flex; gap: 10px; margin: 0; padding: var(--e3) 14px; background: var(--exito-suave); color: var(--exito); border-radius: var(--radio-tarjeta); }
+.ficha-promo > svg { flex: none; margin-top: 1px; }
+.ficha-adultos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
+.ficha-adulto { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2); padding: var(--e3) 14px; border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); }
+.ficha-adulto-datos { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.ficha-chips-adulto { justify-content: flex-end; }
+.ficha-saldo { gap: 10px; }
+.ficha-saldo-titulo { font-size: 0.78125rem; line-height: 1rem; font-weight: 600; color: var(--texto-suave); }
+.ficha-saldo-cuerpo { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.ficha-saldo-cifra { margin: 0; font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--cifra-tam); line-height: var(--cifra-linea); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ficha-pildora { display: inline-flex; align-items: center; gap: 6px; padding: var(--e1) 10px; border: 1px solid transparent; border-radius: var(--radio-pildora); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; }
+.ficha-pildora-vencido { background: var(--alerta-suave); color: var(--alerta); border-color: var(--alerta-borde); }
+.ficha-pildora-corriente { background: var(--exito-suave); color: var(--exito); border-color: var(--exito-suave); }
+.ficha-saldo-enlace { align-self: flex-start; display: inline-flex; align-items: center; min-height: var(--alto-toque); font-weight: 700; text-decoration: none; }
+.ficha-saldo-enlace:hover { text-decoration: underline; }
+.ficha-mensajes { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--e2) 14px; margin: 0; align-items: baseline; }
+.ficha-mensajes-fila { display: contents; }
+.ficha-mensajes dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.ficha-mensajes dd { margin: 0; overflow-wrap: anywhere; }
+
+/* === R6a: alumnos y expediente === */
+/* Alumnos: la búsqueda arriba a la derecha, las píldoras de disciplina con el filtro «Solo con atraso o faltas» y las tarjetas (toda la tarjeta lleva al expediente por el enlace del nombre). */
+.alumnos-busqueda { display: flex; align-items: center; gap: var(--e2); flex: 0 1 30rem; }
+.alumnos-busqueda .campo-busqueda { flex: 1; width: auto; min-width: 0; }
+@media (max-width: 899px) { .alumnos-busqueda { flex-basis: 100%; width: 100%; } }
+.alumnos-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2) var(--e3); }
+.alumnos-pildoras { display: flex; flex-wrap: wrap; gap: var(--e2); }
+.alumnos-filtros .campo:not(.campo-casilla) { flex-direction: row; align-items: center; gap: var(--e2); }
+.alumnos-filtros .campo:not(.campo-casilla) select { min-width: 9rem; }
+.alumnos-nota-filtro { margin: 0; }
+.alumnos-rejilla { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ancho-min-alumno)), 1fr)); gap: var(--e3); }
+.alumno-tarjeta { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px var(--e4); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.alumno-tarjeta:hover { border-color: var(--borde-campo); }
+.alumno-tarjeta:has(.alumno-tarjeta-nombre:focus-visible) { outline: 2px solid var(--foco); outline-offset: 2px; }
+.alumno-tarjeta-cabeza { display: flex; align-items: center; gap: var(--e3); }
+.alumno-tarjeta-avatar { flex: none; display: flex; align-items: center; justify-content: center; width: var(--avatar-alumno); height: var(--avatar-alumno); border-radius: var(--radio-pildora); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-size: 0.875rem; line-height: 1.25rem; font-weight: 700; }
+.alumno-tarjeta-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* El enlace mide 44 de alto para el toque (todo el recuadro lo activa por `::after`); el margen negativo deja la tarjeta con el alto del prototipo. */
+.alumno-tarjeta-nombre { display: flex; align-items: center; min-height: var(--alto-toque); margin-block: -11px; color: var(--texto); font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
+.alumno-tarjeta-nombre::after { content: ""; position: absolute; inset: 0; border-radius: var(--radio-panel); }
+.alumno-tarjeta-nombre:focus-visible { outline: none; }
+.alumno-tarjeta-detalle { color: var(--texto-suave); font-size: 0.8125rem; line-height: 1.25rem; overflow-wrap: anywhere; }
+.alumno-tarjeta-etiquetas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.alumno-tarjeta-sucursal { padding: 2px var(--e2); border-radius: var(--radio-etiqueta); background: var(--etiqueta); color: var(--etiqueta-texto); font-size: 0.75rem; line-height: 1rem; font-weight: 600; }
+.alumno-tarjeta-pie { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); }
+.alumno-tarjeta-asistencia { display: flex; align-items: center; gap: var(--e2); color: var(--texto-medio); font-size: 0.8125rem; line-height: 1.25rem; }
+.alumno-tarjeta .insignia { flex: none; padding: 2px 9px; border: 0; border-radius: var(--radio-pildora); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+/* La barra fina de asistencia y de avance: el ancho sale de `--p` (se pone desde el componente, sin estilos en línea). */
+.barra-avance-fina { flex: none; display: block; width: var(--ancho-barra-asistencia); height: var(--alto-avance); border-radius: var(--radio-avance); background: var(--columna); overflow: hidden; }
+.barra-avance-fina-grande { width: 100%; height: var(--alto-barra-grande); border-radius: var(--radio-marca); }
+.barra-avance-fina-relleno { display: block; height: 100%; width: var(--p, 0%); transition: width var(--t-entrada) var(--curva); }
+.barra-avance-fina-exito { background: var(--exito); }
+.barra-avance-fina-alerta { background: var(--alerta-barra); }
+.barra-avance-fina-disciplina { background: var(--disciplina, var(--primario)); }
+
+/* Expediente: el encabezado (banda de la disciplina, avatar, nombre, estado y acciones) y las pestañas, que se desplazan por dentro cuando no caben. */
+.expediente-pagina { gap: 18px; }
+.expediente-pagina > .enlace-atras { align-self: flex-start; }
+.expediente-cabecera { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel-oscuro); overflow: hidden; }
+.expediente-banda { height: var(--banda-expediente); background: var(--disciplina, var(--borde-campo)); }
+.expediente-identidad { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e4); padding: var(--e5); }
+.expediente-quien-es { display: flex; align-items: center; gap: var(--e4); min-width: 0; }
+.expediente-avatar { flex: none; display: flex; align-items: center; justify-content: center; width: var(--avatar-expediente); height: var(--avatar-expediente); border-radius: var(--radio-pildora); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-family: var(--fuente-titulo); font-size: 1.375rem; line-height: 1.75rem; font-weight: 700; }
+.expediente-nombre { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.expediente-nombre h1 { font-size: 2rem; line-height: 2.25rem; overflow-wrap: anywhere; }
+.expediente-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; color: var(--texto-medio); }
+.expediente-meta .insignia { font-size: 0.78125rem; }
+.expediente-meta .enlace-tactil { font-weight: 700; }
+.expediente-acciones { flex-wrap: wrap; justify-content: flex-start; gap: var(--e2); }
+.expediente-acciones .boton svg { margin-right: var(--e2); }
+.expediente-pestanas .pestanas { scrollbar-width: none; }
+.expediente-pestanas .pestanas button { flex: none; }
+.expediente-columnas { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+.expediente-linea { flex: 1.3 1 380px; min-width: 0; }
+.expediente-lateral, .expediente-avances { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.expediente-avances { flex: none; }
+.expediente-resumen { display: flex; flex-wrap: wrap; gap: var(--e1) var(--e6); margin: 0; }
+.expediente-resumen > div { display: flex; flex-direction: column; }
+.expediente-resumen dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.expediente-resumen dd { margin: 0; font-weight: 700; }
+/* La línea de tiempo: un punto por hito y el hilo que los une; el más reciente va en el color de la marca. */
+.linea-de-tiempo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.linea-hito { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr); column-gap: var(--e3); }
+.linea-hito:not(:last-child)::before { content: ""; position: absolute; left: 5px; top: 20px; bottom: 0; width: 2px; background: var(--borde); }
+.linea-punto { width: 10px; height: 10px; margin: 5px 1px 0; border-radius: var(--radio-pildora); background: var(--borde-campo); }
+.linea-hito-reciente .linea-punto { background: var(--primario); }
+.linea-texto { display: flex; flex-direction: column; gap: 2px; padding-bottom: 14px; min-width: 0; overflow-wrap: anywhere; }
+.linea-texto .muted { font-size: 0.78125rem; line-height: 1.125rem; }
+/* El avance en una disciplina: el nivel (lo más grande), el próximo evento con lo que falta y la barra del color de la disciplina. */
+.avance-nivel-fila { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--e1) 10px; }
+.avance-nivel { font-family: var(--fuente-titulo); font-size: 1.75rem; line-height: 2rem; font-weight: 700; }
+.avance-evento { margin: 0; color: var(--texto-medio); }
+.inscripciones-lista > li { border-top: 1px solid var(--borde); }
+.inscripciones-lista > li:first-child { border-top: 0; padding-top: 0; }
+/* Asistencia: la cifra de 30 días, el aviso de faltas seguidas y las últimas clases (cada celda dice su marca con texto). */
+.asistencia-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--e2); }
+.asistencia-cifra { font-family: var(--fuente-titulo); font-size: 1.5rem; line-height: 2rem; font-weight: 700; }
+.asistencia-subtitulo { margin-top: var(--e1); }
+.aviso-faltas { display: flex; gap: 10px; margin: 0; padding: var(--e3) 14px; background: var(--alerta-suave); border: 1px solid var(--alerta-borde); border-radius: var(--radio-tarjeta); color: var(--alerta-fuerte); }
+.aviso-faltas svg { flex: none; margin-top: 1px; }
+.clases-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ancho-min-clase), 1fr)); gap: 6px; }
+.clase-celda { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: var(--alto-clase); padding: var(--e1); border-radius: var(--radio); font-size: 0.75rem; line-height: 1rem; font-weight: 700; text-align: center; }
+.clase-celda-marca { font-weight: 600; }
+.clase-celda-exito { background: var(--exito-suave); color: var(--exito); }
+.clase-celda-peligro { background: var(--peligro-suave); color: var(--peligro); }
+.clase-celda-info { background: var(--primario-suave); color: var(--primario-fuerte); }
+/* Económico: las cifras en recuadros (el saldo en la marca, lo vencido en ámbar) y el enlace al estado de cuenta de la familia. */
+.economico-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--e2); }
+.economico-cabecera a { font-weight: 700; }
+.datos-economicos { display: flex; flex-wrap: wrap; gap: var(--e3); }
+.dato-economico { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
+.dato-economico-etiqueta { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.dato-economico-valor { font-family: var(--fuente-titulo); font-size: 1.625rem; line-height: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.dato-economico-nota { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.dato-economico-nombre { margin-top: 6px; font-size: 1rem; line-height: 1.375rem; font-weight: 700; overflow-wrap: anywhere; }
+.dato-economico-saldo { background: var(--primario-suave); }
+.dato-economico-saldo .dato-economico-etiqueta, .dato-economico-saldo .dato-economico-valor { color: var(--primario-fuerte); }
+.dato-economico-vencido { background: var(--alerta-suave); }
+.dato-economico-vencido .dato-economico-etiqueta, .dato-economico-vencido .dato-economico-nota { color: var(--alerta); }
+.dato-economico-vencido .dato-economico-valor { color: var(--alerta-fuerte); }
+.expediente-salud h2 { margin-bottom: var(--e1); }
+/* Los cuadros de cambiar de grupo y dar de baja: los grupos y los motivos en botones grandes; el que está lleno va apagado y punteado. */
+.opciones-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: var(--e2); }
+.opciones-rejilla .opcion-boton { min-height: var(--alto-accion); padding: 6px var(--e3); }
+.opcion-boton:disabled { background: var(--fondo); border-color: var(--borde); border-style: dashed; color: var(--texto-suave); font-weight: 500; cursor: not-allowed; }
+@media print {
+  .alumno-tarjeta, .dato-economico, .clase-celda { background: var(--papel); color: var(--tinta); border: 1px solid var(--borde-impresion); box-shadow: none; }
+  .barra-avance-fina { border: 1px solid var(--borde-impresion); background: var(--papel); }
+  .barra-avance-fina-relleno { background: var(--tinta); }
+}

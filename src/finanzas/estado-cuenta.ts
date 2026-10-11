@@ -70,7 +70,7 @@ interface FilaDeCargoDeCuenta {
   estatus: string;
 }
 
-async function hoyDeCadaSucursal(db: Consultas, ahora: Date): Promise<Map<string, FechaISO>> {
+export async function hoyDeCadaSucursal(db: Consultas, ahora: Date): Promise<Map<string, FechaISO>> {
   const m = new Map<string, FechaISO>();
   for (const s of await db.sucursal.findMany({ select: { id: true, zona_horaria: true } })) m.set(s.id, fechaLocal(ahora, s.zona_horaria));
   return m;

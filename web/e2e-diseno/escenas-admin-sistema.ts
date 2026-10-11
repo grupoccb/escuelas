@@ -150,18 +150,39 @@ async function abrirEnTarjeta(c: Contexto, boton: string, correo = c.mundo.usuar
 
 const RUTA_CONFIGURACION = "/admin/configuracion";
 
+/** Cambia «hasta qué hora» (un valor válido distinto del de siempre): sin algo por guardar la barra «Tienes cambios sin guardar» no existe (R7b). */
+async function cambiarAlgoDeConfiguracion(c: Contexto): Promise<void> {
+  await c.page.getByTestId("formulario-configuracion").locator("input[type='time']").nth(1).fill("19:30");
+  await c.page.getByTestId("barra-de-cambios").waitFor();
+}
+
 // ─── Textos del asistente ────────────────────────────────────────────────────────────────────
 
 const RUTA_TEXTOS = "/admin/textos";
 
-/** Abre «Cambiar» del texto que cumple `buscar` (o el primero). */
+/** El editor del paso elegido: a la derecha de la lista en escritorio y dentro de la hoja en el celular (R7b). */
+const editorDeTexto = (c: Contexto) => c.page.getByTestId("editor-de-texto");
+
+/** Elige en la lista el texto que cumple `buscar` (o el primero) y espera su editor. */
 async function abrirTexto(c: Contexto, buscar: (t: Json) => boolean = () => true, transformar?: (cuerpo: Json) => Json): Promise<void> {
   if (transformar) await reescribirGet(c, "/api/textos-bot", transformar);
   await irA(c, RUTA_TEXTOS);
   const lista = (await (await c.page.request.get("/api/textos-bot")).json()) as Json;
   const texto = (transformar ? transformar(lista) : lista).datos.find(buscar) ?? lista.datos[0];
-  await c.page.getByTestId(`texto-${texto.clave}`).getByRole("button", { name: "Cambiar", exact: true }).click();
-  await dialogoListo(c);
+  await c.page.getByTestId(`texto-${texto.clave}`).getByRole("button").click();
+  await editorDeTexto(c).waitFor();
+  await esperarListo(c.page);
+}
+
+/** Una escena del editor de un paso: en escritorio no es un diálogo (va junto a la lista), así que es un estado de la pantalla; en el celular se ve como hoja. */
+const escenaDeEditorDeTexto = (id: string, titulo: string, ruta: string, fuentes: string[], ir: (c: Contexto) => Promise<void>): Escena => flotante(id, titulo, ruta, fuentes, ir, { tipo: "estado" });
+
+/** Lo mismo que `verElError`, pero dentro del editor (que en escritorio no es un diálogo). */
+async function verElErrorDelTexto(c: Contexto, texto?: string | RegExp): Promise<void> {
+  const error = texto ? editorDeTexto(c).getByText(texto).first() : editorDeTexto(c).locator("[role='alert'], .campo-error").first();
+  await error.waitFor();
+  await error.scrollIntoViewIfNeeded();
+  await esperarListo(c.page);
 }
 
 // ─── Etapas del embudo ───────────────────────────────────────────────────────────────────────
@@ -194,7 +215,8 @@ const listaDeMotivos = (c: Contexto, cual: "perdida" | "baja") => c.page.getByTe
 async function abrirMotivo(c: Contexto, cual: "perdida" | "baja", boton: string): Promise<void> {
   await irA(c, RUTA_MOTIVOS);
   const lista = listaDeMotivos(c, cual);
-  if (boton === "Agregar un motivo") await c.page.getByRole("button", { name: "Agregar un motivo", exact: true }).nth(cual === "perdida" ? 0 : 1).click();
+  // R7a: el botón de cada lista dice «Nuevo motivo de pérdida» / «Nuevo motivo de baja» (el nombre «Agregar un motivo» es el del diálogo de antes).
+  if (boton === "Agregar un motivo") await c.page.getByRole("button", { name: cual === "perdida" ? "Nuevo motivo de pérdida" : "Nuevo motivo de baja", exact: true }).click();
   else await lista.locator("li").first().getByRole("button", { name: boton, exact: true }).click();
   await dialogoListo(c);
 }
@@ -258,7 +280,7 @@ const tarjetaDeAutomatizacion = (c: Contexto, cual: "recordatorio" | "pagoAtrasa
 
 async function abrirAjuste(c: Contexto, cual: "recordatorio" | "pagoAtrasado"): Promise<void> {
   await irA(c, RUTA_AUTOMATIZACIONES);
-  await tarjetaDeAutomatizacion(c, cual).getByRole("button", { name: "Ajustar", exact: true }).click();
+  await tarjetaDeAutomatizacion(c, cual).getByRole("button", { name: /^Ajustar/ }).click();
   await dialogoListo(c);
 }
 
@@ -561,6 +583,7 @@ export const ESCENAS: Escena[] = [
     fuentes: [CONFIGURACION],
     ir: async (c) => {
       await irA(c, RUTA_CONFIGURACION);
+      await cambiarAlgoDeConfiguracion(c);
       await fallarLaSiguienteEscritura(c, 400, "Algún ajuste está fuera de rango.");
       await c.page.getByRole("button", { name: "Guardar la configuración" }).click();
       await c.page.getByRole("alert").first().waitFor();
@@ -578,6 +601,7 @@ export const ESCENAS: Escena[] = [
     fuentes: [CONFIGURACION],
     ir: async (c) => {
       await irA(c, RUTA_CONFIGURACION);
+      await cambiarAlgoDeConfiguracion(c);
       await cortarLaRed(c);
       await c.page.getByRole("button", { name: "Guardar la configuración" }).click();
       await c.page.getByRole("alert").first().waitFor();
@@ -611,42 +635,42 @@ export const ESCENAS: Escena[] = [
     fuentes: [TEXTOS],
     ir: (c) => conModulosApagados(c, RUTA_TEXTOS, ["cotizador", "clase_muestra"]),
   },
-  flotante("textos-cambiar", "Diálogo «Cambiar lo que dice el asistente» con el texto de siempre (huecos disponibles y «Así se vería»)", "/admin/textos", [TEXTOS, DIALOGO], (c) => abrirTexto(c, (t) => t.huecos.length > 0 && !t.personalizado)),
-  flotante("textos-cambiar-vista-previa", "Diálogo «Cambiar lo que dice el asistente» con huecos agregados al texto y su vista previa", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
+  escenaDeEditorDeTexto("textos-cambiar", "Editor de un paso del asistente con el texto de siempre (huecos disponibles y «Así se vería»)", "/admin/textos", [TEXTOS, DIALOGO], (c) => abrirTexto(c, (t) => t.huecos.length > 0 && !t.personalizado)),
+  escenaDeEditorDeTexto("textos-cambiar-vista-previa", "Editor de un paso del asistente con huecos agregados al texto y su vista previa", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
     await abrirTexto(c, (t) => t.huecos.length >= 2);
-    const huecos = dlg(c).getByRole("button", { name: /^Agregar \{/ });
+    const huecos = editorDeTexto(c).getByRole("button", { name: /^Agregar \{/ });
     await huecos.nth(0).click();
     await huecos.nth(1).click();
     await esperarListo(c.page);
   }),
-  flotante("textos-cambiar-sin-huecos", "Diálogo «Cambiar lo que dice el asistente» de un mensaje sin huecos («Este mensaje no lleva huecos»)", "/admin/textos", [TEXTOS, DIALOGO], (c) => abrirTexto(c, (t) => t.huecos.length === 0)),
-  flotante("textos-cambiar-personalizado", "Diálogo «Cambiar lo que dice el asistente» de un texto personalizado (con «Volver al texto de siempre»)", "/admin/textos", [TEXTOS, DIALOGO], (c) =>
+  escenaDeEditorDeTexto("textos-cambiar-sin-huecos", "Editor de un paso del asistente de un mensaje sin huecos («Este mensaje no lleva huecos»)", "/admin/textos", [TEXTOS, DIALOGO], (c) => abrirTexto(c, (t) => t.huecos.length === 0)),
+  escenaDeEditorDeTexto("textos-cambiar-personalizado", "Editor de un paso del asistente de un texto personalizado (con «Volver al texto de siempre»)", "/admin/textos", [TEXTOS, DIALOGO], (c) =>
     abrirTexto(c, () => true, (cuerpo) => ({ ...cuerpo, datos: cuerpo.datos.map((t: Json, i: number) => (i === 0 ? { ...t, personalizado: true, texto: `${t.texto} 😊` } : t)) })),
   ),
-  flotante("textos-cambiar-validacion-vacio", "Diálogo «Cambiar lo que dice el asistente» con el texto borrado («Escribe el mensaje…»)", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
+  escenaDeEditorDeTexto("textos-cambiar-validacion-vacio", "Editor de un paso del asistente con el texto borrado («Escribe el mensaje…»)", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
     await abrirTexto(c, (t) => t.huecos.length > 0);
-    await dlg(c).getByLabel("Lo que dice el asistente").fill("");
-    await pulsar(c, "Guardar");
-    await verElError(c, /Escribe el mensaje/);
+    await editorDeTexto(c).getByLabel("Lo que dice el asistente").fill("");
+    await editorDeTexto(c).getByRole("button", { name: "Guardar texto" }).click();
+    await verElErrorDelTexto(c, /Escribe el mensaje/);
   }),
-  flotante("textos-cambiar-validacion-hueco", "Diálogo «Cambiar lo que dice el asistente» con un hueco que no existe («no se puede usar en este mensaje»)", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
+  escenaDeEditorDeTexto("textos-cambiar-validacion-hueco", "Editor de un paso del asistente con un hueco que no existe («no se puede usar en este mensaje»)", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
     await abrirTexto(c, (t) => t.huecos.length > 0);
-    await dlg(c).getByLabel("Lo que dice el asistente").fill("Hola {inventado}, ¿en qué te ayudo?");
-    await pulsar(c, "Guardar");
-    await verElError(c, /no se puede usar en este mensaje/);
+    await editorDeTexto(c).getByLabel("Lo que dice el asistente").fill("Hola {inventado}, ¿en qué te ayudo?");
+    await editorDeTexto(c).getByRole("button", { name: "Guardar texto" }).click();
+    await verElErrorDelTexto(c, /no se puede usar en este mensaje/);
   }),
-  flotante("textos-cambiar-validacion-obligatorio", "Diálogo «Cambiar lo que dice el asistente» sin un hueco obligatorio («Falta {…}»)", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
+  escenaDeEditorDeTexto("textos-cambiar-validacion-obligatorio", "Editor de un paso del asistente sin un hueco obligatorio («Falta {…}»)", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
     await abrirTexto(c, (t) => t.obligatorios.length > 0);
-    await dlg(c).getByLabel("Lo que dice el asistente").fill("Mensaje sin los huecos que hacen falta.");
-    await pulsar(c, "Guardar");
-    await verElError(c, /^Falta \{/);
+    await editorDeTexto(c).getByLabel("Lo que dice el asistente").fill("Mensaje sin los huecos que hacen falta.");
+    await editorDeTexto(c).getByRole("button", { name: "Guardar texto" }).click();
+    await verElErrorDelTexto(c, /^Falta \{/);
   }),
-  flotante("textos-cambiar-error-servidor", "Diálogo «Cambiar lo que dice el asistente» con el error del servidor bajo el campo", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
+  escenaDeEditorDeTexto("textos-cambiar-error-servidor", "Editor de un paso del asistente con el error del servidor bajo el campo", "/admin/textos", [TEXTOS, DIALOGO], async (c) => {
     await abrirTexto(c, (t) => t.huecos.length === 0);
-    await dlg(c).getByLabel("Lo que dice el asistente").fill("Un texto que el servidor va a rechazar.");
+    await editorDeTexto(c).getByLabel("Lo que dice el asistente").fill("Un texto que el servidor va a rechazar.");
     await fallarLaSiguienteEscritura(c, 400, "El texto no puede llevar enlaces.", [{ campo: "texto", mensaje: "El texto no puede llevar enlaces." }]);
-    await pulsar(c, "Guardar");
-    await verElError(c, "El texto no puede llevar enlaces.");
+    await editorDeTexto(c).getByRole("button", { name: "Guardar texto" }).click();
+    await verElErrorDelTexto(c, "El texto no puede llevar enlaces.");
   }),
 
   // Etapas del embudo
@@ -918,7 +942,7 @@ export const ESCENAS: Escena[] = [
     fuentes: [PLANTILLAS],
     ir: async (c) => {
       await irA(c, RUTA_PLANTILLAS);
-      await c.page.getByLabel("Clase").selectOption("servicio");
+      await c.page.getByLabel("Clase", { exact: true }).selectOption("servicio");
       await esperarListo(c.page);
     },
   },
@@ -941,7 +965,7 @@ export const ESCENAS: Escena[] = [
           return r.fulfill({ response: resp, body: JSON.stringify({ ...cuerpo, datos: [], paginacion: { ...cuerpo.paginacion, total: 0 } }) });
         },
       );
-      await c.page.getByLabel("Clase").selectOption("marketing");
+      await c.page.getByLabel("Clase", { exact: true }).selectOption("marketing");
       await c.page.getByText("No hay plantillas con ese filtro").waitFor();
       await esperarListo(c.page);
     },
@@ -1055,7 +1079,7 @@ export const ESCENAS: Escena[] = [
     ir: async (c) => {
       await irA(c, RUTA_AUTOMATIZACIONES);
       await fallarLaSiguienteEscritura(c, 500, "Algo salió mal en el servidor. Inténtalo de nuevo.");
-      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("button", { name: "Apagar", exact: true }).click();
+      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("switch", { name: /^Apagar / }).click();
       await c.page.getByRole("alert").first().waitFor();
       await alInicio(c);
       await esperarListo(c.page);
@@ -1072,7 +1096,7 @@ export const ESCENAS: Escena[] = [
     ir: async (c) => {
       await irA(c, RUTA_AUTOMATIZACIONES);
       await cortarLaRed(c);
-      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("button", { name: "Apagar", exact: true }).click();
+      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("switch", { name: /^Apagar / }).click();
       await c.page.getByRole("alert").first().waitFor();
       await alInicio(c);
       await esperarListo(c.page);
@@ -1403,7 +1427,7 @@ export const ESCENAS: Escena[] = [
     ir: async (c) => {
       await simularEscritura(c, /^\/api\/automatizaciones\/[^/]+$/);
       await irA(c, RUTA_AUTOMATIZACIONES);
-      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("button", { name: "Apagar", exact: true }).click();
+      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("switch", { name: /^Apagar / }).click();
       await c.page.getByTestId("aviso-global").waitFor();
       await c.page.waitForTimeout(300);
     },
@@ -1421,7 +1445,7 @@ export const ESCENAS: Escena[] = [
       await reescribirGet(c, "/api/automatizaciones", (cuerpo) => ({ ...cuerpo, datos: cuerpo.datos.map((a: Json) => (a.id === c.mundo.mensajeria.automatizaciones.recordatorio.id ? { ...a, activo: false } : a)) }));
       await simularEscritura(c, /^\/api\/automatizaciones\/[^/]+$/);
       await irA(c, RUTA_AUTOMATIZACIONES);
-      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("button", { name: "Encender", exact: true }).click();
+      await tarjetaDeAutomatizacion(c, "recordatorio").getByRole("switch", { name: /^Encender / }).click();
       await c.page.getByTestId("aviso-global").waitFor();
       await c.page.waitForTimeout(300);
     },
@@ -1498,16 +1522,97 @@ export const ESCENAS: Escena[] = [
     id: "admins-configuracion-guardada",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "Configuración después de guardar sin cambiar nada: el aviso «Configuración guardada.» sobre el botón",
+    titulo: "Configuración después de guardar: el aviso «Configuración guardada.» y la barra de cambios ya sin mostrarse (el guardado se simula con lo que ya hay)",
     tipo: "formulario",
     ruta: "/admin/configuracion",
-    fuentes: [CONFIGURACION],
+    fuentes: [CONFIGURACION, AVISOS],
     ir: async (c) => {
       await irA(c, RUTA_CONFIGURACION);
+      await simularEscritura(c, /^\/api\/configuracion$/, (await (await c.page.request.get("/api/configuracion")).json()) as Json);
+      await cambiarAlgoDeConfiguracion(c);
       await c.page.getByRole("button", { name: "Guardar la configuración" }).click();
       await c.page.getByText("Configuración guardada.").waitFor();
       await alInicio(c);
       await esperarListo(c.page);
+    },
+  },
+
+  // ─── R7b: estados nuevos de Sistema ───
+  {
+    id: "admins-configuracion-cambios-sin-guardar",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Configuración con un ajuste cambiado: la barra «Tienes cambios sin guardar» con «Descartar» y «Guardar la configuración»",
+    tipo: "estado",
+    ruta: "/admin/configuracion",
+    fuentes: [CONFIGURACION],
+    ir: async (c) => {
+      await irA(c, RUTA_CONFIGURACION);
+      await cambiarAlgoDeConfiguracion(c);
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "admins-configuracion-descartado",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Configuración después de «Descartar»: lo escrito vuelve a lo guardado y la barra de cambios desaparece",
+    tipo: "estado",
+    ruta: "/admin/configuracion",
+    fuentes: [CONFIGURACION],
+    ir: async (c) => {
+      await irA(c, RUTA_CONFIGURACION);
+      await cambiarAlgoDeConfiguracion(c);
+      await c.page.getByRole("button", { name: "Descartar", exact: true }).click();
+      await c.page.getByTestId("barra-de-cambios").waitFor({ state: "detached" });
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "admins-textos-paso-elegido",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Textos del asistente con un paso del cotizador elegido (el editor a la derecha en escritorio; hoja inferior en el celular)",
+    tipo: "estado",
+    ruta: "/admin/textos",
+    fuentes: [TEXTOS, DIALOGO],
+    ir: (c) => abrirTexto(c, (t) => t.modulo === "cotizador"),
+  },
+  {
+    id: "admins-textos-borrador-sin-guardar",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Textos del asistente con lo escrito en un paso y sin guardar (la insignia «Sin guardar» en la lista; el texto no se pierde al pasar a otro paso)",
+    tipo: "estado",
+    ruta: "/admin/textos",
+    fuentes: [TEXTOS, DIALOGO],
+    ir: async (c) => {
+      await abrirTexto(c, (t) => t.huecos.length > 0 && t.modulo === "captacion");
+      await editorDeTexto(c).getByLabel("Lo que dice el asistente").fill("Un borrador que todavía no se guarda.");
+      // En escritorio se pasa a otro paso (el borrador queda marcado en la lista); en el celular la hoja se cierra con «Cancelar» y la marca queda igual.
+      if (c.vista === "escritorio") {
+        const lista = (await (await c.page.request.get("/api/textos-bot")).json()) as Json;
+        await c.page.getByTestId(`texto-${lista.datos[lista.datos.length - 1].clave}`).getByRole("button").click();
+      } else await editorDeTexto(c).getByRole("button", { name: "Cancelar" }).click();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "admins-textos-aviso-guardado",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Aviso «Texto guardado. El asistente lo usa desde el siguiente mensaje.» al guardar un paso (el guardado se simula)",
+    tipo: "flotante",
+    ruta: "/admin/textos",
+    fuentes: [TEXTOS, AVISOS],
+    completa: false,
+    ir: async (c) => {
+      await simularEscritura(c, /^\/api\/textos-bot\/[^/]+$/);
+      await abrirTexto(c, (t) => t.huecos.length === 0);
+      await editorDeTexto(c).getByLabel("Lo que dice el asistente").fill("Con gusto, te comunico con una persona del equipo.");
+      await editorDeTexto(c).getByRole("button", { name: "Guardar texto" }).click();
+      await c.page.getByTestId("aviso-global").waitFor();
+      await c.page.waitForTimeout(300);
     },
   },
 ];

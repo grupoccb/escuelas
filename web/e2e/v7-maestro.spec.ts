@@ -716,7 +716,7 @@ test.describe("consultar alumnos", () => {
     await page.getByTestId("lista-de-alumnos").getByRole("link", { name: "Ana Prueba" }).click();
     paso();
     await expect(page.getByRole("heading", { name: "Ana Prueba" })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveText(["Trayectoria", "Operativo"]);
+    await expect(page.getByRole("tab")).toHaveText(["Trayectoria", "Asistencia", "Salud"]); // R6a: «Operativo» → «Asistencia»; la salud es una pestaña
     await sinImportes(page);
     await corregido("expediente: «Le faltan 0 clases (0 de 0)» sin ningún evento próximo", async () => expect(await page.locator("main").innerText(), "sin «Le faltan 0 clases (0 de 0)»").not.toMatch(/0 de 0/));
     await foto(page, "expediente-propio");

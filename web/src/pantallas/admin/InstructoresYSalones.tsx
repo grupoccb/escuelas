@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { enteroDe } from "./ayudas.ts";
-import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import type { InstructorAdmin, SalonAdmin, SucursalAdmin } from "./tipos.ts";
 
 interface UsuarioMinimo {
@@ -126,60 +127,69 @@ export default function InstructoresYSalones() {
   const [bajaI, setBajaI] = useState<InstructorAdmin | null>(null);
   const [bajaS, setBajaS] = useState<SalonAdmin | null>(null);
   const nombreSucursal = (id: string) => sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—";
+  const alternarI = useAlternarActivo(instructores.recargar);
+  const alternarS = useAlternarActivo(salones.recargar);
   return (
-    <Pagina titulo="Instructores y salones" subtitulo="Quién imparte y dónde." acciones={<Regreso />}>
-      <section className="seccion-catalogo" aria-labelledby="titulo-instructores">
-        <header className="seccion-catalogo-cabecera">
-          <h2 id="titulo-instructores">Instructores</h2>
-          <Boton variante="primario" onClick={edI.nuevo}>Nuevo instructor</Boton>
-        </header>
+    <PaginaDeCatalogo titulo="Instructores y salones" ayuda="Quién imparte y dónde. El sistema avisa si un salón o un instructor se pisan en dos grupos a la misma hora.">
+      <ListaDeCatalogo titulo="Instructores" cuenta={instructores.datos?.datos.length} nuevo="Nuevo instructor" alNuevo={edI.nuevo}>
         {instructores.error ? <ErrorDeCarga error={instructores.error} alReintentar={instructores.recargar} /> : null}
         {instructores.cargando && !instructores.datos ? <Cargando /> : null}
         {instructores.datos && instructores.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay instructores">Da de alta al primero con «Nuevo instructor».</VacioDeLista> : null}
-        <ul className="lista-tarjetas" data-prueba="lista-de-instructores">
+        <ErrorDeAccion error={alternarI.error} />
+        <ul className="lista-filas" data-prueba="lista-de-instructores">
           {(instructores.datos?.datos ?? []).map((i) => (
-            <li key={i.id} className="item-catalogo" data-prueba={`instructor-${i.id}`}>
-              <div className="item-catalogo-cabeza">
-                <div className="item-catalogo-titulo">
-                  <strong className="nombre-tarjeta">{i.nombre}</strong>
-                  <Insignia tono={i.activo ? "exito" : "neutro"}>{i.activo ? "Activo" : "Inactivo"}</Insignia>
-                </div>
-                <AccionesDeTarjeta alEditar={() => edI.editar(i)} alDarDeBaja={() => setBajaI(i)} />
-              </div>
-              <p className="meta-linea">
-                <span>{i.sucursales.length === 0 ? "Sin restricción de sucursal" : i.sucursales.map(nombreSucursal).join(", ")}</span>
-                {i.usuario_id ? <span>con usuario</span> : null}
-              </p>
-            </li>
+            <FilaDeCatalogo
+              key={i.id}
+              data-prueba={`instructor-${i.id}`}
+              inactiva={!i.activo}
+              titulo={i.nombre}
+              etiquetas={
+                <>
+                  {i.activo ? null : <Insignia>Inactivo</Insignia>}
+                  {i.usuario_id ? <Insignia>Tiene usuario</Insignia> : null}
+                </>
+              }
+              detalle={i.sucursales.length === 0 ? "Sin restricción de sucursal" : i.sucursales.map(nombreSucursal).join(", ")}
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edI.editar(i)}
+                  activo={i.activo}
+                  ocupado={alternarI.ocupado}
+                  alDesactivar={() => alternarI.alternar(`/api/instructores/${i.id}`, i.activo, { desactivada: `${i.nombre} quedó desactivado como instructor.`, activada: `${i.nombre} quedó activo otra vez como instructor.` })}
+                  alDarDeBaja={() => setBajaI(i)}
+                />
+              }
+            />
           ))}
         </ul>
-      </section>
-      <section className="seccion-catalogo" aria-labelledby="titulo-salones">
-        <header className="seccion-catalogo-cabecera">
-          <h2 id="titulo-salones">Salones</h2>
-          <Boton onClick={edS.nuevo}>Nuevo salón</Boton>
-        </header>
+      </ListaDeCatalogo>
+      <ListaDeCatalogo titulo="Salones" cuenta={salones.datos?.datos.length} nuevo="Nuevo salón" alNuevo={edS.nuevo} secundaria>
         {salones.error ? <ErrorDeCarga error={salones.error} alReintentar={salones.recargar} /> : null}
         {salones.cargando && !salones.datos ? <Cargando /> : null}
         {salones.datos && salones.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay salones">Da de alta el primero con «Nuevo salón».</VacioDeLista> : null}
-        <ul className="lista-tarjetas" data-prueba="lista-de-salones">
+        <ErrorDeAccion error={alternarS.error} />
+        <ul className="lista-filas" data-prueba="lista-de-salones">
           {(salones.datos?.datos ?? []).map((s) => (
-            <li key={s.id} className="item-catalogo" data-prueba={`salon-${s.id}`}>
-              <div className="item-catalogo-cabeza">
-                <div className="item-catalogo-titulo">
-                  <strong className="nombre-tarjeta">{s.nombre}</strong>
-                  <Insignia tono={s.activo ? "exito" : "neutro"}>{s.activo ? "Activo" : "Inactivo"}</Insignia>
-                  <span className="item-catalogo-contexto">{nombreSucursal(s.sucursal_id)}</span>
-                </div>
-                <AccionesDeTarjeta alEditar={() => edS.editar(s)} alDarDeBaja={() => setBajaS(s)} />
-              </div>
-              <p className="meta-linea">
-                <span>{s.capacidad ? `Capacidad ${s.capacidad}` : "Sin capacidad registrada"}</span>
-              </p>
-            </li>
+            <FilaDeCatalogo
+              key={s.id}
+              data-prueba={`salon-${s.id}`}
+              inactiva={!s.activo}
+              titulo={s.nombre}
+              etiquetas={s.activo ? null : <Insignia>Inactivo</Insignia>}
+              detalle={unir([nombreSucursal(s.sucursal_id), s.capacidad ? `Capacidad ${s.capacidad}` : "Sin capacidad registrada"])}
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edS.editar(s)}
+                  activo={s.activo}
+                  ocupado={alternarS.ocupado}
+                  alDesactivar={() => alternarS.alternar(`/api/salones/${s.id}`, s.activo, { desactivada: `El salón «${s.nombre}» quedó desactivado.`, activada: `El salón «${s.nombre}» quedó activo otra vez.` })}
+                  alDarDeBaja={() => setBajaS(s)}
+                />
+              }
+            />
           ))}
         </ul>
-      </section>
+      </ListaDeCatalogo>
       <Dialogo abierto={edI.actual !== null} titulo={edI.actual === "nuevo" ? "Nuevo instructor" : "Editar instructor"} alCerrar={edI.cerrar}>
         {edI.actual !== null ? <FormularioInstructor instructor={edI.actual === "nuevo" ? null : edI.actual} sucursales={sucursales.datos?.datos ?? []} usuarios={usuarios.datos?.datos ?? []} alGuardar={(nombre) => { edI.cerrar(); instructores.recargar(); avisar(`${nombre} se guardó como instructor.`); }} alCerrar={edI.cerrar} /> : null}
       </Dialogo>
@@ -192,6 +202,6 @@ export default function InstructoresYSalones() {
       <ConfirmarAccion abierto={bajaS !== null} titulo="Dar de baja el salón" textoDeConfirmar="Dar de baja" alCerrar={() => setBajaS(null)} alConfirmar={async () => { await api.delete(`/api/salones/${bajaS!.id}`); salones.recargar(); avisar(`El salón «${bajaS!.nombre}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="salón" genero="m" nombre={bajaS?.nombre} consecuencia="Si algún grupo lo usa, el sistema no lo dejará: cámbiales el salón antes." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

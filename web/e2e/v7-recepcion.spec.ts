@@ -797,6 +797,7 @@ test.describe("la mañana de Rita", () => {
     const exp = await page.locator("body").innerText();
     expect(exp).not.toContain(centinela);
     expect(await page.getByRole("link", { name: /salud/i }).count(), "no hay enlace a la salud").toBe(0);
+    expect(await page.getByRole("tab", { name: /salud/i }).count(), "ni pestaña de salud").toBe(0);
     await foto(page, "expediente-sin-salud", true);
     await page.goto(`/alumnos/${alumnoId}/salud`);
     await expect(page.getByRole("heading", { name: "Sin acceso" })).toBeVisible();

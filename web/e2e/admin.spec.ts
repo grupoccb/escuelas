@@ -296,6 +296,9 @@ test.describe("administrador", () => {
     const c = await json<{ max_automaticos_por_dia: number; modo_cierre: string; umbral_faltas_consecutivas: number }>(admin, "/api/configuracion");
     expect([c.max_automaticos_por_dia, c.modo_cierre, c.umbral_faltas_consecutivas]).toEqual([4, "maestro_en_sitio", 5]);
     await capturar(page, "68-configuracion", "celular", { completa: true });
+    // El aviso global de la primera escritura sigue a la vista unos segundos: se cierra para que el de la segunda sea el que se afirma.
+    await page.getByRole("button", { name: "Cerrar este aviso" }).click();
+    await expect(page.getByText("Configuración guardada.")).toBeHidden();
     // Se deja como estaba para no alterar las demás pruebas.
     await page.getByLabel(/Mensajes automáticos por teléfono al día/).fill("3");
     await page.getByLabel("Modo de cierre").selectOption("asesor_whatsapp");

@@ -30,25 +30,29 @@ test.describe("recepción: familias y acciones sobre la inscripción", () => {
 
   test("buscar por teléfono en cualquier formato, abrir la ficha con las banderas, el saldo y los hijos", async ({ page }) => {
     await page.goto("/familias");
+    // La búsqueda es al escribir (R6b, como el prototipo): sin botón «Buscar».
     await page.getByLabel("Teléfono o nombre de la familia").fill("(55) 5503 0303");
-    await page.getByRole("button", { name: "Buscar" }).click();
     const tarjeta = page.getByTestId(`familia-${rivera.tutorId}`);
     await expect(tarjeta).toContainText("Hija Mayor");
-    await expect(tarjeta).toContainText("2 hijos");
+    await expect(tarjeta).toContainText("Hijo Menor");
+    await expect(tarjeta.getByRole("list", { name: "Hijos" }).getByRole("listitem")).toHaveCount(2);
     await capturar(page, "50-familias", "celular");
     await tarjeta.getByRole("link", { name: /Rosa Rivera/ }).click();
-    await expect(page.getByRole("heading", { name: "Familia Rosa Rivera" })).toBeVisible();
-    await expect(page.getByTestId("datos-del-tutor")).toContainText("rivera@ejemplo.test");
-    await expect(page.getByTestId(`hijo-${mayor.alumnoId}`)).toContainText("Responsable de pago");
+    await expect(page.getByRole("heading", { name: "Rosa Rivera" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Rosa Rivera" }).locator("xpath=..")).toContainText("rivera@ejemplo.test");
+    await expect(page.getByTestId(`adulto-${rivera.tutorId}`)).toContainText("Rosa Rivera");
+    await expect(page.getByTestId(`hijo-${mayor.alumnoId}`)).toContainText("Rosa paga");
+    await expect(page.getByTestId(`adulto-${rivera.tutorId}`)).toContainText("Responsable de pago");
     await expect(page.getByTestId(`hijo-${menor.alumnoId}`)).toContainText("Hijo Menor");
     const cuenta = await json<{ resumen: { saldo: string; vencido: string } }>(admin, `/api/tutores/${rivera.tutorId}/estado-cuenta`);
     await expect(page.getByTestId("saldo")).toHaveText(pesos(cuenta.resumen.saldo));
-    await expect(page.getByTestId("vencido")).toHaveText(pesos(cuenta.resumen.vencido));
+    if (/^0+\.0+$/.test(cuenta.resumen.vencido)) await expect(page.getByTestId("pildora-vencido")).toContainText("Nada vencido");
+    else await expect(page.getByTestId("vencido")).toHaveText(pesos(cuenta.resumen.vencido));
     await capturar(page, "51-ficha-familia", "celular", { completa: true });
     await capturar(page, "51-ficha-familia", "escritorio");
   });
 
-  test("el expediente muestra trayectoria, económico, operativo y comercial; el saldo coincide con el estado de cuenta; recepción no ve la salud", async ({ page }) => {
+  test("el expediente muestra trayectoria, asistencia, económico y comercial; el saldo coincide con el estado de cuenta; recepción no ve la salud", async ({ page }) => {
     await page.goto(`/alumnos/${mayor.alumnoId}`);
     await expect(page.getByRole("heading", { name: "Hija Mayor Rivera" })).toBeVisible();
     await expect(page.getByTestId("grupo-actual")).toHaveText("Grupo D");
@@ -58,11 +62,12 @@ test.describe("recepción: familias y acciones sobre la inscripción", () => {
     const suyo = cuenta.hijos.find((h) => h.alumno.id === mayor.alumnoId)!;
     await expect(page.getByTestId("panel-economico").getByTestId("saldo")).toHaveText(pesos(suyo.saldo));
     await expect(page.getByTestId("mensualidad-total")).toHaveText("$1,000.00");
-    await page.getByRole("tab", { name: "Operativo" }).click();
+    await page.getByRole("tab", { name: "Asistencia" }).click();
     await expect(page.getByTestId("asistencia-30")).toBeVisible();
     await page.getByRole("tab", { name: "Comercial" }).click();
     await expect(page.getByTestId("panel-comercial")).toBeVisible();
-    // Recepción no tiene el permiso de salud: ni el acceso en la pantalla ni la petición.
+    // Recepción no tiene el permiso de salud: ni el acceso en la pantalla (R6a: la salud es una pestaña) ni la petición.
+    await expect(page.getByRole("tab", { name: "Salud" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Salud" })).toHaveCount(0);
     const pedidasASalud: string[] = [];
     page.on("request", (r) => {
@@ -77,10 +82,12 @@ test.describe("recepción: familias y acciones sobre la inscripción", () => {
     await page.goto(`/alumnos/${mayor.alumnoId}`);
     await page.getByTestId(`acciones-${mayor.inscripcionId}`).getByRole("button", { name: "Cambiar de grupo" }).click();
     const dialogo = page.getByRole("dialog");
-    await expect(dialogo.getByLabel("Grupo nuevo")).toContainText(`${grupoDeUnLugar.nombre} · 1 lugar`);
-    await expect(dialogo.getByLabel("Grupo nuevo")).toContainText(grupoDestino.nombre);
+    // R6a: los grupos van en botones grandes (antes, un select «Grupo nuevo»); el que está lleno va apagado.
+    const nuevoHorario = dialogo.getByRole("group", { name: /Nuevo horario/ });
+    await expect(nuevoHorario).toContainText(`${grupoDeUnLugar.nombre} · 1 lugar`);
+    await expect(nuevoHorario).toContainText(grupoDestino.nombre);
     await capturar(page, "52-cambiar-de-grupo", "celular");
-    await dialogo.getByLabel("Grupo nuevo").selectOption(grupoDestino.id);
+    await nuevoHorario.getByRole("button", { name: `${grupoDestino.nombre} · ` }).click();
     await dialogo.getByRole("button", { name: "Confirmar el cambio" }).click();
     await expect(page.getByTestId("grupo-actual")).toHaveText(grupoDestino.nombre);
     await expect(page.getByTestId("historial-de-grupo")).toContainText(`de Grupo D a ${grupoDestino.nombre}`);
@@ -93,11 +100,12 @@ test.describe("recepción: familias y acciones sobre la inscripción", () => {
     await page.goto(`/alumnos/${menor.alumnoId}`);
     await page.getByTestId(`acciones-${menor.inscripcionId}`).getByRole("button", { name: "Cambiar de grupo" }).click();
     const dialogo = page.getByRole("dialog");
-    await expect(dialogo.getByLabel("Grupo nuevo")).toContainText(`${grupoDeUnLugar.nombre} · 1 lugar`);
+    const nuevoHorario = dialogo.getByRole("group", { name: /Nuevo horario/ });
+    await expect(nuevoHorario).toContainText(`${grupoDeUnLugar.nombre} · 1 lugar`);
     // Otra persona toma el último lugar por la API.
     const r = await admin.post("/api/inscripciones", { data: { alumno_id: rellenoAlumnoId, grupo_id: grupoDeUnLugar.id } });
     expect(r.status()).toBe(201);
-    await dialogo.getByLabel("Grupo nuevo").selectOption(grupoDeUnLugar.id);
+    await nuevoHorario.getByRole("button", { name: `${grupoDeUnLugar.nombre} · ` }).click();
     await dialogo.getByRole("button", { name: "Confirmar el cambio" }).click();
     await expect(dialogo.getByRole("alert")).toContainText(/ya no tiene lugares/i);
     expect((await inscripcion(menor.inscripcionId)).grupo_id).not.toBe(grupoDeUnLugar.id);
@@ -128,7 +136,8 @@ test.describe("recepción: familias y acciones sobre la inscripción", () => {
     const dialogo = page.getByRole("dialog");
     await expect(dialogo).toContainText("libera el lugar");
     await expect(dialogo.getByRole("button", { name: "Dar de baja" })).toBeDisabled();
-    await dialogo.getByLabel(/Motivo de la baja/).selectOption(motivoBaja.id);
+    // R6a: los motivos van en botones grandes (antes, un select).
+    await dialogo.getByRole("group", { name: "Motivo de la baja" }).getByRole("button", { name: motivoBaja.nombre, exact: true }).click();
     await dialogo.getByRole("button", { name: "Dar de baja" }).click();
     await expect(page.getByTestId(`inscripcion-${menor.inscripcionId}`)).toContainText("Baja");
     const despues = await inscripcion(menor.inscripcionId);
@@ -174,7 +183,8 @@ test.describe("maestro: sus alumnos, sin importes, y la salud solo con permiso",
   test("el expediente del maestro no trae importes ni la pestaña económica ni la comercial", async ({ page }) => {
     await page.goto(`/alumnos/${salud.alumnoId}`);
     await expect(page.getByRole("heading", { name: salud.nombre })).toBeVisible();
-    await expect(page.getByRole("tab")).toHaveText(["Trayectoria", "Operativo"]);
+    // R6a: «Operativo» pasó a «Asistencia» y la salud es una pestaña (el maestro tiene el permiso).
+    await expect(page.getByRole("tab")).toHaveText(["Trayectoria", "Asistencia", "Salud"]);
     await expect(page.locator("main")).not.toContainText("$");
     const respuesta = await (await page.request.get(`/api/alumnos/${salud.alumnoId}/expediente`)).json();
     expect(respuesta.economico).toBeNull();
@@ -187,7 +197,7 @@ test.describe("maestro: sus alumnos, sin importes, y la salud solo con permiso",
     page.on("console", (m) => consola.push(m.text()));
     page.on("pageerror", (e) => consola.push(e.message));
     await page.goto(`/alumnos/${salud.alumnoId}`);
-    await page.getByRole("link", { name: "Salud" }).click();
+    await page.getByRole("tab", { name: "Salud" }).click();
     await expect(page.getByRole("heading", { name: `Salud de ${salud.nombre}` })).toBeVisible();
     // Antes de dar un motivo, no se ha pedido nada.
     await expect(page.getByText(salud.centinela)).toHaveCount(0);
@@ -218,10 +228,10 @@ test.describe("maestro: sus alumnos, sin importes, y la salud solo con permiso",
 
 test.describe("administrador: el expediente completo", () => {
   test.use(comoRol("administrador"));
-  test("cuatro secciones y el acceso a la salud", async ({ page }) => {
+  test("cinco secciones, la salud entre ellas", async ({ page }) => {
     await page.goto(`/alumnos/${salud.alumnoId}`);
-    await expect(page.getByRole("tab")).toHaveText(["Trayectoria", "Económico", "Operativo", "Comercial"]);
-    await expect(page.getByRole("link", { name: "Salud" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveText(["Trayectoria", "Asistencia", "Económico", "Comercial", "Salud"]);
+    await expect(page.getByRole("tab", { name: "Salud" })).toBeVisible();
     await capturar(page, "57-expediente-administrador", "escritorio");
   });
 });

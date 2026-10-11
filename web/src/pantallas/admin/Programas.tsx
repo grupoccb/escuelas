@@ -5,13 +5,14 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoArea, CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import type { ProgramaAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 function Formulario({ programa, verticales, sucursales, alGuardar, alCerrar }: { programa: ProgramaAdmin | null; verticales: Vertical[]; sucursales: SucursalAdmin[]; alGuardar: (nombre: string) => void; alCerrar: () => void }) {
@@ -99,36 +100,49 @@ export default function Programas() {
   const [baja, setBaja] = useState<ProgramaAdmin | null>(null);
   const nombreV = (id: string) => verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—";
   const nombreS = (id: string) => sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—";
+  const colorV = (id: string) => verticales.datos?.datos.find((v) => v.id === id)?.color_marca ?? null;
+  const cambiarActivo = useAlternarActivo(lista.recargar);
   return (
-    <Pagina titulo="Programas" subtitulo="Edades, fecha de corte y traslape por disciplina y sucursal." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo programa</Boton></>}>
-      <div className="rejilla rejilla-2 rejilla-arriba">
-        <CampoSelect etiqueta="Disciplina" value={verticalId} vacio="Todas" opciones={(verticales.datos?.datos ?? []).map((v) => ({ valor: v.id, texto: v.nombre }))} onChange={(e) => { setPagina(1); setVerticalId(e.target.value); }} />
-        <CampoSelect etiqueta="Sucursal" value={sucursalId} vacio="Todas" opciones={(sucursales.datos?.datos ?? []).map((s) => ({ valor: s.id, texto: s.nombre }))} onChange={(e) => { setPagina(1); setSucursalId(e.target.value); }} />
-      </div>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay programas con ese filtro">Prueba con otra disciplina u otra sucursal, o da de alta el primero con «Nuevo programa».</VacioDeLista> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-programas">
-        {(lista.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="item-catalogo" data-prueba={`programa-${p.id}`}>
-            <div className="item-catalogo-cabeza">
-              <div className="item-catalogo-titulo">
-                <strong className="nombre-tarjeta">{p.nombre}</strong>
-                <Insignia tono={p.activo ? "exito" : "neutro"}>{p.activo ? "Activo" : "Inactivo"}</Insignia>
-                {p.permite_traslape ? <Insignia tono="info">Alternativa</Insignia> : null}
-              </div>
-              <AccionesDeTarjeta alEditar={() => edicion.editar(p)} alDarDeBaja={() => setBaja(p)} />
-            </div>
-            <p className="meta-linea">
-              <span>{nombreV(p.vertical_id)}</span>
-              <span>{nombreS(p.sucursal_id)}</span>
-              <span className="meta-destacada">{p.edad_min} a {p.edad_max} años</span>
-              {p.fecha_corte_edad ? <span>{`la edad se mide al ${formatearFecha(p.fecha_corte_edad)}`}</span> : null}
-            </p>
-          </li>
-        ))}
-      </ul>
-      {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+    <PaginaDeCatalogo titulo="Programas" ayuda="Rango de edad, fecha de corte y traslape. El asistente sugiere el programa según la edad del niño.">
+      <ListaDeCatalogo titulo="Programas" cuenta={lista.datos?.paginacion.total} nuevo="Nuevo programa" alNuevo={edicion.nuevo}>
+        <div className="rejilla rejilla-2 rejilla-arriba">
+          <CampoSelect etiqueta="Disciplina" value={verticalId} vacio="Todas" opciones={(verticales.datos?.datos ?? []).map((v) => ({ valor: v.id, texto: v.nombre }))} onChange={(e) => { setPagina(1); setVerticalId(e.target.value); }} />
+          <CampoSelect etiqueta="Sucursal" value={sucursalId} vacio="Todas" opciones={(sucursales.datos?.datos ?? []).map((s) => ({ valor: s.id, texto: s.nombre }))} onChange={(e) => { setPagina(1); setSucursalId(e.target.value); }} />
+        </div>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay programas con ese filtro">Prueba con otra disciplina u otra sucursal, o da de alta el primero con «Nuevo programa».</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-programas">
+          {(lista.datos?.datos ?? []).map((p) => (
+            <FilaDeCatalogo
+              key={p.id}
+              data-prueba={`programa-${p.id}`}
+              color={colorV(p.vertical_id)}
+              inactiva={!p.activo}
+              titulo={p.nombre}
+              etiquetas={
+                <>
+                  {p.activo ? null : <Insignia>Inactivo</Insignia>}
+                  <Insignia>{nombreV(p.vertical_id)}</Insignia>
+                  {p.permite_traslape ? <Insignia tono="info">Alternativa</Insignia> : null}
+                </>
+              }
+              detalle={unir([nombreS(p.sucursal_id), `${p.edad_min} a ${p.edad_max} años`, p.fecha_corte_edad ? `la edad se mide al ${formatearFecha(p.fecha_corte_edad)}` : null])}
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edicion.editar(p)}
+                  activo={p.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/programas/${p.id}`, p.activo, { desactivada: `El programa «${p.nombre}» quedó desactivado.`, activada: `El programa «${p.nombre}» quedó activo otra vez.` })}
+                  alDarDeBaja={() => setBaja(p)}
+                />
+              }
+            />
+          ))}
+        </ul>
+        {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nuevo programa" : "Editar programa"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? (
           <Formulario
@@ -147,6 +161,6 @@ export default function Programas() {
       <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja el programa" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/programas/${baja!.id}`); lista.recargar(); avisar(`El programa «${baja!.nombre}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="programa" genero="m" nombre={baja?.nombre} consecuencia="Solo se puede si no tiene grupos ni inscripciones: si los tiene, el sistema no lo dejará." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

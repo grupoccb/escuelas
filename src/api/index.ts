@@ -69,6 +69,7 @@ import { rutasDeCotizaciones } from "./rutas/cotizaciones.ts";
 import { rutasDeCotizador } from "./rutas/cotizador.ts";
 import { rutasDeEmbudo } from "./rutas/embudo.ts";
 import { rutasDeFamilias } from "./rutas/familias.ts";
+import { rutasDeResumenDeAlumnos } from "./rutas/alumnos-resumen.ts";
 import { rutasDeInscripciones } from "./rutas/inscripciones.ts";
 import { rutasDeConversaciones } from "./rutas/conversaciones.ts";
 import { rutasDeConversion } from "./rutas/conversion.ts";
@@ -189,6 +190,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeRegistroMuestra(deps));
   api.use(rutasDeLegal(deps));
   api.use(rutasDelMaestro(deps));
+  api.use(rutasDeResumenDeAlumnos(deps)); // antes que familias: `/alumnos/:id` también casaría con «resumen»
   api.use(rutasDeFamilias(deps));
   api.use(rutasDeInscripciones(deps));
   api.use(rutasDeCargos(deps));

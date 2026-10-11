@@ -228,7 +228,8 @@ test.describe("administración: los interruptores", () => {
     const { context, page } = await paginaDe(browser, "administrador");
     try {
       await page.goto("/admin");
-      await page.getByRole("link", { name: "Módulos" }).click();
+      // R7a: «Módulos» también es una ficha del panel «Para empezar» (el paso de encender las partes del sistema); el enlace de la tarjeta de área es el de «Canales y organización».
+      await page.getByTestId("admin-Canales y organización").getByRole("link", { name: "Módulos" }).click();
       await expect(page.getByRole("heading", { name: "Módulos", exact: true })).toBeVisible();
       for (const nombre of ["Captación", "Cotizador", "Clase muestra", "Inscripción", "Operación diaria (asistencia, niveles y eventos)", "Finanzas", "Tableros"]) {
         await expect(page.getByRole("heading", { name: nombre, exact: true })).toBeVisible();

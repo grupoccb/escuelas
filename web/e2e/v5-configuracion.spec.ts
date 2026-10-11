@@ -180,12 +180,13 @@ test.describe("ESCRITORIO: el administrador", () => {
     await expect(tarjeta).toContainText("Gracias por escribir a {disciplina}");
     await captura(page, "v5-04-textos-del-asistente-escritorio");
 
-    await tarjeta.getByRole("button", { name: "Cambiar" }).click();
-    const dialogo = page.getByRole("dialog");
+    // R7b: en escritorio el editor del paso elegido va junto a la lista (no es un diálogo).
+    await tarjeta.getByRole("button").click();
+    const dialogo = page.getByTestId("editor-de-texto");
     await expect(dialogo.getByText("Huecos que puedes usar")).toBeVisible();
     // Un hueco que no existe: se avisa antes de guardar.
     await dialogo.getByLabel("Lo que dice el asistente").fill("¡Bienvenida a {escuela}!");
-    await dialogo.getByRole("button", { name: "Guardar" }).click();
+    await dialogo.getByRole("button", { name: "Guardar texto" }).click();
     await expect(dialogo.getByText(/«\{escuela\}» no se puede usar en este mensaje\. Puedes usar: \{disciplina\}/)).toBeVisible();
     // Un enlace: lo rechaza el servidor y se muestra su mensaje.
     await dialogo.getByLabel("Lo que dice el asistente").fill("Bienvenida a {disciplina}. Más en https://escuela.mx");
@@ -201,7 +202,8 @@ test.describe("ESCRITORIO: el administrador", () => {
     await page.evaluate(() => window.scrollTo(0, 0));
     await captura(page, "v5-05-cambiar-un-texto-escritorio");
     await dialogo.getByRole("button", { name: "Guardar" }).click();
-    await expect(dialogo).toHaveCount(0);
+    // R7b: el editor no se cierra (es parte de la pantalla): el paso pasa a «Personalizado» y avisa que ya quedó.
+    await expect(page.getByTestId("aviso-global")).toContainText("Texto guardado");
     await expect(tarjeta).toContainText("Personalizado");
     await expect(tarjeta).toContainText("¡Bienvenida a {disciplina}! Te hago tres preguntas rápidas.");
     const guardado = await json<{ datos: { clave: string; texto: string; personalizado: boolean }[] }>(admin, "/api/textos-bot");
@@ -209,16 +211,20 @@ test.describe("ESCRITORIO: el administrador", () => {
 
     // Un mensaje con lista: el hueco {lista} es obligatorio.
     const sucursal = page.getByTestId("texto-pregunta_sucursal");
-    await sucursal.getByRole("button", { name: "Cambiar" }).click();
+    await sucursal.getByRole("button").click();
     await dialogo.getByLabel("Lo que dice el asistente").fill("¿Qué sede prefieres?");
     await dialogo.getByRole("button", { name: "Guardar" }).click();
     await expect(dialogo.getByText(/Falta \{lista\}/)).toBeVisible();
-    await dialogo.getByRole("button", { name: "Cancelar" }).click();
+    // Lo escrito de un paso no se pierde al pasar a otro: queda «Sin guardar» en la lista y vuelve al regresar.
+    await expect(sucursal).toContainText("Sin guardar");
+    await tarjeta.getByRole("button").click();
+    await expect(dialogo.getByLabel("Lo que dice el asistente")).toHaveValue("¡Bienvenida a {disciplina}! Te hago tres preguntas rápidas.");
+    await sucursal.getByRole("button").click();
+    await expect(dialogo.getByLabel("Lo que dice el asistente")).toHaveValue("¿Qué sede prefieres?");
 
     // Volver al texto de siempre.
-    await tarjeta.getByRole("button", { name: "Cambiar" }).click();
+    await tarjeta.getByRole("button").click();
     await dialogo.getByRole("button", { name: "Volver al texto de siempre" }).click();
-    await expect(dialogo).toHaveCount(0);
     await expect(tarjeta).toContainText("De siempre");
     expect((await json<{ datos: { clave: string; personalizado: boolean }[] }>(admin, "/api/textos-bot")).datos.find((t) => t.clave === "saludo")?.personalizado).toBe(false);
     expect(await page.locator("main").innerText()).not.toMatch(TERMINOS_TECNICOS);
@@ -275,7 +281,7 @@ test.describe("ESCRITORIO: el administrador", () => {
     await lista.locator("li", { hasText: "Ya hablamos con la familia" }).getByRole("button", { name: "Cambiar" }).click();
     await dialogo.getByLabel(/Nombre de la etapa/).fill(antes);
     await dialogo.getByRole("button", { name: "Guardar" }).click();
-    await expect(lista.locator("li", { hasText: new RegExp(`^\\d+\\. ${antes}`) })).toBeVisible();
+    await expect(lista.locator("li", { hasText: new RegExp(`^\\d+\\s*${antes}`) /* R7a: el número de orden va en su propio círculo, antes del nombre */ })).toBeVisible();
 
     // Quitar la propia (sin leads).
     await lista.locator("li", { hasText: "Visita a la sede" }).getByRole("button", { name: "Quitar" }).click();
@@ -312,12 +318,13 @@ test.describe("ESCRITORIO: el administrador", () => {
     await page.goto("/admin/motivos");
     await expect(page.getByRole("heading", { name: "Motivos de pérdida y de baja" })).toBeVisible();
     const perdida = page.getByTestId("motivos-de-perdida");
-    const tarjetaPerdida = page.locator("section.tarjeta", { has: page.getByRole("heading", { name: "Motivos de pérdida de un lead" }) });
-    const tarjetaBaja = page.locator("section.tarjeta", { has: page.getByRole("heading", { name: "Motivos de baja de una inscripción" }) });
+    // R7a: cada lista es una sección con su encabezado «Motivos de pérdida · N» y su botón «Nuevo motivo de …».
+    const tarjetaPerdida = page.getByRole("region", { name: /^Motivos de pérdida/ });
+    const tarjetaBaja = page.getByRole("region", { name: /^Motivos de baja/ });
     const dialogo = page.getByRole("dialog");
     await captura(page, "v5-08-motivos-escritorio", { completa: true });
 
-    await tarjetaPerdida.getByRole("button", { name: "Agregar un motivo" }).click();
+    await tarjetaPerdida.getByRole("button", { name: "Nuevo motivo de pérdida" }).click();
     await dialogo.getByRole("button", { name: "Guardar" }).click();
     await expect(dialogo.getByText("Escribe el motivo")).toBeVisible();
     await dialogo.getByLabel(/^Motivo/).fill("Se fue con otra escuela");
@@ -344,7 +351,7 @@ test.describe("ESCRITORIO: el administrador", () => {
 
     // Un motivo de baja de una inscripción, y quitar ambos.
     const baja = page.getByTestId("motivos-de-baja");
-    await tarjetaBaja.getByRole("button", { name: "Agregar un motivo" }).click();
+    await tarjetaBaja.getByRole("button", { name: "Nuevo motivo de baja" }).click();
     await dialogo.getByLabel(/^Motivo/).fill("Cambio de domicilio");
     await dialogo.getByRole("button", { name: "Guardar" }).click();
     await expect(baja.locator("li", { hasText: "Cambio de domicilio" })).toBeVisible();
@@ -388,14 +395,14 @@ test.describe("CELULAR (390 px): el administrador", () => {
     await page.goto("/admin/textos");
     await sinDesbordeHorizontal(page);
     await captura(page, "v5-12-textos-celular");
-    await page.getByTestId("texto-pidio_asesor").getByRole("button", { name: "Cambiar" }).click();
+    await page.getByTestId("texto-pidio_asesor").getByRole("button").click();
     const dialogo = page.getByRole("dialog");
     await dialogo.getByLabel("Lo que dice el asistente").fill("Con gusto, una persona del equipo te escribe en unos minutos.");
     await expect(dialogo.getByTestId("vista-previa")).toContainText("una persona del equipo");
     await captura(page, "v5-13-cambiar-texto-celular");
     await dialogo.getByRole("button", { name: "Guardar" }).click();
     await expect(page.getByTestId("texto-pidio_asesor")).toContainText("Personalizado");
-    await page.getByTestId("texto-pidio_asesor").getByRole("button", { name: "Cambiar" }).click();
+    await page.getByTestId("texto-pidio_asesor").getByRole("button").click();
     await dialogo.getByRole("button", { name: "Volver al texto de siempre" }).click();
     await expect(page.getByTestId("texto-pidio_asesor")).toContainText("De siempre");
   });

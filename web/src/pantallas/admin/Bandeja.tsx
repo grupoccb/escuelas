@@ -6,12 +6,15 @@ import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import type { Tarea } from "../../api/tipos.ts";
 import { formatearInstante } from "../../lib/fechas.ts";
 import { tipoDeTarea } from "../../lib/etiquetas.ts";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Tarjeta, Vacio } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Icono } from "../../ui/Icono.tsx";
 import { CampoCasilla } from "../../ui/campos.tsx";
 import { useAvisos } from "../../ui/avisos.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
-import { BotonDeIcono, Regreso } from "./comunes.tsx";
+import { haceCuanto } from "../asesor/tareas-vista.ts";
+import { BotonDeIcono } from "./comunes.tsx";
+import { EncimaDeSistema } from "./sistema.tsx";
 import { CAUSAS, ORIGENES } from "./mensajeria.ts";
 
 interface EventoInesperado {
@@ -40,10 +43,12 @@ export default function Bandeja() {
       tareas.recargar();
       avisar(estado === "hecha" ? "Listo: quedó atendido y ya no aparece en tu bandeja." : "Se descartó: ya no aparece en tu bandeja.");
     });
+  const cuando = (iso: string): string => haceCuanto(iso) ?? formatearInstante(iso);
   return (
-    <Pagina titulo="Bandeja del administrador" subtitulo="Lo que llegó raro y el sistema no pudo atender solo." acciones={<Regreso />}>
+    <Pagina titulo="Bandeja del administrador" subtitulo="Eventos inesperados y tareas sin lead: lo que el sistema no supo a quién asignar." encima={<EncimaDeSistema />}>
       <ErrorDeAccion error={resolver.error} />
-      <Tarjeta titulo="Tareas sin lead">
+      <section className="seccion-admin bandeja-seccion">
+        <h2>Tareas sin lead</h2>
         <p className="muted">Tareas que no se pudieron ligar a ningún lead; solo las ves tú.</p>
         <p className="muted">
           <strong>Qué hacer:</strong> busca a esa persona en el embudo o en Chatwoot por su teléfono. Si ya la atendieron, toca «Marcar hecha»; si no hay nada que hacer, «Descartar».
@@ -51,23 +56,30 @@ export default function Bandeja() {
         {tareas.error ? <ErrorDeCarga error={tareas.error} alReintentar={tareas.recargar} /> : null}
         {tareas.cargando && !tareas.datos ? <Cargando /> : null}
         {tareas.datos && tareas.datos.datos.length === 0 ? <Vacio titulo="No hay tareas sin lead pendientes" /> : null}
-        <ul className="lista-tarjetas" data-prueba="tareas-sin-lead">
+        <ul className="lista-bandeja" data-prueba="tareas-sin-lead">
           {(tareas.datos?.datos ?? []).map((t) => (
-            <li key={t.id} className="item-admin" data-prueba={`tarea-${t.id}`}>
-              <div className="item-admin-principal">
-                <strong className="item-admin-nombre">{tipoDeTarea(t.tipo).titulo}</strong>
-                <span>{t.descripcion}</span>
-                <span className="item-admin-meta">{formatearInstante(t.creado_en)}</span>
-              </div>
-              <div className="item-admin-acciones">
-                <Boton variante="sutil" disabled={resolver.ocupado} onClick={() => marcar(t.id, "hecha")}>Marcar hecha</Boton>
-                <BotonDeIcono icono="cerrar" nombre="Descartar" disabled={resolver.ocupado} onClick={() => marcar(t.id, "descartada")} />
+            <li key={t.id} className="bandeja-tarjeta" data-prueba={`tarea-${t.id}`}>
+              <span className="bandeja-icono" aria-hidden="true">
+                <Icono nombre="alerta" />
+              </span>
+              <div className="bandeja-cuerpo">
+                <div className="bandeja-cabecera">
+                  <strong className="bandeja-titulo">{tipoDeTarea(t.tipo).titulo}</strong>
+                  <span className="bandeja-cuando">{cuando(t.creado_en)}</span>
+                </div>
+                <span className="bandeja-texto">{t.descripcion}</span>
+                <span className="bandeja-dato">{formatearInstante(t.creado_en)}</span>
+                <div className="bandeja-acciones">
+                  <Boton variante="sutil" disabled={resolver.ocupado} onClick={() => marcar(t.id, "hecha")}>Marcar hecha</Boton>
+                  <BotonDeIcono icono="cerrar" nombre="Descartar" disabled={resolver.ocupado} onClick={() => marcar(t.id, "descartada")} />
+                </div>
               </div>
             </li>
           ))}
         </ul>
-      </Tarjeta>
-      <Tarjeta titulo="Eventos inesperados">
+      </section>
+      <section className="seccion-admin bandeja-seccion">
+        <h2>Eventos inesperados</h2>
         <p className="muted">
           <strong>Qué hacer:</strong> revisa en Chatwoot si la familia quedó sin respuesta (si es así, contéstale tú) y luego toca «Marcar atendido». Si el mismo aviso se repite muchas veces, avísale a soporte.
         </p>
@@ -75,33 +87,42 @@ export default function Bandeja() {
         {eventos.error ? <ErrorDeCarga error={eventos.error} alReintentar={eventos.recargar} /> : null}
         {eventos.cargando && !eventos.datos ? <Cargando /> : null}
         {eventos.datos && eventos.datos.datos.length === 0 ? <Vacio titulo="No hay eventos inesperados" /> : null}
-        <ul className="lista-tarjetas" data-prueba="eventos-inesperados">
-          {(eventos.datos?.datos ?? []).map((ev) => (
-            <li key={ev.id} className="item-admin" data-prueba={`evento-${ev.id}`}>
-              <div className="item-admin-principal">
-                <strong className="item-admin-nombre">{ORIGENES[ev.origen] ?? ev.origen}</strong>
-                <span>{CAUSAS[ev.causa] ?? ev.causa}</span>
-                <span className="item-admin-meta">{formatearInstante(ev.creado_en)}</span>
-              </div>
-              <div className="item-admin-etiquetas">
-                {ev.intentos > 1 ? <Insignia>{ev.intentos} veces</Insignia> : null}
-                {ev.tarea ? <Insignia tono={ev.tarea.estado === "pendiente" ? "alerta" : "exito"}>{ev.tarea.estado === "pendiente" ? "Tarea pendiente" : "Atendido"}</Insignia> : <Insignia>Sin tarea</Insignia>}
-              </div>
-              {ev.tarea_id && ev.tarea?.estado === "pendiente" ? (
-                <div className="item-admin-acciones">
-                  <Boton variante="sutil" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "hecha")}>Marcar atendido</Boton>
-                  <BotonDeIcono icono="cerrar" nombre="Descartar" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "descartada")} />
+        <ul className="lista-bandeja" data-prueba="eventos-inesperados">
+          {(eventos.datos?.datos ?? []).map((ev) => {
+            const atendido = ev.tarea !== null && ev.tarea.estado !== "pendiente";
+            return (
+              <li key={ev.id} className={`bandeja-tarjeta${atendido ? " bandeja-tarjeta-atendida" : ""}`} data-prueba={`evento-${ev.id}`}>
+                <span className="bandeja-icono" aria-hidden="true">
+                  <Icono nombre="alerta" />
+                </span>
+                <div className="bandeja-cuerpo">
+                  <div className="bandeja-cabecera">
+                    <strong className="bandeja-titulo">{ORIGENES[ev.origen] ?? ev.origen}</strong>
+                    <span className="bandeja-cuando">{cuando(ev.creado_en)}</span>
+                  </div>
+                  <span className="bandeja-texto">{CAUSAS[ev.causa] ?? ev.causa}</span>
+                  <span className="bandeja-dato">{formatearInstante(ev.creado_en)}</span>
+                  <div className="item-admin-etiquetas">
+                    {ev.intentos > 1 ? <Insignia>{ev.intentos} veces</Insignia> : null}
+                    {ev.tarea ? <Insignia tono={ev.tarea.estado === "pendiente" ? "alerta" : "exito"}>{ev.tarea.estado === "pendiente" ? "Tarea pendiente" : "Atendido"}</Insignia> : <Insignia>Sin tarea</Insignia>}
+                  </div>
+                  {ev.tarea_id && ev.tarea?.estado === "pendiente" ? (
+                    <div className="bandeja-acciones">
+                      <Boton variante="sutil" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "hecha")}>Marcar atendido</Boton>
+                      <BotonDeIcono icono="cerrar" nombre="Descartar" disabled={resolver.ocupado} onClick={() => marcar(ev.tarea_id!, "descartada")} />
+                    </div>
+                  ) : null}
+                  <details className="detalle-soporte">
+                    <summary>Detalle para soporte</summary>
+                    <p className="vista-previa">{ev.detalle}</p>
+                  </details>
                 </div>
-              ) : null}
-              <details className="item-admin-detalle detalle-soporte">
-                <summary>Detalle para soporte</summary>
-                <p className="vista-previa">{ev.detalle}</p>
-              </details>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
         {eventos.datos ? <Paginador pagina={eventos.datos.paginacion.pagina} limite={eventos.datos.paginacion.limite} total={eventos.datos.paginacion.total} alCambiar={setPagina} /> : null}
-      </Tarjeta>
+      </section>
     </Pagina>
   );
 }
