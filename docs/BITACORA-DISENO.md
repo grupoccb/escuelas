@@ -22,7 +22,7 @@ Rama `diseno-v1` (desde `v1-escuela`). Plan: `docs/PLAN-DISENO.md`. Especificaci
 | D15 | HECHO | d8d433e | Transiciones de 120/180 ms, movimiento reducido, estados; esquinas y sombras solo de variables |
 | D16 | HECHO | d5db578 | axe sobre 1017 filas, recorrido con teclado, 390/1366/1920 px y texto al 200 % |
 | D17 | HECHO | c3fb1ba | Guías (imágenes y PDF), capturas de la demo y de recorrido, `galeria.html` |
-| D18 | HECHO | 1f6b647 | Auditoría final de 1014 filas por 8 auditores, correcciones verificadas por un agente distinto (`docs/diseno/auditoria/`) |
+| D18 | HECHO | c9926d4 | Auditoría final de 1014 filas por 8 auditores, correcciones verificadas por un agente distinto (`docs/diseno/auditoria/`) |
 
 ## Dependencias nuevas
 
