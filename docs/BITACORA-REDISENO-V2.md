@@ -4,7 +4,7 @@ Rama `diseno-v2` (desde `diseno-v1`). Especificación: `design_handoff_rediseno_
 
 | Bloque | Estado | Commit | Alcance |
 |---|---|---|---|
-| R1 | HECHO | R1HASH | Tokens y marco: variables, barra lateral agrupada, aviso global, diálogos como hoja inferior en celular |
+| R1 | HECHO | 471ddc5 | Tokens y marco: variables, barra lateral agrupada, aviso global, diálogos como hoja inferior en celular |
 | R2 | PENDIENTE | | Embudo: arrastrar y soltar, selección en lote, columnas plegables, ficha lateral, diálogos, celular |
 | R3 | PENDIENTE | | Tableros: página narrativa de 8 secciones con gráficas propias |
 | R4 | PENDIENTE | | Registrar pago, Hoy del maestro, Pase de lista, Registro del alumno |
