@@ -23,7 +23,7 @@ export const GRUPOS_DE_ADMINISTRACION: { titulo: string; areas: Area[] }[] = [
       { ruta: "/admin/grupos", titulo: "Grupos y horarios", ayuda: "Cupo, salón, instructor, lista de espera y días de clase.", permiso: "catalogo:escribir", palabras: "cupo clases dias lista de espera", menu: true },
       { ruta: "/admin/instructores", titulo: "Instructores y salones", ayuda: "Quién imparte y dónde.", permiso: "catalogo:escribir", palabras: "maestros profesores aulas", menu: true },
       { ruta: "/admin/precios", titulo: "Precios", ayuda: "Inscripción y mensualidad con vigencia.", permiso: "catalogo:escribir", palabras: "costos mensualidad cuota cambiar precio" },
-      { ruta: "/admin/promociones", titulo: "Promociones", ayuda: "Condición, alcance, beneficios, cupo y prioridad.", permiso: "catalogo:escribir", palabras: "descuentos ofertas hermanos" },
+      { ruta: "/admin/promociones", titulo: "Promociones", ayuda: "Condición, alcance, beneficios, cupo y prioridad.", permiso: "catalogo:escribir", palabras: "descuentos ofertas hermanos", menu: true },
     ],
   },
   {
@@ -41,9 +41,9 @@ export const GRUPOS_DE_ADMINISTRACION: { titulo: string; areas: Area[] }[] = [
   {
     titulo: "Mensajería y usuarios",
     areas: [
-      { ruta: "/admin/plantillas", titulo: "Plantillas de mensaje", ayuda: "Estado de aprobación, clase (servicio o marketing) y variables.", permiso: "catalogo:escribir", palabras: "whatsapp aprobadas twilio meta" },
+      { ruta: "/admin/plantillas", titulo: "Plantillas de mensaje", ayuda: "Estado de aprobación, clase (servicio o marketing) y variables.", permiso: "catalogo:escribir", palabras: "whatsapp aprobadas twilio meta", menu: true },
       { ruta: "/admin/automatizaciones", titulo: "Automatizaciones", ayuda: "Encender, desfases, intentos y horario de envío.", permiso: "catalogo:escribir", palabras: "recordatorios avisos automaticos" },
-      { ruta: "/admin/usuarios", titulo: "Usuarios y roles", ayuda: "Altas, roles, sucursales, contraseñas y agente de Chatwoot.", permiso: "usuarios:administrar", palabras: "personas contrasena restablecer desactivar asesor maestro recepcion" },
+      { ruta: "/admin/usuarios", titulo: "Usuarios y roles", ayuda: "Altas, roles, sucursales, contraseñas y agente de Chatwoot.", permiso: "usuarios:administrar", palabras: "personas contrasena restablecer desactivar asesor maestro recepcion", menu: true },
       { ruta: "/admin/bandeja", titulo: "Bandeja del administrador", ayuda: "Eventos inesperados y tareas sin lead.", permiso: "registro_cambios:leer", palabras: "errores pendientes revisar" },
     ],
   },

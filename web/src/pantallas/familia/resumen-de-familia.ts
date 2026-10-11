@@ -39,10 +39,10 @@ export interface MensajesDeFamilia {
 
 // ─── La lista ────────────────────────────────────────────────────────────────────────────────
 
-/** Cuántas familias dice el subtítulo: «248 familias», «1 familia». Con una búsqueda, «N familias encontradas». */
-export function textoDeConteoDeFamilias(total: number, buscando: boolean): string {
-  if (total === 0) return buscando ? "Ninguna familia coincide" : "Todavía no hay familias";
-  const base = `${total} ${total === 1 ? "familia" : "familias"}`;
+/** Cuántas familias dice el subtítulo: «248 familias», «1 familia». Con una búsqueda, «N familias encontradas»; con el filtro de atraso, «N familias con atraso». */
+export function textoDeConteoDeFamilias(total: number, buscando: boolean, conAtraso = false): string {
+  if (total === 0) return buscando ? "Ninguna familia coincide" : conAtraso ? "Ninguna familia con atraso" : "Todavía no hay familias";
+  const base = `${total} ${total === 1 ? "familia" : "familias"}${conAtraso ? " con atraso" : ""}`;
   return buscando ? `${base} ${total === 1 ? "encontrada" : "encontradas"}` : base;
 }
 

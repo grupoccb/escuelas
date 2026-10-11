@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1218**.
+Filas: **1227**.
 
 ## Acceso y cuenta (51)
 
@@ -62,7 +62,7 @@ Filas: **1218**.
 | `acceso-marco-impresion` | administrador | impresion | Marco al imprimir: solo el contenido y el marcador «escuela · impreso el … por …» (sin barras ni cabecera) |  | ✔ · ✔ | ✔ · ✔ |
 | `acceso-aviso-ya-quedo` | asesor | flotante | Aviso global «ya quedó» sobre la pantalla (al cambiar la contraseña; la API se simula, la contraseña no cambia) | `/mas` | ✔ · ✔ | ✔ · ✔ |
 
-## Administración, catálogo (193)
+## Administración, catálogo (199)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -259,6 +259,12 @@ Filas: **1218**.
 | `adminc-sucursales-desactivar-error-servidor` | administrador | estado | Sucursales con el error de «Desactivar» (el servidor lo rechaza) sobre la lista | `/admin/sucursales` | ✘ · ✘ | ✔ · ✔ |
 | `adminc-sucursales-aviso-desactivada` | administrador | flotante | Aviso «ya quedó» sobre Sucursales: «La sucursal … quedó desactivada.» (la escritura se simula) | `/admin/sucursales` | ✘ · ✘ | ✔ · ✔ |
 | `adminc-catalogo-arrastrando` | administrador | estado | Cargar catálogo con archivos arrastrados sobre la zona (el borde y el fondo del primario; soltar o tocar hacen lo mismo) | `/admin/catalogo` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-patron-color-promociones` | administrador | estado | Promociones con la barra del color de su disciplina (solo la de una disciplina), una apagada con fondo atenuado e «Inactiva», el alcance y los beneficios | `/admin/promociones` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-promociones-desactivar-error-servidor` | administrador | estado | Promociones con el error de «Desactivar» (el servidor lo rechaza) sobre la lista | `/admin/promociones` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-promociones-aviso-desactivada` | administrador | flotante | Aviso «ya quedó» sobre Promociones: «La promoción … quedó desactivada: ya no se aplica.» (la escritura se simula) | `/admin/promociones` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-patron-color-plantillas` | administrador | estado | Plantillas de mensaje con la barra del color de su disciplina (la de «todas» no lleva), clase y aprobación, una apagada con fondo atenuado e «Inactiva» | `/admin/plantillas` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-plantillas-desactivar-error-servidor` | administrador | estado | Plantillas de mensaje con el error de «Desactivar» (el servidor lo rechaza) sobre la lista | `/admin/plantillas` | ✘ · ✘ | ✔ · ✔ |
+| `adminc-plantillas-aviso-desactivada` | administrador | flotante | Aviso «ya quedó» sobre Plantillas de mensaje: «La plantilla … quedó desactivada: el sistema no la manda.» (la escritura se simula) | `/admin/plantillas` | ✘ · ✘ | ✔ · ✔ |
 
 ## Administración: sistema y mensajería (185)
 
@@ -723,7 +729,7 @@ Filas: **1218**.
 | `conv-hermanos-dejar-fuera` | asesor | estado | Tras «Dejar fuera a …» en el rechazo por grupo lleno: solo queda marcado el primero y el asistente vuelve a calcular lo que falta | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 | `conv-hermanos-exito` | asesor | pantalla | Pantalla «Listo: familia e inscripción creadas» con dos niños inscritos (el POST final se responde en la escena) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 
-## Familias, alumnos y expediente (140)
+## Familias, alumnos y expediente (143)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -761,8 +767,8 @@ Filas: **1218**.
 | `familia-alumnos-lista-sin-conexion` | recepcion | estado | Alumnos: al buscar sin conexión («No hay conexión con el servidor») | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-disciplinas` | recepcion | estado | Alumnos: tarjetas con el grupo en el color de su disciplina, la sucursal, la asistencia (en ámbar si es baja) y la situación de la cuenta; píldoras de disciplina | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
 | `familia-alumnos-lista-filtro-disciplina` | recepcion | estado | Alumnos: filtrada por una disciplina (la píldora activa va en oscuro y la lista es solo de esa disciplina) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
-| `familia-alumnos-lista-solo-atencion` | recepcion | estado | Alumnos: «Solo con atraso o faltas» marcado (con vencido o con asistencia baja, de la página que se ve) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
-| `familia-alumnos-lista-solo-atencion-vacio` | recepcion | estado | Alumnos: «Solo con atraso o faltas» y nadie lo cumple («No hay alumnos que coincidan») | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-solo-atencion` | recepcion | estado | Alumnos: «Solo con atraso o faltas» marcado (R9b: el servidor deja a los alumnos con un cargo vencido de toda la escuela, y la nota dice que las faltas aún no se filtran) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
+| `familia-alumnos-lista-solo-atencion-vacio` | recepcion | estado | Alumnos: «Solo con atraso o faltas» y ningún alumno con cargo vencido («No hay alumnos que coincidan») | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
 | `familia-alumnos-lista-sin-resumen` | recepcion | estado | Alumnos: el resumen no se pudo leer (las tarjetas dicen solo nombre, edad y familia) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
 | `familia-alumnos-lista-sin-inscripcion` | recepcion | estado | Alumnos: un alumno sin inscripción vigente («Sin grupo vigente», sin asistencia ni cuenta) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
 | `familia-alumnos-lista-foco-tarjeta` | recepcion | estado | Alumnos: el foco del teclado en la primera tarjeta (el anillo rodea toda la tarjeta) | `/alumnos` | ✘ · ✘ | ✔ · ✔ |
@@ -835,6 +841,9 @@ Filas: **1218**.
 | `familia-familias-lista-buscar-telefono` | recepcion | estado | Familias: búsqueda por teléfono en cualquier formato, con resultado | `/familias` | ✔ · ✔ | ✔ · ✔ |
 | `familia-familias-lista-buscar-nombre` | recepcion | estado | Familias: búsqueda por nombre, con resultado | `/familias` | ✔ · ✔ | ✔ · ✔ |
 | `familia-familias-lista-sin-resultados` | recepcion | estado | Familias: búsqueda sin resultados («No encontré a esa familia») | `/familias` | ✔ · ✔ | ✔ · ✔ |
+| `familia-familias-lista-con-atraso` | recepcion | estado | Familias: la píldora «Con atraso» activa (R9b): solo las familias con un cargo vencido, «N familias con atraso» en el subtítulo | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-familias-lista-con-atraso-vacio` | recepcion | estado | Familias: «Con atraso» activa y nadie debe un cargo vencido («Ninguna familia tiene atraso») | `/familias` | ✘ · ✘ | ✔ · ✔ |
+| `familia-familias-lista-desde-tableros` | administrador | estado | Familias: llegada desde «Ver las familias con atraso» de Tableros (R9b): se abre con `?con_atraso=1` y la píldora «Con atraso» ya puesta | `/tableros` | ✘ · ✘ | ✔ · ✔ |
 | `familia-familias-lista-vacio` | recepcion | estado | Familias: lista vacía («No encontré a esa familia») | `/familias` | ✔ · ✔ | ✔ · ✔ |
 | `familia-familias-lista-muchos` | recepcion | estado | Familias: lista con muchos datos (veinte tarjetas) | `/familias` | ✔ · ✔ | ✔ · ✔ |
 | `familia-familias-lista-paginacion` | recepcion | estado | Familias: paginador «Página 2 de 3» (tras pulsar «Siguiente») | `/familias` | ✔ · ✔ | ✔ · ✔ |

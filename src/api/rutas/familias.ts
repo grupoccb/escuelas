@@ -1,11 +1,11 @@
 // La familia (F1, invariante 13): tutores, alumnos y la relación M:N entre ellos.
 //
-//   GET    /api/tutores?telefono=&nombre=&sucursal_id=&limite=&pagina=                (tutores:leer)
+//   GET    /api/tutores?telefono=&nombre=&sucursal_id=&con_atraso=&limite=&pagina=     (tutores:leer)   (R9b: `con_atraso=true` = con al menos un cargo vencido y con saldo, la misma definición de `cartera_vencida.familias` del ejecutivo; pide `estado_cuenta:leer` y finanzas encendido)
 //   GET    /api/tutores/:id                                                            (tutores:leer)
 //   POST   /api/tutores        { nombre, apellidos?, telefono, correo?, direccion?, como_nos_conocio?, sucursal_id? }   (tutores:escribir)
 //   PATCH  /api/tutores/:id    { …lo mismo, todo opcional }                            (tutores:escribir)
 //   DELETE /api/tutores/:id                                                            (tutores:escribir)  baja lógica; 409 si tiene alumnos
-//   GET    /api/alumnos?nombre=&telefono=&tutor_id=&estatus=&sucursal_id=&vertical_id=&limite=&pagina=   (alumnos:leer)   (R6a: `vertical_id` = con una inscripción vigente en esa disciplina)
+//   GET    /api/alumnos?nombre=&telefono=&tutor_id=&estatus=&sucursal_id=&vertical_id=&con_atraso=&limite=&pagina=   (alumnos:leer)   (R6a: `vertical_id` = con una inscripción vigente en esa disciplina; R9b: `con_atraso=true` = con un cargo vencido y con saldo; pide `estado_cuenta:leer` y finanzas encendido)
 //   GET    /api/alumnos/:id                                                            (alumnos:leer)
 //   POST   /api/alumnos        { nombre, apellidos, fecha_nacimiento, …, tutores: [ { tutor_id | tutor: {…}, parentesco, banderas } ] }   (alumnos:escribir)
 //   PATCH  /api/alumnos/:id    { nombre?, apellidos?, fecha_nacimiento?, sexo?, … }     (alumnos:escribir)
@@ -31,6 +31,7 @@ import type { Consultas } from "../../datos/alcance.ts";
 import { esViolacionUnica } from "../../datos/prisma.ts";
 import { dondeAlumnoVisible, dondeTutorVisible } from "../../familias/alcance.ts";
 import { familiasConUnHijo } from "../../familias/cross-sell.ts";
+import { conAtraso } from "../../familias/con-atraso.ts";
 import { mensajesDeFamilia } from "../../familias/mensajes.ts";
 import { resumenDeFamilias } from "../../familias/resumen.ts";
 import { leerModulos } from "../../modulos/index.ts";
@@ -45,10 +46,10 @@ import { veSucursal } from "../alcance.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type ContextoApi, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
-import { conflicto, noEncontrado, validacion, type DetalleDeError } from "../errores.ts";
+import { conflicto, noEncontrado, prohibido, validacion, type DetalleDeError } from "../errores.ts";
 import { esquemaPaginacion, leerPaginacion, paginar } from "../paginacion.ts";
 import { registrarCambio, type Instantanea } from "../registro.ts";
-import { booleano, correo, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
+import { booleano, booleanoDeTexto, correo, enumerado, fechaISO, listaDe, nulable, objeto, opcional, parsear, parsearQuery, texto, uuid } from "../validar.ts";
 
 const textoONulo = (max: number) => opcional(nulable(texto({ max })));
 const hoyUTC = (ctx: ContextoApi): string => ctx.ahora().toISOString().slice(0, 10);
@@ -129,7 +130,7 @@ const ESTATUS_ALUMNO = ["activo", "baja", "congelado"] as const;
 const esquemaId = objeto({ id: uuid() });
 const esquemaResumen = objeto({ tutor_ids: listaDe(uuid(), { max: 50, unicos: true }) });
 const esquemaIdYTutor = objeto({ id: uuid(), tutor_id: uuid() });
-const esquemaListadoTutores = objeto({ ...esquemaPaginacion, telefono: opcional(texto({ max: 30 })), nombre: opcional(texto({ max: 120 })), sucursal_id: opcional(uuid()) });
+const esquemaListadoTutores = objeto({ ...esquemaPaginacion, telefono: opcional(texto({ max: 30 })), nombre: opcional(texto({ max: 120 })), sucursal_id: opcional(uuid()), con_atraso: opcional(booleanoDeTexto()) });
 const esquemaListadoAlumnos = objeto({
   ...esquemaPaginacion,
   nombre: opcional(texto({ max: 120 })),
@@ -139,6 +140,8 @@ const esquemaListadoAlumnos = objeto({
   sucursal_id: opcional(uuid()),
   /** R6a: los alumnos con una inscripción vigente (activa o congelada) en esa disciplina. */
   vertical_id: opcional(uuid()),
+  /** R9b: solo los alumnos con un cargo vencido y con saldo. */
+  con_atraso: opcional(booleanoDeTexto()),
 });
 
 // ── Presentación ──────────────────────────────────────────────────────────────────────────────────────
@@ -409,6 +412,13 @@ export function rutasDeFamilias(deps: DepsApi): Router {
     return r;
   }
 
+  /** R9b: quién tiene un cargo vencido con saldo. Es información de cobranza: solo con el permiso de importes y el módulo de finanzas encendido (si no, 403 / 400). */
+  async function atrasados(ctx: ContextoApi) {
+    if (!tienePermiso(ctx.usuario.rol, "estado_cuenta:leer")) throw prohibido("No tienes permiso para filtrar por atraso");
+    if (!(await leerModulos(ctx.db)).finanzas) throw validacion([{ campo: "con_atraso", mensaje: "El módulo de finanzas está apagado" }]);
+    return conAtraso(ctx.db, ctx.ahora());
+  }
+
   // ── Tutores ─────────────────────────────────────────────────────────────────────────────────────────
 
   r.get("/tutores", requierePermiso("tutores:leer"), async (req, res) => {
@@ -418,6 +428,7 @@ export function rutasDeFamilias(deps: DepsApi): Router {
     const condiciones: Record<string, unknown>[] = [await dondeTutorVisible(ctx)];
     if (q.telefono !== undefined) condiciones.push({ telefono: telefonoOError("telefono", q.telefono) });
     if (q.sucursal_id) condiciones.push({ sucursal_id: q.sucursal_id });
+    if (q.con_atraso) condiciones.push({ id: { in: (await atrasados(ctx)).tutorIds } });
     // Por nombre: el de la mamá o el de cualquiera de sus hijos (quien llega a pagar dice «vengo por Valentina»), sin importar mayúsculas ni acentos.
     let incompleta = false;
     if (q.nombre && q.nombre.trim() !== "") {
@@ -515,6 +526,7 @@ export function rutasDeFamilias(deps: DepsApi): Router {
     const condiciones: Record<string, unknown>[] = [await dondeAlumnoVisible(ctx)];
     if (q.estatus) condiciones.push({ estatus: q.estatus });
     if (q.sucursal_id) condiciones.push({ sucursal_id: q.sucursal_id });
+    if (q.con_atraso) condiciones.push({ id: { in: (await atrasados(ctx)).alumnoIds } });
     if (q.vertical_id) condiciones.push({ inscripciones: { some: { eliminado_en: null, estatus: { in: ["activa", "congelada"] }, grupo: { programa: { vertical_id: q.vertical_id } } } } });
     if (q.tutor_id) condiciones.push({ tutores: { some: { tutor_id: q.tutor_id, eliminado_en: null } } });
     if (q.telefono !== undefined) {

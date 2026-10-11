@@ -1,6 +1,6 @@
 // Sección 06 «Ingreso recurrente y cartera vencida»: a la izquierda la serie de 12 meses del ingreso mensual recurrente (área y línea de SVG propio, sin librerías) y a la derecha la
 // cartera vencida por antigüedad en una barra apilada con la cifra y las familias de cada tramo. TEXTO PRIMERO: la gráfica es un adorno (`aria-hidden`); las cifras de cada mes están
-// en una tabla desplegable y cada tramo escribe su monto. «Ver las familias con atraso» lleva a la lista de familias (hoy no hay un filtro por atraso: ver la bitácora de R3b).
+// en una tabla desplegable y cada tramo escribe su monto. «Ver las familias con atraso» lleva a la lista de familias con el filtro «Con atraso» puesto (`/familias?con_atraso=1`, R9b).
 
 import { Link } from "react-router-dom";
 import { useSesion } from "../../sesion/SesionContext.tsx";
@@ -145,7 +145,7 @@ function CarteraVencida({ cartera }: { cartera: PropsDeSeccionConDatos["ejecutiv
         </p>
       )}
       {hay && puedeVerFamilias ? (
-        <Link className="boton cartera-accion" to="/familias">
+        <Link className="boton cartera-accion" to={puede("estado_cuenta:leer") ? "/familias?con_atraso=1" : "/familias"}>
           Ver las familias con atraso
         </Link>
       ) : null}

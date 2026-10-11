@@ -45,6 +45,20 @@ async function editarGet(c: Contexto, coincide: Coincide, editar: (cuerpo: Json)
   );
 }
 
+/** R9b: la lista de `ruta` (tutores o alumnos) llega vacía SOLO cuando se pide con `con_atraso=true`; sin el filtro es la real. */
+async function vaciarConAtraso(c: Contexto, ruta: string): Promise<void> {
+  await c.page.route(
+    (u) => u.pathname === ruta && u.searchParams.get("con_atraso") === "true",
+    async (r) => {
+      if (r.request().method() !== "GET") return r.fallback();
+      const resp = await r.fetch();
+      if (!resp.ok()) return r.fulfill({ response: resp });
+      const b = (await resp.json()) as Json;
+      return r.fulfill({ response: resp, body: JSON.stringify({ ...b, datos: [], paginacion: { ...b.paginacion, total: 0, pagina: 1 } }) });
+    },
+  );
+}
+
 /** Un GET a la API que nunca termina (esa parte de la pantalla se queda «Cargando…»). */
 async function colgar(c: Contexto, coincide: Coincide): Promise<void> {
   await c.page.route(
@@ -998,6 +1012,51 @@ const escenasDeFamilias: Escena[] = [
       await esperarListo(c.page);
     },
   }),
+  esc({
+    id: "familia-familias-lista-con-atraso",
+    rol: "recepcion",
+    titulo: "Familias: la píldora «Con atraso» activa (R9b): solo las familias con un cargo vencido, «N familias con atraso» en el subtítulo",
+    tipo: "estado",
+    ruta: "/familias",
+    fuentes: [FAMILIAS],
+    ir: async (c) => {
+      await irA(c, "/familias");
+      await c.page.getByRole("button", { name: "Con atraso" }).click();
+      await c.page.getByRole("button", { name: "Con atraso", pressed: true }).waitFor();
+      await c.page.getByTestId("lista-de-familias").getByRole("listitem").first().waitFor();
+      await esperarListo(c.page);
+    },
+  }),
+  esc({
+    id: "familia-familias-lista-con-atraso-vacio",
+    rol: "recepcion",
+    titulo: "Familias: «Con atraso» activa y nadie debe un cargo vencido («Ninguna familia tiene atraso»)",
+    tipo: "estado",
+    ruta: "/familias",
+    fuentes: [FAMILIAS],
+    ir: async (c) => {
+      await vaciarConAtraso(c, "/api/tutores");
+      await irA(c, "/familias");
+      await c.page.getByRole("button", { name: "Con atraso" }).click();
+      await c.page.getByText("Ninguna familia tiene atraso").waitFor();
+      await esperarListo(c.page);
+    },
+  }),
+  esc({
+    id: "familia-familias-lista-desde-tableros",
+    rol: "administrador",
+    titulo: "Familias: llegada desde «Ver las familias con atraso» de Tableros (R9b): se abre con `?con_atraso=1` y la píldora «Con atraso» ya puesta",
+    tipo: "estado",
+    ruta: "/tableros",
+    fuentes: [FAMILIAS, "web/src/pantallas/tableros/SeccionIngreso.tsx"],
+    ir: async (c) => {
+      await irA(c, "/tableros");
+      await c.page.getByRole("link", { name: "Ver las familias con atraso" }).click();
+      await c.page.getByRole("button", { name: "Con atraso", pressed: true }).waitFor();
+      await c.page.getByTestId("lista-de-familias").getByRole("listitem").first().waitFor();
+      await esperarListo(c.page);
+    },
+  }),
   esc({ id: "familia-familias-lista-vacio", rol: "recepcion", titulo: "Familias: lista vacía («No encontré a esa familia»)", tipo: "estado", ruta: "/familias", fuentes: [FAMILIAS], ir: (c) => conVacio(c, "/familias") }),
   esc({ id: "familia-familias-lista-muchos", rol: "recepcion", titulo: "Familias: lista con muchos datos (veinte tarjetas)", tipo: "estado", ruta: "/familias", fuentes: [FAMILIAS], ir: (c) => conMuchosDatos(c, "/familias", 3) }),
   esc({
@@ -1303,7 +1362,7 @@ const escenasDeAlumnosR6a: Escena[] = [
   esc({
     id: "familia-alumnos-lista-solo-atencion",
     rol: "recepcion",
-    titulo: "Alumnos: «Solo con atraso o faltas» marcado (con vencido o con asistencia baja, de la página que se ve)",
+    titulo: "Alumnos: «Solo con atraso o faltas» marcado (R9b: el servidor deja a los alumnos con un cargo vencido de toda la escuela, y la nota dice que las faltas aún no se filtran)",
     tipo: "estado",
     ruta: "/alumnos",
     fuentes: ALUMNOS_FUENTES,
@@ -1312,18 +1371,20 @@ const escenasDeAlumnosR6a: Escena[] = [
       await conResumenVariado(c);
       await irA(c, "/alumnos");
       await c.page.getByLabel("Solo con atraso o faltas").check();
+      await c.page.getByTestId("nota-con-atraso").waitFor();
       await esperarListo(c.page);
     },
   }),
   esc({
     id: "familia-alumnos-lista-solo-atencion-vacio",
     rol: "recepcion",
-    titulo: "Alumnos: «Solo con atraso o faltas» y nadie lo cumple («No hay alumnos que coincidan»)",
+    titulo: "Alumnos: «Solo con atraso o faltas» y ningún alumno con cargo vencido («No hay alumnos que coincidan»)",
     tipo: "estado",
     ruta: "/alumnos",
     fuentes: ALUMNOS_FUENTES,
     ir: async (c) => {
-      await conResumenVariado(c, [{ asistencia: 100, cuenta: "al_corriente" }]);
+      // El servidor no tiene alumnos con atraso: la respuesta del filtro `con_atraso` llega vacía.
+      await vaciarConAtraso(c, "/api/alumnos");
       await irA(c, "/alumnos");
       await c.page.getByLabel("Solo con atraso o faltas").check();
       await c.page.getByText("No hay alumnos que coincidan").waitFor();

@@ -32,6 +32,12 @@ test("el conteo de familias del subtítulo, con y sin búsqueda", () => {
   assert.equal(textoDeConteoDeFamilias(1, true), "1 familia encontrada");
   assert.equal(textoDeConteoDeFamilias(0, true), "Ninguna familia coincide");
   assert.equal(textoDeConteoDeFamilias(0, false), "Todavía no hay familias");
+  // R9b: con el filtro «Con atraso».
+  assert.equal(textoDeConteoDeFamilias(12, false, true), "12 familias con atraso");
+  assert.equal(textoDeConteoDeFamilias(1, false, true), "1 familia con atraso");
+  assert.equal(textoDeConteoDeFamilias(2, true, true), "2 familias con atraso encontradas");
+  assert.equal(textoDeConteoDeFamilias(0, false, true), "Ninguna familia con atraso");
+  assert.equal(textoDeConteoDeFamilias(0, true, true), "Ninguna familia coincide");
 });
 
 test("el estado de la cuenta se dice con palabras y un tono", () => {

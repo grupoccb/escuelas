@@ -860,7 +860,6 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 
 /* Listas de tarjetas en rejilla (alumnos, familias). */
 .lista-tarjetas.rejilla-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: var(--e3); }
-.nombre-tarjeta { font-size: 0.9375rem; line-height: 1.375rem; }
 
 /* Imprimir (estado de cuenta, recibo, cierre del día): sin menús, botones ni formularios; en blanco y negro sobre papel. */
 @media print {
@@ -1156,16 +1155,10 @@ table.tabla th:last-child { width: 1%; }
 @media (max-width: 639px) { .ficha-telefono { font-size: 1.25rem; } }
 
 /* ───────── Administración: catálogo, precios y carga ───────── */
-/* Tarjeta de catálogo (disciplina, sucursal, programa, grupo, instructor, salón, promoción): nombre y acciones de solo ícono arriba, etiquetas y datos debajo. */
 .boton-icono-peligro { color: var(--peligro); }
 .boton-icono-peligro:hover:not(:disabled) { background: var(--columna); color: var(--peligro); }
-.item-catalogo { display: flex; flex-direction: column; gap: var(--e2); min-width: 0; }
-.item-catalogo-cabeza { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
-.item-catalogo-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--e2); min-width: 0; overflow-wrap: anywhere; }
-.item-catalogo-etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
 .item-catalogo-destacado { margin: 0; display: flex; align-items: center; gap: var(--e2); color: var(--primario-fuerte); font-weight: 600; }
 .item-catalogo-destacado > svg { flex: none; }
-.meta-linea { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e5); color: var(--texto-suave); overflow-wrap: anywhere; }
 .meta-destacada { color: var(--texto); font-weight: 600; font-variant-numeric: tabular-nums; }
 .enlace-con-icono { display: inline-flex; align-items: center; gap: var(--e1); min-height: var(--alto-toque); }
 /* Casillas dentro de una tarjeta o de un formulario: en rejilla, sobre un recuadro gris. */
@@ -1211,20 +1204,17 @@ table.tabla th:last-child { width: 1%; }
 .item-admin-nombre { margin: 0; font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; overflow-wrap: anywhere; }
 .item-admin-meta { margin: 0; color: var(--texto-suave); overflow-wrap: anywhere; }
 .item-admin-etiquetas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.item-admin-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e1); margin-left: auto; }
 .item-admin-detalle { flex: 1 0 100%; min-width: 0; margin: 0; }
 .item-admin-bandeja, .item-admin-plantilla { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); color: var(--texto-suave); }
 .item-admin-bandeja { flex-wrap: nowrap; align-items: flex-start; }
 .item-admin-bandeja > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
 .item-admin-bandeja svg { margin-top: 2px; }
 .item-admin-bandeja svg { flex: none; }
-.item-admin-acciones .boton-icono:disabled { background: transparent; border-color: transparent; }
 .boton-icono-peligro { color: var(--peligro); }
 .tarjeta .lista-tarjetas > li.item-admin { background: var(--fondo); border-color: transparent; box-shadow: none; }
 @media (max-width: 639px) {
   .item-admin-principal { flex-basis: 100%; }
   .item-admin-etiquetas { flex: 1 1 auto; }
-  .item-admin-acciones > .boton:not(.boton-icono) { flex: 1 1 auto; }
 }
 .busqueda-admin { display: flex; flex-direction: column; gap: 6px; }
 .seccion-admin { display: flex; flex-direction: column; gap: var(--e3); }
@@ -1346,8 +1336,7 @@ table.tabla-leads td a:hover { color: var(--primario); }
   .config-rejilla select option { min-height: var(--alto-toque); padding: var(--e2) var(--e3); white-space: normal; border-radius: var(--radio-etiqueta); }
   .config-rejilla select option:checked { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
 }
-/* Administración, ajustes de la revisión: contexto del nombre, vacíos visibles, campos alineados por arriba, errores de horario, avisos con un diálogo abierto. */
-.item-catalogo-contexto { flex-basis: 100%; color: var(--texto-suave); overflow-wrap: anywhere; }
+/* Administración, ajustes de la revisión: vacíos visibles, campos alineados por arriba, errores de horario, avisos con un diálogo abierto. */
 .vacio-catalogo > .vacio { background: var(--superficie); border: 1px dashed var(--borde-campo); }
 .rejilla-arriba { align-items: start; }
 .horario-con-error select, .horario-con-error input:not([type="checkbox"]):not([type="radio"]) { border: 2px solid var(--peligro); padding-left: 11px; padding-right: 11px; }
@@ -2817,3 +2806,11 @@ input.corte-dia:not([type="checkbox"]):not([type="radio"]) { width: auto; font-w
 .error-carga-no-existe .error-carga-detalle { color: var(--alerta-fuerte); }
 .error-carga-no-existe .boton.error-carga-accion, .error-carga-no-existe .boton.error-carga-accion:hover:not(:disabled) { border-color: var(--alerta-borde); color: var(--alerta-fuerte); }
 @media (max-width: 479px) { .error-carga-accion { width: 100%; } }
+
+/* === R9b: familias con atraso === */
+/* Las vistas de Familias (el segmentado de enlaces) y, a su lado, la píldora de filtro «Con atraso» (la misma píldora de Alumnos). */
+.familias-vistas { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2) var(--e3); }
+.familias-vistas .pestanas-segmentadas { align-self: auto; }
+/* === R9a: promociones, plantillas y usuarios === */
+/* La fila de catálogo es un `<li>` de `.lista-filas`, y `.lista-filas > li` (las filas simples de otras pantallas) le quitaba el relleno lateral: el texto quedaba pegado al borde de la tarjeta. */
+.lista-filas > .fila-catalogo { padding: 14px var(--e4); }

@@ -64,7 +64,10 @@ test.describe("secciones 05 a 08", () => {
     else {
       await expect(seccion.getByRole("list", { name: "Cartera vencida por antigüedad" }).getByRole("listitem")).toHaveCount(4);
       await seccion.getByRole("link", { name: "Ver las familias con atraso" }).click();
-      await expect(page).toHaveURL(/\/familias$/);
+      // R9b: llega a Familias con el filtro «Con atraso» ya puesto, y la lista es la de las familias con atraso que cuenta el tablero.
+      await expect(page).toHaveURL(/\/familias\?con_atraso=1$/);
+      await expect(page.getByRole("button", { name: "Con atraso" })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByTestId("lista-de-familias").getByRole("listitem").first()).toBeVisible();
       await page.goBack();
     }
     const resumen = page.getByTestId("seccion-ingreso").getByText("Ver la cifra de cada mes");

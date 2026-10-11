@@ -52,6 +52,27 @@ test.describe("recepción: familias y acciones sobre la inscripción", () => {
     await capturar(page, "51-ficha-familia", "escritorio");
   });
 
+  test("«Con atraso» (R9b): la píldora pide al servidor las familias con un cargo vencido y su cantidad es la del tablero; quitarla las devuelve todas", async ({ page }) => {
+    const ejecutivo = await json<{ cartera_vencida: { familias: number } }>(admin, "/api/reportes/ejecutivo");
+    const todas = await json<{ paginacion: { total: number } }>(admin, "/api/tutores?limite=1");
+    await page.goto("/familias");
+    const pildora = page.getByRole("button", { name: "Con atraso" });
+    await expect(pildora).toHaveAttribute("aria-pressed", "false");
+    await pildora.click();
+    await expect(pildora).toHaveAttribute("aria-pressed", "true");
+    await expect(page).toHaveURL(/\/familias\?con_atraso=1$/);
+    const n = ejecutivo.cartera_vencida.familias;
+    expect(n).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { level: 1 }).locator("xpath=..")).toContainText(n === 1 ? "1 familia con atraso" : `${n} familias con atraso`);
+    const tarjetas = page.getByTestId("lista-de-familias").getByRole("listitem");
+    await expect(tarjetas.first()).toBeVisible();
+    await expect(page.getByTestId("lista-de-familias")).not.toContainText("Al corriente");
+    await capturar(page, "50b-familias-con-atraso", "celular");
+    await pildora.click();
+    await expect(pildora).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("heading", { level: 1 }).locator("xpath=..")).toContainText(`${todas.paginacion.total} familia`);
+  });
+
   test("el expediente muestra trayectoria, asistencia, económico y comercial; el saldo coincide con el estado de cuenta; recepción no ve la salud", async ({ page }) => {
     await page.goto(`/alumnos/${mayor.alumnoId}`);
     await expect(page.getByRole("heading", { name: "Hija Mayor Rivera" })).toBeVisible();

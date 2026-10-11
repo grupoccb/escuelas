@@ -2,7 +2,7 @@
 // cuenta; y la vista «Con un solo hijo inscrito» (venta cruzada) con lo que ya toma cada familia y lo que podría probar, y su descarga en CSV.
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { api, armarConsulta, type Pagina as Pag } from "../../api/cliente.ts";
 import type { Tutor } from "../../api/tipos.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
@@ -25,18 +25,18 @@ const LIMITE = 20;
 /** Lo que se espera tras la última tecla antes de buscar (el prototipo filtra al escribir; el servidor compara nombres y teléfonos, así que no se le pide una búsqueda por letra). */
 const ESPERA_DE_BUSQUEDA_MS = 300;
 
-function ListaDeFamilias({ busqueda, alTotal }: { busqueda: string; alTotal: (total: number | null, buscando: boolean) => void }) {
+function ListaDeFamilias({ busqueda, conAtraso, alTotal }: { busqueda: string; conAtraso: boolean; alTotal: (total: number | null, buscando: boolean) => void }) {
   const { sucursalId, yo } = useSesion();
-  // La página vuelve a la primera cuando cambia lo que se busca (sin un efecto: la página elegida recuerda para qué búsqueda era).
-  const [elegida, setElegida] = useState({ busqueda, pagina: 1 });
-  const pagina = elegida.busqueda === busqueda ? elegida.pagina : 1;
-  const setPagina = (n: number): void => setElegida({ busqueda, pagina: n });
+  // La página vuelve a la primera cuando cambia lo que se busca o el filtro (sin un efecto: la página elegida recuerda para qué búsqueda y filtro era).
+  const [elegida, setElegida] = useState({ busqueda, conAtraso, pagina: 1 });
+  const pagina = elegida.busqueda === busqueda && elegida.conAtraso === conAtraso ? elegida.pagina : 1;
+  const setPagina = (n: number): void => setElegida({ busqueda, conAtraso, pagina: n });
   const lista = useCarga(
     (senal) => {
       const q = busqueda.trim();
-      return api.get<Pag<Tutor>>("/api/tutores", { ...(q ? (pareceTelefono(q) ? { telefono: q } : { nombre: q }) : {}), ...(sucursalId ? { sucursal_id: sucursalId } : {}), limite: LIMITE, pagina }, senal);
+      return api.get<Pag<Tutor>>("/api/tutores", { ...(q ? (pareceTelefono(q) ? { telefono: q } : { nombre: q }) : {}), ...(sucursalId ? { sucursal_id: sucursalId } : {}), ...(conAtraso ? { con_atraso: "true" } : {}), limite: LIMITE, pagina }, senal);
     },
-    [busqueda, sucursalId, pagina],
+    [busqueda, sucursalId, conAtraso, pagina],
   );
   const resumenes = useResumenDeFamilias((lista.datos?.datos ?? []).map((t) => t.id));
   const buscando = busqueda.trim() !== "";
@@ -51,9 +51,15 @@ function ListaDeFamilias({ busqueda, alTotal }: { busqueda: string; alTotal: (to
       {lista.cargando && !lista.datos ? <Cargando /> : null}
       {lista.datos && lista.datos.datos.length === 0 ? (
         <Tarjeta>
-          <Vacio titulo="No encontré a esa familia" icono="buscar">
-            Revisa el teléfono o prueba con otro nombre.
-          </Vacio>
+          {conAtraso && !buscando ? (
+            <Vacio titulo="Ninguna familia tiene atraso" icono="exito">
+              Ninguna familia debe un cargo que ya venció. Quita el filtro para ver todas.
+            </Vacio>
+          ) : (
+            <Vacio titulo="No encontré a esa familia" icono="buscar">
+              {conAtraso ? "Revisa el teléfono o prueba con otro nombre, o quita el filtro «Con atraso»." : "Revisa el teléfono o prueba con otro nombre."}
+            </Vacio>
+          )}
         </Tarjeta>
       ) : null}
       <ul className="familias-rejilla" data-prueba="lista-de-familias">
@@ -163,6 +169,16 @@ function UnSoloHijo({ alTotal }: { alTotal: (total: number | null, buscando: boo
 
 export default function Familias({ crucada = false }: { crucada?: boolean }) {
   useTitulo(crucada ? "Familias con un solo hijo" : "Familias");
+  const { puede, moduloEncendido } = useSesion();
+  // El filtro «Con atraso» es de cobranza: solo para quien ve el estado de cuenta y con finanzas encendido (el servidor lo exige igual). Vive en la dirección (`?con_atraso=1`) para que Tableros pueda llegar con él puesto.
+  const puedeFiltrarPorAtraso = puede("estado_cuenta:leer") && moduloEncendido("finanzas");
+  const navigate = useNavigate();
+  const [parametros, setParametros] = useSearchParams();
+  const conAtraso = !crucada && puedeFiltrarPorAtraso && parametros.get("con_atraso") === "1";
+  const alternarAtraso = (): void => {
+    if (crucada) navigate("/familias?con_atraso=1");
+    else setParametros(conAtraso ? {} : { con_atraso: "1" });
+  };
   const [conteo, setConteo] = useState<{ total: number | null; buscando: boolean }>({ total: null, buscando: false });
   const [alTotal] = useState(() => (total: number | null, buscando: boolean) => setConteo((c) => (c.total === total && c.buscando === buscando ? c : { total, buscando })));
   const [escrito, setEscrito] = useState("");
@@ -179,7 +195,7 @@ export default function Familias({ crucada = false }: { crucada?: boolean }) {
   return (
     <Pagina
       titulo="Familias"
-      subtitulo={conteo.total === null ? undefined : crucada ? `${conteo.total} con un solo hijo inscrito` : textoDeConteoDeFamilias(conteo.total, conteo.buscando)}
+      subtitulo={conteo.total === null ? undefined : crucada ? `${conteo.total} con un solo hijo inscrito` : textoDeConteoDeFamilias(conteo.total, conteo.buscando, conAtraso)}
       acciones={
         crucada ? null : (
           <form noValidate className="familias-busqueda" onSubmit={buscar} role="search">
@@ -188,15 +204,22 @@ export default function Familias({ crucada = false }: { crucada?: boolean }) {
         )
       }
     >
-      <nav className="pestanas pestanas-segmentadas" aria-label="Vistas de familias">
-        <NavLink to="/familias" end className="pestana-enlace">
-          Todas
-        </NavLink>
-        <NavLink to="/familias/un-solo-hijo" className="pestana-enlace">
-          Con un solo hijo inscrito
-        </NavLink>
-      </nav>
-      {crucada ? <UnSoloHijo alTotal={alTotal} /> : <ListaDeFamilias busqueda={busqueda} alTotal={alTotal} />}
+      <div className="familias-vistas">
+        <nav className="pestanas pestanas-segmentadas" aria-label="Vistas de familias">
+          <Link to="/familias" className="pestana-enlace" aria-current={!crucada && !conAtraso ? "page" : undefined}>
+            Todas
+          </Link>
+          <NavLink to="/familias/un-solo-hijo" className="pestana-enlace">
+            Con un solo hijo inscrito
+          </NavLink>
+        </nav>
+        {puedeFiltrarPorAtraso ? (
+          <button type="button" className="pildora-filtro familias-pildora-atraso" aria-pressed={conAtraso} onClick={alternarAtraso}>
+            Con atraso
+          </button>
+        ) : null}
+      </div>
+      {crucada ? <UnSoloHijo alTotal={alTotal} /> : <ListaDeFamilias busqueda={busqueda} conAtraso={conAtraso} alTotal={alTotal} />}
     </Pagina>
   );
 }

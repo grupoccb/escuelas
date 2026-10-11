@@ -19,6 +19,7 @@ const GRUPOS = `${P}Grupos.tsx`;
 const INSTRUCTORES = `${P}InstructoresYSalones.tsx`;
 const PRECIOS = `${P}Precios.tsx`;
 const PROMOCIONES = `${P}Promociones.tsx`;
+const PLANTILLAS = `${P}Plantillas.tsx`;
 const CATALOGO = `${P}CargarCatalogo.tsx`;
 const COMUNES = `${P}comunes.tsx`;
 const PATRON = `${P}patron.tsx`;
@@ -225,17 +226,31 @@ async function gruposFalsos(c: Contexto): Promise<void> {
   }));
 }
 
-/** Dos promociones activas: por hermanos (con cupo, fin, alcance y dos beneficios) y por pago anticipado (sin fin ni alcance). */
-async function promocionesFalsas(c: Contexto): Promise<void> {
+/** Dos promociones activas: por hermanos (con cupo, fin, alcance y dos beneficios) y por pago anticipado (sin fin ni alcance); con `conInactiva`, una tercera apagada de otra condición. */
+async function promocionesFalsas(c: Contexto, conInactiva = false): Promise<void> {
   const beneficio = (id: string, tipo: string, modo: string, valor: string | null) => ({ id, tipo, modo, valor, producto_id: null, descripcion: null, momento_disparo: "inmediato" });
   await editarGet(c, enApi("/api/promociones"), (b) => ({
     ...b,
     datos: [
       { id: "promo-hermanos", nombre: "Promoción de hermanos", codigo: "HERMANOS", vigencia_desde: "2026-01-01", vigencia_hasta: "2099-12-31", condicion_tipo: "min_hermanos", condicion_valor: { hermanos: 2 }, cupo_maximo: 50, cupo_usado: 12, acumulable: false, prioridad: 10, activo: true, verticales: [c.mundo.verticalId], sucursales: [c.mundo.sucursales.norte.id], programas: [c.mundo.programaId], beneficios: [beneficio("beneficio-1", "descuento_mensualidad", "porcentaje", "15.00"), beneficio("beneficio-2", "meses_gratis", "total", "1.00")] },
       { id: "promo-anticipado", nombre: "Pago anticipado", codigo: "ANTICIPADO", vigencia_desde: "2026-01-01", vigencia_hasta: null, condicion_tipo: "pago_anticipado", condicion_valor: { meses: 3 }, cupo_maximo: null, cupo_usado: 0, acumulable: true, prioridad: 0, activo: true, verticales: [], sucursales: [], programas: [], beneficios: [beneficio("beneficio-3", "descuento_inscripcion", "monto_fijo", "250.00")] },
+      ...(conInactiva ? [{ id: "promo-apagada", nombre: "Inscripción de otoño", codigo: "OTONO", vigencia_desde: "2026-09-01", vigencia_hasta: "2026-10-31", condicion_tipo: "sin_condicion", condicion_valor: null, cupo_maximo: 40, cupo_usado: 27, acumulable: false, prioridad: 1, activo: false, verticales: [], sucursales: [], programas: [], beneficios: [beneficio("beneficio-4", "descuento_inscripcion", "total", null)] }] : []),
     ],
-    paginacion: { ...b.paginacion, total: 2 },
+    paginacion: { ...b.paginacion, total: conInactiva ? 3 : 2 },
   }));
+}
+
+/** Tres plantillas: una de servicio de la disciplina del mundo (con variables y automatizaciones), una de marketing para todas y una apagada de la disciplina. */
+async function plantillasFalsas(c: Contexto): Promise<void> {
+  await editarGet(c, enApi("/api/plantillas"), (b) => {
+    const base = (b.datos as Json[])[0];
+    const datos = [
+      { ...base, id: "plantilla-de-muestra-1", codigo: "recordatorio_de_muestra", vertical_id: c.mundo.verticalId, clase_mensaje: "servicio", categoria: "utility", estado_aprobacion: "aprobada", activo: true, variables: [{ pos: 1, nombre: "alumno" }, { pos: 2, nombre: "fecha" }], automatizaciones: 2 },
+      { ...base, id: "plantilla-de-muestra-2", codigo: "reenganche_de_muestra", vertical_id: null, clase_mensaje: "marketing", categoria: "marketing", estado_aprobacion: "pendiente", activo: true, variables: [], automatizaciones: 0 },
+      { ...base, id: "plantilla-de-muestra-3", codigo: "bienvenida_de_muestra", vertical_id: c.mundo.verticalId, clase_mensaje: "servicio", categoria: "utility", estado_aprobacion: "aprobada", activo: false, variables: [{ pos: 1, nombre: "alumno" }], automatizaciones: 1 },
+    ];
+    return { ...b, datos, paginacion: { ...b.paginacion, total: datos.length } };
+  });
 }
 
 // ─── Hojas del catálogo (la carga de Excel/CSV) ──────────────────────────────────────────────
@@ -2840,6 +2855,102 @@ export const ESCENAS: Escena[] = [
       await c.page.locator(".zona-archivos").dispatchEvent("dragover");
       await c.page.locator(".zona-archivos[data-arrastrando]").waitFor();
       await esperarListo(c.page);
+    },
+  },
+  {
+    id: "adminc-patron-color-promociones",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Promociones con la barra del color de su disciplina (solo la de una disciplina), una apagada con fondo atenuado e «Inactiva», el alcance y los beneficios",
+    tipo: "estado",
+    ruta: "/admin/promociones",
+    fuentes: [PROMOCIONES, PATRON],
+    ir: async (c) => {
+      await colorDeLaDisciplina(c);
+      await promocionesFalsas(c, true);
+      await irA(c, "/admin/promociones");
+    },
+  },
+  {
+    id: "adminc-promociones-desactivar-error-servidor",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Promociones con el error de «Desactivar» (el servidor lo rechaza) sobre la lista",
+    tipo: "estado",
+    ruta: "/admin/promociones",
+    fuentes: [PROMOCIONES, PATRON, COMUNES],
+    ir: async (c) => {
+      await promocionesFalsas(c);
+      await irA(c, "/admin/promociones");
+      await fallarLaSiguienteEscritura(c, 409, "No se puede desactivar: tiene beneficios por entregar.");
+      await c.page.getByRole("button", { name: "Desactivar", exact: true }).first().click();
+      await c.page.getByText("No se puede desactivar: tiene beneficios por entregar.").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "adminc-promociones-aviso-desactivada",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Aviso «ya quedó» sobre Promociones: «La promoción … quedó desactivada: ya no se aplica.» (la escritura se simula)",
+    tipo: "flotante",
+    ruta: "/admin/promociones",
+    fuentes: [PROMOCIONES, PATRON, AVISOS],
+    completa: false,
+    ir: async (c) => {
+      await promocionesFalsas(c);
+      await irA(c, "/admin/promociones");
+      await simularEscritura(c);
+      await c.page.getByRole("button", { name: "Desactivar", exact: true }).first().click();
+      await esperarAviso(c);
+    },
+  },
+  {
+    id: "adminc-patron-color-plantillas",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Plantillas de mensaje con la barra del color de su disciplina (la de «todas» no lleva), clase y aprobación, una apagada con fondo atenuado e «Inactiva»",
+    tipo: "estado",
+    ruta: "/admin/plantillas",
+    fuentes: [PLANTILLAS, PATRON],
+    ir: async (c) => {
+      await colorDeLaDisciplina(c);
+      await plantillasFalsas(c);
+      await irA(c, "/admin/plantillas");
+    },
+  },
+  {
+    id: "adminc-plantillas-desactivar-error-servidor",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Plantillas de mensaje con el error de «Desactivar» (el servidor lo rechaza) sobre la lista",
+    tipo: "estado",
+    ruta: "/admin/plantillas",
+    fuentes: [PLANTILLAS, PATRON, COMUNES],
+    ir: async (c) => {
+      await plantillasFalsas(c);
+      await irA(c, "/admin/plantillas");
+      await fallarLaSiguienteEscritura(c, 500, "Algo salió mal en el servidor. Inténtalo de nuevo.");
+      await c.page.getByRole("button", { name: "Desactivar", exact: true }).first().click();
+      await c.page.getByRole("alert").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "adminc-plantillas-aviso-desactivada",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Aviso «ya quedó» sobre Plantillas de mensaje: «La plantilla … quedó desactivada: el sistema no la manda.» (la escritura se simula)",
+    tipo: "flotante",
+    ruta: "/admin/plantillas",
+    fuentes: [PLANTILLAS, PATRON, AVISOS],
+    completa: false,
+    ir: async (c) => {
+      await plantillasFalsas(c);
+      await irA(c, "/admin/plantillas");
+      await simularEscritura(c);
+      await c.page.getByRole("button", { name: "Desactivar", exact: true }).first().click();
+      await esperarAviso(c);
     },
   },
 ];

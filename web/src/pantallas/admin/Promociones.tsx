@@ -5,14 +5,15 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { formatearFecha } from "../../lib/fechas.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina } from "../../ui/basicos.tsx";
+import { Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
 import { CONDICIONES, MOMENTOS, OPCIONES_DE_BENEFICIO, textoDeBeneficio, valorDeBeneficio } from "./beneficios.ts";
-import { AccionesDeTarjeta, AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, BotonDeIcono, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import type { BeneficioAdmin, ProgramaAdmin, PromocionAdmin, SucursalAdmin, Vertical } from "./tipos.ts";
 
 interface CuerpoDeBeneficio {
@@ -225,42 +226,62 @@ export default function Promociones() {
   const { avisar } = useAvisos();
   const edicion = useEdicion<PromocionAdmin>();
   const [baja, setBaja] = useState<PromocionAdmin | null>(null);
+  const cambiarActivo = useAlternarActivo(lista.recargar);
+  const disciplinas = verticales.datos?.datos ?? [];
+  /** Dónde vale, en palabras: las disciplinas marcadas o «Todas las disciplinas» (alcance vacío = todas partes). */
+  const alcanceDe = (p: PromocionAdmin): string => (p.verticales.length === 0 ? "Todas las disciplinas" : p.verticales.map((id) => disciplinas.find((v) => v.id === id)?.nombre ?? "—").join(", "));
+  /** La barra de color solo sale cuando la promoción es de UNA disciplina; con varias o con todas no hay una sola marca que mostrar. */
+  const colorDe = (p: PromocionAdmin): string | null => (p.verticales.length === 1 ? (disciplinas.find((v) => v.id === p.verticales[0])?.color_marca ?? null) : null);
   return (
-    <Pagina titulo="Promociones" subtitulo="Descuentos, meses y productos gratis con su condición y su alcance." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva promoción</Boton></>}>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay promociones">Crea la primera con «Nueva promoción».</VacioDeLista> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-promociones">
-        {(lista.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="item-catalogo" data-prueba={`promocion-${p.codigo}`}>
-            <div className="item-catalogo-cabeza">
-              <div className="item-catalogo-titulo">
-                <strong className="nombre-tarjeta">{p.nombre}</strong>
-                <span className="item-catalogo-contexto">{p.codigo}</span>
-              </div>
-              <AccionesDeTarjeta alEditar={() => edicion.editar(p)} alDarDeBaja={() => setBaja(p)} />
-            </div>
-            <div className="item-catalogo-etiquetas">
-              <Insignia tono={p.activo ? "exito" : "neutro"}>{p.activo ? "Activa" : "Inactiva"}</Insignia>
-              <Insignia>Prioridad {p.prioridad}</Insignia>
-              {p.acumulable ? <Insignia tono="info">Acumulable</Insignia> : null}
-            </div>
-            <ul className="beneficios-lista" aria-label="Lo que da">
-              {p.beneficios.map((b) => (
-                <li key={b.id}>{textoDeBeneficio(b)}</li>
-              ))}
-            </ul>
-            <p className="meta-linea">
-              <span>
-                Del {formatearFecha(p.vigencia_desde)} {p.vigencia_hasta ? `al ${formatearFecha(p.vigencia_hasta)}` : "sin fecha de fin"}
-              </span>
-              <span>{CONDICIONES.find((c) => c.valor === p.condicion_tipo)?.texto ?? p.condicion_tipo}</span>
-              {p.cupo_maximo ? <span>{`cupo ${p.cupo_usado}/${p.cupo_maximo}`}</span> : null}
-            </p>
-          </li>
-        ))}
-      </ul>
-      {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+    <PaginaDeCatalogo titulo="Promociones" ayuda="Condición, alcance, beneficios, cupo y prioridad. Las que no son acumulables se aplican en orden de prioridad.">
+      <ListaDeCatalogo titulo="Promociones" cuenta={lista.datos?.paginacion.total} nuevo="Nueva promoción" alNuevo={edicion.nuevo}>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay promociones">Crea la primera con «Nueva promoción».</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-promociones">
+          {(lista.datos?.datos ?? []).map((p) => (
+            <FilaDeCatalogo
+              key={p.id}
+              data-prueba={`promocion-${p.codigo}`}
+              color={colorDe(p)}
+              inactiva={!p.activo}
+              titulo={p.nombre}
+              etiquetas={
+                <>
+                  <Insignia tono={p.activo ? "exito" : "neutro"}>{p.activo ? "Activa" : "Inactiva"}</Insignia>
+                  <Insignia>Prioridad {p.prioridad}</Insignia>
+                  {p.acumulable ? <Insignia tono="info">Acumulable</Insignia> : null}
+                  <Insignia>{alcanceDe(p)}</Insignia>
+                </>
+              }
+              detalle={unir([
+                p.codigo,
+                `Del ${formatearFecha(p.vigencia_desde)} ${p.vigencia_hasta ? `al ${formatearFecha(p.vigencia_hasta)}` : "sin fecha de fin"}`,
+                CONDICIONES.find((c) => c.valor === p.condicion_tipo)?.texto ?? p.condicion_tipo,
+                p.cupo_maximo ? `cupo ${p.cupo_usado}/${p.cupo_maximo}` : null,
+              ])}
+              extra={
+                <ul className="beneficios-lista" aria-label="Lo que da">
+                  {p.beneficios.map((b) => (
+                    <li key={b.id}>{textoDeBeneficio(b)}</li>
+                  ))}
+                </ul>
+              }
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edicion.editar(p)}
+                  activo={p.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/promociones/${p.id}`, p.activo, { desactivada: `La promoción «${p.nombre}» quedó desactivada: ya no se aplica.`, activada: `La promoción «${p.nombre}» se aplica otra vez.` })}
+                  alDarDeBaja={() => setBaja(p)}
+                />
+              }
+            />
+          ))}
+        </ul>
+        {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nueva promoción" : "Editar promoción"} alCerrar={() => { edicion.cerrar(); lista.recargar(); }}>
         {edicion.actual !== null ? (
           <Formulario
@@ -277,6 +298,6 @@ export default function Promociones() {
       <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la promoción" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/promociones/${baja!.id}`); lista.recargar(); avisar(`La promoción «${baja!.nombre}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="promoción" genero="f" nombre={baja?.nombre} consecuencia="Si tiene beneficios por entregar, el sistema no la dejará." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

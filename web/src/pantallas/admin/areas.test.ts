@@ -41,10 +41,13 @@ test("el buscador solo muestra lo que el rol puede administrar y no deja grupos 
 
 test("el menú de áreas del patrón de catálogo trae solo las que lo usan, por permisos y sin grupos vacíos", () => {
   const todas = areasDelMenu(GRUPOS_DE_ADMINISTRACION, todo);
-  assert.deepEqual(todas.map((g) => g.titulo), ["Catálogo", "Canales y organización"]);
+  assert.deepEqual(todas.map((g) => g.titulo), ["Catálogo", "Canales y organización", "Mensajería y usuarios"]);
   const rutas = todas.flatMap((g) => g.areas.map((a) => a.ruta));
-  for (const r of ["/admin/verticales", "/admin/sucursales", "/admin/programas", "/admin/grupos", "/admin/instructores", "/admin/etapas", "/admin/motivos"]) assert.ok(rutas.includes(r), r);
-  for (const r of ["/admin/catalogo", "/admin/precios", "/admin/promociones", "/admin/plantillas", "/admin/usuarios", "/admin/modulos", "/admin/configuracion", "/admin/textos", "/admin/automatizaciones", "/admin/bandeja"]) assert.ok(!rutas.includes(r), `${r} no usa el patrón`);
+  for (const r of ["/admin/verticales", "/admin/sucursales", "/admin/programas", "/admin/grupos", "/admin/instructores", "/admin/etapas", "/admin/motivos", "/admin/canales", "/admin/campanas", "/admin/promociones", "/admin/plantillas", "/admin/usuarios"]) assert.ok(rutas.includes(r), r);
+  for (const r of ["/admin/catalogo", "/admin/precios", "/admin/modulos", "/admin/configuracion", "/admin/textos", "/admin/automatizaciones", "/admin/bandeja"]) assert.ok(!rutas.includes(r), `${r} no usa el patrón`);
   assert.deepEqual(areasDelMenu(GRUPOS_DE_ADMINISTRACION, () => false), []);
-  assert.deepEqual(areasDelMenu(GRUPOS_DE_ADMINISTRACION, (p) => p === "usuarios:administrar").flatMap((g) => g.areas.map((a) => a.ruta)), []);
+  // Con solo el permiso de usuarios, el menú trae únicamente «Usuarios y roles» (y su grupo); los demás grupos no salen vacíos.
+  const soloUsuarios = areasDelMenu(GRUPOS_DE_ADMINISTRACION, (p) => p === "usuarios:administrar");
+  assert.deepEqual(soloUsuarios.map((g) => g.titulo), ["Mensajería y usuarios"]);
+  assert.deepEqual(soloUsuarios.flatMap((g) => g.areas.map((a) => a.ruta)), ["/admin/usuarios"]);
 });

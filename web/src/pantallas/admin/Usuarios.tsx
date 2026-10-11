@@ -6,13 +6,14 @@ import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { coincide } from "../../lib/texto.ts";
 import { useYo } from "../../sesion/SesionContext.tsx";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoBusqueda, CampoCasilla, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, BotonDeIcono, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import { AYUDA_DE_ROL, problemaDeContrasenaNueva, ROLES, ROLES_CON_SUCURSALES } from "./mensajeria.ts";
 import type { SucursalAdmin } from "./tipos.ts";
 
@@ -190,67 +191,70 @@ export default function Usuarios() {
   const [chatwoot, setChatwoot] = useState<UsuarioAdmin | null>(null);
   const [restablecer, setRestablecer] = useState<UsuarioAdmin | null>(null);
   const [desactivar, setDesactivar] = useState<UsuarioAdmin | null>(null);
-  const activar = useAccion();
+  const cambiarActivo = useAlternarActivo(lista.recargar);
   const nombreS = (id: string) => sucursales.datos?.datos.find((s) => s.id === id)?.nombre ?? "—";
   const rolDe = (u: UsuarioAdmin) => ROLES.find((r) => r.valor === u.rol)?.texto ?? u.rol;
   // V7: con muchas personas hay que poder encontrar a una escribiendo su nombre, su correo o su rol (sin acentos ni mayúsculas).
   const visibles = (lista.datos?.datos ?? []).filter((u) => coincide(`${u.nombre} ${u.correo} ${rolDe(u)}`, busqueda));
   return (
-    <Pagina titulo="Usuarios y roles" subtitulo="Quién entra a la aplicación y qué puede hacer." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nuevo usuario</Boton></>}>
-      <div className="busqueda-admin">
-        <CampoBusqueda etiqueta="Buscar por nombre o correo" placeholder="Buscar por nombre o correo" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
-        <p className="campo-ayuda">También sirve escribir el rol: asesor, maestro, recepción.</p>
-      </div>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="Todavía no hay usuarios">Agrega el primero con «Nuevo usuario».</Vacio></div> : null}
-      {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <div className="vacio-admin"><Vacio titulo={`Nadie coincide con «${busqueda.trim()}»`}>Prueba con otra palabra, o borra lo escrito.</Vacio></div> : null}
-      <ErrorDeAccion error={activar.error} />
-      <ul className="lista-tarjetas" data-prueba="lista-de-usuarios">
-        {visibles.map((u) => (
-          <li key={u.id} className="item-admin" data-prueba={`usuario-${u.correo}`}>
-            <div className="item-admin-principal">
-              <strong className="item-admin-nombre">
-                {u.nombre} {u.id === yo.usuario.id ? <span className="muted">(tú)</span> : null}
-              </strong>
-              <p className="item-admin-meta">
-                {u.correo}
-                {u.sucursales.length > 0 ? ` · ${u.sucursales.map(nombreS).join(", ")}` : ""}
-              </p>
-            </div>
-            <div className="item-admin-etiquetas">
-              <Insignia>{rolDe(u)}</Insignia>
-              <Insignia tono={u.activo ? "exito" : "neutro"}>{u.activo ? "Activo" : "Inactivo"}</Insignia>
-              {u.chatwoot_agent_id ? <Insignia>Agente de Chatwoot n.º {u.chatwoot_agent_id}</Insignia> : null}
-            </div>
-            <div className="item-admin-acciones">
-              <BotonDeIcono icono="lapiz" nombre="Editar" onClick={() => edicion.editar(u)} />
-              {u.id !== yo.usuario.id ? <BotonDeIcono icono="llave" nombre="Restablecer contraseña" onClick={() => setRestablecer(u)} /> : null}
-              {u.rol === "asesor" ? <BotonDeIcono icono="chatwoot" nombre="Agente de Chatwoot" onClick={() => setChatwoot(u)} /> : null}
-              {u.id === yo.usuario.id ? null : u.activo ? (
-                <BotonDeIcono icono="bloquear" nombre="Desactivar" peligro onClick={() => setDesactivar(u)} />
-              ) : (
-                <BotonDeIcono
-                  icono="reactivar"
-                  nombre="Activar"
-                  disabled={activar.ocupado}
-                  onClick={() =>
-                    void activar.ejecutar(async () => {
-                      await api.patch(`/api/usuarios/${u.id}`, { activo: true });
-                      lista.recargar();
-                      avisar(`${u.nombre} volvió a estar activo: ya puede entrar con su contraseña.`);
-                    })
+    <PaginaDeCatalogo
+      titulo="Usuarios y roles"
+      ayuda="Altas, roles, sucursales, contraseñas y agente de Chatwoot. El rol decide la pantalla de inicio; los permisos, lo que cada quien ve."
+      nota="Siempre debe quedar al menos un administrador activo, y no puedes desactivarte ni quitarte el rol a ti mismo. Si alguien se equivoca de contraseña 5 veces seguidas, su acceso se bloquea unos 15 minutos y se libera solo: no hace falta hacer nada."
+    >
+      <ListaDeCatalogo titulo="Usuarios" cuenta={lista.datos?.paginacion.total} nuevo="Nuevo usuario" alNuevo={edicion.nuevo}>
+        <div className="busqueda-admin">
+          <CampoBusqueda etiqueta="Buscar por nombre o correo" placeholder="Buscar por nombre o correo" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+          <p className="campo-ayuda">También sirve escribir el rol: asesor, maestro, recepción.</p>
+        </div>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="Todavía no hay usuarios">Agrega el primero con «Nuevo usuario».</VacioDeLista> : null}
+        {lista.datos && lista.datos.datos.length > 0 && visibles.length === 0 ? <VacioDeLista titulo={`Nadie coincide con «${busqueda.trim()}»`}>Prueba con otra palabra, o borra lo escrito.</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-usuarios">
+          {visibles.map((u) => (
+            <FilaDeCatalogo
+              key={u.id}
+              data-prueba={`usuario-${u.correo}`}
+              inactiva={!u.activo}
+              titulo={
+                <>
+                  {u.nombre} {u.id === yo.usuario.id ? <span className="muted">(tú)</span> : null}
+                </>
+              }
+              etiquetas={
+                <>
+                  <Insignia>{rolDe(u)}</Insignia>
+                  <Insignia tono={u.activo ? "exito" : "neutro"}>{u.activo ? "Activo" : "Inactivo"}</Insignia>
+                  {u.chatwoot_agent_id ? <Insignia>Agente de Chatwoot n.º {u.chatwoot_agent_id}</Insignia> : null}
+                </>
+              }
+              detalle={unir([u.correo, u.sucursales.length > 0 ? u.sucursales.map(nombreS).join(", ") : null])}
+              acciones={
+                <AccionesDeTarjeta
+                  extra={
+                    <>
+                      {u.id !== yo.usuario.id ? <BotonDeIcono icono="llave" nombre="Restablecer contraseña" onClick={() => setRestablecer(u)} /> : null}
+                      {u.rol === "asesor" ? <BotonDeIcono icono="chatwoot" nombre="Agente de Chatwoot" onClick={() => setChatwoot(u)} /> : null}
+                    </>
                   }
+                  alEditar={() => edicion.editar(u)}
+                  activo={u.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  {...(u.id === yo.usuario.id
+                    ? {}
+                    : {
+                        // Desactivar pide confirmación (cierra sus sesiones); activar de nuevo se hace directo.
+                        alDesactivar: () => (u.activo ? setDesactivar(u) : cambiarActivo.alternar(`/api/usuarios/${u.id}`, u.activo, { desactivada: "", activada: `${u.nombre} volvió a estar activo: ya puede entrar con su contraseña.` })),
+                      })}
                 />
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-      {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
-      <Aviso>
-        Siempre debe quedar al menos un administrador activo, y no puedes desactivarte ni quitarte el rol a ti mismo. Si alguien se equivoca de contraseña 5 veces seguidas, su acceso se bloquea unos 15 minutos y se libera solo: no hace falta hacer nada.
-      </Aviso>
+              }
+            />
+          ))}
+        </ul>
+        {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nuevo usuario" : "Editar usuario"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? (
           <Formulario
@@ -296,6 +300,6 @@ export default function Usuarios() {
       <Dialogo abierto={chatwoot !== null} titulo="Agente de Chatwoot" alCerrar={() => setChatwoot(null)}>
         {chatwoot ? <VincularChatwoot usuario={chatwoot} alTerminar={() => { setChatwoot(null); lista.recargar(); }} alCerrar={() => setChatwoot(null)} /> : null}
       </Dialogo>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }

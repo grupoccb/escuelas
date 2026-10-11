@@ -5,13 +5,14 @@ import { useState } from "react";
 import { api, type Pagina as Pag } from "../../api/cliente.ts";
 import { cantidad } from "../../lib/cantidad.ts";
 import { useAvisos } from "../../ui/avisos.tsx";
-import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina, Vacio } from "../../ui/basicos.tsx";
+import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoArea, CampoCasilla, CampoSelect, CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { Paginador } from "../../ui/Paginador.tsx";
 import { enteroDe } from "./ayudas.ts";
-import { AvisoDeBaja, BotonDeIcono, ConfirmarAccion, Regreso, useEdicion } from "./comunes.tsx";
+import { AccionesDeTarjeta, AvisoDeBaja, BotonDeIcono, ConfirmarAccion, useEdicion, VacioDeLista } from "./comunes.tsx";
+import { FilaDeCatalogo, ListaDeCatalogo, PaginaDeCatalogo, unir, useAlternarActivo } from "./patron.tsx";
 import { TEXTO_DE_APROBACION, TONO_DE_APROBACION } from "./piezas.tsx";
 import type { Vertical } from "./tipos.ts";
 
@@ -178,46 +179,64 @@ export default function Plantillas() {
   const { avisar } = useAvisos();
   const edicion = useEdicion<PlantillaAdmin>();
   const [baja, setBaja] = useState<PlantillaAdmin | null>(null);
+  const cambiarActivo = useAlternarActivo(lista.recargar);
   const nombreV = (id: string | null) => (id ? (verticales.datos?.datos.find((v) => v.id === id)?.nombre ?? "—") : "Todas las disciplinas");
+  const colorV = (id: string | null) => (id ? (verticales.datos?.datos.find((v) => v.id === id)?.color_marca ?? null) : null);
   return (
-    <Pagina titulo="Plantillas de mensaje" subtitulo="Los mensajes aprobados que el sistema puede mandar fuera de la ventana de 24 horas." acciones={<><Regreso /><Boton variante="primario" onClick={edicion.nuevo}>Nueva plantilla</Boton></>}>
-      <div className="filtros">
-        <CampoSelect etiqueta="Clase" value={clase} vacio="Todas" opciones={[{ valor: "servicio", texto: "Servicio" }, { valor: "marketing", texto: "Marketing" }]} onChange={(e) => { setPagina(1); setClase(e.target.value); }} />
-      </div>
-      {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
-      {lista.cargando && !lista.datos ? <Cargando /> : null}
-      {lista.datos && lista.datos.datos.length === 0 ? <div className="vacio-admin"><Vacio titulo="No hay plantillas con ese filtro">{clase ? "Quita el filtro «Clase» para ver todas, o da de alta una con «Nueva plantilla»." : "Da de alta la primera con «Nueva plantilla»."}</Vacio></div> : null}
-      <ul className="lista-tarjetas" data-prueba="lista-de-plantillas">
-        {(lista.datos?.datos ?? []).map((p) => (
-          <li key={p.id} className="item-admin" data-prueba={`plantilla-${p.codigo}`}>
-            <div className="item-admin-principal">
-              <strong className="item-admin-nombre">
-                {p.codigo} <span className="muted">· {nombreDeIdioma(p.idioma)}</span>
-              </strong>
-              <p className="item-admin-meta">
-                {nombreV(p.vertical_id)} · categoría {nombreDeCategoria(p.categoria)} · {p.automatizaciones === 0 ? "sin automatizaciones" : cantidad(p.automatizaciones, "automatización", "automatizaciones")}
-              </p>
-            </div>
-            <div className="item-admin-etiquetas">
-              <Insignia tono={p.clase_mensaje === "servicio" ? "info" : "neutro"}>{p.clase_mensaje === "servicio" ? "Servicio" : "Marketing"}</Insignia>
-              <Insignia tono={TONO_DE_APROBACION[p.estado_aprobacion] ?? "neutro"}>{TEXTO_DE_APROBACION[p.estado_aprobacion] ?? p.estado_aprobacion}</Insignia>
-              {!p.activo ? <Insignia>Inactiva</Insignia> : null}
-            </div>
-            <div className="item-admin-acciones">
-              <BotonDeIcono icono="lapiz" nombre="Editar" onClick={() => edicion.editar(p)} />
-              <BotonDeIcono icono="papelera" nombre="Dar de baja" peligro onClick={() => setBaja(p)} />
-            </div>
-            <p className="item-admin-detalle item-admin-meta">Variables: {p.variables.length === 0 ? "ninguna" : p.variables.map((v) => `${v.pos}=${v.nombre}`).join(", ")}</p>
-          </li>
-        ))}
-      </ul>
-      {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+    <PaginaDeCatalogo titulo="Plantillas de mensaje" ayuda="Estado de aprobación, clase (servicio o marketing) y variables. Fuera de la ventana de 24 horas solo salen plantillas aprobadas; con una persona atendiendo, las de marketing no salen y las de servicio sí.">
+      <ListaDeCatalogo titulo="Plantillas" cuenta={lista.datos?.paginacion.total} nuevo="Nueva plantilla" alNuevo={edicion.nuevo}>
+        <div className="filtros">
+          <CampoSelect etiqueta="Clase" value={clase} vacio="Todas" opciones={[{ valor: "servicio", texto: "Servicio" }, { valor: "marketing", texto: "Marketing" }]} onChange={(e) => { setPagina(1); setClase(e.target.value); }} />
+        </div>
+        {lista.error ? <ErrorDeCarga error={lista.error} alReintentar={lista.recargar} /> : null}
+        {lista.cargando && !lista.datos ? <Cargando /> : null}
+        {lista.datos && lista.datos.datos.length === 0 ? <VacioDeLista titulo="No hay plantillas con ese filtro">{clase ? "Quita el filtro «Clase» para ver todas, o da de alta una con «Nueva plantilla»." : "Da de alta la primera con «Nueva plantilla»."}</VacioDeLista> : null}
+        <ErrorDeAccion error={cambiarActivo.error} />
+        <ul className="lista-filas" data-prueba="lista-de-plantillas">
+          {(lista.datos?.datos ?? []).map((p) => (
+            <FilaDeCatalogo
+              key={p.id}
+              data-prueba={`plantilla-${p.codigo}`}
+              color={colorV(p.vertical_id)}
+              inactiva={!p.activo}
+              titulo={
+                <>
+                  {p.codigo} <span className="muted">· {nombreDeIdioma(p.idioma)}</span>
+                </>
+              }
+              etiquetas={
+                <>
+                  <Insignia tono={p.clase_mensaje === "servicio" ? "info" : "neutro"}>{p.clase_mensaje === "servicio" ? "Servicio" : "Marketing"}</Insignia>
+                  <Insignia tono={TONO_DE_APROBACION[p.estado_aprobacion] ?? "neutro"}>{TEXTO_DE_APROBACION[p.estado_aprobacion] ?? p.estado_aprobacion}</Insignia>
+                  {!p.activo ? <Insignia>Inactiva</Insignia> : null}
+                </>
+              }
+              detalle={unir([
+                nombreV(p.vertical_id),
+                `categoría ${nombreDeCategoria(p.categoria)}`,
+                p.automatizaciones === 0 ? "sin automatizaciones" : cantidad(p.automatizaciones, "automatización", "automatizaciones"),
+                `Variables: ${p.variables.length === 0 ? "ninguna" : p.variables.map((v) => `${v.pos}=${v.nombre}`).join(", ")}`,
+              ])}
+              acciones={
+                <AccionesDeTarjeta
+                  alEditar={() => edicion.editar(p)}
+                  activo={p.activo}
+                  ocupado={cambiarActivo.ocupado}
+                  alDesactivar={() => cambiarActivo.alternar(`/api/plantillas/${p.id}`, p.activo, { desactivada: `La plantilla «${p.codigo}» quedó desactivada: el sistema no la manda.`, activada: `La plantilla «${p.codigo}» está activa otra vez.${p.estado_aprobacion === "aprobada" ? "" : " Mientras no esté aprobada, el sistema no la manda."}` })}
+                  alDarDeBaja={() => setBaja(p)}
+                />
+              }
+            />
+          ))}
+        </ul>
+        {lista.datos ? <Paginador pagina={lista.datos.paginacion.pagina} limite={lista.datos.paginacion.limite} total={lista.datos.paginacion.total} alCambiar={setPagina} /> : null}
+      </ListaDeCatalogo>
       <Dialogo abierto={edicion.actual !== null} titulo={edicion.actual === "nuevo" ? "Nueva plantilla" : "Editar plantilla"} alCerrar={edicion.cerrar}>
         {edicion.actual !== null ? <Formulario plantilla={edicion.actual === "nuevo" ? null : edicion.actual} verticales={verticales.datos?.datos ?? []} alGuardar={({ codigo, estado }) => { edicion.cerrar(); lista.recargar(); avisar(`La plantilla «${codigo}» se guardó.${estado === "aprobada" ? "" : " Mientras no esté aprobada, el sistema no la manda."}`); }} alCerrar={edicion.cerrar} /> : null}
       </Dialogo>
       <ConfirmarAccion abierto={baja !== null} titulo="Dar de baja la plantilla" textoDeConfirmar="Dar de baja" alCerrar={() => setBaja(null)} alConfirmar={async () => { await api.delete(`/api/plantillas/${baja!.id}`); lista.recargar(); avisar(`La plantilla «${baja!.codigo}» se dio de baja.`); }}>
         <AvisoDeBaja cosa="plantilla" genero="f" nombre={baja?.codigo} consecuencia="Si una automatización la usa, el sistema no la dejará: cámbiala de plantilla antes." />
       </ConfirmarAccion>
-    </Pagina>
+    </PaginaDeCatalogo>
   );
 }
