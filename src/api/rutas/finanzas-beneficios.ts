@@ -1,6 +1,7 @@
 // Beneficios diferidos (H4): lo que la familia ya se ganó y recepción debe entregar.
 //
 //   GET  /api/beneficios/por-entregar?sucursal_id=&limite=&pagina=     (beneficios:leer)    p. ej. los uniformes «gratis al pagar la primera mensualidad»
+//   GET  /api/beneficios/entregados?sucursal_id=&limite=&pagina=       (beneficios:leer)    lo ya entregado, lo más reciente primero (R5b: la pestaña «Entregados» de Uniformes)
 //   POST /api/beneficios/:id/entregar { producto_id?, cantidad?: 1 }    (beneficios:entregar) lo marca entregado (un beneficio de producto es UNA pieza: más de 1 es 400)
 //
 // Un beneficio diferido nace `pendiente` al inscribir; pasa a `liberado` EN LA MISMA TRANSACCIÓN del pago que salda la primera mensualidad (nunca por una inscripción dada de
@@ -12,7 +13,7 @@ import express from "express";
 import { crearRouter } from "../../http/enrutador.ts";
 import { dondeInscripcionVisible } from "../../inscripciones/alcance.ts";
 import { entregarBeneficio, type ResultadoDeEntregaDeBeneficio } from "../../finanzas/entrega.ts";
-import { dondePorEntregar, presentarPorEntregar, SELECCION_POR_ENTREGAR } from "../../finanzas/por-entregar.ts";
+import { dondeEntregados, dondePorEntregar, presentarEntregado, presentarPorEntregar, SELECCION_ENTREGADOS, SELECCION_POR_ENTREGAR } from "../../finanzas/por-entregar.ts";
 import { requierePermiso } from "../autorizar.ts";
 import { contextoDe, type DepsApi } from "../contexto.ts";
 import { LIMITE_CUERPO_API } from "../cuerpos.ts";
@@ -48,6 +49,21 @@ export function rutasDeBeneficios(_deps: DepsApi): express.Router {
         pag,
         () => ctx.db.promocion_aplicacion.count({ where }),
         async (saltar, tomar) => (await ctx.db.promocion_aplicacion.findMany({ where, select: SELECCION_POR_ENTREGAR, orderBy: [{ liberado_en: "asc" }, { id: "asc" }], skip: saltar, take: tomar })).map((f) => presentarPorEntregar(f)),
+      ),
+    );
+  });
+
+  r.get("/beneficios/entregados", requierePermiso("beneficios:leer"), async (req, res) => {
+    const ctx = contextoDe(res);
+    const q = parsearQuery(esquemaListado, req.query);
+    const pag = leerPaginacion(q);
+    const visible = await dondeInscripcionVisible(ctx);
+    const where = dondeEntregados(visible, q.sucursal_id);
+    res.json(
+      await paginar(
+        pag,
+        () => ctx.db.promocion_aplicacion.count({ where }),
+        async (saltar, tomar) => (await ctx.db.promocion_aplicacion.findMany({ where, select: SELECCION_ENTREGADOS, orderBy: [{ fecha_entrega: "desc" }, { id: "desc" }], skip: saltar, take: tomar })).map((f) => presentarEntregado(f)),
       ),
     );
   });

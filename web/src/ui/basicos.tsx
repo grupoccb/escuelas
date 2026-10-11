@@ -155,11 +155,13 @@ export function ErrorDeAccion({ error, enCampos }: { error: ErrorDeApi | null; e
   );
 }
 
-export function Pagina({ titulo, subtitulo, acciones, children }: { titulo: string; subtitulo?: ReactNode; acciones?: ReactNode; children: ReactNode }) {
+/** `encima` (R5a): lo que va sobre el título, como el enlace «Volver…» de la ficha del lead y de la inscripción. */
+export function Pagina({ titulo, subtitulo, acciones, encima, children }: { titulo: string; subtitulo?: ReactNode; acciones?: ReactNode; encima?: ReactNode; children: ReactNode }) {
   return (
     <div className="pagina">
       <header className="pagina-cabecera">
         <div>
+          {encima}
           <h1>{titulo}</h1>
           {subtitulo ? <p className="muted">{subtitulo}</p> : null}
         </div>

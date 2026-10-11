@@ -756,7 +756,7 @@ Código: `src/finanzas/` (`pagos.ts`, `distribucion.ts`, `despues-del-pago.ts`),
 
 - `resumen`: `total_cargado`, `total_pagado` (lo aplicado), `saldo` (Σ cargos − Σ aplicaciones vivas), `vencido` y `antiguedad`.
 - `hijos[]`: por hijo, sus `cargos[]` (más antiguo primero, con `saldo`, `estatus_efectivo` y `dias_de_atraso`) y sus propios `total_cargado`, `total_pagado`, `saldo`, `vencido` y `antiguedad`.
-- `pagos[]`: los últimos 100 pagos de la familia con sus aplicaciones.
+- `pagos[]`: los últimos 100 pagos de la familia con sus aplicaciones, `motivo_cancelacion` (nulo si no se canceló) y `registrado_por` (nombre de quien lo registró, o nulo).
 - **Antigüedad de lo vencido** (días de atraso = hoy − vencimiento, en el calendario de la sucursal del cargo): `de_0_a_30` (1 a 30 días), `de_31_a_60`, `de_61_a_90` y `mas_de_90` (91 o más). Cada renglón suma el SALDO de sus cargos (un cargo a medio pagar cuenta por lo que falta). Los cargos cancelados se listan pero no cuentan; lo que aún no vence no entra a `vencido`.
 - **Expediente (G5):** `ProveedorEconomicoDeFinanzas` implementa `ProveedorEconomico` y `src/server.ts` lo enchufa: `economico.estado_de_cuenta` trae `saldo`, `vencido` y `antiguedadCarteraVencidaDias` (el cargo vencido más viejo) reales. El maestro sigue sin ver importes.
 
@@ -766,7 +766,8 @@ Código: `src/finanzas/beneficios.ts`, `entrega.ts`, `despues-del-pago.ts`; `src
 
 | Ruta | Permiso | Qué hace |
 |---|---|---|
-| `GET /api/beneficios/por-entregar?sucursal_id=` | `beneficios:leer` (administrador, asesor, recepción) | La lista de recepción: beneficios `liberado` de inscripciones no dadas de baja, con alumno (y su talla), responsable de pago y tipo. |
+| `GET /api/beneficios/por-entregar?sucursal_id=` | `beneficios:leer` (administrador, asesor, recepción) | La lista de recepción: beneficios `liberado` de inscripciones no dadas de baja, con alumno (y su talla), responsable de pago, tipo y `vertical_id` (la disciplina del grupo). |
+| `GET /api/beneficios/entregados?sucursal_id=` | `beneficios:leer` (administrador, asesor, recepción) | R5b: lo YA entregado (pestaña «Entregados» de Uniformes), lo más reciente primero. Misma forma que por entregar y además `entregado_en`, `entregado_por {id, nombre}` y `producto {nombre, talla}` (la pieza que salió del inventario; nulo si el beneficio no era un producto). Una baja posterior no lo esconde. |
 | `POST /api/beneficios/:id/entregar { producto_id?, cantidad?: 1 }` | `beneficios:entregar` (administrador, recepción) | Lo marca `entregado`. Un beneficio de producto es UNA pieza (`cantidad` mayor que 1 es 400, EH-06). Un beneficio de producto crea la venta promocional de precio 0 y descuenta el stock (H5). |
 
 - **Ciclo:** `pendiente` (al inscribir) → `liberado` (en la MISMA transacción del pago que SALDA la primera mensualidad) → `entregado`. La «primera mensualidad» es la no cancelada de menor periodo que tiene importe; un pago parcial o el pago de la inscripción no liberan. **Una inscripción dada de baja no libera nada.** Liberar es idempotente (UPDATE condicionado a `pendiente`).

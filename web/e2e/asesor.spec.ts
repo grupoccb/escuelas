@@ -90,7 +90,10 @@ test.describe("ficha del lead", () => {
     await page.getByRole("button", { name: "Guardar cotización" }).click();
     const tarjeta = page.locator("[data-prueba^='cotizacion-']").first();
     await expect(tarjeta).toContainText("Programa de prueba · Niña Alfa");
-    await expect(tarjeta).toContainText("Inscripción $500.00 · Mensualidad $1,000.00");
+    // R5a: la inscripción, la mensualidad y el primer pago van en tres datos sueltos (antes una sola línea con « · »).
+    await expect(tarjeta).toContainText("Inscripción $500.00");
+    await expect(tarjeta).toContainText("Mensualidad $1,000.00");
+    await expect(tarjeta).toContainText("Primer pago $1,500.00");
     await expect(tarjeta).toContainText("A mano");
     await expect(tarjeta).toContainText("Vigente");
     const c = await json<{ datos: { origen: string; estatus: string; snapshot: { programa: { precio: { costo_mensualidad: string } } } }[] }>(admin, `/api/leads/${alfa.leadId}/cotizaciones`);

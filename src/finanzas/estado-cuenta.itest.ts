@@ -25,7 +25,7 @@ interface Cuenta {
   tutor: { id: string };
   resumen: { total_cargado: string; total_pagado: string; saldo: string; vencido: string; antiguedad: Record<string, string> };
   hijos: { alumno: { id: string; nombre: string }; cargos: CargoDeApi[]; saldo: string; vencido: string; total_cargado: string; total_pagado: string; antiguedad: Record<string, string> }[];
-  pagos: { id: string; monto: string; estatus: string }[];
+  pagos: { id: string; monto: string; estatus: string; motivo_cancelacion?: string | null; registrado_por?: string | null }[];
 }
 const dia = (menos: number): string => {
   const d = new Date(`${HOY}T00:00:00Z`);
@@ -130,4 +130,16 @@ test("EH-18 (M44): un cargo cancelado se lista con saldo 0.00 y no cuenta en el 
   const cancelado = hijo.cargos.find((x) => x.id === insc.id)!;
   assert.deepEqual([cancelado.estatus, cancelado.saldo], ["cancelado", "0.00"]);
   assert.deepEqual([hijo.total_cargado, hijo.saldo], [mens.monto_final, mens.monto_final]);
+});
+
+test("R5b: cada pago de la cuenta dice quién lo registró y, si se canceló, por qué (el renglón cancelado lo muestra)", async () => {
+  const i = await m.inscribir();
+  const p1 = await m.recepcion.post<{ id: string }>("/api/pagos", { tutor_id: i.tutorId, monto: "100.00", metodo: "efectivo" });
+  const p2 = await m.recepcion.post<{ id: string }>("/api/pagos", { tutor_id: i.tutorId, monto: "50.00", metodo: "tarjeta", referencia: "V-1" });
+  assert.equal((await m.recepcion.post(`/api/pagos/${p2.cuerpo.id}/cancelar`, { motivo: "Se registró dos veces" })).estado, 200);
+  const pagos = (await cuenta(i.tutorId)).cuerpo.pagos;
+  const vivo = pagos.find((p) => p.id === p1.cuerpo.id)!;
+  const cancelado = pagos.find((p) => p.id === p2.cuerpo.id)!;
+  assert.deepEqual([vivo.estatus, vivo.motivo_cancelacion, typeof vivo.registrado_por], ["aplicado", null, "string"]);
+  assert.deepEqual([cancelado.estatus, cancelado.motivo_cancelacion], ["cancelado", "Se registró dos veces"]);
 });

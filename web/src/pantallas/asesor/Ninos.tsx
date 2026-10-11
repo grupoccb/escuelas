@@ -10,6 +10,7 @@ import { aEntero } from "../../lib/numeros.ts";
 import { Aviso, Boton, ErrorDeAccion, Insignia, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
+import { useDisciplina } from "../../ui/disciplina.tsx";
 import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
 
@@ -156,7 +157,59 @@ function QuitarNino({ lead, nino, alCerrar, alQuitar }: { lead: LeadDetalle; nin
   );
 }
 
-export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCotizar }: { lead: LeadDetalle; puedeEscribir: boolean; cotizadorEncendido: boolean; alCambiar: () => void; alCotizar: (prospectoId: string) => void }) {
+/** Un niño: su banda con el color de la disciplina, nombre y edad, disciplina y programa sugerido, y a la derecha su estado y sus botones. */
+function FilaDeNino({ p, color, lead, variasDisciplinas, nombreDeDisciplina, puedeEscribir, cotizadorEncendido, yaCotizado, alCotizar, alCorregir, alQuitar }: { p: ProspectoDeLead; color: string | null; lead: LeadDetalle; variasDisciplinas: boolean; nombreDeDisciplina: (id: string) => string | undefined; puedeEscribir: boolean; cotizadorEncendido: boolean; yaCotizado: boolean; alCotizar: () => void; alCorregir: () => void; alQuitar: () => void }) {
+  const ref = useDisciplina<HTMLLIElement>(color);
+  const nombreDelNino = p.nombre ?? "este niño";
+  const disciplina = nombreDeDisciplina(p.vertical.id) ?? p.vertical.nombre;
+  const sugerido = cotizadorEncendido && p.programa_sugerido ? p.programa_sugerido.nombre : null;
+  return (
+    <li ref={ref} className="nino" data-prueba={`prospecto-${p.id}`}>
+      <span className="nino-barra" aria-hidden="true" />
+      <div className="nino-texto">
+        <span className="nino-nombre">
+          <strong>{nombreCompleto(p)}</strong>
+          {p.edad !== null ? <span className="nino-edad">{` · ${p.edad} ${p.edad === 1 ? "año" : "años"}`}</span> : null}
+          {p.edad === null && p.fecha_nacimiento === null ? <span className="muted"> · falta la edad{puedeEscribir ? ": anótala en «Corregir»" : ""}</span> : null}
+          {p.fecha_nacimiento ? <span className="nino-edad">{` (${formatearFecha(p.fecha_nacimiento)})`}</span> : null}
+        </span>
+        {/* Con varias disciplinas (o una distinta a la del lead) el nombre de la disciplina sale siempre; con una sola, solo acompaña al programa sugerido. */}
+        {sugerido !== null ? (
+          <span className="muted nino-sub" data-prueba={`programa-sugerido-${p.id}`}>
+            {disciplina} · Programa sugerido: {sugerido}
+          </span>
+        ) : variasDisciplinas || p.vertical.id !== lead.vertical.id ? (
+          <span className="muted nino-sub">{disciplina}</span>
+        ) : null}
+      </div>
+      <div className="nino-acciones">
+        {p.alumno_id ? <Insignia tono="exito">Ya es alumno</Insignia> : <Insignia>Por inscribir</Insignia>}
+        {puedeEscribir && !p.alumno_id ? (
+          <>
+            {cotizadorEncendido ? (
+              <Boton variante={yaCotizado ? "secundario" : "sutil"} onClick={alCotizar} aria-label={yaCotizado ? `Cotizar otra vez a ${nombreDelNino}` : `Cotizar a ${nombreDelNino}`}>
+                {yaCotizado ? "Cotizar otra vez" : `Cotizar a ${nombreDelNino}`}
+              </Boton>
+            ) : null}
+            <span className="fila nino-iconos">
+              <button type="button" className="boton boton-icono" title="Corregir" onClick={alCorregir} aria-label={`Corregir los datos de ${nombreDelNino}`}>
+                <Icono nombre="lapiz" />
+              </button>
+              <button type="button" className="boton boton-icono boton-icono-peligro" title="Quitar" onClick={alQuitar} aria-label={`Quitar a ${nombreDelNino}`}>
+                <Icono nombre="papelera" />
+              </button>
+            </span>
+          </>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * `colorDe` da el color de una disciplina (`color_marca`, por `vertical.id`); `conCotizacion` son los niños que ya tienen una cotización (su botón dice «Cotizar otra vez»).
+ */
+export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCotizar, colorDe, conCotizacion }: { lead: LeadDetalle; puedeEscribir: boolean; cotizadorEncendido: boolean; alCambiar: () => void; alCotizar: (prospectoId: string) => void; colorDe: (verticalId: string) => string | null; conCotizacion: ReadonlySet<string> }) {
   const [formulario, setFormulario] = useState<{ editando: ProspectoDeLead | null } | null>(null);
   const [quitando, setQuitando] = useState<ProspectoDeLead | null>(null);
   const [avisos, setAvisos] = useState<string[]>([]);
@@ -172,34 +225,22 @@ export function Ninos({ lead, puedeEscribir, cotizadorEncendido, alCambiar, alCo
           {a}
         </Aviso>
       ))}
-      <ul className="lista-tarjetas" data-prueba="ninos">
+      <ul className="ninos-lista" data-prueba="ninos">
         {lead.prospectos.map((p) => (
-          <li key={p.id} className="pila nino" data-prueba={`prospecto-${p.id}`}>
-            <div className="fila fila-entre">
-              <span className="nino-nombre">
-                <strong>{nombreCompleto(p)}</strong>
-                {p.edad !== null ? ` · ${p.edad} ${p.edad === 1 ? "año" : "años"}` : ""}
-                {p.edad === null && p.fecha_nacimiento === null ? <span className="muted"> · falta la edad{puedeEscribir ? ": anótala en «Corregir»" : ""}</span> : null}
-                {p.fecha_nacimiento ? ` (${formatearFecha(p.fecha_nacimiento)})` : ""}
-                {variasDisciplinas || p.vertical.id !== lead.vertical.id ? ` · ${nombreDeDisciplina(p.vertical.id) ?? p.vertical.nombre}` : ""}
-              </span>
-              {p.alumno_id ? <Insignia tono="exito">Ya es alumno</Insignia> : <Insignia>Por inscribir</Insignia>}
-            </div>
-            {cotizadorEncendido && p.programa_sugerido ? <p className="muted dato-chico" data-prueba={`programa-sugerido-${p.id}`}>Programa sugerido: {p.programa_sugerido.nombre}</p> : null}
-            {puedeEscribir && !p.alumno_id ? (
-              <div className="nino-acciones">
-                {cotizadorEncendido ? <Boton variante="sutil" onClick={() => alCotizar(p.id)} aria-label={`Cotizar a ${p.nombre ?? "este niño"}`}>Cotizar</Boton> : <span />}
-                <span className="fila fila-fin">
-                  <button type="button" className="boton boton-icono" title="Corregir" onClick={() => setFormulario({ editando: p })} aria-label={`Corregir los datos de ${p.nombre ?? "este niño"}`}>
-                    <Icono nombre="lapiz" />
-                  </button>
-                  <button type="button" className="boton boton-icono boton-icono-peligro" title="Quitar" onClick={() => setQuitando(p)} aria-label={`Quitar a ${p.nombre ?? "este niño"}`}>
-                    <Icono nombre="papelera" />
-                  </button>
-                </span>
-              </div>
-            ) : null}
-          </li>
+          <FilaDeNino
+            key={p.id}
+            p={p}
+            color={colorDe(p.vertical.id)}
+            lead={lead}
+            variasDisciplinas={variasDisciplinas}
+            nombreDeDisciplina={nombreDeDisciplina}
+            puedeEscribir={puedeEscribir}
+            cotizadorEncendido={cotizadorEncendido}
+            yaCotizado={conCotizacion.has(p.id)}
+            alCotizar={() => alCotizar(p.id)}
+            alCorregir={() => setFormulario({ editando: p })}
+            alQuitar={() => setQuitando(p)}
+          />
         ))}
       </ul>
 

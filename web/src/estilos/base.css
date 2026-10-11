@@ -162,6 +162,10 @@
   --sombreado-hover: rgb(23 26 44 / 6%);
   --alto-tablero-minimo: 460px;
   --ancho-menu-mover: 280px;
+  /* R5a: la barra de avance del lead (una barra de 6 por etapa) y la de pasos de la inscripción (una de 6 por paso, con la marca numerada de 24). */
+  --alto-avance: 6px;
+  --radio-avance: 3px;
+  --marca-paso: 24px;
 
   /* R1 (README «Tipografía»): título de pantalla 34/38 (-0.015em, escritorio y celular); titular del héroe 42 (32 en celular) con interlínea 1.08 y -0.02em; secciones numeradas (número 15, título 24/30);
      cifra principal 36 y 40; etiqueta de grupo de la barra lateral 12/16, 700, 0.06em. */
@@ -225,6 +229,17 @@
   --separacion-nav-tablero: 4px;
   --radio-leyenda: 3px;
   --ancho-minimo-tendencia: 528px;
+
+  /* R5c (README «Ventas» y «Cierre del día»): la tarjeta de producto (radio y ancho mínimo), la barra de cada forma de pago, el monograma de quien cobró y las cifras grandes del cierre
+     (lo cobrado 48/52 y el efectivo para contar 32/36). */
+  --radio-producto: 14px;
+  --ancho-min-producto: 200px;
+  --alto-barra-forma: 10px;
+  --avatar-cajero: 36px;
+  --cifra-cierre-tam: 3rem;
+  --cifra-cierre-linea: 3.25rem;
+  --cifra-efectivo-tam: 2rem;
+  --cifra-efectivo-linea: 2.25rem;
 
   /* Movimiento (SISTEMA-VISUAL.md): 120 ms para hover y foco, 180 ms para entradas y salidas. */
   --t-rapido: 120ms;
@@ -594,7 +609,6 @@ html { scroll-padding-top: 4.5rem; scroll-padding-bottom: 9rem; }
 
 .hora-clase { font-family: var(--fuente-titulo); font-weight: 700; font-size: 2rem; line-height: 2.125rem; font-variant-numeric: tabular-nums; }
 .texto-legal { white-space: pre-wrap; max-height: 14rem; overflow-y: auto; border: 1px solid var(--borde); border-radius: var(--radio); padding: var(--e3); background: var(--fondo); }
-.lista-historial { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: var(--e2); }
 .fila-monto { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--e3); }
 .fila-monto > span { flex: 1; min-width: 0; }
 .fila-monto > strong { flex: none; font-variant-numeric: tabular-nums; }
@@ -714,12 +728,12 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .resultado-familia .boton { margin-left: auto; }
 
 /* Dos columnas en escritorio (lo que debe y los pagos a la izquierda, el formulario a la derecha); en celular, una debajo de otra. */
-.cobro, .ventas-rejilla { display: grid; gap: var(--e5); grid-template-columns: minmax(0, 1fr); align-items: start; grid-template-areas: "a" "b" "c"; }
-.cobro-deuda, .area-a { grid-area: a; }
-.cobro-formulario, .area-b { grid-area: b; }
-.cobro-recientes, .area-c { grid-area: c; }
+.cobro { display: grid; gap: var(--e5); grid-template-columns: minmax(0, 1fr); align-items: start; grid-template-areas: "a" "b" "c"; }
+.cobro-deuda { grid-area: a; }
+.cobro-formulario { grid-area: b; }
+.cobro-recientes { grid-area: c; }
 @media (min-width: 1100px) {
-  .cobro, .ventas-rejilla { grid-template-columns: minmax(0, 1.17fr) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "a b" "c b"; }
+  .cobro { grid-template-columns: minmax(0, 1.17fr) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "a b" "c b"; }
 }
 
 /* Filas planas dentro de un panel: separadas por una línea. */
@@ -728,12 +742,8 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .tarjeta .lista-filas > li:last-child { padding-bottom: 0; }
 .fila-dato { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2) var(--e4); }
 .fila-dato-texto { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
-.fila-titulo { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; }
-.fila-importe { font-size: 1rem; line-height: 1.375rem; }
-.fila-pago-monto { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); }
 .existencia-cantidad { display: inline-flex; align-items: center; gap: var(--e2); }
 .existencia-texto { white-space: nowrap; }
-.campo-cantidad { max-width: 14rem; }
 
 /* Lo que adeuda: la cifra de 36 px y, al lado, si hay algo vencido. */
 .deuda-cifra { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--e3); }
@@ -754,6 +764,9 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .campos-pago { align-items: start; }
 .cobro-formulario .grupo-opciones legend { padding: 0; }
 @media (max-width: 479px) { .cobro-formulario .grupo-segmentado .opcion { padding: 0 var(--e1); } }
+/* Con el texto al 200 % las tres formas de pago no caben en una fila: pasan a otra línea en vez de desbordar la página. */
+.cobro-formulario .grupo-segmentado .grupo-opciones-fila { display: flex; flex-wrap: wrap; max-width: 100%; }
+.cobro-formulario .grupo-segmentado .opcion { min-width: 0; flex: 1 1 auto; }
 .resumen-reparto { display: flex; flex-direction: column; gap: 10px; padding: 14px var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .resumen-reparto .etiqueta-panel { font-weight: 700; color: var(--texto-medio); }
 .lista-reparto { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -772,15 +785,6 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 
 /* Estado de cuenta y cierre del día. */
 .cuenta { display: flex; flex-direction: column; gap: var(--e5); }
-.cuenta-encabezado { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e4); }
-.antiguedad { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--e3); margin: 0; }
-.antiguedad > div { display: flex; flex-direction: column; gap: var(--e1); padding: var(--e3) var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
-.antiguedad dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
-.antiguedad dd { margin: 0; font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.25rem; line-height: 1.5rem; }
-.seccion-tabla { display: flex; flex-direction: column; gap: var(--e3); }
-.seccion-tabla-cabecera { display: flex; flex-direction: column; gap: var(--e1); }
-.seccion-tabla-cabecera p { margin: 0; }
-.campo-dia { max-width: 16rem; }
 .cifras { display: flex; flex-direction: column; gap: var(--e3); }
 .cifras-total { margin: 0; display: flex; flex-direction: column; gap: var(--e1); }
 .cifras-formas { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: var(--e2); margin: 0; }
@@ -795,12 +799,9 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .corte-neto .cifras-formas > div { background: var(--superficie); }
 @media (max-width: 639px) { .tabla-apilada table.tabla td:empty { display: none; } }
 
-/* Uniformes por entregar: tarjetas en rejilla. */
+/* Listas de tarjetas en rejilla (alumnos, familias). */
 .lista-tarjetas.rejilla-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: var(--e3); }
-.lista-tarjetas > .tarjeta-beneficio { display: flex; flex-direction: column; gap: var(--e2); }
-.tarjeta-beneficio p { margin: 0; }
 .nombre-tarjeta { font-size: 0.9375rem; line-height: 1.375rem; }
-.tarjeta-pie { display: flex; justify-content: flex-end; margin-top: auto; }
 
 /* Imprimir (estado de cuenta, recibo, cierre del día): sin menús, botones ni formularios; en blanco y negro sobre papel. */
 @media print {
@@ -811,14 +812,14 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
   .contenido { padding: 0; max-width: none; display: block; }
   body { background: var(--papel); color: var(--tinta); }
   .tarjeta, .aviso, .indicador, .tabla-scroll { box-shadow: none; background: var(--papel); color: var(--tinta); border-color: var(--borde-impresion); break-inside: avoid; }
-  .muted, dl.datos dt, table.tabla th, .etiqueta-panel, .familia-detalle, .antiguedad dt, .cifras-formas dt, .indicador > :first-child { color: var(--tinta-suave); }
+  .muted, dl.datos dt, table.tabla th, .etiqueta-panel, .familia-detalle, .cifras-formas dt, .indicador > :first-child { color: var(--tinta-suave); }
   .indicador .indicador-valor, .cifra-principal, .familia-nombre, .reparto-saldo-cero { color: var(--tinta); }
   .insignia, .avatar-familia { background: var(--papel); color: var(--tinta); border: 1px solid var(--borde-impresion); }
-  .vacio, .resumen-reparto, .resumen-total, .antiguedad > div, .cifras-formas > div { background: var(--papel); color: var(--tinta); border: 1px solid var(--borde-impresion); }
+  .vacio, .resumen-reparto, .resumen-total, .cifras-formas > div { background: var(--papel); color: var(--tinta); border: 1px solid var(--borde-impresion); }
   .lista-filas > li, table.tabla th, table.tabla td { border-color: var(--borde-impresion); }
-  .cobro, .ventas-rejilla { display: block; }
-  .cobro > * + *, .ventas-rejilla > * + * { margin-top: var(--e3); }
-  .seccion-tabla, .fila-dato, table.tabla tr { break-inside: avoid; }
+  .cobro { display: block; }
+  .cobro > * + * { margin-top: var(--e3); }
+  .fila-dato, table.tabla tr { break-inside: avoid; }
   .corte-neto { background: var(--papel); border-color: var(--borde-impresion); }
   .corte-neto .cifra-principal { color: var(--tinta); }
   .corte-neto .cifras-formas > div { background: var(--papel); }
@@ -958,50 +959,24 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .expediente-panel .tarjeta .lista-tarjetas > li { background: var(--fondo); border-color: transparent; box-shadow: none; }
 
 /* ───────── Conversión e inscripción ───────── */
-/* Indicador de pasos: un círculo con el número (o la palomita si ya se hizo) y el título; una línea une cada paso con el siguiente. Con poco ancho solo el paso actual lleva su título
-   (en celular ninguno: el encabezado de abajo ya lo dice) y el resto queda para el lector de pantalla. */
-.pasos { display: flex; align-items: center; gap: var(--e1); list-style: none; margin: 0; padding: var(--e3) var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
-.pasos li { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--e2); color: var(--texto-medio); font-size: 0.8125rem; line-height: 1.125rem; font-weight: 600; white-space: nowrap; }
-.pasos li:last-child { flex: 0 0 auto; }
-.pasos li:not(:last-child)::after { content: ""; flex: 1 1 var(--e4); min-width: var(--e2); height: 2px; margin: 0 var(--e1); background: var(--borde); border-radius: var(--radio-trazo); }
-.pasos li.hecho::after { background: var(--exito); }
-.paso-marca { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radio-pildora); border: 2px solid var(--borde-campo); background: var(--superficie); color: var(--texto-medio); font-weight: 700; font-variant-numeric: tabular-nums; }
-.pasos li[aria-current="step"] { color: var(--texto); font-weight: 700; }
-.pasos li[aria-current="step"] .paso-marca { background: var(--primario); border-color: var(--primario); color: var(--primario-texto); }
-.pasos li.hecho .paso-marca { background: var(--exito); border-color: var(--exito); color: var(--primario-texto); }
-@media (max-width: 1179px) {
-  .pasos li:not([aria-current="step"]) .paso-titulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-}
-@media (max-width: 639px) {
-  .pasos { padding: var(--e3); }
-  .pasos .paso-titulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-}
-.paso-encabezado { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; letter-spacing: -0.01em; }
+/* R5a: el indicador de pasos, el paso en su tarjeta y el resumen fijo viven en el bloque «R5a: inscripción» del final. */
 
 /* «¿A quiénes se inscribe ahora?»: cada niño es una fila que se marca entera; la marcada se ve también por su fondo. */
 .marcar-ninos .campo-casilla { padding: 0 var(--e3); background: var(--fondo); border-radius: var(--radio); transition: background-color var(--t-rapido) var(--curva); }
 .marcar-ninos .campo-casilla:has(input:checked) { background: var(--primario-suave); }
 .marcar-ninos .campo-casilla:has(input:checked) label { color: var(--primario-fuerte); font-weight: 700; }
 
-/* La barra fija de abajo: Atrás a la izquierda, la acción que sigue a la derecha (52 px). Lo que falta para seguir se dice justo encima. */
-.barra-conversion { padding: var(--e3) var(--e4); }
-.barra-conversion .boton { flex: none; min-width: 7.5rem; }
-.barra-conversion .boton-primario { flex: 1 1 0; max-width: 20rem; margin-left: auto; }
-@media (max-width: 639px) { .barra-conversion .boton-primario { max-width: none; } .barra-conversion .boton { min-width: 6rem; } }
 .falta-del-paso { display: flex; align-items: flex-start; gap: var(--e2); margin: 0; color: var(--alerta); font-weight: 600; }
 .falta-del-paso > svg { flex: none; margin-top: 1px; }
 
 /* Lo ya capturado se ve con su valor; «Corregir» abre el campo. */
-.dato-capturado { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e1) var(--e3); min-height: var(--alto-toque); padding: var(--e1) 0; }
-.dato-capturado:not(:first-child) { border-top: 1px solid var(--borde); }
+.dato-capturado { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e1) var(--e3); min-height: var(--alto-toque); padding: var(--e2) 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .dato-capturado-texto { min-width: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: var(--e1) var(--e2); }
 .dato-capturado .boton-fantasma { background: transparent; border-color: transparent; }
 .dato-capturado .boton-fantasma:hover:not(:disabled) { background: var(--primario-suave); border-color: transparent; }
 .resumen-datos { padding: var(--e3) var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
-.adultos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.adultos li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2) var(--e3); padding: var(--e3) 0; border-top: 1px solid var(--borde); }
-.adultos li:first-child { border-top: 0; padding-top: 0; }
-.adultos li:last-child { padding-bottom: 0; }
+.adultos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
+.adultos li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2) var(--e3); padding: var(--e3) 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .adulto-datos strong { font-size: 0.9375rem; line-height: 1.375rem; }
 .adulto-etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -1054,9 +1029,8 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 @media (max-width: 639px) { [data-prueba="salida-grupo-lleno"] .fila > .boton { flex: 1 1 100%; } }
 
 /* Éxito: lo que quedó inscrito y lo que se cobra; la mensualidad es lo más grande de la pantalla. */
-.resultado-cabeza { display: flex; align-items: center; gap: var(--e3); }
-.resultado-icono { flex: none; display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: var(--radio-pildora); background: var(--exito-suave); color: var(--exito); }
-.resultado-titulo { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.5rem; line-height: 1.75rem; letter-spacing: -0.01em; }
+.resultado-icono { flex: none; align-self: flex-start; display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: var(--radio-pildora); background: var(--exito-suave); color: var(--exito); }
+.resultado-titulo { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.75rem; line-height: 2rem; }
 .resultado-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
 .resultado-alumno { display: flex; flex-direction: column; gap: var(--e1); padding: var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .resultado-alumno p { margin: 0; }
@@ -1073,7 +1047,7 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .cierre-sitio > p { margin: 0; }
 
 /* Ajustes de la revisión: grupos con el nombre y el cupo arriba, campos de un ancho razonable, errores dentro de un aviso sin otro aviso, datos capturados alineados en celular. */
-.grupo-opcion { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.grupo-opcion { min-width: 0; text-align: left; }
 .grupo-nombre { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; color: var(--texto); }
 .grupo-cupo { font-size: 0.8125rem; line-height: 1.125rem; font-weight: 700; color: var(--primario-fuerte); }
 .grupo-cupo-lleno { color: var(--peligro); }
@@ -1109,34 +1083,20 @@ table.tabla-leads td.celda-acciones { padding-top: var(--e1); padding-bottom: va
 table.tabla th:last-child { width: 1%; }
 @media (max-width: 639px) { .tabla-apilada table.tabla td.celda-acciones { justify-content: flex-end; padding-top: var(--e2); } .tabla-apilada table.tabla td.celda-acciones .fila { justify-content: flex-end; width: 100%; } }
 /* Ficha del lead: el nombre (título de la página) y la etapa van primero, luego el teléfono; el resto, en rejilla. */
-.ficha-resumen { gap: var(--e4); }
 .ficha-estado { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--e2) var(--e5); }
 .ficha-etapa { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--e2); font-weight: 600; }
-.ficha-etapa .insignia { padding: 6px var(--e4); font-size: 0.9375rem; line-height: 1.25rem; }
-.ficha-telefono { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; letter-spacing: -0.01em; }
+.ficha-telefono { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.25rem; line-height: 1.5rem; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .datos-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--e4); margin: 0; padding-top: var(--e4); border-top: 1px solid var(--borde); }
 .datos-rejilla > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .datos-rejilla > div:has([data-prueba="elegir-sucursal"]) { grid-column: 1 / -1; }
 .datos-rejilla dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
 .datos-rejilla dd { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
-.historial-linea { list-style: none; padding-left: 0; gap: 0; }
-.historial-linea > li { position: relative; padding: 0 0 var(--e4) var(--e5); border-left: 2px solid var(--borde); margin-left: 5px; }
-.historial-linea > li::before { content: ""; position: absolute; left: -6px; top: 7px; width: 10px; height: 10px; border-radius: var(--radio-pildora); background: var(--primario); }
-.historial-linea > li:last-child { border-left-color: transparent; padding-bottom: 0; }
 /* Tarjetas de lista de la ficha (niños, cotizaciones, clases, tareas): el nombre arriba y los datos de apoyo más chicos. */
-.nino-nombre { font-size: 0.9375rem; line-height: 1.375rem; }
-.nino-acciones { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
+/* R5a: la fila de un niño (`.nino*`) vive en el bloque «R5a: ficha del lead» del final. */
 .cotizacion-titulo, .tarea-titulo, .clase-hora { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; }
-.cotizacion-precio { margin: 0; font-family: var(--fuente-titulo); font-size: 1.375rem; line-height: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
-.cotizacion .lista-simple { gap: var(--e1); font-size: 0.875rem; line-height: 1.25rem; }
-.tarea { gap: var(--e2); }
-.tarea > p { margin: 0; }
-.tarea-familia { font-size: 1.0625rem; line-height: 1.5rem; }
-.tarea-acciones { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); margin-top: var(--e1); }
-.tarea-iconos { gap: 0; margin-right: calc(-1 * var(--e2)); }
+/* R5a: las tareas (tarjeta, panel de tipos, recuadro de la ficha) viven en el bloque «R5a: tareas» del final. */
 .clase > p { margin: 0; }
 /* Formularios dentro de una tarjeta (cotizar a mano): un recuadro de fondo para separarlo de la lista. */
-.formulario-incrustado { padding: var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .etapa-actual-dialogo { margin: 0; }
 .cita-nota { margin: 0; padding: var(--e3) var(--e4); background: var(--fondo); border: 1px solid var(--borde); border-radius: var(--radio); color: var(--texto); overflow-wrap: anywhere; }
 @media (max-width: 639px) { .ficha-telefono { font-size: 1.25rem; } }
@@ -1334,7 +1294,6 @@ ul.lista-tarjetas:empty { display: none; }
 /* Revisión: nombre sin subrayado en la lista, «Volver» táctil, avisos de Chatwoot, sesiones y la acción principal de 52 px en celular. */
 table.tabla-leads td a { color: var(--texto); font-weight: 700; font-size: 0.9375rem; line-height: 1.375rem; text-decoration: none; }
 table.tabla-leads td a:hover { color: var(--primario); }
-.enlace-volver { display: inline-flex; align-items: center; min-height: var(--alto-toque); }
 .enlaces-chatwoot { display: contents; }
 .enlaces-chatwoot-muchos { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: var(--e2); order: 2; flex: 1 1 100%; }
 .enlaces-chatwoot-muchos > .boton { white-space: nowrap; }
@@ -1351,7 +1310,6 @@ table.tabla-leads td a:hover { color: var(--primario); }
 @media (max-width: 899px) {
   .pagina:has(.ficha-resumen) .pagina-acciones .boton-primario, .dialogo .boton-primario, .formulario-incrustado .boton-primario { min-height: var(--alto-accion); font-size: 1rem; }
 }
-.cotizacion-precio .muted { display: block; margin-top: var(--e1); font-family: var(--fuente-texto); font-size: 0.78125rem; line-height: 1rem; font-weight: 500; letter-spacing: 0; }
 /* Cotizador: el precio de cada programa va completo; la lista crece y parte el texto en dos renglones donde el navegador lo permite. */
 @supports (appearance: base-select) {
   .formulario-incrustado select, .formulario-incrustado select::picker(select) { appearance: base-select; }
@@ -2096,3 +2054,350 @@ table.tabla-leads tr[data-seleccionado] { background: var(--primario-suave); }
 @media print {
   .cobro-formulario { position: static; box-shadow: none; }
 }
+
+/* === R5a: tareas === */
+/* Los números de las pestañas «Pendientes» y «Resueltas»: la de la pestaña elegida va en el primario. */
+.pestanas-segmentadas button { display: inline-flex; align-items: center; gap: var(--e2); }
+.pestana-cuenta { min-width: 24px; padding: 1px 7px; border-radius: var(--radio-pildora); background: var(--superficie); color: var(--texto); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
+.pestanas-segmentadas button[aria-selected="true"] .pestana-cuenta { background: var(--primario); color: var(--primario-texto); }
+@media (max-width: 899px) { .pagina-acciones:has(.pestanas-segmentadas) { margin-left: 0; } }
+
+/* El panel: a la izquierda el filtro por tipo (solo escritorio, pegado arriba al desplazar) y a la derecha la lista; en celular, un select sobre la lista. */
+.tareas-panel { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--e5) 18px; }
+.tareas-panel:focus-visible { outline-offset: 4px; }
+.tareas-tipos { flex: 0 0 260px; position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.tareas-tipos-rotulo { padding: 6px 10px 8px; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.tareas-tipo { display: flex; align-items: center; gap: 10px; min-height: var(--alto-toque); padding: 0 10px; border: 0; border-radius: var(--radio); background: transparent; color: var(--texto); font: inherit; font-weight: 500; text-align: left; cursor: pointer; transition: background-color var(--t-rapido) var(--curva); }
+.tareas-tipo:hover { background: var(--fondo); }
+.tareas-tipo[aria-pressed="true"] { background: var(--primario-suave); color: var(--primario-fuerte); font-weight: 700; }
+.tareas-tipo-punto { flex: none; width: 8px; height: 8px; border-radius: var(--radio-pildora); background: var(--primario-fuerte); }
+.tareas-tipo[data-tono="exito"] .tareas-tipo-punto { background: var(--exito); }
+.tareas-tipo[data-tono="alerta"] .tareas-tipo-punto { background: var(--alerta); }
+.tareas-tipo:not([data-tono]) .tareas-tipo-punto { background: var(--texto); }
+.tareas-tipo-nombre { flex: 1; min-width: 0; }
+.tareas-tipo-cuenta { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--texto-medio); }
+.tareas-lista-marco { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.tareas-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* Una tarea: ícono de su tono (éxito, neutro o alerta), título con «Atiéndela hoy», familia, texto y botones. */
+.tarea-tarjeta { display: flex; gap: 14px; padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); animation: aparece var(--t-entrada) var(--curva); }
+.tarea-icono { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--radio-tarjeta); background: var(--primario-suave); color: var(--primario-fuerte); }
+.tarea-tarjeta[data-tono="exito"] .tarea-icono { background: var(--exito-suave); color: var(--exito); }
+.tarea-tarjeta[data-tono="alerta"] .tarea-icono { background: var(--alerta-suave); color: var(--alerta); }
+.tarea-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tarea-cuerpo > p { margin: 0; }
+.tarea-encabezado { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.tarea-titulo-fila { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.tarea-titulo { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; }
+.tarea-urgente { padding: 1px var(--e2); border: 1px solid var(--alerta-borde); border-radius: var(--radio-etiqueta); background: var(--alerta-suave); color: var(--alerta); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+.tarea-cuando { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.tarea-familia { align-self: flex-start; display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-height: 28px; color: var(--primario-fuerte); font-weight: 700; text-decoration: none; }
+a.tarea-familia:hover { color: var(--texto); }
+.tarea-telefono { color: var(--texto-suave); font-weight: 500; }
+.tarea-texto { color: var(--texto-medio); text-wrap: pretty; }
+.tarea-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); margin-top: var(--e1); }
+.tarea-cierre { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--exito); font-weight: 600; }
+.tarea-cierre[data-estado="descartada"] { color: var(--texto-suave); }
+
+/* La tarea dentro de la ficha del lead: el mismo contenido en el recuadro del tono de su tipo. */
+.tarea-ficha { display: flex; gap: 10px; padding: var(--e3) 14px; border-radius: var(--radio-tarjeta); background: var(--primario-suave); color: var(--primario-fuerte); }
+.tarea-ficha[data-tono="exito"] { background: var(--exito-suave); color: var(--exito); }
+.tarea-ficha[data-tono="alerta"] { background: var(--alerta-suave); color: var(--alerta-fuerte); }
+.tarea-ficha-icono { flex: none; display: flex; padding-top: 1px; }
+.tarea-ficha-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); }
+.tarea-ficha-cuerpo > p { margin: 0; }
+.tarea-ficha .boton { background: var(--superficie); border-color: var(--superficie); color: var(--texto); }
+.tarea-ficha .boton:hover:not(:disabled) { background: var(--fondo); border-color: var(--fondo); }
+@media (max-width: 899px) { .tareas-lista-marco .campo select { width: 100%; } }
+
+/* === R5c: ventas y cierre del día === */
+/* Ventas: «Elige el producto» (tarjetas) a la izquierda y «Nueva venta» a la derecha, que se queda a la vista al desplazar en escritorio; debajo, las ventas recientes en filas suaves. */
+.ventas-fila { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+.ventas-elegir { flex: 1.4 1 420px; min-width: 0; display: flex; flex-direction: column; gap: var(--e3); }
+.productos-rejilla { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ancho-min-producto)), 1fr)); gap: 10px; }
+.productos-rejilla > li { display: flex; }
+.producto-tarjeta { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-producto); color: var(--texto); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--t-rapido) var(--curva), background-color var(--t-rapido) var(--curva), box-shadow var(--t-rapido) var(--curva); }
+.producto-tarjeta:hover:not(:disabled) { border-color: var(--borde-campo); }
+.producto-tarjeta[aria-pressed="true"] { background: var(--primario-suave); border-color: var(--primario); box-shadow: inset 0 0 0 1px var(--primario); }
+.producto-tarjeta:disabled { background: var(--fondo); border-style: dashed; cursor: not-allowed; }
+.producto-nombre { font-size: 0.9375rem; line-height: 1.25rem; font-weight: 700; }
+.producto-talla { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.producto-precio { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.25rem; line-height: 1.5rem; }
+.producto-existencia { padding: 2px var(--e2); border-radius: var(--radio-pildora); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+.producto-existencia-hay { background: var(--exito-suave); color: var(--exito); }
+.producto-existencia-ultima { background: var(--alerta-suave); color: var(--alerta); }
+.producto-existencia-agotado { background: var(--peligro-suave); color: var(--peligro); }
+.ventas-nueva { flex: 1 1 320px; gap: 14px; }
+@media (min-width: 1100px) { .ventas-nueva { position: sticky; top: var(--e4); } }
+.campo-etiqueta { font-size: 0.78125rem; line-height: 1rem; font-weight: 600; color: var(--texto-suave); }
+.producto-elegido { display: flex; align-items: center; min-height: var(--alto-toque); padding: 0 var(--e3); background: var(--fondo); border-radius: var(--radio); font-weight: 600; }
+.cantidad-paso { display: flex; align-items: center; gap: var(--e2); }
+.cantidad-boton { width: var(--alto-toque); height: var(--alto-toque); border: 1px solid var(--borde-boton); border-radius: var(--radio); background: var(--superficie); color: var(--texto); font: inherit; font-size: 1.25rem; font-weight: 700; cursor: pointer; transition: background-color var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.cantidad-boton:hover:not(:disabled) { background: var(--fondo); border-color: var(--borde-campo); }
+.cantidad-boton:disabled { background: var(--fondo); color: var(--deshabilitado-texto); border-color: var(--borde); cursor: not-allowed; }
+.cantidad-valor { min-width: 40px; text-align: center; font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; }
+.ventas-nueva .resumen-total .cifra-principal { font-size: 1.625rem; line-height: 2rem; }
+.ventas-falta { margin: 0; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.ventas-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.venta-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2) var(--e3); padding: var(--e3) 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); animation: aparece var(--t-entrada) var(--curva); }
+.venta-fila-anulada { background: var(--peligro-suave); }
+.venta-datos { min-width: 0; display: flex; flex-direction: column; }
+.venta-derecha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.venta-monto-anulada { text-decoration: line-through; }
+.venta-anulada { color: var(--peligro); font-weight: 700; }
+.venta-promocion { padding: 2px var(--e2); border-radius: var(--radio-pildora); background: var(--etiqueta); color: var(--etiqueta-texto); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+
+/* Cierre del día: el panel oscuro con lo cobrado y el efectivo para contar (ámbar), por forma de pago (barras), por quien cobró (una fila por caja) y cada pago. */
+input.corte-dia:not([type="checkbox"]):not([type="radio"]) { width: auto; font-weight: 600; }
+.corte-heroe { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 32px; padding: 24px; background: var(--lateral); color: var(--primario-texto); border-radius: var(--radio-panel-oscuro); box-shadow: var(--sombra-panel-oscuro); }
+.corte-heroe-total { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); }
+.corte-heroe-cifra { font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--cifra-cierre-tam); line-height: var(--cifra-cierre-linea); letter-spacing: -0.02em; }
+.corte-heroe-nota { color: var(--lateral-texto); }
+.corte-efectivo { flex: 1 1 240px; display: flex; flex-direction: column; gap: var(--e1); padding: var(--e4); background: var(--alerta-suave); color: var(--alerta-fuerte); border-radius: var(--radio-indicador); }
+.corte-efectivo-etiqueta, .corte-efectivo-nota { color: var(--alerta); font-size: 0.78125rem; line-height: 1rem; }
+.corte-efectivo-etiqueta { font-weight: 700; }
+.corte-efectivo-cifra { font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--cifra-efectivo-tam); line-height: var(--cifra-efectivo-linea); }
+.corte-columnas { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+.corte-columnas > .tarjeta { flex: 1 1 320px; min-width: 0; }
+.formas-lista, .personas-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.formas-lista { gap: 14px; }
+.personas-lista { gap: var(--e3); }
+.forma-fila { display: flex; flex-direction: column; gap: 6px; }
+.forma-linea { display: flex; justify-content: space-between; gap: var(--e3); }
+.forma-nombre { position: relative; font-weight: 600; }
+.forma-pagos { color: var(--texto-suave); font-weight: 500; }
+.forma-barra { display: block; height: var(--alto-barra-forma); border-radius: var(--radio-pildora); background: var(--columna); overflow: hidden; }
+.forma-relleno { display: block; height: 100%; width: var(--p, 0%); border-radius: var(--radio-pildora); transition: width var(--t-entrada) var(--curva); }
+.forma-relleno-efectivo { background: var(--exito); }
+.forma-relleno-tarjeta { background: var(--primario); }
+.forma-relleno-transferencia { background: var(--texto-medio); }
+.corte-persona { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--e2) var(--e3); padding: var(--e3) 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); }
+.corte-avatar { flex: none; display: flex; align-items: center; justify-content: center; width: var(--avatar-cajero); height: var(--avatar-cajero); border-radius: var(--radio-pildora); background: var(--lateral-avatar); color: var(--primario-texto); font-size: 0.8125rem; font-weight: 700; }
+.corte-persona-datos { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.corte-persona-pagos { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.corte-persona-formas { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: var(--e2); margin: 0; }
+.corte-persona-formas > div { display: flex; flex-direction: column; gap: 2px; padding: var(--e2) 10px; background: var(--superficie); border-radius: var(--radio); }
+.corte-persona-formas dt { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.corte-persona-formas dd { margin: 0; font-weight: 700; }
+.corte-pagos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.corte-pago { display: grid; grid-template-columns: 80px minmax(0, 1fr) 140px 120px; align-items: center; gap: var(--e1) var(--e3); padding: 10px 0; border-top: 1px solid var(--borde); }
+.corte-pago-hora { color: var(--texto-suave); }
+.corte-pago-quien { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; overflow-wrap: anywhere; }
+.corte-pago-folio { color: var(--texto-suave); white-space: nowrap; }
+.corte-pago-quien .insignia { white-space: normal; }
+.corte-pago-sub { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.corte-pago-metodo { color: var(--texto-medio); }
+.corte-pago-monto { text-align: right; }
+.corte-pago-cancelado .corte-pago-quien strong, .corte-pago-cancelado .corte-pago-monto { color: var(--peligro); }
+.corte-pago-cancelado .corte-pago-monto { text-decoration: line-through; }
+@media (max-width: 639px) {
+  .corte-pago { grid-template-columns: 64px minmax(0, 1fr) auto; grid-template-areas: "hora quien monto" ". metodo ."; }
+  .corte-pago-hora { grid-area: hora; }
+  .corte-pago-quien { grid-area: quien; }
+  .corte-pago-monto { grid-area: monto; }
+  .corte-pago-metodo { grid-area: metodo; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+}
+@media print {
+  .corte-heroe, .corte-efectivo, .corte-persona, .corte-persona-formas > div, .corte-avatar { background: var(--papel); color: var(--tinta); border: 1px solid var(--borde-impresion); box-shadow: none; }
+  .corte-heroe .heroe-ojo, .corte-heroe-nota, .corte-efectivo-etiqueta, .corte-efectivo-nota, .corte-persona-pagos, .corte-persona-formas dt { color: var(--tinta-suave); }
+  .corte-columnas { display: block; }
+  .corte-columnas > * + * { margin-top: var(--e3); }
+  .forma-barra { background: var(--papel); border: 1px solid var(--borde-impresion); }
+  .forma-barra .forma-relleno { background: var(--tinta-suave); }
+  .corte-pago { break-inside: avoid; border-color: var(--borde-impresion); }
+  .corte-pago-hora, .corte-pago-folio, .corte-pago-sub, .corte-pago-metodo { color: var(--tinta-suave); }
+  .corte-pago-cancelado .corte-pago-quien strong, .corte-pago-cancelado .corte-pago-monto { color: var(--tinta); }
+}
+
+/* === R5b: estado de cuenta y uniformes === */
+/* Estado de cuenta: tres cifras (el saldo en la marca, lo vencido en ámbar, lo pagado en el año), los cargos por alumno y los pagos. El color acompaña a un texto: «Vencido», «Al corriente». */
+.cuenta-resumen { display: flex; flex-wrap: wrap; gap: var(--e3); }
+.cuenta-dato { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: var(--e1); padding: 14px var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-indicador); }
+.cuenta-dato-saldo { flex: 1.4 1 220px; background: var(--primario-suave); border-color: var(--primario); }
+.cuenta-dato-vencido { background: var(--alerta-suave); border-color: var(--alerta-borde); }
+.cuenta-dato-etiqueta { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.cuenta-dato-saldo .cuenta-dato-etiqueta { color: var(--primario-fuerte); }
+.cuenta-dato-vencido .cuenta-dato-etiqueta, .cuenta-dato-vencido .cuenta-dato-nota { color: var(--alerta); }
+.cuenta-nota-icono { display: inline-flex; align-items: center; gap: 6px; }
+.cuenta-dato-valor { font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--cifra-tam); line-height: var(--cifra-linea); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.cuenta-dato-valor-menor { font-size: 1.75rem; }
+.cuenta-dato-saldo .cuenta-dato-valor { color: var(--primario-fuerte); }
+.cuenta-dato-vencido .cuenta-dato-valor { color: var(--alerta-fuerte); }
+.cuenta-dato-nota { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.cuenta-dato-saldo .cuenta-dato-nota { color: var(--exito); font-weight: 700; }
+.cuenta-antiguedad { margin: var(--e2) 0 0; padding-top: var(--e2); border-top: 1px solid var(--alerta-borde); display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: 2px var(--e4); }
+.cuenta-antiguedad > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e3); font-size: 0.78125rem; line-height: 1.25rem; }
+.cuenta-antiguedad dt { color: var(--alerta); }
+.cuenta-antiguedad dd { margin: 0; color: var(--alerta-fuerte); font-weight: 700; }
+.cuenta-cuerpo { display: grid; align-items: start; gap: var(--e5); }
+@media (min-width: 1060px) { .cuenta-cuerpo { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
+.cuenta-tarjeta { gap: var(--e3); }
+.cuenta-tarjeta-titulo { margin: 0; }
+.cuenta-hijo { display: flex; flex-direction: column; border-top: 1px solid var(--borde); padding-top: var(--e1); }
+.cuenta-hijo-cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
+.cuenta-hijo-titulo { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e2); font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.cuenta-hijo-punto { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--disciplina, var(--borde-campo)); }
+.cuenta-enlace { display: inline-flex; align-items: center; min-height: var(--alto-toque); padding: 0 var(--e2); font-size: 0.8125rem; font-weight: 700; }
+.cuenta-hijo-totales { margin: 0 0 var(--e1); color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.cuenta-hijo-totales strong { color: var(--texto); }
+.cuenta-cargos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cuenta-cargo { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); padding: 9px 0; }
+.cuenta-cargo-datos { min-width: 0; display: flex; flex-direction: column; }
+.cuenta-cargo-nombre { font-weight: 600; }
+.cuenta-cargo-detalle { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1.125rem; }
+.cuenta-cargo-derecha { flex: none; display: flex; align-items: center; gap: 10px; }
+.cuenta-cargo-derecha .insignia { padding: 2px 9px; border-radius: var(--radio-pildora); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+.cuenta-cargo-monto { min-width: 76px; text-align: right; }
+.pago-fila-cancelado { background: var(--peligro-suave); }
+.cuenta-tarjeta .pago-fila { flex-wrap: nowrap; }
+.cuenta-tarjeta .pago-fila .fila-dato-texto { flex: 1; }
+.cuenta-tarjeta .pago-fila-derecha { flex: none; flex-wrap: nowrap; gap: var(--e1); }
+.pago-motivo { color: var(--peligro); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; }
+.boton-icono-pago { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--alto-toque); height: var(--alto-toque); padding: 0; border: 0; border-radius: var(--radio); background: transparent; color: var(--texto-medio); cursor: pointer; transition: background-color var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva); }
+.boton-icono-pago:hover { background: var(--peligro-suave); color: var(--peligro); }
+/* «Cancelar el pago»: la advertencia roja con lo que pasa (no es un alert: el error del servidor sí lo es) y los botones del diálogo. */
+.cancelar-advertencia { margin: 0; display: flex; gap: 10px; padding: var(--e3) 14px; background: var(--peligro-suave); border: 1px solid var(--peligro); border-radius: var(--radio-tarjeta); color: var(--peligro); }
+.cancelar-advertencia svg { flex: none; margin-top: 1px; }
+
+/* Uniformes: «Por entregar» y «Entregados» (selector segmentado), tarjetas con el ícono de la prenda en el tono de su disciplina y, abajo, la existencia. */
+.uniformes-panel { display: flex; flex-direction: column; gap: var(--e5); }
+.uniformes-panel:focus-visible { outline-offset: 4px; }
+.uniformes-cuenta { margin-left: var(--e2); font-variant-numeric: tabular-nums; font-weight: 700; }
+.uniformes-rejilla { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.uniforme-tarjeta { display: flex; flex-direction: column; gap: var(--e3); padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); animation: aparece var(--t-entrada) var(--curva); }
+.uniforme-cabeza { display: flex; align-items: flex-start; gap: var(--e3); }
+.uniforme-icono { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--radio-tarjeta); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); }
+.uniforme-titulo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.uniforme-nombre { font-weight: 700; font-size: 1rem; line-height: 1.375rem; }
+.uniforme-para { color: var(--texto-medio); }
+.uniforme-notas { display: flex; flex-direction: column; gap: var(--e1); color: var(--texto-suave); font-size: 0.8125rem; line-height: 1.125rem; }
+.uniforme-existencia { color: var(--texto-medio); font-weight: 700; }
+.uniforme-existencia-agotada { color: var(--peligro); }
+.uniforme-boton { min-height: 48px; width: 100%; border-radius: var(--radio-tarjeta); }
+.uniforme-entregado { display: flex; align-items: center; gap: var(--e2); color: var(--exito); font-weight: 700; }
+
+@media print {
+  .cuenta-dato { background: var(--papel); color: var(--tinta); border-color: var(--borde-impresion); }
+  .cuenta-dato-etiqueta, .cuenta-dato-nota, .cuenta-antiguedad dt, .cuenta-hijo-totales, .cuenta-cargo-detalle { color: var(--tinta-suave); }
+  .cuenta-dato-valor, .cuenta-antiguedad dd, .cuenta-hijo-totales strong, .pago-motivo { color: var(--tinta); }
+  .cuenta-antiguedad { border-top-color: var(--borde-impresion); }
+  .cuenta-cuerpo { display: block; }
+  .cuenta-cuerpo > * + * { margin-top: var(--e3); }
+  .cuenta-hijo, .cuenta-cargo, .pago-fila { break-inside: avoid; }
+  .cuenta-hijo { border-top-color: var(--borde-impresion); }
+  .pago-fila, .pago-fila-cancelado { background: var(--papel); border: 1px solid var(--borde-impresion); }
+}
+
+/* === R5a: ficha del lead === */
+/* El enlace «Volver…» de la ficha y de la inscripción: ícono y texto en negrita, sin subrayado. */
+.enlace-atras { display: inline-flex; align-items: center; gap: 6px; min-height: var(--alto-toque); color: var(--primario-fuerte); font-weight: 700; text-decoration: none; }
+.enlace-atras:hover { color: var(--texto); }
+
+/* El contacto: etapa y teléfono arriba, la barra de avance por etapas y los cuatro datos. */
+.ficha-resumen { gap: 18px; }
+.ficha-estado-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e3); }
+.ficha-etapa-nota { margin: 0; }
+.ficha-etapa .etapa-pildora { padding: var(--e1) var(--e3); font-size: 0.8125rem; line-height: 1.125rem; }
+.avance-etapas { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.avance-etapas li { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.avance-barra { height: var(--alto-avance); border-radius: var(--radio-avance); background: var(--columna); }
+.avance-etapas li[data-estado="hecho"] .avance-barra, .avance-etapas li[data-estado="actual"] .avance-barra { background: var(--primario); }
+.avance-etapas li[data-estado="perdido"] .avance-barra { background: var(--borde); }
+.avance-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 500; }
+.avance-etapas li[data-estado="actual"] .avance-nombre { color: var(--texto); font-weight: 700; }
+@media (max-width: 899px) {
+  /* En celular solo se escribe el nombre de la etapa actual; las demás siguen para el lector de pantalla. */
+  .avance-etapas li:not([data-estado="actual"]) .avance-nombre { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .avance-etapas .avance-nombre { white-space: normal; }
+}
+
+/* Dos columnas: niños, cotizaciones y clases a la izquierda; tareas, origen e historial a la derecha. */
+.ficha-columnas { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+.ficha-columna { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.ficha-columna-principal { flex: 1.5 1 440px; }
+.ficha-columna-lateral { flex: 1 1 300px; }
+.ficha-columna .tarjeta-cabecera h2 { font-size: 1rem; line-height: 1.375rem; }
+.tareas-ficha { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* Niños: una fila suave por niño con la banda de su disciplina (`--disciplina`, del dato `color_marca`). */
+.ninos-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
+.nino { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e3) var(--e4); padding: 14px; background: var(--fondo); border-radius: var(--radio-tarjeta); }
+.nino-barra { flex: none; width: 10px; height: 40px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.nino-texto { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nino-nombre { font-size: 1rem; line-height: 1.375rem; overflow-wrap: anywhere; }
+.nino-edad { font-weight: 500; color: var(--texto-medio); }
+.nino-sub { overflow-wrap: anywhere; }
+.nino-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); }
+.nino-iconos { gap: 0; }
+
+/* Cotizaciones y clases muestra: una caja con borde por cada una. */
+.cotizaciones-lista, .clases-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
+.cotizacion, .clase { display: flex; flex-direction: column; gap: 10px; padding: 14px var(--e4); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); }
+.cotizacion { animation: aparece var(--t-entrada) var(--curva); }
+.cotizacion p { margin: 0; }
+.cotizacion-cabeza { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px var(--e3); }
+.cotizacion-importes { display: flex; flex-wrap: wrap; gap: var(--e2) 22px; }
+.cotizacion-promo { display: flex; align-items: center; gap: var(--e2); color: var(--exito); font-weight: 600; }
+.cotizacion-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2); color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.cotizacion-simulada { margin: 0; padding: 14px var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); font-weight: 600; }
+.clase { gap: 6px; }
+
+/* === R5a: inscripción === */
+.enlace-atras { align-self: flex-start; }
+/* Indicador de pasos: una barra de 6 por paso y debajo la marca numerada (palomita si ya se hizo) con su título. En celular solo el paso actual lleva su título; los demás quedan para el lector de pantalla. */
+.pasos { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--e2); }
+.pasos li { display: flex; flex-direction: column; gap: var(--e2); min-width: 0; }
+.paso-barra { height: var(--alto-avance); border-radius: var(--radio-avance); background: var(--columna); }
+.pasos li.hecho .paso-barra, .pasos li[aria-current="step"] .paso-barra { background: var(--primario); }
+.paso-fila { display: flex; align-items: center; gap: var(--e2); min-width: 0; }
+.paso-marca { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--marca-paso); height: var(--marca-paso); border-radius: var(--radio-pildora); background: var(--columna); color: var(--texto-medio); font-size: 0.75rem; line-height: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pasos li.hecho .paso-marca, .pasos li[aria-current="step"] .paso-marca { background: var(--primario); color: var(--primario-texto); }
+.paso-titulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--texto-suave); font-weight: 600; }
+.pasos li[aria-current="step"] .paso-titulo { color: var(--texto); font-weight: 700; }
+@media (max-width: 899px) {
+  /* En celular ningún paso lleva su título a la vista (cada uno es una columna de 1/6): el encabezado del paso, justo debajo, ya lo dice; el lector de pantalla sí los lee. */
+  .paso-titulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+/* El paso en su tarjeta (a la izquierda) y el resumen fijo (a la derecha, pegado arriba al desplazar; en celular va debajo). Lo de adentro que era una tarjeta pasa a una caja con borde. */
+.asistente-columnas { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; }
+.asistente-paso { flex: 1.6 1 440px; min-width: 0; display: flex; flex-direction: column; gap: var(--e4); padding: 22px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.asistente-paso .tarjeta { padding: var(--e4); border-radius: var(--radio-aviso); box-shadow: none; }
+.asistente-paso .tarjeta-cabecera h2 { font-size: 1rem; line-height: 1.375rem; }
+.paso-encabezado { font-size: 1.125rem; line-height: 1.5rem; font-weight: 700; }
+.asistente-resumen { flex: 1 1 280px; min-width: 0; position: sticky; top: 0; display: flex; flex-direction: column; gap: 14px; padding: var(--e5); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+@media (max-width: 899px) { .asistente-resumen { position: static; } .asistente-paso { padding: var(--e4); } }
+.asistente-resumen h2 { font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.resumen-lateral-nino { display: flex; flex-direction: column; gap: 6px; padding-bottom: var(--e3); border-bottom: 1px solid var(--borde); color: var(--texto-medio); }
+.resumen-lateral-nombre { display: flex; align-items: center; gap: var(--e2); color: var(--texto); overflow-wrap: anywhere; }
+.resumen-lateral-punto { flex: none; width: 8px; height: 8px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.resumen-lateral-grupo { overflow-wrap: anywhere; }
+.resumen-lateral-fila { display: flex; justify-content: space-between; gap: var(--e3); font-variant-numeric: tabular-nums; }
+.resumen-lateral-promo { display: flex; align-items: center; gap: var(--e2); color: var(--exito); font-weight: 600; }
+.resumen-lateral-total { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e3); font-weight: 700; }
+.resumen-lateral-total strong { font-family: var(--fuente-titulo); font-size: 1.625rem; line-height: 1.875rem; font-variant-numeric: tabular-nums; }
+
+/* Los botones del paso: en escritorio van dentro de la tarjeta, abajo a la derecha, bajo una línea; en celular siguen fijos abajo (barra de guardado). */
+.barra-conversion { justify-content: flex-end; }
+.barra-conversion .boton { flex: none; min-width: 7.5rem; }
+@media (max-width: 639px) { .barra-conversion { justify-content: space-between; } .barra-conversion .boton-primario { flex: 1 1 0; margin-left: var(--e2); } .barra-conversion .boton { min-width: 6rem; } }
+@media (min-width: 900px) {
+  .asistente-paso .barra-conversion { position: static; padding: var(--e4) 0 0; border: 0; border-top: 1px solid var(--borde); border-radius: 0; box-shadow: none; background: transparent; }
+}
+.adulto-capturado { margin-left: auto; }
+
+/* Grupo y horario: una fila completa por grupo, con el nombre y el horario a la izquierda y los lugares y de quién fue la elección a la derecha (la nota, en verde cuando la dijo el maestro). */
+.paso-grupo .grupo-opciones-rejilla { grid-template-columns: 1fr; }
+.paso-grupo .opcion { min-height: 56px; border-radius: var(--radio-tarjeta); }
+.grupo-opcion { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "n c" "h h" "o o"; align-items: baseline; gap: 2px var(--e3); width: 100%; }
+.grupo-nombre { grid-area: n; }
+.grupo-cupo { grid-area: c; justify-self: end; font-variant-numeric: tabular-nums; }
+.grupo-nota { grid-area: o; justify-self: start; margin-top: var(--e1); padding: 1px var(--e2); border-radius: var(--radio-pildora); background: var(--exito-suave); color: var(--exito); }
+.grupo-horario { grid-area: h; }
+
+/* La inscripción hecha: tarjeta sencilla con el sello, lo que quedó y las salidas. */
+.resultado-conversion { max-width: 640px; display: flex; flex-direction: column; padding: 28px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel-oscuro); animation: aparece var(--t-entrada) var(--curva); }
+.resultado-nota { margin: 0; color: var(--texto-medio); }
+.resultado-punto { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.resultado-nombre { display: flex; align-items: flex-start; gap: 10px; }
+@media (max-width: 899px) { .tarea-acciones .boton { padding: 0 14px; } }

@@ -166,7 +166,7 @@ export async function estadoDeCuentaDeFamilia(db: Consultas, tutorId: string, ah
     where: { tutor_id: tutorId },
     orderBy: [{ fecha: "desc" }, { creado_en: "desc" }, { id: "desc" }],
     take: 100,
-    select: { id: true, monto: true, monto_aplicado: true, metodo: true, referencia: true, fecha: true, estatus: true, aplicaciones: { select: { cargo_id: true, monto_aplicado: true, estatus: true } } },
+    select: { id: true, monto: true, monto_aplicado: true, metodo: true, referencia: true, fecha: true, estatus: true, motivo_cancelacion: true, registrado_por: { select: { nombre: true } }, aplicaciones: { select: { cargo_id: true, monto_aplicado: true, estatus: true } } },
   });
   return {
     resumen: {
@@ -185,6 +185,9 @@ export async function estadoDeCuentaDeFamilia(db: Consultas, tutorId: string, ah
       referencia: p.referencia,
       fecha: deFecha(p.fecha),
       estatus: p.estatus,
+      // R5b: por qué se canceló (el renglón cancelado lo dice) y quién lo registró («por Rocío Méndez»).
+      motivo_cancelacion: p.motivo_cancelacion,
+      registrado_por: p.registrado_por?.nombre ?? null,
       aplicaciones: p.aplicaciones.map((a) => ({ cargo_id: a.cargo_id, monto: aTexto(deDecimal(a.monto_aplicado)), estatus: a.estatus })),
     })),
   };

@@ -87,6 +87,7 @@ const ACORDADO: Record<string, Modulo> = {
   "GET /api/pagos/propuesta": "finanzas",
   "GET /api/tutores/:id/estado-cuenta": "finanzas",
   "GET /api/beneficios/por-entregar": "finanzas",
+  "GET /api/beneficios/entregados": "finanzas",
   "POST /api/beneficios/:id/entregar": "finanzas",
   "GET /api/productos": "finanzas",
   "POST /api/ventas": "finanzas",

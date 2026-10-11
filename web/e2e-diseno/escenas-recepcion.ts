@@ -11,9 +11,12 @@ const GRUPO = "Recepción";
 const BUSCADOR = "web/src/pantallas/recepcion/BuscadorDeFamilia.tsx";
 const PAGO = "web/src/pantallas/recepcion/RegistrarPago.tsx";
 const CUENTA = "web/src/pantallas/recepcion/EstadoDeCuenta.tsx";
+const CANCELAR = "web/src/pantallas/recepcion/CancelarPago.tsx";
 const UNIFORMES = "web/src/pantallas/recepcion/Uniformes.tsx";
 const VENTAS = "web/src/pantallas/recepcion/Ventas.tsx";
+const VENTAS_PIEZAS = ["web/src/pantallas/recepcion/NuevaVenta.tsx", "web/src/pantallas/recepcion/ProductosParaVender.tsx"];
 const CORTE = "web/src/pantallas/recepcion/CorteDelDia.tsx";
+const CORTE_PIEZAS = ["web/src/pantallas/recepcion/ResumenDelCorte.tsx", "web/src/pantallas/recepcion/PagosDelCorte.tsx"];
 
  
 type J = any;
@@ -199,6 +202,95 @@ async function abrirCancelarPago(c: Contexto): Promise<void> {
   await irA(c, rutaPago(uniforme(c).tutorId));
   await c.page.getByRole("button", { name: "Cancelar pago", exact: true }).first().click();
   await dialogoAbierto(c.page);
+}
+
+/** Los folios de los pagos de ejemplo salen de las primeras ocho cifras del id: P-3F9A12B1, P-3F9A12B2… */
+const ID_DE_PAGO = (n: number): string => `3f9a12b${n}-0000-4000-8000-00000000000${n}`;
+const centavosDe = (t: string): number => Math.round(Number.parseFloat(t) * 100);
+const textoDe = (c: number): string => (c / 100).toFixed(2);
+const ES_ABONO = "300.00";
+
+/**
+ * El estado de cuenta de una familia «con de todo», parchado sobre la respuesta real: el primer hijo con una mensualidad pagada, una vencida y una con abono; el segundo con la primera pagada
+ * y el resto pendiente; y cuatro pagos, el último cancelado con su motivo. Solo cambian los valores de la respuesta: la pantalla lee la misma forma de siempre.
+ */
+function cuentaCompleta(j: J): J {
+  const hijos: J[] = j.hijos ?? [];
+  const una = (h: J, periodo: string, vence: string, base: J) => ({ ...base, id: `${h.alumno.id}-${periodo}`, concepto: "mensualidad", periodo, descripcion: null, monto_final: "650.00", fecha_vencimiento: vence });
+  const pagado = (x: J) => ({ ...x, monto_pagado: x.monto_final, saldo: "0.00", estatus: "pagado", estatus_efectivo: "pagado", dias_de_atraso: 0 });
+  const pendiente = (x: J) => ({ ...x, monto_pagado: "0.00", saldo: x.monto_final, estatus: "pendiente", estatus_efectivo: "pendiente", dias_de_atraso: 0 });
+  hijos.forEach((h, i) => {
+    const base = h.cargos?.[0] ?? {};
+    const agosto = pagado(una(h, "2026-08", "2026-08-15", base));
+    const septiembre = i === 0 ? { ...pendiente(una(h, "2026-09", "2026-09-15", base)), estatus_efectivo: "vencido", dias_de_atraso: 26 } : pagado(una(h, "2026-09", "2026-09-15", base));
+    const octubre = i === 0 ? { ...pendiente(una(h, "2026-10", "2026-10-15", base)), monto_pagado: ES_ABONO, saldo: textoDe(centavosDe("650.00") - centavosDe(ES_ABONO)) } : pendiente(una(h, "2026-10", "2026-10-15", base));
+    h.cargos = [agosto, septiembre, octubre];
+    const vivos: J[] = h.cargos;
+    h.total_cargado = textoDe(vivos.reduce((s, x) => s + centavosDe(x.monto_final), 0));
+    h.total_pagado = textoDe(vivos.reduce((s, x) => s + centavosDe(x.monto_pagado), 0));
+    h.saldo = textoDe(vivos.reduce((s, x) => s + centavosDe(x.saldo), 0));
+    const vencido = vivos.filter((x) => x.estatus_efectivo === "vencido").reduce((s, x) => s + centavosDe(x.saldo), 0);
+    h.vencido = textoDe(vencido);
+    h.antiguedad = { de_0_a_30: textoDe(vencido), de_31_a_60: "0.00", de_61_a_90: "0.00", mas_de_90: "0.00" };
+  });
+  const suma = (campo: string) => textoDe(hijos.reduce((s, h) => s + centavosDe(h[campo]), 0));
+  j.resumen = { total_cargado: suma("total_cargado"), total_pagado: suma("total_pagado"), saldo: suma("saldo"), vencido: suma("vencido"), antiguedad: { de_0_a_30: suma("vencido"), de_31_a_60: "0.00", de_61_a_90: "0.00", mas_de_90: "0.00" } };
+  const cargosDe = (mes: string) => hijos.map((h) => ({ cargo_id: `${h.alumno.id}-${mes}`, monto: "650.00", estatus: "aplicado" }));
+  j.pagos = [
+    { id: ID_DE_PAGO(1), monto: ES_ABONO, monto_aplicado: ES_ABONO, metodo: "efectivo", referencia: null, fecha: "2026-10-08", estatus: "aplicado", motivo_cancelacion: null, registrado_por: "Rita Recepción", aplicaciones: [{ cargo_id: `${hijos[0]?.alumno.id}-2026-10`, monto: ES_ABONO, estatus: "aplicado" }] },
+    { id: ID_DE_PAGO(2), monto: "1300.00", monto_aplicado: "1300.00", metodo: "transferencia", referencia: "4471", fecha: "2026-09-15", estatus: "aplicado", motivo_cancelacion: null, registrado_por: "Rita Recepción", aplicaciones: cargosDe("2026-09").slice(1) },
+    { id: ID_DE_PAGO(3), monto: "1300.00", monto_aplicado: "1300.00", metodo: "efectivo", referencia: null, fecha: "2026-08-12", estatus: "aplicado", motivo_cancelacion: null, registrado_por: "Rita Recepción", aplicaciones: cargosDe("2026-08") },
+    { id: ID_DE_PAGO(4), monto: "1300.00", monto_aplicado: "0.00", metodo: "tarjeta", referencia: "22190", fecha: "2026-08-12", estatus: "cancelado", motivo_cancelacion: "Se registró dos veces", registrado_por: "Rita Recepción", aplicaciones: [] },
+  ];
+  return j;
+}
+
+/** Abre «Cancelar el pago» desde el estado de cuenta (la cuenta parchada: no se cancela nada de verdad). */
+async function abrirCancelarDeLaCuenta(c: Contexto): Promise<void> {
+  await conDisciplinasDeColor(c);
+  await transformar(c, esCuentaDe, cuentaCompleta);
+  await irA(c, `/cuenta/${gomez(c).tutorId}`);
+  await c.page.getByRole("button", { name: `Cancelar el pago P-${ID_DE_PAGO(1).slice(0, 8).toUpperCase()}` }).click();
+  await dialogoAbierto(c.page);
+}
+
+const esEntregados = (u: URL): boolean => u.pathname === "/api/beneficios/entregados";
+const esPorEntregar = (u: URL): boolean => u.pathname === "/api/beneficios/por-entregar";
+
+/**
+ * Cinco uniformes por entregar y tres entregados, de tres disciplinas con color, y el inventario que les corresponde (Quedan 3, Queda 1, sin existencia, sin talla). Se parchan las respuestas
+ * de la API (disciplinas, por entregar, entregados e inventario): la pantalla lee la misma forma de siempre.
+ */
+async function conBeneficiosDeEjemplo(c: Contexto): Promise<void> {
+  const verticales = ["disciplina-de-ejemplo-0", "disciplina-de-ejemplo-1", "disciplina-de-ejemplo-2"];
+  await c.page.route(esVerticales, async (r) => {
+    if (r.request().method() !== "GET") return r.fallback();
+    const resp = await r.fetch();
+    const j = (await resp.json()) as J;
+    const base = j.datos?.[0] ?? {};
+    return r.fulfill({ response: resp, json: { ...j, datos: verticales.map((id, i) => ({ ...base, id, nombre: `Disciplina ${i + 1}`, slug: id, color_marca: COLORES_DE_EJEMPLO[i] })) } });
+  });
+  const pieza = (id: string, v: number, talla: string | null, stock: number): J => ({ id, vertical: { id: verticales[v], nombre: `Disciplina ${v + 1}` }, nombre: `Prenda ${v + 1}`, talla, precio: "350.00", stock, activo: true });
+  await transformar(c, esProductos, (j) => ({ ...j, datos: [pieza("p0", 0, "6", 3), pieza("p1", 1, "6", 1), pieza("p2", 2, "M", 0), pieza("p3", 0, "8", 5)], paginacion: { ...j.paginacion, total: 4 } }));
+  const quien = (n: number, nombre: string, talla: string | null, v: number, grupo: string, dias: number): J => ({
+    id: `ejemplo-${n}`,
+    inscripcion_id: `insc-${n}`,
+    alumno: { id: `alumno-${n}`, nombre, apellidos: "De Ejemplo", talla_uniforme: talla },
+    tutor: { id: `tutor-${n}`, nombre: "Tutora", apellidos: `Ejemplo ${n}`, telefono: `+52555500000${n}` },
+    sucursal_id: "sucursal",
+    vertical_id: verticales[v],
+    grupo,
+    promocion: "Uniforme de bienvenida",
+    tipo: "producto_gratis",
+    descripcion: `Prenda ${v + 1}`,
+    producto_id: null,
+    liberado_en: new Date(Date.now() - dias * 86_400_000).toISOString(),
+  });
+  const lista = [quien(0, "Alumno Uno", "6", 0, "Grupo A", 3), quien(1, "Alumna Dos", "6", 1, "Grupo B", 6), quien(2, "Alumna Tres", "M", 2, "Grupo C", 9), quien(3, "Alumno Cuatro", "8", 0, "Grupo A", 10), quien(4, "Alumna Cinco", null, 1, "Grupo B", 11)];
+  await transformar(c, esPorEntregar, (j) => ({ ...j, datos: lista, paginacion: { ...j.paginacion, total: lista.length } }));
+  const entregado = (n: string, base: J, minutos: number, producto: J | null): J => ({ ...base, id: `ejemplo-${n}`, entregado_en: new Date(Date.now() - minutos * 60_000).toISOString(), entregado_por: { id: "usuario", nombre: "Rita Recepción" }, producto });
+  const ya = [entregado("e1", quien(5, "Alumno Seis", "4", 0, "Grupo A", 12), 1, { nombre: "Prenda 1", talla: "4" }), entregado("e2", quien(6, "Alumna Siete", "8", 1, "Grupo B", 13), 60 * 28, { nombre: "Prenda 2", talla: "8" }), entregado("e3", quien(7, "Alumna Ocho", "M", 2, "Grupo C", 20), 60 * 24 * 6, null)].map((x, i) => ({ ...x, id: ["ejemplo-e1", "ejemplo-e2", "ejemplo-e3"][i] }));
+  await transformar(c, esEntregados, (j) => ({ ...j, datos: ya, paginacion: { ...j.paginacion, total: ya.length } }));
 }
 
 /** Registra un pago por la pantalla (monto y, si se pide, el reparto) y espera el aviso de «Pago registrado». */
@@ -1060,6 +1152,98 @@ const LISTA: Escena[] = [
     ir: (c) => irA(c, "/cuenta"),
   },
 
+  {
+    id: "recep-cuenta-familia-completa",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta completo: cada hijo con el color de su disciplina, cargos pagados (con su folio), vencido, con abono y pendientes; pagos con uno cancelado y su motivo",
+    tipo: "estado",
+    fuentes: [CUENTA, CANCELAR],
+    completa: true,
+    ir: async (c) => {
+      await conDisciplinasDeColor(c);
+      await transformar(c, esCuentaDe, cuentaCompleta);
+      await irA(c, `/cuenta/${gomez(c).tutorId}`);
+      await c.page.getByTestId("saldo").waitFor();
+      await c.page.getByText("Cancelado: Se registró dos veces").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-cuenta-familia-completa-asesor",
+    rol: "asesor",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta completo visto por el asesor: sin el botón de cancelar pagos ni «Registrar pago»",
+    tipo: "estado",
+    fuentes: [CUENTA],
+    completa: true,
+    ir: async (c) => {
+      await transformar(c, esCuentaDe, cuentaCompleta);
+      await irA(c, `/cuenta/${gomez(c).tutorId}`);
+      await c.page.getByTestId("saldo").waitFor();
+      await c.page.getByText("Cancelado: Se registró dos veces").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-cuenta-familia-nada-vencido",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta con saldo pendiente pero nada vencido: la tarjeta de lo vencido en blanco y «Nada vencido»",
+    tipo: "estado",
+    fuentes: [CUENTA],
+    ir: async (c) => {
+      await transformar(c, esCuentaDe, (j) => {
+        const f = cuentaCompleta(j);
+        for (const h of f.hijos) for (const cargo of h.cargos) if (cargo.estatus_efectivo === "vencido") Object.assign(cargo, { estatus_efectivo: "pendiente", dias_de_atraso: 0, fecha_vencimiento: "2026-10-15" });
+        f.resumen.vencido = "0.00";
+        f.resumen.antiguedad = { de_0_a_30: "0.00", de_31_a_60: "0.00", de_61_a_90: "0.00", mas_de_90: "0.00" };
+        return f;
+      });
+      await irA(c, `/cuenta/${gomez(c).tutorId}`);
+      await c.page.getByText("Nada vencido").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-cuenta-cancelar-dialogo",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta: el diálogo «Cancelar el pago P-…» con la advertencia roja y el botón de cancelar apagado (falta el motivo)",
+    tipo: "flotante",
+    fuentes: [CUENTA, CANCELAR],
+    ir: abrirCancelarDeLaCuenta,
+  },
+  {
+    id: "recep-cuenta-cancelar-dialogo-motivo",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta: «Cancelar el pago» con el motivo escrito, listo para confirmar",
+    tipo: "flotante",
+    fuentes: [CUENTA, CANCELAR],
+    ir: async (c) => {
+      await abrirCancelarDeLaCuenta(c);
+      await c.page.getByLabel(/^Motivo de la cancelación/).fill("Se registró dos veces");
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-cuenta-cancelar-dialogo-error",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta: «Cancelar el pago» con el error del servidor dentro del diálogo",
+    tipo: "flotante",
+    fuentes: [CUENTA, CANCELAR],
+    ir: async (c) => {
+      await abrirCancelarDeLaCuenta(c);
+      await c.page.getByLabel(/^Motivo de la cancelación/).fill("Se registró dos veces");
+      await fallarLaSiguienteEscritura(c, 409, "Ese pago ya estaba cancelado.");
+      await c.page.getByRole("dialog").getByRole("button", { name: "Cancelar el pago", exact: true }).click();
+      await c.page.getByRole("dialog").getByRole("alert").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+
   // ═══ Uniformes por entregar ═══
   {
     id: "recep-uniformes-lista",
@@ -1210,15 +1394,129 @@ const LISTA: Escena[] = [
     },
   },
 
+  {
+    id: "recep-uniformes-disciplinas-existencia",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Uniformes por entregar con el color de cada disciplina, «Quedan N», «Queda 1», un uniforme sin existencia (botón apagado «Sin existencia») y un alumno sin talla",
+    tipo: "estado",
+    fuentes: [UNIFORMES],
+    completa: true,
+    ir: async (c) => {
+      await conBeneficiosDeEjemplo(c);
+      await irA(c, "/uniformes");
+      await c.page.getByTestId("beneficio-ejemplo-4").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-uniformes-entregados",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Uniformes: la pestaña «Entregados» con lo entregado hace un momento, ayer y días atrás, quién lo entregó y «Se descontó del inventario»",
+    tipo: "estado",
+    fuentes: [UNIFORMES],
+    completa: true,
+    ir: async (c) => {
+      await conBeneficiosDeEjemplo(c);
+      await irA(c, "/uniformes");
+      await c.page.getByRole("tab", { name: /^Entregados/ }).click();
+      await c.page.getByTestId("entregado-ejemplo-e1").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-uniformes-entregados-vacio",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Uniformes: la pestaña «Entregados» sin nada entregado todavía",
+    tipo: "estado",
+    fuentes: [UNIFORMES],
+    ir: async (c) => {
+      await transformar(c, esEntregados, (j) => ({ ...j, datos: [], paginacion: { ...j.paginacion, total: 0 } }));
+      await irA(c, "/uniformes");
+      await c.page.getByRole("tab", { name: /^Entregados/ }).click();
+      await c.page.getByText("Todavía no se ha entregado nada").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-uniformes-entregados-cargando",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Uniformes: la pestaña «Entregados» mientras carga",
+    tipo: "estado",
+    fuentes: [UNIFORMES],
+    ir: async (c) => {
+      await colgar(c, esEntregados);
+      await c.page.goto("/uniformes"); // sin esperar a la red: la petición de lo entregado no termina
+      await c.page.getByRole("tab", { name: /^Entregados/ }).click();
+      await c.page.locator(".giro, .cargando").first().waitFor();
+      await c.page.waitForTimeout(150);
+    },
+  },
+  {
+    id: "recep-uniformes-entregados-error",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Uniformes: la pestaña «Entregados» con error de carga",
+    tipo: "estado",
+    fuentes: [UNIFORMES],
+    ir: async (c) => {
+      await romper(c, esEntregados);
+      await irA(c, "/uniformes");
+      await c.page.getByRole("tab", { name: /^Entregados/ }).click();
+      await c.page.getByRole("button", { name: "Reintentar" }).waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-uniformes-entregado-aviso",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Uniformes: después de «Marcar como entregado» sale el aviso «Entregado a …» y la tarjeta pasa a «Entregados»",
+    tipo: "paso",
+    fuentes: [UNIFORMES],
+    ir: async (c) => {
+      // La entrega se simula (no se toca el inventario compartido): la escritura responde bien y las listas ya cuentan al uniforme como entregado.
+      let entregado = false;
+      await c.page.route(esPorEntregar, async (r) => {
+        if (r.request().method() !== "GET") return r.fallback();
+        const resp = await r.fetch();
+        const j = (await resp.json()) as J;
+        return r.fulfill({ response: resp, json: entregado ? { ...j, datos: [], paginacion: { ...j.paginacion, total: 0 } } : j });
+      });
+      await c.page.route(esEntregados, async (r) => {
+        if (r.request().method() !== "GET") return r.fallback();
+        const resp = await r.fetch();
+        const j = (await resp.json()) as J;
+        return r.fulfill({ response: resp, json: entregado ? { ...j, datos: [{ id: "ejemplo", inscripcion_id: "ejemplo", alumno: { id: "x", nombre: "Alumno", apellidos: "Uniforme Prueba", talla_uniforme: "8" }, tutor: null, sucursal_id: "x", grupo: "Grupo D", promocion: "Uniforme de bienvenida", tipo: "producto_gratis", descripcion: "Uniforme", producto_id: null, liberado_en: new Date().toISOString(), entregado_en: new Date().toISOString(), entregado_por: { id: "y", nombre: "Rita Recepción" }, producto: { nombre: "Uniforme", talla: "8" } }], paginacion: { ...j.paginacion, total: 1 } } : j });
+      });
+      await c.page.route("**/api/beneficios/*/entregar", async (r) => {
+        if (r.request().method() !== "POST") return r.fallback();
+        entregado = true;
+        return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: "ejemplo", estatus: "entregado" }) });
+      });
+      await irA(c, "/uniformes");
+      await c.page.getByRole("button", { name: "Marcar entregado" }).first().click();
+      await dialogoAbierto(c.page);
+      await c.page.getByLabel("Pieza que se entrega").waitFor();
+      await c.page.getByRole("dialog").getByRole("button", { name: "Marcar como entregado" }).click();
+      await c.page.getByTestId("aviso-global").waitFor();
+      await c.page.getByText("No hay nada por entregar").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+
   // ═══ Ventas ═══
   {
     id: "recep-ventas-inicial",
     rol: "recepcion",
     grupo: GRUPO,
-    titulo: "Ventas: existencia con «Última pieza», formulario de nueva venta y ventas recientes vacías (recepción y administrador)",
+    titulo: "Ventas: tarjetas de producto con su existencia («Queda 1», «Quedan N»), «Nueva venta» sin alumno y ventas recientes (recepción y administrador)",
     tipo: "pantalla",
     ruta: "/ventas",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     completa: true,
     ir: async (c) => {
       await irA(c, "/ventas");
@@ -1231,7 +1529,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Ventas sin productos ni ventas: «No hay ningún producto con existencia para vender»",
     tipo: "estado",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: (c) => conVacio(c, "/ventas"),
   },
   {
@@ -1240,7 +1538,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Ventas con todos los productos agotados (insignia «Agotado»)",
     tipo: "estado",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await transformar(c, esProductos, (j) => ({ ...j, datos: (j.datos ?? []).map((p: J) => ({ ...p, stock: 0 })) }));
       await irA(c, "/ventas");
@@ -1253,7 +1551,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Ventas mientras carga",
     tipo: "estado",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: (c) => conCargando(c, "/ventas"),
   },
   {
@@ -1262,7 +1560,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Ventas con error de carga",
     tipo: "estado",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: (c) => conError(c, "/ventas"),
   },
   {
@@ -1271,7 +1569,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Ventas con muchos productos en existencia",
     tipo: "estado",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     completa: true,
     ir: (c) => conMuchosDatos(c, "/ventas", 8),
   },
@@ -1281,7 +1579,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Nueva venta con una sola letra en la búsqueda del alumno: «Escribe al menos dos letras»",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await irA(c, "/ventas");
       await c.page.getByLabel("Buscar al alumno por nombre").fill("H");
@@ -1294,10 +1592,9 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Nueva venta con el alumno encontrado y elegido, listo para registrar (total calculado)",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await prepararVenta(c, "Hijo");
-      await c.page.getByLabel("Producto").selectOption({ index: 0 });
       await esperarListo(c.page);
     },
   },
@@ -1307,7 +1604,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Nueva venta con búsqueda de alumno sin resultados: «No encontré a ese alumno»",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await irA(c, "/ventas");
       await c.page.getByLabel("Buscar al alumno por nombre").fill("Zzzzzz");
@@ -1322,7 +1619,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Nueva venta con error al buscar al alumno",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await romper(c, esAlumnos);
       await irA(c, "/ventas");
@@ -1335,12 +1632,12 @@ const LISTA: Escena[] = [
     id: "recep-ventas-cantidad-cero",
     rol: "recepcion",
     grupo: GRUPO,
-    titulo: "Nueva venta con cantidad cero: «Escribe un número entero de piezas» y «Registrar venta» apagado",
+    titulo: "Nueva venta con la cantidad en el mínimo (1): «Una menos» apagado y el total de una pieza",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await prepararVenta(c, "Hijo");
-      await c.page.getByLabel("Cantidad").fill("0");
+      await c.page.getByRole("button", { name: "Una menos" }).waitFor();
       await esperarListo(c.page);
     },
   },
@@ -1348,13 +1645,12 @@ const LISTA: Escena[] = [
     id: "recep-ventas-cantidad-mayor-a-la-existencia",
     rol: "recepcion",
     grupo: GRUPO,
-    titulo: "Nueva venta con más piezas de las que hay: «Solo hay 1 en existencia»",
+    titulo: "Nueva venta con todas las piezas que hay en la cantidad: «Una más» apagado y «Solo hay 1 en existencia»",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await prepararVenta(c, "Hijo");
-      await c.page.getByLabel("Producto").selectOption({ label: "Playera · $120.00 · 1 en existencia" });
-      await c.page.getByLabel("Cantidad").fill("2");
+      await c.page.getByRole("button", { name: /^Playera/ }).click();
       await c.page.getByText("Solo hay 1 en existencia").waitFor();
       await esperarListo(c.page);
     },
@@ -1365,10 +1661,10 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Nueva venta: el servidor rechaza la venta (alguien vendió la última pieza)",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await prepararVenta(c, "Hijo");
-      await c.page.getByLabel("Producto").selectOption({ label: "Gorra · $80.00 · 1 en existencia" });
+      await c.page.getByRole("button", { name: /^Gorra/ }).click();
       await fallarLaSiguienteEscritura(c, 409, "Ya no hay existencia de esa pieza: alguien acaba de vender la última.");
       await c.page.getByRole("button", { name: "Registrar venta" }).click();
       await c.page.getByRole("alert").first().waitFor();
@@ -1381,7 +1677,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Nueva venta sin conexión al registrar",
     tipo: "formulario",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await prepararVenta(c, "Hijo");
       await cortarLaRed(c);
@@ -1396,7 +1692,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Diálogo «Anular la venta» abierto y vacío (el botón de confirmar apagado)",
     tipo: "flotante",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: abrirAnular,
   },
   {
@@ -1405,7 +1701,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Diálogo «Anular la venta» con el motivo escrito, listo para confirmar",
     tipo: "flotante",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await abrirAnular(c);
       await c.page.getByLabel(/^Motivo de la anulación/).fill("Se equivocó de producto");
@@ -1418,13 +1714,63 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Diálogo «Anular la venta» con el error del servidor",
     tipo: "flotante",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     ir: async (c) => {
       await abrirAnular(c);
       await c.page.getByLabel(/^Motivo de la anulación/).fill("Se equivocó de producto");
       await fallarLaSiguienteEscritura(c, 409, "Esa venta ya no se puede anular: su cargo tiene pagos.");
       await c.page.getByRole("dialog").getByRole("button", { name: "Anular la venta", exact: true }).click();
       await c.page.getByRole("dialog").getByRole("alert").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+
+  // R5c: estados nuevos de Ventas (tarjetas de producto, cantidad con − y +, entrega de promoción).
+  {
+    id: "recep-ventas-producto-elegido",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Ventas con un producto elegido (borde de la marca), dos piezas con «Una más» y el total del cargo; el alumno elegido y el botón con el importe",
+    tipo: "estado",
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
+    completa: true,
+    ir: async (c) => {
+      await prepararVenta(c, "Hijo");
+      await c.page.getByRole("button", { name: /^Uniforme\s*Talla 8\b/ }).click();
+      await c.page.getByRole("button", { name: "Una más" }).click();
+      await c.page.getByTestId("total-de-la-venta").getByText("$700.00").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-ventas-sin-alumno-con-producto",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Ventas con un producto elegido pero sin alumno: «Elige al alumno: el cargo queda a nombre de su responsable de pago» y «Registrar venta» apagado",
+    tipo: "estado",
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
+    ir: async (c) => {
+      await irA(c, "/ventas");
+      await c.page.getByRole("button", { name: /^Uniforme\s*Talla 10\b/ }).click();
+      await c.page.getByText("Elige al alumno:").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-ventas-entrega-de-promocion",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Ventas recientes con una entrega de promoción (sin «Anular») junto a una venta normal",
+    tipo: "estado",
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
+    ir: async (c) => {
+      await transformar(c, (u) => u.pathname === "/api/ventas", (j) => {
+        const base = j.datos?.[0];
+        const promo = { id: "venta-de-promocion", tutor_id: base?.tutor_id ?? "t", alumno: base?.alumno ?? { id: "a", nombre: "Alumno Uniforme", apellidos: "Prueba" }, producto: { id: "p", nombre: "Uniforme", talla: "8" }, cantidad: 1, precio_unitario: "0.00", total: "0.00", es_promocional: true, fecha: new Date().toISOString(), estatus: "registrada", motivo_anulacion: null, cargo: null };
+        return { ...j, datos: [promo, ...(j.datos ?? [])] };
+      });
+      await irA(c, "/ventas");
+      await c.page.getByText("Entrega de promoción").waitFor();
       await esperarListo(c.page);
     },
   },
@@ -1437,7 +1783,7 @@ const LISTA: Escena[] = [
     titulo: "Cierre del día con movimientos: cajas por persona, total del día y tabla de pagos (recepción)",
     tipo: "pantalla",
     ruta: "/corte",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     completa: true,
     ir: async (c) => {
       await irA(c, "/corte");
@@ -1451,7 +1797,7 @@ const LISTA: Escena[] = [
     titulo: "Cierre del día visto por el administrador (su caja va primero como «Tu caja»)",
     tipo: "pantalla",
     ruta: "/corte",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     completa: true,
     ir: async (c) => {
       await irA(c, "/corte");
@@ -1464,7 +1810,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre de un día anterior sin cobros: «Ese día no se registró ningún cobro»",
     tipo: "estado",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     ir: async (c) => {
       await irA(c, "/corte");
       await c.page.getByTestId("cajas").waitFor();
@@ -1479,7 +1825,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre de hoy sin cobros todavía: «Hoy todavía no se ha registrado ningún cobro»",
     tipo: "estado",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     ir: async (c) => {
       const cero = { efectivo: "0.00", tarjeta: "0.00", transferencia: "0.00", total: "0.00", pagos: 0 };
       await transformar(c, esCorte, (j) => ({ ...j, cajas: [], cobrado: cero, devoluciones: cero, neto: cero, cancelados: [], pagos: [] }));
@@ -1493,7 +1839,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre del día mientras suma lo cobrado",
     tipo: "estado",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     ir: (c) => conCargando(c, "/corte"),
   },
   {
@@ -1502,7 +1848,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre del día con error de carga",
     tipo: "estado",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     ir: (c) => conError(c, "/corte"),
   },
   {
@@ -1511,7 +1857,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre del día con muchos pagos y varias cajas",
     tipo: "estado",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     completa: true,
     ir: async (c) => {
       await transformar(c, esCorte, (j) => ({
@@ -1532,7 +1878,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre del día con un pago de otro día cancelado hoy: devoluciones, neto y pagos cancelados",
     tipo: "estado",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     completa: true,
     ir: async (c) => {
       await transformar(c, esCorte, (j) => {
@@ -1558,12 +1904,61 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Cierre del día en la vista de impresión",
     tipo: "impresion",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     impresion: true,
     completa: true,
     ir: async (c) => {
       await irA(c, "/corte");
       await c.page.getByTestId("cajas").waitFor();
+    },
+  },
+
+  // R5c: estados nuevos del Cierre del día (otro día, una sola forma de pago, cobros sin persona registrada).
+  {
+    id: "recep-corte-dia-anterior",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Cierre de un día anterior con cobros: «Cobrado el …» en el panel oscuro y el botón «Volver a hoy»",
+    tipo: "estado",
+    fuentes: [CORTE, ...CORTE_PIEZAS],
+    completa: true,
+    ir: async (c) => {
+      const ayer = await ayerEnElNavegador(c.page);
+      await transformar(c, esCorte, (j) => ({ ...j, fecha: ayer }));
+      await irA(c, "/corte");
+      await c.page.getByRole("button", { name: "Volver a hoy" }).waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-corte-solo-efectivo",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Cierre del día con cobros solo en efectivo: las barras de tarjeta y transferencia en cero («0 pagos»)",
+    tipo: "estado",
+    fuentes: [CORTE, ...CORTE_PIEZAS],
+    ir: async (c) => {
+      await transformar(c, esCorte, (j) => {
+        const solo = (d: J): J => ({ ...d, tarjeta: "0.00", transferencia: "0.00", total: d.efectivo });
+        return { ...j, cobrado: solo(j.cobrado), neto: solo(j.neto), cajas: (j.cajas ?? []).map((x: J) => ({ ...x, cobrado: solo(x.cobrado) })), pagos: (j.pagos ?? []).map((p: J) => ({ ...p, metodo: "efectivo" })) };
+      });
+      await irA(c, "/corte");
+      await c.page.getByTestId("cajas").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-corte-sin-persona-registrada",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Cierre del día con cobros sin persona registrada junto a la caja de quien mira",
+    tipo: "estado",
+    fuentes: [CORTE, ...CORTE_PIEZAS],
+    ir: async (c) => {
+      await transformar(c, esCorte, (j) => ({ ...j, cajas: [...(j.cajas ?? []), { usuario: null, cobrado: { efectivo: "100.00", tarjeta: "0.00", transferencia: "0.00", total: "100.00", pagos: 1 } }] }));
+      await irA(c, "/corte");
+      await c.page.getByText("Cobros sin persona registrada").waitFor();
+      await esperarListo(c.page);
     },
   },
 
@@ -1688,6 +2083,25 @@ const LISTA: Escena[] = [
     },
   },
   {
+    id: "recep-cuenta-cancelar-hecho",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Estado de cuenta después de cancelar un pago de verdad: el aviso «Pago cancelado», el pago con su motivo y los cargos otra vez pendientes",
+    tipo: "paso",
+    fuentes: [CUENTA, CANCELAR],
+    completa: true,
+    ir: async (c) => {
+      await irA(c, `/cuenta/${propia(c).tutorId}`);
+      await c.page.getByRole("button", { name: /^Cancelar el pago P-/ }).first().click();
+      await dialogoAbierto(c.page);
+      await c.page.getByLabel(/^Motivo de la cancelación/).fill("Se registró dos veces");
+      await c.page.getByRole("dialog").getByRole("button", { name: "Cancelar el pago", exact: true }).click();
+      await c.page.getByTestId("aviso-global").waitFor();
+      await c.page.getByText("Cancelado: Se registró dos veces").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
     id: "recep-pagos-pago-registrado-saldo-cero",
     rol: "recepcion",
     grupo: GRUPO,
@@ -1711,13 +2125,12 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Venta registrada: aviso con el detalle y el botón «Cobrar ahora»; existencia y ventas recientes al día",
     tipo: "paso",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     completa: true,
     ir: async (c) => {
       await prepararVenta(c, propia(c).hijos[0]!.nombre);
-      const opcion = c.page.getByLabel("Producto").locator("option").filter({ hasText: `Uniforme · talla ${propia(c).talla} ` });
-      await c.page.getByLabel("Producto").selectOption({ label: (await opcion.first().textContent()) ?? "" });
-      await c.page.getByLabel("Cantidad").fill("2");
+      await c.page.getByRole("button", { name: new RegExp(`^Uniforme\\s*Talla ${propia(c).talla}\\b`) }).click();
+      await c.page.getByRole("button", { name: "Una más" }).click();
       await c.page.getByRole("button", { name: "Registrar venta" }).click();
       await c.page.getByTestId("venta-registrada").waitFor();
       await esperarListo(c.page);
@@ -1729,7 +2142,7 @@ const LISTA: Escena[] = [
     grupo: GRUPO,
     titulo: "Ventas recientes con una venta anulada (insignia «Anulada») y la pieza de vuelta en la existencia",
     tipo: "estado",
-    fuentes: [VENTAS],
+    fuentes: [VENTAS, ...VENTAS_PIEZAS],
     completa: true,
     ir: async (c) => {
       await abrirAnular(c);
@@ -1746,7 +2159,7 @@ const LISTA: Escena[] = [
     titulo: "Cierre del día con los cobros de recepción y de administración y un pago cobrado y cancelado hoy",
     tipo: "pantalla",
     ruta: "/corte",
-    fuentes: [CORTE],
+    fuentes: [CORTE, ...CORTE_PIEZAS],
     completa: true,
     ir: async (c) => {
       await irA(c, "/corte");

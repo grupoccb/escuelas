@@ -267,21 +267,24 @@ test.describe("ventas", () => {
   test("vender con la existencia a la vista; la última pieza queda «agotada»; anular la devuelve", async ({ page }) => {
     await page.goto("/ventas");
     const playera = page.getByTestId(`producto-${productos.playera.id}`);
-    await expect(playera).toContainText("Última pieza");
-    await expect(playera.getByTestId("existencia-del-producto")).toHaveText("1");
+    await expect(playera).toContainText("Queda 1");
+    await expect(playera.getByTestId("existencia-del-producto")).toHaveText("Queda 1");
     await page.getByLabel("Buscar al alumno por nombre").fill("Hijo");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
     await expect(page.getByLabel("Alumno", { exact: true })).toContainText("Hijo Uno Gómez");
-    await page.getByLabel("Producto").selectOption({ label: "Playera · $120.00 · 1 en existencia" });
-    await page.getByLabel("Cantidad").fill("2");
+    // El producto se elige en su tarjeta (aria-pressed); la cantidad con − y +, y no pasa de las piezas que hay.
+    await playera.click();
+    await expect(playera).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("producto-elegido")).toContainText("Playera");
+    await expect(page.getByRole("button", { name: "Una más" })).toBeDisabled();
     await expect(page.getByText("Solo hay 1 en existencia")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Registrar venta" })).toBeDisabled();
-    await page.getByLabel("Cantidad").fill("1");
+    await expect(page.getByTestId("cantidad-de-piezas")).toHaveText("1");
     await expect(page.getByTestId("total-de-la-venta")).toContainText("$120.00");
     await page.getByRole("button", { name: "Registrar venta" }).click();
     await expect(page.getByTestId("venta-registrada")).toContainText("1 × Playera");
     await expect(playera).toContainText("Agotado");
-    await expect(playera.getByTestId("existencia-del-producto")).toHaveText("0");
+    await expect(playera.getByTestId("existencia-del-producto")).toHaveText("Agotado");
+    await expect(playera, "una pieza agotada ya no se puede elegir").toBeDisabled();
     expect((await json<{ stock: number }>(admin, `/api/productos/${productos.playera.id}`)).stock).toBe(0);
     // El cargo de la venta quedó a nombre de la familia.
     const cargos = await json<{ datos: { concepto: string; monto_final: string }[] }>(admin, `/api/cargos?tutor_id=${gomez.tutorId}&concepto=producto`);
@@ -291,7 +294,7 @@ test.describe("ventas", () => {
     await page.getByTestId("ventas-recientes").locator("li").filter({ hasText: "Playera" }).getByRole("button", { name: "Anular" }).click();
     await page.getByRole("dialog").getByLabel(/^Motivo de la anulación/).fill("Se equivocó de producto");
     await page.getByRole("dialog").getByRole("button", { name: "Anular la venta" }).click();
-    await expect(page.getByTestId(`producto-${productos.playera.id}`).getByTestId("existencia-del-producto")).toHaveText("1");
+    await expect(page.getByTestId(`producto-${productos.playera.id}`).getByTestId("existencia-del-producto")).toHaveText("Queda 1");
     expect((await json<{ stock: number }>(admin, `/api/productos/${productos.playera.id}`)).stock).toBe(1);
   });
 
@@ -300,14 +303,14 @@ test.describe("ventas", () => {
     await page.getByLabel("Buscar al alumno por nombre").fill("Hija");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
     await expect(page.getByLabel("Alumno", { exact: true })).toContainText("Hija Dos Gómez");
-    await page.getByLabel("Producto").selectOption({ label: "Gorra · $80.00 · 1 en existencia" });
+    await page.getByTestId(`producto-${productos.gorra.id}`).click();
     // Mientras la pantalla está abierta, otra persona vende la última gorra (por la API).
     const alumno = await json<{ datos: { id: string }[] }>(admin, "/api/alumnos?nombre=Hijo");
     const otra = await admin.post("/api/ventas", { data: { alumno_id: alumno.datos[0]!.id, producto_id: productos.gorra.id, cantidad: 1 } });
     expect(otra.status()).toBe(201);
     await page.getByRole("button", { name: "Registrar venta" }).click();
     await expect(page.getByRole("alert")).toBeVisible();
-    await expect(page.getByTestId(`producto-${productos.gorra.id}`).getByTestId("existencia-del-producto")).toHaveText("0");
+    await expect(page.getByTestId(`producto-${productos.gorra.id}`).getByTestId("existencia-del-producto")).toHaveText("Agotado");
     await expect(page.getByTestId(`producto-${productos.gorra.id}`)).toContainText("Agotado");
     // Se vendió una sola: no se descontó dos veces ni quedó negativa.
     expect((await json<{ stock: number }>(admin, `/api/productos/${productos.gorra.id}`)).stock).toBe(0);

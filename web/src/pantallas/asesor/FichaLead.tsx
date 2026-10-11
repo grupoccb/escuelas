@@ -10,9 +10,11 @@ import { formatearFecha, formatearInstante } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, EnlaceBoton, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
 import { Icono } from "../../ui/Icono.tsx";
+import type { Vertical } from "../admin/tipos.ts";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { ClasesMuestraDeLead } from "./ClasesMuestraDeLead.tsx";
-import { Cotizaciones } from "./Cotizaciones.tsx";
+import { Cotizaciones, useCotizaciones } from "./Cotizaciones.tsx";
+import { listaConY, pasosDeAvance } from "./avance-etapas.ts";
 import { FUENTES } from "./Embudo.tsx";
 import { type Historial, textoDeMotivo } from "./historial-lead.ts";
 import { sePuedeMarcarComoInscrito } from "./inscrito-a-mano.ts";
@@ -20,6 +22,7 @@ import { MarcarInscrito } from "./MarcarInscrito.tsx";
 import { MoverEtapa } from "./MoverEtapa.tsx";
 import { Ninos } from "./Ninos.tsx";
 import { TarjetaDeTarea } from "./Tareas.tsx";
+import { haceCuanto } from "./tareas-vista.ts";
 
 /** Las claves de la atribución que se pueden mostrar (el resto del referral del proveedor no es para la pantalla). */
 const CLAVES_DE_ATRIBUCION: Record<string, string> = { fuente: "Fuente", utm_source: "Plataforma del anuncio", utm_medium: "Tipo de anuncio", utm_campaign: "Campaña del anuncio", utm_content: "Contenido del anuncio", utm_term: "Palabra clave del anuncio", codigo_rastreo: "Código de rastreo" };
@@ -76,6 +79,22 @@ function ElegirSucursal({ lead, alElegir }: { lead: LeadDetalle; alElegir: () =>
   );
 }
 
+/** La barra de avance: una barra por etapa abierta, con la actual marcada (en celular solo se escribe el nombre de la actual). */
+function AvanceEnElEmbudo({ etapas, actualId }: { etapas: readonly Etapa[]; actualId: string }) {
+  const pasos = pasosDeAvance(etapas, actualId);
+  if (pasos.length === 0) return null;
+  return (
+    <ol className="avance-etapas" aria-label="Avance en el embudo" data-prueba="avance-en-el-embudo">
+      {pasos.map((p) => (
+        <li key={p.id} aria-current={p.estado === "actual" ? "step" : undefined} data-estado={p.estado}>
+          <span className="avance-barra" aria-hidden="true" />
+          <span className="avance-nombre">{p.nombre}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export default function FichaLead() {
   const { id = "" } = useParams();
   const { puede, moduloEncendido } = useSesion();
@@ -84,6 +103,12 @@ export default function FichaLead() {
   const motivos = useCarga((senal) => api.get<{ datos: MotivoPerdida[] }>("/api/motivos-perdida", { activo: true }, senal).then((r) => r.datos), []);
   const historial = useCarga((senal) => api.get<Historial>(`/api/leads/${id}/historial`, undefined, senal), [id]);
   const tareas = useCarga((senal) => (puede("tareas:leer") ? api.get<Pagina<Tarea>>("/api/tareas", { lead_id: id, estado: "pendiente", limite: 20 }, senal) : Promise.resolve(null)), [id]);
+  // El color de cada disciplina sale de su dato (`color_marca`); si no se puede leer, los niños se ven con el tono neutro (la ficha no depende de esto).
+  const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", { activo: true }, senal).then((r) => r.datos).catch(() => [] as Vertical[]), []);
+  const colorDe = (verticalId: string): string | null => (verticales.datos ?? []).find((v) => v.id === verticalId)?.color_marca ?? null;
+  // Las cotizaciones se leen aquí una vez: «Niños» dice «Cotizar otra vez» a quien ya tiene una y la tarjeta «Cotizaciones» las lista.
+  const cotizaciones = useCotizaciones(id, moduloEncendido("cotizador"));
+  const conCotizacion = new Set((cotizaciones.datos?.datos ?? []).filter((c) => c.estatus !== "vencida").map((c) => c.prospecto_id));
   const [moviendo, setMoviendo] = useState(false);
   const [marcando, setMarcando] = useState(false);
   // V3: el niño al que se le abre el formulario de cotizar (desde su fila en «Niños»).
@@ -111,11 +136,22 @@ export default function FichaLead() {
   // «fuente» ya sale arriba con su nombre en español: repetirla con el valor crudo («landing») era ruido (V7).
   const hayConvertir = puede("conversion:ejecutar") && escribir && (!inscrito || hayPorInscribir);
   const atribucion = Object.entries(d.atribucion ?? {}).filter(([k, v]) => k !== "fuente" && k in CLAVES_DE_ATRIBUCION && typeof v === "string");
+  // «Interés»: la disciplina del lead y las de sus niños (puede haber más de una).
+  const interes = listaConY([d.vertical.nombre, ...d.prospectos.map((p) => p.vertical.nombre)]);
+  const linea = [
+    ...historial.datos?.inscripciones.map((i, n) => ({ clave: `inscripcion-${n}`, cuando: i.fecha, cambio: null as null })) ?? [],
+    ...[...(historial.datos?.cambios ?? [])].map((c) => ({ clave: c.id, cuando: c.creado_en, cambio: c })),
+  ].map((x, orden) => ({ x, orden })).sort((a, b) => Date.parse(b.x.cuando) - Date.parse(a.x.cuando) || b.orden - a.orden).map(({ x }) => x);
 
   return (
     <Marco
       titulo={nombre}
-      subtitulo={<Link className="enlace-volver" to="/embudo">← Volver al embudo</Link>}
+      encima={
+        <Link className="enlace-atras" to="/embudo">
+          <Icono nombre="atras" tamano={16} />
+          Volver al embudo
+        </Link>
+      }
       acciones={
         <>
           <EnlaceAChatwoot lead={d} />
@@ -132,27 +168,34 @@ export default function FichaLead() {
           Sin sucursal no se puede cotizar ni ver los grupos para la clase muestra. Pregúntale a la familia cuál le queda mejor y elígela en «Sucursal».
         </Aviso>
       ) : null}
-      <Tarjeta
-        titulo="Contacto"
-        className="ficha-resumen"
-        acciones={
-          escribir ? (
+      <section className="tarjeta ficha-resumen" aria-labelledby="ficha-contacto">
+        <h2 id="ficha-contacto" className="solo-lectores">Contacto</h2>
+        <div className="ficha-estado-fila">
+          <div className="ficha-estado">
+            <span className="ficha-etapa" data-prueba="etapa-actual">
+              <span className="etapa-pildora" data-tono={d.etapa.es_perdido ? "peligro" : inscrito ? "exito" : "neutro"}>
+                {d.etapa.nombre}
+              </span>
+              {historial.datos?.inscrito_a_mano ? <Insignia tono="info">Inscrito a mano</Insignia> : null}
+            </span>
+            <span className="ficha-telefono numero">{d.telefono ?? "—"}</span>
+          </div>
+          {escribir ? (
             <div className="fila fila-fin">
               {puedeMarcarInscrito ? <Boton variante={hayConvertir || cotizando ? "sutil" : "primario"} onClick={() => setMarcando(true)} data-prueba="marcar-como-inscrito">Marcar como inscrito</Boton> : null}
-              <Boton onClick={() => setMoviendo(true)}>Mover de etapa</Boton>
+              <Boton onClick={() => setMoviendo(true)}>
+                <Icono nombre="siguiente" tamano={18} />
+                Mover de etapa
+              </Boton>
             </div>
-          ) : undefined
-        }
-      >
-        <div className="ficha-estado">
-          <span className="ficha-etapa" data-prueba="etapa-actual">
-            <Insignia tono={d.etapa.es_perdido ? "peligro" : inscrito ? "exito" : "info"}>{d.etapa.nombre}</Insignia>
-            {historial.datos?.inscrito_a_mano ? <> <Insignia tono="info">Inscrito a mano</Insignia></> : null}
-            {d.motivo_perdida ? ` · Motivo: ${d.motivo_perdida.nombre}` : ""}
-            {d.recuperaciones > 0 ? ` · Recuperado ${d.recuperaciones} vez/veces` : ""}
-          </span>
-          <span className="ficha-telefono numero">{d.telefono ?? "—"}</span>
+          ) : null}
         </div>
+        {d.motivo_perdida || d.recuperaciones > 0 ? (
+          <p className="muted ficha-etapa-nota" data-prueba="nota-de-etapa">
+            {[d.motivo_perdida ? `Motivo: ${d.motivo_perdida.nombre}` : null, d.recuperaciones > 0 ? `Recuperado ${d.recuperaciones} ${d.recuperaciones === 1 ? "vez" : "veces"}` : null].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
+        {etapas.datos ? <AvanceEnElEmbudo etapas={etapas.datos} actualId={d.etapa.id} /> : null}
         <dl className="datos-rejilla">
           <div>
             <dt>Sucursal</dt>
@@ -160,7 +203,7 @@ export default function FichaLead() {
           </div>
           <div>
             <dt>Interés</dt>
-            <dd>{d.vertical.nombre}</dd>
+            <dd>{interes}</dd>
           </div>
           <div>
             <dt>Llegó</dt>
@@ -168,84 +211,100 @@ export default function FichaLead() {
           </div>
           <div>
             <dt>Último movimiento</dt>
-            <dd className="numero">{formatearInstante(d.ultima_interaccion_en)}</dd>
+            <dd className="numero">{d.ultima_interaccion_en ? (haceCuanto(d.ultima_interaccion_en) ?? formatearInstante(d.ultima_interaccion_en)) : "—"}</dd>
           </div>
         </dl>
-      </Tarjeta>
+      </section>
 
-      <Ninos key={d.id} lead={d} puedeEscribir={escribir} cotizadorEncendido={moduloEncendido("cotizador")} alCambiar={recargar} alCotizar={(id) => setCotizandoA({ id, vez: Date.now() })} />
+      <div className="ficha-columnas">
+        <div className="ficha-columna ficha-columna-principal">
+          <Ninos key={d.id} lead={d} puedeEscribir={escribir} cotizadorEncendido={moduloEncendido("cotizador")} alCambiar={() => { recargar(); cotizaciones.recargar(); }} alCotizar={(pid) => setCotizandoA({ id: pid, vez: Date.now() })} colorDe={colorDe} conCotizacion={conCotizacion} />
+          {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} cotizarA={cotizandoA} alCambiarFormulario={setCotizando} carga={cotizaciones} /> : null}
+          {moduloEncendido("clase_muestra") ? <ClasesMuestraDeLead lead={d} puedeEscribir={puede("clases_muestra:escribir")} alCambiar={recargar} /> : null}
+        </div>
 
-      <Tarjeta titulo="De dónde llegó">
-        {/* V10 (V7-ASESOR-19): lo que capturó el asistente también queda como nota privada en Chatwoot; aquí no se decía. */}
-        {d.conversaciones.length > 0 ? <p className="muted" data-prueba="aviso-resumen-del-asistente">Lo que el asistente capturó (nombre, edad, sucursal y de dónde llegó) está aquí y también como nota privada al inicio de la conversación en Chatwoot.</p> : null}
-        <dl className="datos">
-          <dt>Fuente</dt>
-          <dd>{FUENTES[d.fuente] ?? d.fuente}</dd>
-          <dt>Campaña</dt>
-          <dd>{d.campana?.nombre ?? "—"}</dd>
-          {d.anuncio_titulo ? (
-            <>
-              <dt>Anuncio</dt>
-              <dd>{d.anuncio_titulo}</dd>
-            </>
+        <div className="ficha-columna ficha-columna-lateral">
+          {tareas.datos && tareas.datos.datos.length > 0 ? (
+            <Tarjeta titulo="Tareas">
+              <ul className="tareas-ficha">
+                {tareas.datos.datos.map((t) => (
+                  <TarjetaDeTarea key={t.id} tarea={t} alCambiar={tareas.recargar} conEnlaceAlLead={false} variante="ficha" />
+                ))}
+              </ul>
+            </Tarjeta>
           ) : null}
-          {atribucion.map(([k, v]) => (
-            <Fragment key={k}>
-              <dt>{CLAVES_DE_ATRIBUCION[k]}</dt>
-              <dd>{String(v)}</dd>
-            </Fragment>
-          ))}
-        </dl>
-      </Tarjeta>
 
-      {moduloEncendido("cotizador") ? <Cotizaciones lead={d} puedeEscribir={escribir} cotizarA={cotizandoA} alCambiarFormulario={setCotizando} /> : null}
-      {moduloEncendido("clase_muestra") ? <ClasesMuestraDeLead lead={d} puedeEscribir={puede("clases_muestra:escribir")} alCambiar={recargar} /> : null}
+          <Tarjeta titulo="De dónde llegó">
+            <dl className="ficha-origen">
+              <dt>Fuente</dt>
+              <dd>{FUENTES[d.fuente] ?? d.fuente}</dd>
+              <dt>Campaña</dt>
+              <dd>{d.campana?.nombre ?? "—"}</dd>
+              {d.anuncio_titulo ? (
+                <>
+                  <dt>Anuncio</dt>
+                  <dd>{d.anuncio_titulo}</dd>
+                </>
+              ) : null}
+              {atribucion.map(([k, v]) => (
+                <Fragment key={k}>
+                  <dt>{CLAVES_DE_ATRIBUCION[k]}</dt>
+                  <dd>{String(v)}</dd>
+                </Fragment>
+              ))}
+            </dl>
+            {/* V10 (V7-ASESOR-19): lo que capturó el asistente también queda como nota privada en Chatwoot; aquí no se decía. */}
+            {d.conversaciones.length > 0 ? <p className="muted dato-chico" data-prueba="aviso-resumen-del-asistente">Lo que el asistente capturó (nombre, edad, sucursal y de dónde llegó) está aquí y también como nota privada al inicio de la conversación en Chatwoot.</p> : null}
+          </Tarjeta>
 
-      {tareas.datos && tareas.datos.datos.length > 0 ? (
-        <Tarjeta titulo={`Tareas pendientes (${tareas.datos.paginacion.total})`}>
-          <ul className="lista-tarjetas">
-            {tareas.datos.datos.map((t) => (
-              <TarjetaDeTarea key={t.id} tarea={t} alCambiar={tareas.recargar} conEnlaceAlLead={false} />
-            ))}
-          </ul>
-        </Tarjeta>
-      ) : null}
-
-      <Tarjeta titulo="Historial de etapas">
-        {historial.error ? <ErrorDeCarga error={historial.error} alReintentar={historial.recargar} /> : null}
-        {historial.datos && historial.datos.cambios.length === 0 ? <Vacio icono="lista" titulo="Todavía no hay cambios de etapa registrados">El primer cambio aparecerá aquí cuando muevas al lead de etapa.</Vacio> : null}
-        {historial.datos && historial.datos.cambios.length > 0 ? (
-          <ol className="lista-historial historial-linea" data-prueba="historial">
-            {historial.datos.cambios.map((c) => (
-              <li key={c.id} data-prueba={c.a_mano ? "cambio-a-mano" : undefined}>
-                <strong>
-                  {c.desde ? (c.desde.nombre ?? "—") : "Alta"} → {c.hacia.nombre ?? "—"}
-                </strong>
-                {c.a_mano ? (
-                  <>
-                    {" "}
-                    <Insignia tono="info">Inscrito a mano</Insignia>
-                  </>
-                ) : null}
-                <span className="muted">
-                  {" "}
-                  · {formatearInstante(c.creado_en)} · {c.origen === "sistema" ? "automático" : (c.usuario?.nombre ?? "persona")} · {textoDeMotivo(c.motivo)}
-                </span>
-                {c.a_mano ? <div>Inscrito a mano por {c.usuario?.nombre ?? "una persona"} el {formatearInstante(c.creado_en)}</div> : null}
-                {c.motivo_perdida ? <div>Motivo de pérdida: {c.motivo_perdida.nombre}</div> : null}
-                {c.nota ? <div className="muted">Nota: {c.nota}</div> : null}
-              </li>
-            ))}
-            {historial.datos.inscripciones.map((i, n) => (
-              <li key={`inscripcion-${n}`} data-prueba="inscripcion-real">
-                <strong>Inscripción registrada en el sistema</strong>
-                <span className="muted"> · {formatearFecha(i.fecha)}</span>
-                {historial.datos?.cambios.some((c) => c.a_mano) ? <div className="muted">La familia ya estaba marcada como inscrita a mano; desde ahora cuenta por esta inscripción.</div> : null}
-              </li>
-            ))}
-          </ol>
-        ) : null}
-      </Tarjeta>
+          <Tarjeta titulo="Historial">
+            {historial.error ? <ErrorDeCarga error={historial.error} alReintentar={historial.recargar} /> : null}
+            {historial.datos && linea.length === 0 ? <Vacio icono="lista" titulo="Todavía no hay cambios de etapa registrados">El primer cambio aparecerá aquí cuando muevas al lead de etapa.</Vacio> : null}
+            {linea.length > 0 ? (
+              <ol className="linea-tiempo" data-prueba="historial">
+                {linea.map((x, i) => {
+                  const c = x.cambio;
+                  return (
+                    <li key={x.clave} data-reciente={i === 0 ? "" : undefined} data-prueba={c?.a_mano ? "cambio-a-mano" : c === null ? "inscripcion-real" : undefined}>
+                      <span className="linea-tiempo-eje" aria-hidden="true">
+                        <span className="linea-tiempo-punto" />
+                        <span className="linea-tiempo-hilo" />
+                      </span>
+                      <div className="linea-tiempo-texto">
+                        {c ? (
+                          <>
+                            <div className="linea-tiempo-titulo">
+                              {c.desde ? (c.desde.nombre ?? "—") : "Alta"} → {c.hacia.nombre ?? "—"}
+                              {c.a_mano ? (
+                                <>
+                                  {" "}
+                                  <Insignia tono="info">Inscrito a mano</Insignia>
+                                </>
+                              ) : null}
+                            </div>
+                            {c.a_mano ? <div>Inscrito a mano por {c.usuario?.nombre ?? "una persona"} el {formatearInstante(c.creado_en)}</div> : null}
+                            {c.motivo_perdida ? <div className="linea-tiempo-nota">Motivo de pérdida: {c.motivo_perdida.nombre}</div> : null}
+                            {c.nota ? <div className="linea-tiempo-nota">Nota: {c.nota}</div> : null}
+                            <div className="muted linea-tiempo-quien">
+                              {c.origen === "sistema" ? "automático" : (c.usuario?.nombre ?? "persona")} · {formatearInstante(c.creado_en)} · {textoDeMotivo(c.motivo)}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="linea-tiempo-titulo">Inscripción registrada en el sistema</div>
+                            {historial.datos?.cambios.some((k) => k.a_mano) ? <div className="linea-tiempo-nota">La familia ya estaba marcada como inscrita a mano; desde ahora cuenta por esta inscripción.</div> : null}
+                            <div className="muted linea-tiempo-quien">{formatearFecha(x.cuando)}</div>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : null}
+          </Tarjeta>
+        </div>
+      </div>
 
       <MarcarInscrito lead={marcando ? { id: d.id, nombre, etapa_id: d.etapa.id } : null} etapas={etapas.datos ?? []} abierto={marcando} alCerrar={() => setMarcando(false)} alMarcar={recargar} />
       <MoverEtapa lead={moviendo ? { id: d.id, nombre, etapa_id: d.etapa.id } : null} etapas={etapas.datos ?? []} motivos={motivos.datos ?? []} abierto={moviendo} alCerrar={() => setMoviendo(false)} alMover={recargar} />

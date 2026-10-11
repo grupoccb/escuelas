@@ -10,13 +10,14 @@ import { aCentavos, comparar, formatear, normalizarCaptura, restar } from "../..
 import { formatearDiaYMes, hoyLocal, mensajeDeFechaDePago } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Tarjeta, Vacio } from "../../ui/basicos.tsx";
-import { CampoArea, CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
+import { CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { Icono } from "../../ui/Icono.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
 import { BuscadorDeFamilia } from "./BuscadorDeFamilia.tsx";
 import { DeudaDeLaFamilia } from "./DeudaDeLaFamilia.tsx";
 import { TarjetaDeFamilia } from "./FamiliaElegida.tsx";
+import { CancelarPago } from "./CancelarPago.tsx";
 import { PagoRegistrado } from "./PagoRegistrado.tsx";
 import { atajosDeMonto, cargosAbiertos, claveParaEnvio, firmaDelPago, folioDePago, mensajeDeCaptura, mensajeDeExceso, validarReparto } from "./reparto.ts";
 import { METODOS, nombreDeCargo, type EstadoDeCuenta, type Pago, type Propuesta } from "./tipos.ts";
@@ -239,8 +240,6 @@ function PagosRecientes({ tutorId, version, nuevoId, alCambiar }: { tutorId: str
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo cuando cambia la versión
   }, [version]);
   const [cancelando, setCancelando] = useState<Pago | null>(null);
-  const [motivo, setMotivo] = useState("");
-  const accion = useAccion();
   const hoy = hoyLocal();
   return (
     <Tarjeta titulo="Pagos recientes" className="cobro-recientes">
@@ -272,30 +271,14 @@ function PagosRecientes({ tutorId, version, nuevoId, alCambiar }: { tutorId: str
           </li>
         ))}
       </ul>
-      <Dialogo abierto={cancelando !== null} titulo="Cancelar el pago" alCerrar={() => { setCancelando(null); setMotivo(""); accion.limpiar(); }}>
-        <p>Se cancela SIN borrarlo: sus cargos recuperan el saldo. Monto: <strong>{formatear(cancelando?.monto)}</strong></p>
-        <CampoArea etiqueta="Motivo de la cancelación" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={300} requerido />
-        <ErrorDeAccion error={accion.error} />
-        <div className="formulario-acciones">
-          <Boton
-            variante="peligro"
-            grande
-            disabled={motivo.trim().length < 3}
-            cargando={accion.ocupado}
-            onClick={() =>
-              void accion.ejecutar(async () => {
-                await api.post(`/api/pagos/${cancelando?.id ?? ""}/cancelar`, { motivo: motivo.trim() });
-                setCancelando(null);
-                setMotivo("");
-                alCambiar();
-              })
-            }
-          >
-            Cancelar el pago
-          </Boton>
-          <Boton onClick={() => { setCancelando(null); setMotivo(""); }}>Conservarlo</Boton>
-        </div>
-      </Dialogo>
+      <CancelarPago
+        pago={cancelando}
+        alCerrar={() => setCancelando(null)}
+        alCancelado={() => {
+          setCancelando(null);
+          alCambiar();
+        }}
+      />
     </Tarjeta>
   );
 }

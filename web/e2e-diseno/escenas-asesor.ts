@@ -1731,25 +1731,15 @@ export const ESCENAS: Escena[] = conVistas(conVentana([
   }),
   e({
     id: "asesor-tareas-filtro-tipo",
-    titulo: "Tareas con la lista de «Tipo de tarea» y un tipo elegido",
+    titulo: "Tareas con el filtro por tipo (panel «Por tipo» en escritorio, select «Tipo de tarea» en celular) y un tipo elegido",
     tipo: "estado",
     ruta: "/tareas",
     fuentes: TAREAS,
     ir: async (c) => {
+      await editarGet(c, enApi("/api/tareas"), (cuerpo) => tareasDeTodosLosTipos(c, cuerpo, "pendiente"));
       await ir(c, "/tareas");
-      await c.page.getByLabel("Tipo de tarea").selectOption({ label: "Lead sin movimiento" });
-      await listo(c);
-    },
-  }),
-  e({
-    id: "asesor-tareas-filtro-sin-resultados",
-    titulo: "Tareas pendientes con un tipo que no tiene ninguna («No hay tareas pendientes»)",
-    tipo: "estado",
-    ruta: "/tareas",
-    fuentes: TAREAS,
-    ir: async (c) => {
-      await ir(c, "/tareas");
-      await c.page.getByLabel("Tipo de tarea").selectOption({ label: "Deuda vencida" });
+      if (c.vista === "celular") await c.page.getByLabel("Tipo de tarea").selectOption({ label: "Lead sin movimiento (1)" });
+      else await c.page.getByRole("complementary", { name: "Filtrar por tipo" }).getByRole("button", { name: /Lead sin movimiento/ }).click();
       await listo(c);
     },
   }),

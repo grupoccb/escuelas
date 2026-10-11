@@ -144,33 +144,46 @@ for (const c of CASOS) {
   });
 }
 
-// V13-fix EV-15: el filtro «Tipo de tarea» ofrecía los 20 tipos aunque su módulo estuviera apagado (la lista sí venía filtrada del servidor).
-test.describe("tareas: el filtro «Tipo de tarea» no ofrece los tipos de un módulo apagado", () => {
-  const POR_MODULO: { modulo: Modulo; tipos: string[] }[] = [
-    { modulo: "finanzas", tipos: ["Deuda vencida", "Beneficio en revisión", "Cobranza sin canal"] },
-    { modulo: "cotizador", tipos: ["Nuevo en lista de espera"] },
-    { modulo: "clase_muestra", tipos: ["Listo para cerrar"] },
-    { modulo: "operacion", tipos: ["Faltas seguidas"] },
+// V13-fix EV-15: el filtro por tipo ofrecía los 20 tipos aunque su módulo estuviera apagado (la lista sí venía filtrada del servidor). R5a: en escritorio el filtro es el panel «Filtrar por
+// tipo» (solo ofrece los tipos que tienen tareas, con su conteo); en celular es el select «Tipo de tarea». Aquí se siembra una tarea pendiente de cada tipo que se prueba y se mira el panel.
+test.describe("tareas: el filtro por tipo no ofrece los tipos de un módulo apagado", () => {
+  const POR_MODULO: { modulo: Modulo; tipos: { valor: "deuda_vencida" | "beneficio_en_revision" | "cobranza_sin_canal" | "lista_espera_nueva" | "listo_para_cerrar" | "faltas_consecutivas"; titulo: string }[] }[] = [
+    { modulo: "finanzas", tipos: [{ valor: "deuda_vencida", titulo: "Deuda vencida" }, { valor: "beneficio_en_revision", titulo: "Beneficio en revisión" }, { valor: "cobranza_sin_canal", titulo: "Cobranza sin canal" }] },
+    { modulo: "cotizador", tipos: [{ valor: "lista_espera_nueva", titulo: "Nuevo en lista de espera" }] },
+    { modulo: "clase_muestra", tipos: [{ valor: "listo_para_cerrar", titulo: "Listo para cerrar" }] },
+    { modulo: "operacion", tipos: [{ valor: "faltas_consecutivas", titulo: "Faltas seguidas" }] },
   ];
   for (const { modulo, tipos } of POR_MODULO) {
-    test(`${modulo} apagado: no aparecen ${tipos.join(", ")}; encendido, sí`, async ({ browser }) => {
+    test(`${modulo} apagado: no aparecen ${tipos.map((t) => t.titulo).join(", ")}; encendido, sí`, async ({ browser }) => {
       test.setTimeout(90_000);
       await fijar([]);
+      // Una tarea pendiente de cada tipo (y una de captación, que nunca se apaga) para que el panel tenga qué ofrecer.
+      for (const t of [...tipos, { valor: "revision_manual" as const, titulo: "Revisión manual" }]) {
+        await prisma.tarea_asesor.create({ data: { organizacion_id: M.organizacion.id, lead_id: M.lead.leadId, tipo: t.valor, descripcion: `Prueba de ${t.titulo}` } });
+      }
       const { context, page } = await paginaDe(browser, "asesor");
       try {
-        const opciones = async () => (await page.getByLabel("Tipo de tarea").locator("option").allTextContents()).map((t) => t.trim());
+        const panel = page.getByRole("complementary", { name: "Filtrar por tipo" });
+        const opciones = async () => (await panel.getByRole("button").locator(".tareas-tipo-nombre").allTextContents()).map((t) => t.trim());
         await page.goto("/tareas");
-        await expect(page.getByLabel("Tipo de tarea")).toBeVisible();
+        await expect(panel).toBeVisible();
         const todas = await opciones();
-        for (const t of tipos) expect(todas, `encendido: ${t}`).toContain(t);
+        for (const t of tipos) expect(todas, `encendido: ${t.titulo}`).toContain(t.titulo);
         await fijar(conDependientes(modulo));
         await page.goto("/tareas");
-        await expect(page.getByLabel("Tipo de tarea")).toBeVisible();
+        await expect(panel).toBeVisible();
         const sin = await opciones();
-        for (const t of tipos) expect(sin, `apagado: ${t}`).not.toContain(t);
-        expect(sin).toContain("Todos los tipos");
+        for (const t of tipos) expect(sin, `apagado: ${t.titulo}`).not.toContain(t.titulo);
+        expect(sin).toContain("Todas");
         expect(sin.length).toBeLessThan(todas.length);
-        expect(sin).toContain("Sin plantilla apta"); // lo de la captación sigue
+        expect(sin).toContain("Revisión manual"); // lo de la captación sigue
+        // En celular el mismo filtro es el select «Tipo de tarea», con las mismas opciones.
+        await page.setViewportSize({ width: VISTA_CELULAR.width, height: VISTA_CELULAR.height });
+        const select = page.getByLabel("Tipo de tarea");
+        await expect(select).toBeVisible();
+        const deCelular = (await select.locator("option").allTextContents()).map((t) => t.replace(/\s*\(\d+\)\s*$/, "").trim());
+        for (const t of tipos) expect(deCelular, `celular apagado: ${t.titulo}`).not.toContain(t.titulo);
+        expect(deCelular).toContain("Revisión manual");
       } finally {
         await context.close();
         await fijar([]);

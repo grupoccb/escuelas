@@ -13,6 +13,7 @@ import { useAccion } from "../../ui/hooks.ts";
 import { CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
 import { Aceptaciones } from "../maestro/Aceptaciones.tsx";
 import type { CapturadoDeProspecto, Oferta } from "./datos.ts";
+import { primerPago, type PrecioDeNino } from "./resumen.ts";
 import { etiquetaDeFalta, nacimientoValido, type Entrada, type EntradaDeAlumno, type Falta } from "./faltantes.ts";
 
 export interface Opciones {
@@ -36,6 +37,8 @@ export interface ContextoDePasos {
   ponerGrupo: (id: string, grupoId: string) => void;
   ponerOpcion: (id: string, campo: keyof Opciones, valor: string) => void;
   recargarVista: () => void;
+  /** El color de una disciplina (`color_marca`) por su `vertical.id`; sin él (o si no se pudo leer), el tono neutro. */
+  colorDe?: (verticalId: string) => string | null;
 }
 
 const hayFalta = (c: ContextoDePasos, campo: string): boolean => c.faltas.some((f) => f.campo === campo);
@@ -49,6 +52,16 @@ export function grupoEfectivo(c: ContextoDePasos, id: string): string {
 export function programaDeGrupo(c: ContextoDePasos, id: string, grupoId: string): ProgramaCotizado | null {
   return c.ofertas[id]?.programas.find((p) => p.grupos.some((g) => g.grupo_id === grupoId)) ?? null;
 }
+
+/** Lo que cuesta cada niño con el grupo que tiene elegido (`null` si aún no hay grupo o el programa no tiene precio vigente): la entrada de `primerPago`. */
+export function preciosDeLosNinos(c: ContextoDePasos): (PrecioDeNino | null)[] {
+  return c.pendientes.map((id) => {
+    const g = grupoEfectivo(c, id);
+    const prom = (g ? programaDeGrupo(c, id, g) : null)?.promociones ?? null;
+    return prom ? { inscripcion: prom.inscripcion.final_ahora, mensualidad: prom.mensualidad.final_ahora, mesesGratis: prom.meses_gratis_ahora } : null;
+  });
+}
+
 
 /** Un dato ya capturado: se ve su valor; «Corregir» abre el campo. Un dato que falta: el campo, obligatorio. */
 function Dato({ etiqueta, capturado, escrito, falta, tipo = "text", error, alEscribir }: { etiqueta: string; capturado: string | null | undefined; escrito: string | undefined; falta: boolean; tipo?: string; error?: string | undefined; alEscribir: (v: string) => void }) {
@@ -92,6 +105,9 @@ export function PasoFamilia({ c }: { c: ContextoDePasos }) {
                   <span className="muted numero">
                     · {t.parentesco} · {t.telefono}
                   </span>
+                </span>
+                <span className="adulto-capturado">
+                  <Insignia tono="exito">Capturado</Insignia>
                 </span>
                 {t.es_responsable_pago || t.lo_lleva || t.puede_recoger ? (
                   <span className="adulto-etiquetas">
@@ -138,12 +154,22 @@ export function PasoAlumnos({ c }: { c: ContextoDePasos }) {
         const rutas = (resto: string) => hayFalta(c, `prospectos.${id}.alumno.${resto}`);
         const prospecto = c.lead.prospectos.find((p) => p.id === id);
         const nada = !["nombre", "apellidos", "fecha_nacimiento"].some(rutas);
+        // Los apellidos del adulto (el registro del maestro o lo que se escribió en el paso anterior): un atajo para el caso común, que el niño lleve los mismos.
+        const apellidosDelAdulto = (reg?.tutores.find((t) => t.apellidos && t.apellidos.trim() !== "")?.apellidos ?? c.entrada.tutor.apellidos).trim();
+        const faltanApellidos = rutas("apellidos") && !(e?.apellidos && e.apellidos.trim() !== "");
         return (
           <Tarjeta key={id} titulo={nombreDeProspecto(c, id)} className="pila">
             <div className="pila" data-prueba={`alumno-${id}`}>
               <Dato etiqueta="Nombre" capturado={reg?.alumno.nombre ?? prospecto?.nombre} escrito={e?.nombre} falta={rutas("nombre")} alEscribir={(v) => c.ponerAlumno(id, { nombre: v })} />
               <Dato etiqueta="Apellidos" capturado={reg?.alumno.apellidos ?? prospecto?.apellidos} escrito={e?.apellidos} falta={rutas("apellidos")} alEscribir={(v) => c.ponerAlumno(id, { apellidos: v })} />
               <Dato etiqueta="Fecha de nacimiento" tipo="date" capturado={reg?.alumno.fecha_nacimiento ?? prospecto?.fecha_nacimiento} escrito={e?.fecha_nacimiento} falta={rutas("fecha_nacimiento")} error={e?.fecha_nacimiento && !nacimientoValido(e.fecha_nacimiento, hoyLocal()) ? "Escribe una fecha real que no sea futura (de 1 a 99 años de edad)." : undefined} alEscribir={(v) => c.ponerAlumno(id, { fecha_nacimiento: v })} />
+              {faltanApellidos && apellidosDelAdulto !== "" ? (
+                <div>
+                  <Boton variante="fantasma" onClick={() => c.ponerAlumno(id, { apellidos: apellidosDelAdulto })}>
+                    Usar «{apellidosDelAdulto}», los del adulto
+                  </Boton>
+                </div>
+              ) : null}
               {prospecto?.edad_declarada !== null && prospecto?.edad_declarada !== undefined && !reg?.alumno.fecha_nacimiento && !prospecto?.fecha_nacimiento ? <p className="muted">Edad que dijo la familia: {prospecto.edad_declarada} años.</p> : null}
               {reg ? (
                 <dl className="datos resumen-datos" data-prueba="capturado-del-maestro">
@@ -381,6 +407,8 @@ export function PasoReglamento({ c }: { c: ContextoDePasos }) {
 }
 
 export function PasoConfirmar({ c, quedan, hayError = false, alIrAlPaso, nombreDeFalta, children }: { c: ContextoDePasos; quedan: readonly Falta[]; hayError?: boolean; alIrAlPaso: (campo: string) => void; nombreDeFalta?: ((prospectoId: string) => string | null) | undefined; children: ReactNode }) {
+  // El primer pago de la familia (inscripción y primera mensualidad de cada niño); sin precio de alguno, o con meses gratis, no se dice.
+  const total = primerPago(preciosDeLosNinos(c));
   return (
     <div className="pila">
       {quedan.length > 0 ? (
@@ -438,6 +466,12 @@ export function PasoConfirmar({ c, quedan, hayError = false, alIrAlPaso, nombreD
               </div>
             );
           })}
+          {total !== null ? (
+            <div className="resumen-lateral-total" data-prueba="primer-pago">
+              <span>Primer pago</span>
+              <strong className="numero">{formatear(total)}</strong>
+            </div>
+          ) : null}
         </div>
       </Tarjeta>
       {children}

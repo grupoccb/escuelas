@@ -899,7 +899,23 @@ const ESCENAS_SIN_ENVOLVER: Escena[] = [
     id: "conv-exito-inscrito",
     rol: "asesor",
     grupo: GRUPO,
-    titulo: "Pantalla «Listo: familia e inscripción creadas»: alumno creado e inscrito con su resumen de importes, «Volver a la ficha» y «Ver el estado de cuenta» (el POST final se responde en la escena)",
+    titulo: "Pantalla «Inscripción lista»: «X quedó inscrito», alumno creado e inscrito con su resumen de importes, «Volver a la ficha» y «Ver el estado de cuenta» (el POST final se responde en la escena)",
+    tipo: "pantalla",
+    ruta: RUTA,
+    fuentes: FUENTES_ASISTENTE,
+    ir: async (c) => {
+      await irAConfirmar(c, prado(c).leadId);
+      await responderEscritura(c, "POST", /\/convertir$/, 201, await resultadoDeConversion(c, [{ prospectoId: prado(c).prospectoId, creado: true, inscripcionCreada: true }]));
+      await convertir(c);
+      await c.page.locator('[data-prueba="conversion-lista"]').waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "conv-exito-con-cobro",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Pantalla «Inscripción lista» para quien también cobra (administrador): «Registrar el primer pago» como acción principal y «Ver la ficha de la familia» (el POST final se responde en la escena)",
     tipo: "pantalla",
     ruta: RUTA,
     fuentes: FUENTES_ASISTENTE,
@@ -915,7 +931,7 @@ const ESCENAS_SIN_ENVOLVER: Escena[] = [
     id: "conv-exito-ya-existia",
     rol: "asesor",
     grupo: GRUPO,
-    titulo: "Pantalla «Listo…» cuando el alumno ya existía y ya estaba inscrito en ese grupo (el POST final se responde en la escena)",
+    titulo: "Pantalla «Inscripción lista» cuando el alumno ya existía y ya estaba inscrito en ese grupo (el POST final se responde en la escena)",
     tipo: "pantalla",
     ruta: RUTA,
     fuentes: FUENTES_ASISTENTE,

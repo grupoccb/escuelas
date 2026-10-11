@@ -166,6 +166,46 @@ test("la entrega: recepción entrega lo liberado; lo pendiente, lo ya entregado 
   }
 });
 
+interface Entregados { datos: { id: string; inscripcion_id: string; vertical_id: string; entregado_en: string | null; entregado_por: { id: string; nombre: string } | null; producto: { nombre: string; talla: string | null } | null }[]; paginacion: { total: number } }
+
+test("R5b: «Entregados» lista lo ya entregado (lo más reciente primero) con quién, cuándo y qué pieza salió; lo por entregar trae la disciplina; el alcance y los permisos son los de la lista de por entregar", async () => {
+  const apagar = await promocionDiferida();
+  const reloj = m.reloj.ahora;
+  try {
+    const i = await m.inscribir();
+    await pagar(i.tutorId, "1500.00");
+    const antes = (await porEntregar()).datos.find((d) => d.inscripcion_id === i.inscripcionId && d.tipo === "producto_gratis") as ({ id: string; vertical_id?: string } | undefined);
+    assert.ok(antes, "el uniforme está por entregar");
+    assert.equal(antes.vertical_id, m.org.verticalId, "la lista de por entregar dice de qué disciplina es (de ahí sale el color de la tarjeta)");
+    const pieza = await m.admin.post<{ id: string }>("/api/productos", { vertical_id: m.org.verticalId, nombre: "Uniforme R5b", talla: "6", precio: "350.00", stock: 3 });
+    assert.equal(pieza.estado, 201);
+    assert.equal((await m.recepcion.get<Entregados>("/api/beneficios/entregados?limite=100")).cuerpo.datos.some((d) => d.id === antes.id), false, "todavía no se entrega");
+    m.reloj.ahora = new Date(reloj.getTime() + 86_400_000); // un día después: esta entrega es la más reciente de toda la organización
+    assert.equal((await m.recepcion.post(`/api/beneficios/${antes.id}/entregar`, { producto_id: pieza.cuerpo.id })).estado, 200);
+    const lista = (await m.recepcion.get<Entregados>("/api/beneficios/entregados?limite=100")).cuerpo;
+    const fila = lista.datos.find((d) => d.id === antes.id);
+    assert.ok(fila, "ya está entre los entregados");
+    assert.equal(fila.entregado_por?.id, m.recepcionId, "quién lo entregó");
+    assert.ok(fila.entregado_en !== null, "cuándo");
+    assert.deepEqual(fila.producto, { nombre: "Uniforme R5b", talla: "6" }, "la pieza que salió del inventario");
+    assert.equal(fila.vertical_id, m.org.verticalId);
+    assert.equal(lista.datos[0]?.id, antes.id, "lo más reciente primero");
+    assert.equal((await porEntregar()).datos.some((d) => d.id === antes.id), false, "sale de por entregar");
+    // Sin la pieza (un descuento solo se marca entregado): sin producto.
+    const descuento = (await aplicaciones(i.inscripcionId)).find((a) => a.beneficio.tipo === "descuento_mensualidad")!;
+    assert.equal((await m.recepcion.post(`/api/beneficios/${descuento.id}/entregar`)).estado, 200);
+    assert.equal((await m.recepcion.get<Entregados>("/api/beneficios/entregados?limite=100")).cuerpo.datos.find((d) => d.id === descuento.id)?.producto, null);
+    // Permisos y alcance.
+    assert.equal((await m.maestro.get("/api/beneficios/entregados")).estado, 403);
+    assert.equal((await m.asesorNorte.get("/api/beneficios/entregados")).estado, 200);
+    assert.equal((await m.asesorSur.get<Entregados>("/api/beneficios/entregados?limite=100")).cuerpo.datos.some((d) => d.inscripcion_id === i.inscripcionId), false, "otra sucursal no lo ve");
+    assert.equal((await m.recepcion.get<Entregados>(`/api/beneficios/entregados?sucursal_id=${m.sur}&limite=100`)).cuerpo.datos.some((d) => d.inscripcion_id === i.inscripcionId), false, "filtro de sucursal");
+  } finally {
+    m.reloj.ahora = reloj;
+    await apagar();
+  }
+});
+
 test("SQL directo: la base solo libera con un pago aplicado, la primera mensualidad pagada y una inscripción que no esté de baja; las transiciones son las válidas", async () => {
   const apagar = await promocionDiferida();
   try {

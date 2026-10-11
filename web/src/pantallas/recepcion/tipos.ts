@@ -43,6 +43,9 @@ export interface PagoDeCuenta {
   referencia: string | null;
   fecha: string;
   estatus: string;
+  /** Por qué se canceló (nulo si no se canceló) y quién lo registró (R5b: el renglón de la cuenta lo dice). */
+  motivo_cancelacion?: string | null;
+  registrado_por?: string | null;
   aplicaciones: { cargo_id: string; monto: string; estatus: string }[];
 }
 
@@ -107,12 +110,21 @@ export interface BeneficioPorEntregar {
   alumno: { id: string; nombre: string; apellidos: string; talla_uniforme: string | null };
   tutor: { id: string; nombre: string; apellidos: string | null; telefono: string } | null;
   sucursal_id: string;
+  /** La disciplina del grupo (R5b): de ahí sale el color de la tarjeta y qué piezas del inventario le tocan. */
+  vertical_id?: string;
   grupo: string;
   promocion: string;
   tipo: string;
   descripcion: string | null;
   producto_id: string | null;
   liberado_en: string | null;
+}
+
+/** Lo ya entregado (R5b, `GET /api/beneficios/entregados`): lo mismo que lo por entregar y, además, cuándo, quién y qué pieza salió del inventario. */
+export interface BeneficioEntregado extends BeneficioPorEntregar {
+  entregado_en: string | null;
+  entregado_por: { id: string; nombre: string } | null;
+  producto: { nombre: string; talla: string | null } | null;
 }
 
 export const CONCEPTOS: Record<string, string> = { inscripcion: "Inscripción", mensualidad: "Mensualidad", evento: "Evento", producto: "Producto" };

@@ -507,7 +507,7 @@ test.describe("la mañana de Rita", () => {
       await expect(page.getByRole("link", { name: /Descargar/ })).toBeVisible();
     });
     await corregido("«Saldo» no dice que es lo que la familia debe", async () => {
-      await expect(page.getByTestId("resumen-de-cuenta")).toContainText(/Saldo \(lo que debe\)|Debe/);
+      await expect(page.getByTestId("resumen-de-cuenta")).toContainText(/Saldo \(lo que debe\)|Saldo de la familia|Debe/);
     });
     expect(pasosPorTarea["7. consultar el estado de cuenta"]).toBeLessThanOrEqual(META_DE_PASOS);
   });
@@ -578,11 +578,10 @@ test.describe("la mañana de Rita", () => {
     await page.reload();
     const sin = page.getByTestId(`beneficio-${F.uniformeSinTalla.beneficioId}`);
     await expect(sin).toContainText("talla 14");
-    await sin.getByRole("button", { name: "Marcar entregado" }).click();
-    await expect(page.getByRole("dialog")).toContainText("No hay piezas con existencia");
+    // R5b: la tarjeta ya dice que no hay piezas de esa talla y el botón queda apagado («Sin existencia»): no se llega a un diálogo que fallaría.
+    await expect(sin).toContainText("Sin existencia: pide más piezas");
+    await expect(sin.getByRole("button", { name: "Sin existencia" })).toBeDisabled();
     await foto(page, "uniformes-sin-existencia");
-    await expect(page.getByRole("dialog").getByRole("button", { name: "Marcar como entregado" })).toBeDisabled();
-    await page.getByRole("button", { name: "Todavía no" }).click();
   });
 
   test("9. vende un producto: con existencia, la última pieza, sin existencia, doble clic y anular una venta", async ({ page }) => {
@@ -593,7 +592,8 @@ test.describe("la mañana de Rita", () => {
     process.stdout.write(`\n[ventas]\n${texto}\n`);
     expect(texto).not.toMatch(JERGA);
     await expect(page.getByTestId(`producto-${P.agotado.id}`)).toContainText("Agotado");
-    // El producto agotado no se puede elegir.
+    // El producto agotado no se puede elegir: su tarjeta está apagada y dice «Agotado».
+    await expect(page.getByTestId(`producto-${P.agotado.id}`)).toBeDisabled();
     await page.getByLabel("Buscar al alumno por nombre").fill("angel");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
     paso();
@@ -603,10 +603,11 @@ test.describe("la mañana de Rita", () => {
     await page.getByLabel("Buscar al alumno por nombre").fill("Ángel");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
     await expect(page.getByLabel("Alumno", { exact: true })).toContainText("Ángel");
-    await expect(page.getByLabel("Producto")).not.toContainText("Botella térmica");
-    await page.getByLabel("Producto").selectOption({ label: "Mochila escolar · $1,234.50 · 3 en existencia" });
+    await page.getByTestId(`producto-${P.mochila.id}`).click();
+    await expect(page.getByTestId("producto-elegido")).toContainText("Mochila escolar");
     paso();
-    await page.getByLabel("Cantidad").fill("2");
+    await page.getByRole("button", { name: "Una más" }).click();
+    await expect(page.getByTestId("cantidad-de-piezas")).toHaveText("2");
     await expect(page.getByTestId("total-de-la-venta")).toContainText("$2,469.00");
     await foto(page, "venta-lista");
     await page.getByRole("button", { name: "Registrar venta" }).dblclick();
@@ -619,21 +620,20 @@ test.describe("la mañana de Rita", () => {
     expect((await json<{ stock: number }>(admin, `/api/productos/${P.mochila.id}`)).stock).toBe(1);
     expect(pasosPorTarea["9. vender un producto"]).toBeLessThanOrEqual(META_DE_PASOS);
 
-    // Más de lo que hay.
-    await page.getByLabel("Cantidad").fill("5");
-    await expect(page.getByRole("button", { name: "Registrar venta" })).toBeDisabled();
+    // Más de lo que hay: queda 1 y la cantidad ya no puede subir.
+    await expect(page.getByRole("button", { name: "Una más" })).toBeDisabled();
     await expect(page.getByText("Solo hay 1 en existencia")).toBeVisible();
-    await page.getByLabel("Cantidad").fill("1");
+    await expect(page.getByTestId("cantidad-de-piezas")).toHaveText("1");
 
     // La última pieza de otra cosa, y luego anular.
-    await page.getByLabel("Producto").selectOption({ label: "Libreta de tareas · $45.00 · 1 en existencia" });
+    await page.getByTestId(`producto-${P.ultima.id}`).click();
     await page.getByRole("button", { name: "Registrar venta" }).click();
     await expect(page.getByTestId(`producto-${P.ultima.id}`)).toContainText("Agotado");
     await page.getByTestId("ventas-recientes").locator("li").filter({ hasText: "Libreta de tareas" }).getByRole("button", { name: "Anular" }).click();
     await foto(page, "venta-anular-dialogo");
     await page.getByRole("dialog").getByLabel(/^Motivo de la anulación/).fill("Se equivocó de producto");
     await page.getByRole("dialog").getByRole("button", { name: "Anular la venta" }).click();
-    await expect(page.getByTestId(`producto-${P.ultima.id}`).getByTestId("existencia-del-producto")).toHaveText("1");
+    await expect(page.getByTestId(`producto-${P.ultima.id}`).getByTestId("existencia-del-producto")).toHaveText("Queda 1");
     await foto(page, "venta-anulada");
   });
 
@@ -761,7 +761,7 @@ test.describe("la mañana de Rita", () => {
         ["resultados", async () => { await buscar(p, "Báez"); await expect(tarjeta(p, F.baez.tutorId)).toBeVisible(); }],
         ["cobro", async () => { await tarjeta(p, F.baez.tutorId).getByRole("button", { name: "Elegir" }).click(); await expect(p.getByTestId("saldo-total")).toBeVisible(); }],
         ["cuenta", async () => { await p.goto(`/cuenta/${F.baez.tutorId}`); await expect(p.getByTestId("saldo")).toBeVisible(); }],
-        ["uniformes", async () => { await p.goto("/uniformes"); await expect(p.getByRole("heading", { name: "Uniformes por entregar" })).toBeVisible(); }],
+        ["uniformes", async () => { await p.goto("/uniformes"); await expect(p.getByRole("heading", { name: "Uniformes", exact: true })).toBeVisible(); }],
         ["ventas", async () => { await p.goto("/ventas"); await expect(p.getByRole("heading", { name: "Ventas", exact: true })).toBeVisible(); }],
         ["cierre", async () => { await p.goto("/corte"); await expect(p.getByRole("heading", { name: "Cierre del día" })).toBeVisible(); await expect(p.getByTestId("cajas")).toBeVisible(); }],
       ];

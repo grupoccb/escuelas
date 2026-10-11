@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1138**.
+Filas: **1157**.
 
 ## Acceso y cuenta (47)
 
@@ -433,7 +433,7 @@ Filas: **1138**.
 | `admins-automatizaciones-aviso-guardada` | administrador | flotante | Aviso «ya quedó» al guardar el ajuste de una automatización sin cambiar nada («quedó guardada. Vale para los avisos que se programen…») | `/admin/automatizaciones` | ✔ · ✔ | ✔ · ✔ |
 | `admins-configuracion-guardada` | administrador | formulario | Configuración después de guardar sin cambiar nada: el aviso «Configuración guardada.» sobre el botón | `/admin/configuracion` | ✔ · ✔ | ✔ · ✔ |
 
-## Asesor (190)
+## Asesor (189)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -538,8 +538,7 @@ Filas: **1138**.
 | `asesor-tareas-cargando` | asesor | estado | Tareas cargando | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-error` | asesor | estado | Tareas con error de carga | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-todos-los-tipos` | asesor | estado | Tareas pendientes de todos los tipos (título, ayuda, código de error, vencimiento) | `/tareas` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-tareas-filtro-tipo` | asesor | estado | Tareas con la lista de «Tipo de tarea» y un tipo elegido | `/tareas` | ✔ · ✔ | ✔ · ✔ |
-| `asesor-tareas-filtro-sin-resultados` | asesor | estado | Tareas pendientes con un tipo que no tiene ninguna («No hay tareas pendientes») | `/tareas` | ✔ · ✔ | ✔ · ✔ |
+| `asesor-tareas-filtro-tipo` | asesor | estado | Tareas con el filtro por tipo (panel «Por tipo» en escritorio, select «Tipo de tarea» en celular) y un tipo elegido | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-resueltas-datos` | asesor | estado | Tareas resueltas, con datos (hechas y descartadas) | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-resueltas-vacio` | asesor | estado | Tareas resueltas, vacías («Todavía no hay tareas resueltas») | `/tareas` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-tareas-resueltas-error` | asesor | estado | Tareas resueltas con error de carga | `/tareas` | ✔ · ✔ | ✔ · ✔ |
@@ -628,7 +627,7 @@ Filas: **1138**.
 | `asesor-clase-cancelar-error` | asesor | flotante | Cancelar clase muestra con error del servidor | `/leads/:id` | ✔ · ✔ | ✔ · ✔ |
 | `asesor-clase-cancelar-sin-conexion` | asesor | flotante | Cancelar clase muestra sin conexión | `/leads/:id` | ✔ · ✔ | ✔ · ✔ |
 
-## Conversión e inscripción (73)
+## Conversión e inscripción (74)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -677,8 +676,9 @@ Filas: **1138**.
 | `conv-confirmar-rechazo-datos-invalidos` | asesor | estado | Paso 6 Confirmar: el servidor rechaza con 422 por datos inválidos (error general sin paso al que volver) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 | `conv-confirmar-error-del-servidor` | asesor | estado | Paso 6 Confirmar: error 500 del servidor al inscribir | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 | `conv-confirmar-sin-red` | asesor | estado | Paso 6 Confirmar sin conexión: «No hay conexión con el servidor» al pulsar «Convertir e inscribir» | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
-| `conv-exito-inscrito` | asesor | pantalla | Pantalla «Listo: familia e inscripción creadas»: alumno creado e inscrito con su resumen de importes, «Volver a la ficha» y «Ver el estado de cuenta» (el POST final se responde en la escena) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
-| `conv-exito-ya-existia` | asesor | pantalla | Pantalla «Listo…» cuando el alumno ya existía y ya estaba inscrito en ese grupo (el POST final se responde en la escena) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
+| `conv-exito-inscrito` | asesor | pantalla | Pantalla «Inscripción lista»: «X quedó inscrito», alumno creado e inscrito con su resumen de importes, «Volver a la ficha» y «Ver el estado de cuenta» (el POST final se responde en la escena) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
+| `conv-exito-con-cobro` | administrador | pantalla | Pantalla «Inscripción lista» para quien también cobra (administrador): «Registrar el primer pago» como acción principal y «Ver la ficha de la familia» (el POST final se responde en la escena) | `/leads/:id/convertir` | ✘ · ✘ | ✔ · ✔ |
+| `conv-exito-ya-existia` | asesor | pantalla | Pantalla «Inscripción lista» cuando el alumno ya existía y ya estaba inscrito en ese grupo (el POST final se responde en la escena) | `/leads/:id/convertir` | ✔ · ✔ | ✔ · ✔ |
 | `conv-cierre-cargando` | maestro | estado | Maestro, «Hoy», cierre en sitio revisando si ya se puede inscribir («Revisando si ya se puede inscribir…») | `/hoy` | ✔ · ✔ | ✔ · ✔ |
 | `conv-cierre-error-de-carga` | maestro | estado | Maestro, «Hoy», cierre en sitio cuando falla la vista previa de la conversión (error) | `/hoy` | ✔ · ✔ | ✔ · ✔ |
 | `conv-cierre-faltan-datos` | maestro | pantalla | Maestro, «Hoy», cierre en sitio con «Todavía falta para poder inscribirlo» (grupo y reglamento) y «Inscribir a mi alumno» deshabilitado | `/hoy` | ✔ · ✔ | ✔ · ✔ |
@@ -985,7 +985,7 @@ Filas: **1138**.
 | `maestro-registro-salud-aviso-de-permiso` | maestro | estado | Registro, Salud y seguridad abierta: el aviso de permiso («Solo lo ven quienes tienen permiso de salud…») | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
 | `maestro-registro-errores-falta` | maestro | estado | Registro, «Marcar registro como completo» con datos del alumno sin escribir: «Falta: …» junto a cada campo y la lista en el aviso | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
 
-## Recepción (110)
+## Recepción (129)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -1052,6 +1052,12 @@ Filas: **1138**.
 | `recep-cuenta-familia-impresion` | recepcion | impresion | Estado de cuenta en la vista de impresión (para dárselo a la familia en papel) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-cuenta-familia-solo-lectura-asesor` | asesor | pantalla | Estado de cuenta visto por el asesor (solo lectura; las mismas acciones de imprimir y descargar) | `/cuenta/:tutorId` | ✔ · ✔ | ✔ · ✔ |
 | `recep-cuenta-buscador-asesor` | asesor | pantalla | Estado de cuenta: el buscador visto por el asesor | `/cuenta` | ✔ · ✔ | ✔ · ✔ |
+| `recep-cuenta-familia-completa` | recepcion | estado | Estado de cuenta completo: cada hijo con el color de su disciplina, cargos pagados (con su folio), vencido, con abono y pendientes; pagos con uno cancelado y su motivo |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-cuenta-familia-completa-asesor` | asesor | estado | Estado de cuenta completo visto por el asesor: sin el botón de cancelar pagos ni «Registrar pago» |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-cuenta-familia-nada-vencido` | recepcion | estado | Estado de cuenta con saldo pendiente pero nada vencido: la tarjeta de lo vencido en blanco y «Nada vencido» |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-cuenta-cancelar-dialogo` | recepcion | flotante | Estado de cuenta: el diálogo «Cancelar el pago P-…» con la advertencia roja y el botón de cancelar apagado (falta el motivo) |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-cuenta-cancelar-dialogo-motivo` | recepcion | flotante | Estado de cuenta: «Cancelar el pago» con el motivo escrito, listo para confirmar |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-cuenta-cancelar-dialogo-error` | recepcion | flotante | Estado de cuenta: «Cancelar el pago» con el error del servidor dentro del diálogo |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-uniformes-lista` | recepcion | pantalla | Uniformes por entregar, con un uniforme liberado y la existencia (recepción y administrador) | `/uniformes` | ✔ · ✔ | ✔ · ✔ |
 | `recep-uniformes-vacio` | recepcion | estado | Uniformes por entregar sin nada pendiente: «No hay nada por entregar» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-uniformes-cargando` | recepcion | estado | Uniformes por entregar mientras carga |  | ✔ · ✔ | ✔ · ✔ |
@@ -1063,7 +1069,13 @@ Filas: **1138**.
 | `recep-uniformes-entregar-sin-existencia` | recepcion | flotante | Diálogo «Entregar» sin piezas con existencia de la talla del alumno |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-uniformes-entregar-inventario-error` | recepcion | flotante | Diálogo «Entregar» con error al ver el inventario |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-uniformes-entregar-sin-red` | recepcion | flotante | Diálogo «Entregar» sin conexión al confirmar |  | ✔ · ✔ | ✔ · ✔ |
-| `recep-ventas-inicial` | recepcion | pantalla | Ventas: existencia con «Última pieza», formulario de nueva venta y ventas recientes vacías (recepción y administrador) | `/ventas` | ✔ · ✔ | ✔ · ✔ |
+| `recep-uniformes-disciplinas-existencia` | recepcion | estado | Uniformes por entregar con el color de cada disciplina, «Quedan N», «Queda 1», un uniforme sin existencia (botón apagado «Sin existencia») y un alumno sin talla |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-uniformes-entregados` | recepcion | estado | Uniformes: la pestaña «Entregados» con lo entregado hace un momento, ayer y días atrás, quién lo entregó y «Se descontó del inventario» |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-uniformes-entregados-vacio` | recepcion | estado | Uniformes: la pestaña «Entregados» sin nada entregado todavía |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-uniformes-entregados-cargando` | recepcion | estado | Uniformes: la pestaña «Entregados» mientras carga |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-uniformes-entregados-error` | recepcion | estado | Uniformes: la pestaña «Entregados» con error de carga |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-uniformes-entregado-aviso` | recepcion | paso | Uniformes: después de «Marcar como entregado» sale el aviso «Entregado a …» y la tarjeta pasa a «Entregados» |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-ventas-inicial` | recepcion | pantalla | Ventas: tarjetas de producto con su existencia («Queda 1», «Quedan N»), «Nueva venta» sin alumno y ventas recientes (recepción y administrador) | `/ventas` | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-vacio` | recepcion | estado | Ventas sin productos ni ventas: «No hay ningún producto con existencia para vender» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-todo-agotado` | recepcion | estado | Ventas con todos los productos agotados (insignia «Agotado») |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-cargando` | recepcion | estado | Ventas mientras carga |  | ✔ · ✔ | ✔ · ✔ |
@@ -1073,13 +1085,16 @@ Filas: **1138**.
 | `recep-ventas-alumno-encontrado` | recepcion | formulario | Nueva venta con el alumno encontrado y elegido, listo para registrar (total calculado) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-alumno-sin-resultados` | recepcion | formulario | Nueva venta con búsqueda de alumno sin resultados: «No encontré a ese alumno» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-alumno-error` | recepcion | formulario | Nueva venta con error al buscar al alumno |  | ✔ · ✔ | ✔ · ✔ |
-| `recep-ventas-cantidad-cero` | recepcion | formulario | Nueva venta con cantidad cero: «Escribe un número entero de piezas» y «Registrar venta» apagado |  | ✔ · ✔ | ✔ · ✔ |
-| `recep-ventas-cantidad-mayor-a-la-existencia` | recepcion | formulario | Nueva venta con más piezas de las que hay: «Solo hay 1 en existencia» |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-ventas-cantidad-cero` | recepcion | formulario | Nueva venta con la cantidad en el mínimo (1): «Una menos» apagado y el total de una pieza |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-ventas-cantidad-mayor-a-la-existencia` | recepcion | formulario | Nueva venta con todas las piezas que hay en la cantidad: «Una más» apagado y «Solo hay 1 en existencia» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-error-del-servidor` | recepcion | formulario | Nueva venta: el servidor rechaza la venta (alguien vendió la última pieza) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-sin-red` | recepcion | formulario | Nueva venta sin conexión al registrar |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-anular-dialogo` | recepcion | flotante | Diálogo «Anular la venta» abierto y vacío (el botón de confirmar apagado) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-anular-dialogo-motivo` | recepcion | flotante | Diálogo «Anular la venta» con el motivo escrito, listo para confirmar |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-anular-dialogo-error` | recepcion | flotante | Diálogo «Anular la venta» con el error del servidor |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-ventas-producto-elegido` | recepcion | estado | Ventas con un producto elegido (borde de la marca), dos piezas con «Una más» y el total del cargo; el alumno elegido y el botón con el importe |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-ventas-sin-alumno-con-producto` | recepcion | estado | Ventas con un producto elegido pero sin alumno: «Elige al alumno: el cargo queda a nombre de su responsable de pago» y «Registrar venta» apagado |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-ventas-entrega-de-promocion` | recepcion | estado | Ventas recientes con una entrega de promoción (sin «Anular») junto a una venta normal |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-corte-hoy` | recepcion | pantalla | Cierre del día con movimientos: cajas por persona, total del día y tabla de pagos (recepción) | `/corte` | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-hoy-administrador` | administrador | pantalla | Cierre del día visto por el administrador (su caja va primero como «Tu caja») | `/corte` | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-dia-sin-cobros` | recepcion | estado | Cierre de un día anterior sin cobros: «Ese día no se registró ningún cobro» |  | ✔ · ✔ | ✔ · ✔ |
@@ -1089,12 +1104,16 @@ Filas: **1138**.
 | `recep-corte-muchos-movimientos` | recepcion | estado | Cierre del día con muchos pagos y varias cajas |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-con-devoluciones` | recepcion | estado | Cierre del día con un pago de otro día cancelado hoy: devoluciones, neto y pagos cancelados |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-impresion` | recepcion | impresion | Cierre del día en la vista de impresión |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-corte-dia-anterior` | recepcion | estado | Cierre de un día anterior con cobros: «Cobrado el …» en el panel oscuro y el botón «Volver a hoy» |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-corte-solo-efectivo` | recepcion | estado | Cierre del día con cobros solo en efectivo: las barras de tarjeta y transferencia en cero («0 pagos») |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-corte-sin-persona-registrada` | recepcion | estado | Cierre del día con cobros sin persona registrada junto a la caja de quien mira |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-pagos-pago-registrado` | recepcion | paso | Pago registrado con el reparto a mano entre dos hijos: recibo con lo aplicado, saldo restante y acciones |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-registrado-tarjeta` | recepcion | paso | Pago registrado con tarjeta y referencia: el detalle con «ref.» y folio, «Recibido», «Saldo después del pago» y el pago nuevo marcado en «Pagos recientes» |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-pagos-recibo-impresion` | recepcion | impresion | Recibo del pago en la vista de impresión («Imprimir recibo») |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-ya-estaba-registrado` | recepcion | estado | Aviso «Este pago ya estaba registrado: no se duplicó» (reintento con la misma clave tras un corte de red) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-cancelado` | recepcion | estado | Pagos recientes con un pago cancelado (queda con su motivo, sin borrarse) y el formulario de nuevo a la vista |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-cuenta-familia-tras-varios-pagos` | recepcion | estado | Estado de cuenta de la familia después de varios pagos, uno de ellos cancelado | `/cuenta/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `recep-cuenta-cancelar-hecho` | recepcion | paso | Estado de cuenta después de cancelar un pago de verdad: el aviso «Pago cancelado», el pago con su motivo y los cargos otra vez pendientes |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-pagos-pago-registrado-saldo-cero` | recepcion | paso | Pago registrado que liquida todo el saldo: «Saldo después del pago» en cero, marcado en verde |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-ventas-venta-registrada` | recepcion | paso | Venta registrada: aviso con el detalle y el botón «Cobrar ahora»; existencia y ventas recientes al día |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-venta-anulada` | recepcion | estado | Ventas recientes con una venta anulada (insignia «Anulada») y la pieza de vuelta en la existencia |  | ✔ · ✔ | ✔ · ✔ |

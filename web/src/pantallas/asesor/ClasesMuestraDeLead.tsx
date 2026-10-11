@@ -113,11 +113,11 @@ export function ClasesMuestraDeLead({ lead, puedeEscribir, alCambiar }: { lead: 
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !carga.datos ? <Cargando /> : null}
       {carga.datos && clases.length === 0 ? <Vacio icono="hoy" titulo="No tiene clase muestra">{puedeEscribir ? <p>Usa «Agendar clase muestra» para reservarle un lugar.</p> : null}</Vacio> : null}
-      <ul className="lista-tarjetas">
+      <ul className="clases-lista">
         {clases.map((c) => {
           const e = ESTATUS_DE_CLASE[c.estatus] ?? { texto: c.estatus, tono: "neutro" as const };
           return (
-            <li key={c.id} className="pila clase" data-prueba={`clase-${c.id}`}>
+            <li key={c.id} className="clase" data-prueba={`clase-${c.id}`}>
               <div className="fila fila-entre">
                 <strong className="clase-hora numero">
                   {c.sesion.fecha} · {c.sesion.hora}
