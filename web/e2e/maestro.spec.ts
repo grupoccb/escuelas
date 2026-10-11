@@ -26,7 +26,7 @@ test.describe("Hoy", () => {
     await expect(tarjeta).toContainText(clase.prospecto);
     await expect(tarjeta).toContainText("Grupo A");
     await expect(tarjeta).toContainText("Agendada");
-    await expect(tarjeta).toContainText(/\d{2}:\d{2}/);
+    await expect(tarjeta).toContainText(/\d{1,2}:\d{2}\s?(am|pm)/);
     await expect(page.getByTestId(`clase-${claseFutura.id}`)).toContainText(claseFutura.prospecto);
     await expect(page.getByTestId(`clase-${claseAjena.id}`)).toHaveCount(0);
     await expect(page.getByText(claseAjena.prospecto)).toHaveCount(0);
@@ -36,12 +36,12 @@ test.describe("Hoy", () => {
     await capturar(page, "10-hoy", "escritorio");
   });
 
-  test("la asistencia se marca desde la hora de la clase: la futura no se deja marcar", async ({ page }) => {
+  test("la asistencia se marca a partir de la hora de la clase: la futura no se deja marcar", async ({ page }) => {
     await page.goto("/hoy");
     const futura = page.getByTestId(`clase-${claseFutura.id}`);
     await expect(futura.getByRole("button", { name: "Asistió", exact: true })).toBeDisabled();
     await expect(futura.getByRole("button", { name: "No asistió" })).toBeDisabled();
-    await expect(futura).toContainText("desde la hora de la clase");
+    await expect(futura).toContainText("a partir de las");
   });
 
   test("un maestro no abre la clase de otro grupo ni por URL directa", async ({ page }) => {
@@ -263,7 +263,7 @@ test.describe("pase de lista", () => {
     await page.getByLabel("Fecha de la clase").fill(ayerEnMexico());
     for (const a of alumnosDelPase) await expect(page.getByTestId(`alumno-${a.alumnoId}`)).toContainText(a.nombre);
     await expect(page.getByTestId("resumen-pase")).toContainText("Sin marcar 3");
-    await page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+    await page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
     const beto = page.getByRole("group", { name: "Beto Prueba" });
     const cira = page.getByRole("group", { name: "Cira Prueba" });
     await beto.getByRole("radio", { name: "Justificada" }).check();

@@ -171,6 +171,24 @@ async function simularConversion(c: Contexto, listo: boolean): Promise<void> {
 }
 const tarjetaDeClase = (c: Contexto) => c.page.getByTestId(`clase-${idClase(c)}`);
 
+// ── R4b: color de la disciplina y línea de tiempo ──
+const esVerticales = (u: URL): boolean => u.pathname === "/api/verticales";
+/** Las disciplinas con su `color_marca` (el de prueba no tiene): la banda, el punto de la etiqueta y los avatares toman el color del dato. */
+const conColorDeDisciplina = (c: Contexto, color = "#c7522a"): Promise<void> => parchearGet(c, esVerticales, (b) => ({ ...b, datos: (b.datos as Json[]).map((v) => ({ ...v, color_marca: color })) }));
+const hhmmEnZona = (ms: number, zona: string): string => new Intl.DateTimeFormat("en-GB", { timeZone: zona, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms));
+/** Las clases de hoy a `minutos` del reloj (negativo: ya empezó), con la hora que dice la sucursal; la primera es la de la prueba y las demás son copias suyas. */
+async function conClasesDeHoy(c: Contexto, plan: { minutos: number; estatus?: string; prospecto?: string }[], palanca?: { estatus?: string }): Promise<void> {
+  await parchearGet(c, esClasesDelMaestro, (b) => {
+    const base = b.datos.find((x: Json) => x.id === idClase(c)) ?? b.datos[0];
+    const ahora = Date.now();
+    const datos = plan.map((p, i) => {
+      const cuando = Math.floor((ahora + p.minutos * 60_000) / 60_000) * 60_000;
+      return { ...base, id: i === 0 ? base.id : `${base.id}-hoy-${i}`, prospecto: p.prospecto ?? base.prospecto, estatus: (i === 0 ? palanca?.estatus : undefined) ?? p.estatus ?? "agendada", fecha_hora: new Date(cuando).toISOString(), sesion: { ...base.sesion, hora: hhmmEnZona(cuando, base.zona_horaria) } };
+    });
+    return { ...b, datos, paginacion: { ...(b.paginacion ?? {}), total: datos.length, pagina: 1 } };
+  });
+}
+
 // ── Pase de lista ──
 
 const esPase = (u: URL): boolean => /^\/api\/grupos\/[^/]+\/pase$/.test(u.pathname);
@@ -196,7 +214,10 @@ const ESCENAS_BASE: Escena[] = [
     tipo: "pantalla",
     ruta: "/hoy",
     fuentes: HOY,
-    ir: (c) => irA(c, "/hoy"),
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await irA(c, "/hoy");
+    },
   },
   {
     id: "maestro-hoy-avisos",
@@ -293,6 +314,7 @@ const ESCENAS_BASE: Escena[] = [
     ruta: "/hoy",
     fuentes: HOY,
     ir: async (c) => {
+      await conColorDeDisciplina(c);
       await conEstatusDeLaClase(c, "asistio");
       await irA(c, "/hoy");
     },
@@ -306,6 +328,7 @@ const ESCENAS_BASE: Escena[] = [
     ruta: "/hoy",
     fuentes: HOY,
     ir: async (c) => {
+      await conColorDeDisciplina(c);
       await conEstatusDeLaClase(c, "no_asistio");
       await irA(c, "/hoy");
     },
@@ -364,6 +387,7 @@ const ESCENAS_BASE: Escena[] = [
     ruta: "/hoy",
     fuentes: HOY,
     ir: async (c) => {
+      await conColorDeDisciplina(c);
       await conEstatusDeLaClase(c, "asistio");
       await simularEscritura(c, (u) => u.pathname.endsWith("/listo-para-cerrar"), 201, {});
       await irA(c, "/hoy");
@@ -1253,7 +1277,10 @@ const ESCENAS_BASE: Escena[] = [
     tipo: "pantalla",
     ruta: "/pase",
     fuentes: PASE,
-    ir: (c) => irAPase(c),
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await irAPase(c);
+    },
   },
   {
     id: "maestro-pase-marcando",
@@ -1264,6 +1291,7 @@ const ESCENAS_BASE: Escena[] = [
     ruta: "/pase",
     fuentes: PASE,
     ir: async (c) => {
+      await conColorDeDisciplina(c);
       await irAPase(c);
       const lista = c.mundo.maestro.alumnosDelPase;
       await alumnoDelPase(c.page, lista[0]!.nombre).getByRole("radio", { name: "Presente" }).check();
@@ -1276,13 +1304,14 @@ const ESCENAS_BASE: Escena[] = [
     id: "maestro-pase-todos-presentes",
     rol: "maestro",
     grupo: G,
-    titulo: "Pase de lista tras «Marcar presentes a todos los que faltan por marcar»",
+    titulo: "Pase de lista tras «Marcar a todos presentes»",
     tipo: "estado",
     ruta: "/pase",
     fuentes: PASE,
     ir: async (c) => {
+      await conColorDeDisciplina(c);
       await irAPase(c);
-      await c.page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+      await c.page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
       await reposo(c.page);
     },
   },
@@ -1297,7 +1326,7 @@ const ESCENAS_BASE: Escena[] = [
     ir: async (c) => {
       const lista = c.mundo.maestro.alumnosDelPase;
       await irAPase(c);
-      await c.page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+      await c.page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
       await alumnoDelPase(c.page, lista[2]!.nombre).getByRole("radio", { name: "Falta" }).check();
       await c.page.route(
         (u) => esPase(u),
@@ -1345,7 +1374,7 @@ const ESCENAS_BASE: Escena[] = [
     fuentes: PASE,
     ir: async (c) => {
       await irAPase(c);
-      await c.page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+      await c.page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
       await fallarLaSiguienteEscritura(c, 500, "Algo salió mal en el servidor. Inténtalo de nuevo.");
       await c.page.getByRole("button", { name: "Guardar pase de lista" }).click();
       await c.page.getByTestId("error-del-pase").waitFor();
@@ -1362,7 +1391,7 @@ const ESCENAS_BASE: Escena[] = [
     fuentes: PASE,
     ir: async (c) => {
       await irAPase(c);
-      await c.page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+      await c.page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
       await cortarLaRed(c);
       await c.page.getByRole("button", { name: "Guardar pase de lista" }).click();
       await c.page.getByTestId("error-del-pase").waitFor();
@@ -1379,7 +1408,7 @@ const ESCENAS_BASE: Escena[] = [
     fuentes: PASE,
     ir: async (c) => {
       await irAPase(c);
-      await c.page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+      await c.page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
       await colgarEscritura(c, esPase);
       await c.page.getByRole("button", { name: "Guardar pase de lista" }).click();
       await reposo(c.page, 400);
@@ -1797,6 +1826,236 @@ const ESCENAS_BASE: Escena[] = [
     fuentes: SALUD,
     ir: (c) => conError(c, `/alumnos/${c.mundo.familia.salud.alumnoId}/salud`),
   },
+  // ═══════════════════════════ R4b: HOY, LÍNEA DE TIEMPO ═══════════════════════════
+  {
+    id: "maestro-hoy-linea-de-tiempo",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Hoy, línea de tiempo: una clase ya marcada, la marca «Ahora … · siguiente en 40 min» y dos clases por venir (banda con el color de la disciplina)",
+    tipo: "pantalla",
+    ruta: "/hoy",
+    fuentes: HOY,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await conClasesDeHoy(c, [{ minutos: -90, estatus: "asistio", prospecto: "Alumna Uno" }, { minutos: 40, prospecto: "Alumno Dos" }, { minutos: 180, prospecto: "Alumna Tres" }]);
+      await irA(c, "/hoy");
+    },
+  },
+  {
+    id: "maestro-hoy-ahora-antes-de-la-primera",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Hoy, la primera clase todavía no empieza: la marca «Ahora … · siguiente en 15 min» va arriba de ella",
+    tipo: "estado",
+    ruta: "/hoy",
+    fuentes: HOY,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await conClasesDeHoy(c, [{ minutos: 15 }, { minutos: 135, prospecto: "Alumno Dos" }]);
+      await irA(c, "/hoy");
+    },
+  },
+  {
+    id: "maestro-hoy-estado-del-registro",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Hoy, la línea «Registro del alumno: …» en cada estado (sin captura, completo, cerrado y borrador) con el color del estado",
+    tipo: "estado",
+    ruta: "/hoy",
+    fuentes: HOY,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await conClasesDeHoy(c, [{ minutos: -60, prospecto: "Alumna Uno" }, { minutos: 30, prospecto: "Alumno Dos" }, { minutos: 90, prospecto: "Alumna Tres" }, { minutos: 150, prospecto: "Alumno Cuatro" }]);
+      const estatusDe = (id: string): string => (id.endsWith("-hoy-1") ? "completo" : id.endsWith("-hoy-2") ? "cerrado" : id.endsWith("-hoy-3") ? "borrador" : "sin_captura");
+      await c.page.route(
+        (u) => /^\/api\/clases-muestra\/[^/]+\/registro$/.test(u.pathname),
+        (r: Route) => {
+          if (r.request().method() !== "GET") return r.fallback();
+          const id = new URL(r.request().url()).pathname.split("/")[3]!;
+          return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ estatus: estatusDe(id), existe: true }) });
+        },
+      );
+      await irA(c, "/hoy");
+    },
+  },
+  {
+    id: "maestro-hoy-clase-futura",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Hoy, clase de hoy que todavía no empieza: «Asistió» y «No asistió» apagados con «La asistencia se marca a partir de las …»",
+    tipo: "estado",
+    ruta: "/hoy",
+    fuentes: HOY,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await conClasesDeHoy(c, [{ minutos: 40 }]);
+      await irA(c, "/hoy");
+    },
+  },
+  {
+    id: "maestro-hoy-despues-de-asistio",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Hoy, tras tocar «Asistió»: la tarjeta pasa a «Asistió» y aparece «Listo para cerrar la inscripción»",
+    tipo: "estado",
+    ruta: "/hoy",
+    fuentes: HOY,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      const palanca: { estatus?: string } = {};
+      await conClasesDeHoy(c, [{ minutos: -30 }], palanca);
+      await irA(c, "/hoy");
+      palanca.estatus = "asistio";
+      await simularEscritura(c, (u) => u.pathname.endsWith("/asistencia"), 200, {});
+      await tarjetaDeClase(c).getByRole("button", { name: "Asistió", exact: true }).click();
+      await reposo(c.page, 400);
+    },
+  },
+  {
+    id: "maestro-hoy-despues-de-no-asistio",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Hoy, tras tocar «No asistió»: el aviso de que el asesor recibe una tarea para llamar a la familia",
+    tipo: "estado",
+    ruta: "/hoy",
+    fuentes: HOY,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      const palanca: { estatus?: string } = {};
+      await conClasesDeHoy(c, [{ minutos: -30 }], palanca);
+      await irA(c, "/hoy");
+      palanca.estatus = "no_asistio";
+      await simularEscritura(c, (u) => u.pathname.endsWith("/asistencia"), 200, {});
+      await tarjetaDeClase(c).getByRole("button", { name: "No asistió" }).click();
+      await reposo(c.page, 400);
+    },
+  },
+
+  // ═══════════════════════════ R4b: PASE DE LISTA ═══════════════════════════
+  {
+    id: "maestro-pase-conteo-en-vivo",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Pase de lista, conteo en vivo: dos marcados y uno sin marcar (la barra de abajo dice «Faltan 1 por marcar»)",
+    tipo: "estado",
+    ruta: "/pase",
+    fuentes: PASE,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await irAPase(c);
+      const lista = c.mundo.maestro.alumnosDelPase;
+      await alumnoDelPase(c.page, lista[0]!.nombre).getByRole("radio", { name: "Presente" }).check();
+      await alumnoDelPase(c.page, lista[1]!.nombre).getByRole("radio", { name: "Falta" }).check();
+      await c.page.mouse.move(0, 0);
+      await reposo(c.page);
+    },
+  },
+  {
+    id: "maestro-pase-barra-de-guardado",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Pase de lista, la barra fija de guardado con todo marcado («3 de 3 marcados») y «Guardar pase de lista» de 52 px",
+    tipo: "estado",
+    ruta: "/pase",
+    fuentes: PASE,
+    completa: false,
+    ir: async (c) => {
+      await conColorDeDisciplina(c);
+      await irAPase(c);
+      await c.page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
+      await c.page.mouse.move(0, 0);
+      await c.page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await reposo(c.page);
+    },
+  },
+
+  // ═══════════════════════════ R4b: REGISTRO, ACORDEÓN ═══════════════════════════
+  {
+    id: "maestro-registro-acordeon-cerrado",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Registro con datos, las seis secciones cerradas: «Completa» con palomita y «Faltan N datos», más la barra de avance",
+    tipo: "pantalla",
+    ruta: "/clases/:id/registro",
+    fuentes: SALUD_REGISTRO,
+    ir: async (c) => {
+      await irARegistro(c, idClase(c), conDatos(c));
+      await secciones(c.page, []);
+    },
+  },
+  {
+    id: "maestro-registro-acordeon-vacio",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Registro sin nada capturado, secciones cerradas: todas «Faltan N datos» y la barra de avance en cero",
+    tipo: "estado",
+    ruta: "/clases/:id/registro",
+    fuentes: REGISTRO,
+    ir: async (c) => {
+      await irARegistro(c, c.mundo.maestro.claseFutura.id);
+      await secciones(c.page, []);
+    },
+  },
+  {
+    id: "maestro-registro-acordeon-abierto",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Registro, una sección abierta (Antecedentes, con el borde del color primario) y las demás cerradas",
+    tipo: "estado",
+    ruta: "/clases/:id/registro",
+    fuentes: REGISTRO,
+    ir: async (c) => {
+      await irARegistro(c, idClase(c), conDatos(c));
+      await secciones(c.page, ["antecedentes"]);
+    },
+  },
+  {
+    id: "maestro-registro-todo-completo",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Registro con las seis secciones «Completa»: «6 de 6 secciones completas» y la barra «Registro completo»",
+    tipo: "estado",
+    ruta: "/clases/:id/registro",
+    fuentes: SALUD_REGISTRO,
+    ir: async (c) => {
+      await parchearGet(c, esAceptaciones, (b) => ({ ...b, estado: (b.estado as Json[]).map((e) => ({ ...e, estado: "aceptada", version_aceptada: e.version_vigente ?? 1, al_corriente: true, texto: "Rosa Mena aceptó el documento (en persona)." })) }));
+      await irARegistro(c, idClase(c), completo(c));
+      await secciones(c.page, []);
+    },
+  },
+  {
+    id: "maestro-registro-salud-aviso-de-permiso",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Registro, Salud y seguridad abierta: el aviso de permiso («Solo lo ven quienes tienen permiso de salud…»)",
+    tipo: "estado",
+    ruta: "/clases/:id/registro",
+    fuentes: SALUD_REGISTRO,
+    ir: async (c) => {
+      await irARegistro(c, idClase(c), conDatos(c));
+      await secciones(c.page, ["salud"]);
+      await c.page.getByTestId("aviso-de-permiso").evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await reposo(c.page, 200);
+    },
+  },
+  {
+    id: "maestro-registro-errores-falta",
+    rol: "maestro",
+    grupo: G,
+    titulo: "Registro, «Marcar registro como completo» con datos del alumno sin escribir: «Falta: …» junto a cada campo y la lista en el aviso",
+    tipo: "estado",
+    ruta: "/clases/:id/registro",
+    fuentes: REGISTRO,
+    ir: async (c) => {
+      const falta = ["alumno.nombre", "alumno.apellidos", "alumno.sexo"];
+      await irARegistro(c, idClase(c), (r) => ({ ...conDatos(c, { alumno: { nombre: null, apellidos: null, fecha_nacimiento: "2018-05-04", sexo: null, escuela: null, turno_escolar: null, talla_uniforme: null }, faltantes: falta })(r) }));
+      await simularEscritura(c, (u) => u.pathname.endsWith("/registro/completar"), 409, errorApi("Al registro todavía le falta información para estar completo", falta.map((campo) => ({ campo, mensaje: "Falta" }))));
+      await c.page.getByRole("button", { name: "Marcar registro como completo" }).click();
+      await reposo(c.page);
+      await c.page.getByText("Falta: Nombre del alumno.").first().evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await reposo(c.page, 200);
+    },
+  },
 ];
 
 // En una página larga la cabecera fija tapa lo que está a media altura de una captura completa: las escenas de error se capturan en pantalla, con el mensaje centrado.
@@ -1804,7 +2063,7 @@ const ENFOQUE: Record<string, string> = {
   "maestro-registro-alumno-error-fecha": "no puede ser futura",
   "maestro-registro-alumno-error-servidor": "Algo salió mal en el servidor",
   "maestro-registro-alumno-sin-red": "Lo que escribiste sigue aquí",
-  "maestro-registro-adultos-error": "Escribe el nombre",
+  "maestro-registro-adultos-error": "Falta: nombre.",
   "maestro-registro-antecedentes-error": "¿Por qué quiere tomar la clase?",
   "maestro-registro-observacion-error-servidor": "Los datos enviados no son válidos",
   "maestro-registro-salud-error-sin-cambios": "No cambiaste nada de esta sección",

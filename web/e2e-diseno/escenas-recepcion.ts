@@ -64,6 +64,35 @@ const esListaDePagos = (u: URL): boolean => u.pathname === "/api/pagos";
 const esCorte = (u: URL): boolean => u.pathname === "/api/pagos/corte";
 const esProductos = (u: URL): boolean => u.pathname === "/api/productos";
 const esAlumnos = (u: URL): boolean => u.pathname === "/api/alumnos";
+const esVerticales = (u: URL): boolean => u.pathname === "/api/verticales";
+const esProgramas = (u: URL): boolean => u.pathname === "/api/programas";
+const esInscripciones = (u: URL): boolean => u.pathname === "/api/inscripciones";
+
+/** Colores de ejemplo para las disciplinas de las escenas (en la aplicación salen del dato `color_marca` de cada disciplina, nunca de aquí). */
+const COLORES_DE_EJEMPLO = ["#c8402a", "#c43a73", "#1f7a8c"];
+
+/**
+ * Pone a los dos hijos de la familia en DISCIPLINAS DISTINTAS con color: parcha las tres respuestas de las que sale la etiqueta (inscripciones de la familia, programas y disciplinas)
+ * para que el escritorio y el celular vean dos etiquetas de color distinto. Es la misma cadena de datos que usa la pantalla; solo cambian los valores.
+ */
+async function conDisciplinasDeColor(c: Contexto): Promise<void> {
+  const ids: string[] = [];
+  await c.page.route(esVerticales, async (r) => {
+    if (r.request().method() !== "GET") return r.fallback();
+    const resp = await r.fetch();
+    const j = (await resp.json()) as J;
+    const datos: J[] = [...(j.datos ?? [])];
+    while (datos.length < 2) datos.push({ ...datos[0], id: `disciplina-de-ejemplo-${datos.length}`, nombre: `Disciplina ${datos.length + 1}`, slug: `disciplina-de-ejemplo-${datos.length}` });
+    const conColor = datos.map((v, i) => ({ ...v, color_marca: COLORES_DE_EJEMPLO[i % COLORES_DE_EJEMPLO.length] }));
+    ids.splice(0, ids.length, ...conColor.map((v) => v.id as string));
+    return r.fulfill({ response: resp, json: { ...j, datos: conColor } });
+  });
+  await transformar(c, esProgramas, (j) => ({ ...j, datos: [...(j.datos ?? []), { ...(j.datos?.[0] ?? {}), id: "programa-de-ejemplo-0", vertical_id: ids[0] }, { ...(j.datos?.[0] ?? {}), id: "programa-de-ejemplo-1", vertical_id: ids[1] ?? ids[0] }] }));
+  await transformar(c, esInscripciones, (j) => {
+    const alumnos = [...new Set((j.datos ?? []).map((i: J) => i.alumno_id))];
+    return { ...j, datos: (j.datos ?? []).map((i: J) => ({ ...i, programa_id: `programa-de-ejemplo-${alumnos.indexOf(i.alumno_id) % 2}` })) };
+  });
+}
 
 function multiplicar(lista: J[], veces: number): J[] {
   const salida: J[] = [];
@@ -177,7 +206,7 @@ async function pagar(c: Contexto, texto: string): Promise<void> {
   await irA(c, rutaPago(propia(c).tutorId));
   await monto(c.page).fill(texto);
   await c.page.getByTestId("propuesta").waitFor();
-  await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
+  await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
   await c.page.getByTestId("pago-registrado").waitFor();
   await esperarListo(c.page);
 }
@@ -543,6 +572,90 @@ const LISTA: Escena[] = [
     },
   },
   {
+    id: "recep-pagos-cobertura-total",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Formulario de pago: el monto es justo el del cargo vencido; su barra se llena y dice «Este pago lo cubre», los demás cargos siguen «Pendiente»",
+    tipo: "formulario",
+    fuentes: [PAGO],
+    ir: (c) => conMontoEscrito(c, "800"),
+  },
+  {
+    id: "recep-pagos-atajo-todo-el-saldo",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Formulario de pago: el atajo «Todo el saldo» llena el monto (queda marcado) y todas las barras de los cargos se llenan en verde",
+    tipo: "formulario",
+    fuentes: [PAGO],
+    ir: async (c) => {
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByRole("button", { name: /^Todo el saldo/ }).click();
+      await c.page.getByTestId("propuesta").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-pagos-atajo-solo-lo-vencido",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Formulario de pago: el atajo «Solo lo vencido» llena el monto con lo vencido (queda marcado) y el abono se reparte sin tocar lo que aún no vence",
+    tipo: "formulario",
+    fuentes: [PAGO],
+    ir: async (c) => {
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByRole("button", { name: /^Solo lo vencido/ }).click();
+      await c.page.getByTestId("propuesta").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-pagos-familia-disciplinas-color",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Registrar pago: los hijos en etiquetas con el color de su disciplina (distinta cada uno) y sus cargos agrupados bajo el punto de su color",
+    tipo: "paso",
+    fuentes: [PAGO],
+    completa: true,
+    ir: async (c) => {
+      await conDisciplinasDeColor(c);
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByTestId("saldo-total").waitFor();
+      await c.page.locator('.etiqueta-hijo[data-disciplina=""]').first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-pagos-familia-etiquetas-neutras",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Registrar pago cuando no se puede saber la disciplina de los hijos (inscripciones, programas o disciplinas no cargan): las etiquetas salen neutras, solo con el nombre, y la pantalla funciona igual",
+    tipo: "estado",
+    fuentes: [PAGO],
+    ir: async (c) => {
+      await romper(c, esInscripciones);
+      await romper(c, esProgramas);
+      await romper(c, esVerticales);
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByTestId("saldo-total").waitFor();
+    },
+  },
+  {
+    id: "recep-pagos-metodo-efectivo-sin-referencia",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Formulario de pago en efectivo: no hay campo de referencia (solo aparece con tarjeta o transferencia); se escribió una referencia con tarjeta y al volver a efectivo no viaja",
+    tipo: "formulario",
+    fuentes: [PAGO],
+    ir: async (c) => {
+      await conMontoEscrito(c, "500");
+      await elegirMetodo(c.page, "tarjeta", "Tarjeta");
+      await c.page.getByLabel("Referencia (opcional)").fill("VOUCHER-4821");
+      await elegirMetodo(c.page, "efectivo", "Efectivo");
+      await c.page.getByLabel("Referencia (opcional)").waitFor({ state: "detached" });
+      await esperarListo(c.page);
+    },
+  },
+  {
     id: "recep-pagos-propuesta-cargando",
     rol: "recepcion",
     grupo: GRUPO,
@@ -669,7 +782,7 @@ const LISTA: Escena[] = [
     ir: async (c) => {
       await conMontoEscrito(c, "500");
       await cortarLaRed(c);
-      await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
       await c.page.getByText(/NO lo duplica/).waitFor();
       await esperarListo(c.page);
     },
@@ -684,8 +797,71 @@ const LISTA: Escena[] = [
     ir: async (c) => {
       await conMontoEscrito(c, "500");
       await fallarLaSiguienteEscritura(c, 409, "Esa familia ya no debe ese cargo: otra persona acaba de cobrarlo.");
-      await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
       await c.page.getByRole("alert").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+
+  // ═══ Registrar pago · «Cambiar de familia» (el buscador en un diálogo) ═══
+  {
+    id: "recep-pagos-cambiar-familia-dialogo",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "«Cambiar de familia»: el diálogo «Buscar familia» abierto y vacío, sobre la familia que se estaba atendiendo (hoja inferior en celular)",
+    tipo: "flotante",
+    fuentes: [PAGO, BUSCADOR],
+    ir: async (c) => {
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByRole("button", { name: "Cambiar de familia" }).click();
+      await dialogoAbierto(c.page);
+    },
+  },
+  {
+    id: "recep-pagos-cambiar-familia-resultados",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "«Cambiar de familia»: el diálogo con resultados de la búsqueda y el botón «Elegir» de cada familia",
+    tipo: "flotante",
+    fuentes: [PAGO, BUSCADOR],
+    ir: async (c) => {
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByRole("button", { name: "Cambiar de familia" }).click();
+      await dialogoAbierto(c.page);
+      await buscar(c, "Gómez");
+      await c.page.getByTestId(`familia-${gomez(c).tutorId}`).waitFor();
+    },
+  },
+  {
+    id: "recep-pagos-cambiar-familia-sin-resultados",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "«Cambiar de familia»: el diálogo cuando la búsqueda no encuentra a nadie",
+    tipo: "flotante",
+    fuentes: [PAGO, BUSCADOR],
+    ir: async (c) => {
+      await irA(c, rutaPago(gomez(c).tutorId));
+      await c.page.getByRole("button", { name: "Cambiar de familia" }).click();
+      await dialogoAbierto(c.page);
+      await buscar(c, "Zzzzzz");
+      await c.page.getByText("No encontré a esa familia").waitFor();
+    },
+  },
+  {
+    id: "recep-pagos-cambiar-familia-elegida",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "«Cambiar de familia»: se elige otra familia desde el diálogo y la pantalla sigue con la nueva (la misma, aquí, para no depender de otros datos), sin el diálogo",
+    tipo: "paso",
+    fuentes: [PAGO, BUSCADOR],
+    ir: async (c) => {
+      await irA(c, rutaPago(uniforme(c).tutorId));
+      await c.page.getByRole("button", { name: "Cambiar de familia" }).click();
+      await dialogoAbierto(c.page);
+      await buscar(c, "Gómez");
+      await c.page.getByTestId(`familia-${gomez(c).tutorId}`).getByRole("button", { name: "Elegir" }).click();
+      await c.page.getByTestId("saldo-total").waitFor();
+      await c.page.locator("dialog[open]").waitFor({ state: "detached" }).catch(() => undefined);
       await esperarListo(c.page);
     },
   },
@@ -1412,7 +1588,27 @@ const LISTA: Escena[] = [
         [propia(c).hijos[0]!.nombre, "150"],
         [propia(c).hijos[1]!.nombre, "250"],
       ]);
-      await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
+      await c.page.getByTestId("pago-registrado").waitFor();
+      await c.page.getByTestId("saldo-despues-del-pago").waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "recep-pagos-pago-registrado-tarjeta",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Pago registrado con tarjeta y referencia: el detalle con «ref.» y folio, «Recibido», «Saldo después del pago» y el pago nuevo marcado en «Pagos recientes»",
+    tipo: "paso",
+    fuentes: [PAGO],
+    completa: true,
+    ir: async (c) => {
+      await irA(c, rutaPago(propia(c).tutorId));
+      await monto(c.page).fill("30");
+      await c.page.getByTestId("propuesta").waitFor();
+      await elegirMetodo(c.page, "tarjeta", "Tarjeta");
+      await c.page.getByLabel("Referencia (opcional)").fill("VOUCHER-0030");
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
       await c.page.getByTestId("pago-registrado").waitFor();
       await c.page.getByTestId("saldo-despues-del-pago").waitFor();
       await esperarListo(c.page);
@@ -1449,10 +1645,10 @@ const LISTA: Escena[] = [
         await ruta.fetch();
         return ruta.abort("failed");
       });
-      await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
       await c.page.getByText(/NO lo duplica/).waitFor();
       await c.page.unroute("**/api/pagos");
-      await c.page.getByRole("button", { name: "Registrar pago", exact: true }).click();
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
       await c.page.getByText("Este pago ya estaba registrado: no se duplicó").waitFor();
       await esperarListo(c.page);
     },
@@ -1489,6 +1685,24 @@ const LISTA: Escena[] = [
     ir: async (c) => {
       await irA(c, `/cuenta/${propia(c).tutorId}`);
       await c.page.getByTestId("pagos-de-la-cuenta").waitFor();
+    },
+  },
+  {
+    id: "recep-pagos-pago-registrado-saldo-cero",
+    rol: "recepcion",
+    grupo: GRUPO,
+    titulo: "Pago registrado que liquida todo el saldo: «Saldo después del pago» en cero, marcado en verde",
+    tipo: "paso",
+    fuentes: [PAGO],
+    completa: true,
+    ir: async (c) => {
+      await irA(c, rutaPago(propia(c).tutorId));
+      await c.page.getByRole("button", { name: /^Todo el saldo/ }).click();
+      await c.page.getByTestId("propuesta").waitFor();
+      await c.page.getByRole("button", { name: /^Registrar pago/ }).click();
+      await c.page.getByTestId("pago-registrado").waitFor();
+      await c.page.getByTestId("saldo-despues-del-pago").waitFor();
+      await esperarListo(c.page);
     },
   },
   {

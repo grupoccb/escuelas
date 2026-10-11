@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alumnoDesde, antecedentesDesde, correoValido, cuerpoDeAlumno, cuerpoDeAntecedentes, cuerpoDeTutores, telefonoValido, tutorDesde, tutorVacio, validarAlumno, validarAntecedentes, validarTutores } from "./formulario.ts";
+import { alumnoDesde, antecedentesDesde, correoValido, cuerpoDeAlumno, datosLegalesQueFaltan, faltanDeSeccion, guardadoHace, textoDeFaltan, cuerpoDeAntecedentes, cuerpoDeTutores, telefonoValido, tutorDesde, tutorVacio, validarAlumno, validarAntecedentes, validarTutores } from "./formulario.ts";
 import type { Registro } from "./tipos.ts";
 
 const registro = (parcial: Partial<Registro> = {}): Registro => ({
@@ -55,7 +55,7 @@ test("adultos: nombre, parentesco y teléfono por fila; teléfonos distintos; un
   const a = { ...tutorVacio(), nombre: "Rosa", parentesco: "madre", telefono: "55 1234 5678", es_responsable_pago: true };
   assert.deepEqual(validarTutores([a]), {});
   const e = validarTutores([a, { ...tutorVacio(), nombre: "", telefono: "5512345678", correo: "mal" }, { ...tutorVacio(), nombre: "Luz", parentesco: "abuela", telefono: "123" }]);
-  assert.equal(e["tutores[1].nombre"], "Escribe el nombre");
+  assert.equal(e["tutores[1].nombre"], "Falta: nombre.");
   assert.match(e["tutores[1].telefono"] ?? "", /mismo teléfono del adulto 1/);
   assert.equal(e["tutores[1].correo"], "Escribe un correo válido (nombre@dominio.com)");
   assert.match(e["tutores[2].telefono"] ?? "", /10 dígitos/);
@@ -79,4 +79,39 @@ test("teléfono y correo", () => {
   assert.equal(telefonoValido("12345"), false);
   assert.equal(correoValido("a@b.co"), true);
   assert.equal(correoValido("a@b"), false);
+});
+
+test("estado de cada sección: sale de lo guardado; la observación cuenta su interés percibido", () => {
+  const r = registro({ faltantes: ["alumno.apellidos", "alumno.sexo", "tutores.responsable_pago", "antecedentes.motivo_clase", "salud.alergias"], salud: { contacto_registrado: false, completa: false, faltantes: ["salud.alergias", "salud.medicamentos"], puedes_ver_valores: true } });
+  assert.equal(faltanDeSeccion("alumno", r), 2);
+  assert.equal(faltanDeSeccion("tutores", r), 1);
+  assert.equal(faltanDeSeccion("antecedentes", r), 1);
+  assert.equal(faltanDeSeccion("salud", r), 2);
+  assert.equal(faltanDeSeccion("observacion", r), 1);
+  assert.equal(faltanDeSeccion("observacion", registro({ observacion: { asistio: null, nivel_observado: null, grupo_recomendado_id: null, interes_percibido: "alto", notas: null } })), 0);
+  assert.equal(faltanDeSeccion("alumno", registro()), 0);
+});
+
+test("textoDeFaltan: Completa, Falta 1 dato, Faltan N datos", () => {
+  assert.equal(textoDeFaltan(0), "Completa");
+  assert.equal(textoDeFaltan(1), "Falta 1 dato");
+  assert.equal(textoDeFaltan(3), "Faltan 3 datos");
+});
+
+test("reglamento e imagen: el reglamento debe estar aceptado y la imagen respondida (aunque sea que no)", () => {
+  const docs = ["reglamento", "uso_imagen"];
+  assert.equal(datosLegalesQueFaltan(docs, []), 2);
+  assert.equal(datosLegalesQueFaltan(docs, [{ tipo: "reglamento", estado: "aceptada" }, { tipo: "uso_imagen", estado: "rechazada" }]), 0);
+  assert.equal(datosLegalesQueFaltan(docs, [{ tipo: "reglamento", estado: "rechazada" }, { tipo: "uso_imagen", estado: "aceptada" }]), 1);
+  assert.equal(datosLegalesQueFaltan(["reglamento"], [{ tipo: "reglamento", estado: "aceptada" }]), 0);
+  assert.equal(datosLegalesQueFaltan([], []), 0);
+});
+
+test("guardadoHace: un momento, minutos, horas y días", () => {
+  const t = Date.UTC(2026, 9, 12, 12, 0, 0);
+  assert.equal(guardadoHace(new Date(t - 20_000).toISOString(), t), "hace un momento");
+  assert.equal(guardadoHace(new Date(t - 3 * 60_000).toISOString(), t), "hace 3 min");
+  assert.equal(guardadoHace(new Date(t - 2 * 3_600_000).toISOString(), t), "hace 2 h");
+  assert.equal(guardadoHace(new Date(t - 3 * 86_400_000).toISOString(), t), "hace 3 d");
+  assert.equal(guardadoHace("no es fecha", t), "hace un momento");
 });

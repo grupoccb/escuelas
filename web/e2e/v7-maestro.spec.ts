@@ -228,7 +228,7 @@ test.describe("la mañana de Mario", () => {
     const tarjeta = page.getByTestId(`clase-${F.registro.claseId}`);
     await expect(tarjeta).toContainText("Valeria");
     await expect(tarjeta).toContainText("Grupo V7 Maestro");
-    await expect(tarjeta).toContainText(/\d{2}:\d{2}/);
+    await expect(tarjeta).toContainText(/\d{1,2}:\d{2}\s?(am|pm)/);
     await expect(page.getByText(mundo.maestro.claseAjena.prospecto)).toHaveCount(0);
     expect(await page.locator("main").innerText()).not.toMatch(/\+52|Contacto:/);
     await sinImportes(page);
@@ -595,7 +595,7 @@ test.describe("pase de lista de su grupo", () => {
     await page.getByLabel("Fecha de la clase").fill(fecha);
     await expect(page.getByTestId("resumen-pase")).toContainText("Sin marcar 3");
     await revisar(page, "pase de lista");
-    await page.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+    await page.getByRole("button", { name: /Marcar a todos presentes/ }).click();
     paso();
     await alumno(page, cira).getByRole("radio", { name: "Falta" }).check();
     paso();
@@ -637,7 +637,7 @@ test.describe("pase de lista de su grupo", () => {
     await expect(page.getByTestId("resumen-pase")).toContainText("Pase ya tomado");
     const resumen = await page.getByTestId("resumen-pase").innerText();
     if (FASE === "antes") hallazgos.push(`pase: tras cambiar de fecha y volver, el resumen dice «${resumen.replace(/\n/g, " ")}» (la falta de Beto se perdió si dice Faltas 0)`);
-    else expect(resumen).toContain("Faltas 1");
+    else expect(resumen).toMatch(/Faltas\s+1/);
     // Y por la barra de abajo.
     await barra(page).getByRole("link", { name: "Hoy" }).click();
     await barra(page).getByRole("link", { name: "Pase de lista" }).click();

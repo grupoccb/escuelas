@@ -9,6 +9,7 @@ import type { Registro } from "../pantallas/maestro/tipos.ts";
 import { Aviso, Boton, ErrorDeAccion, Insignia } from "../ui/basicos.tsx";
 import { CampoArea, CampoTexto, GrupoDeOpciones } from "../ui/campos.tsx";
 import { useAccion } from "../ui/hooks.ts";
+import { Icono } from "../ui/Icono.tsx";
 
 interface Valores {
   alergias: string;
@@ -67,7 +68,7 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
     if (tocados.has("contacto_nombre") || tocados.has("contacto_telefono") || tocados.has("contacto_parentesco")) {
       if (valores.contacto_nombre.trim() === "" && valores.contacto_telefono.trim() === "") cuerpo["contacto_emergencia"] = null;
       else {
-        if (valores.contacto_nombre.trim() === "") e["contacto_nombre"] = "Escribe el nombre del contacto";
+        if (valores.contacto_nombre.trim() === "") e["contacto_nombre"] = "Falta: nombre del contacto.";
         if (digitos(valores.contacto_telefono).length < 10) e["contacto_telefono"] = "El teléfono debe tener 10 dígitos (con lada)";
         const c = choca();
         if (c) e["contacto_nombre"] = c;
@@ -135,7 +136,11 @@ export function FormularioSalud({ registro, bloqueado, alGuardar }: { registro: 
 
   return (
     <div className="pila" data-prueba="salud">
-      <p className="muted salud-nota">Datos sensibles del menor: solo los ven el maestro del grupo y el administrador, cada consulta queda registrada, y nunca van a mensajes ni a notas.</p>
+      {/* El aviso de permiso (handoff v2): quién lo ve y que nunca sale en un mensaje. La consulta pide un motivo y queda registrada (lo dice el campo «Motivo de la consulta»). */}
+      <p className="salud-permiso" data-prueba="aviso-de-permiso">
+        <Icono nombre="llave" tamano={18} />
+        <span>Solo lo ven quienes tienen permiso de salud. Nunca sale en un mensaje de WhatsApp.</span>
+      </p>
       <div className="fila">
         <Insignia tono={estado.completa ? "exito" : "alerta"}>{estado.completa ? "Ficha completa" : "Ficha incompleta"}</Insignia>
         {estado.contacto_registrado ? <Insignia tono="info">Contacto registrado</Insignia> : null}

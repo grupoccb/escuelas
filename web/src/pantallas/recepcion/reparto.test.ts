@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claveNueva, claveParaEnvio, firmaDelPago, mensajeDeCaptura, validarReparto } from "./reparto.ts";
+import { atajosDeMonto, cargosAbiertos, cargosPorHijo, claveNueva, claveParaEnvio, coberturaDeCargo, detalleDelRecibo, firmaDelPago, folioDePago, mensajeDeCaptura, mensajeDeExceso, textoDeCobertura, validarReparto } from "./reparto.ts";
+import type { CargoDeCuenta, EstadoDeCuenta } from "./tipos.ts";
 import { pareceTelefono, soloTelefono } from "./telefono.ts";
 
 const cargos = [
@@ -72,4 +73,58 @@ test("un teléfono: con 7 o más dígitos se busca como teléfono; con menos, so
   assert.equal(pareceTelefono("553099"), false);
   assert.equal(soloTelefono("Lucía 55"), false);
   assert.equal(soloTelefono("ANGEL"), false);
+});
+
+// ─── R4a ───
+
+const cargo = (id: string, saldo: string, vence: string, extra: Partial<CargoDeCuenta> = {}): CargoDeCuenta => ({ id, inscripcion_id: null, concepto: "mensualidad", periodo: null, descripcion: null, monto_final: saldo, monto_pagado: "0.00", saldo, fecha_vencimiento: vence, estatus: "pendiente", estatus_efectivo: "pendiente", dias_de_atraso: 0, ...extra });
+const cero = { total_cargado: "0.00", total_pagado: "0.00", saldo: "0.00", vencido: "0.00", antiguedad: { de_0_a_30: "0.00", de_31_a_60: "0.00", de_61_a_90: "0.00", mas_de_90: "0.00" } };
+const hijo = (id: string, nombre: string, cargos: CargoDeCuenta[]) => ({ ...cero, alumno: { id, nombre, apellidos: "X" }, cargos });
+const estado = { hijos: [hijo("a", "Ana", [cargo("a2", "650.00", "2026-10-15"), cargo("a1", "650.00", "2026-09-15", { estatus_efectivo: "vencido", dias_de_atraso: 27 }), cargo("a0", "0.00", "2026-08-15", { estatus: "pagado" })]), hijo("b", "Beto", [cargo("b1", "780.00", "2026-10-15", { estatus: "cancelado" })]), hijo("c", "Cata", [cargo("c1", "320.50", "2026-09-30")])] } as Pick<EstadoDeCuenta, "hijos">;
+
+test("los cargos con saldo se agrupan por hijo, el que venció antes primero, sin pagados ni cancelados ni hijos sin deuda", () => {
+  const g = cargosPorHijo(estado);
+  assert.deepEqual(g.map((x) => [x.alumno.nombre, x.cargos.map((c) => c.id)]), [["Ana", ["a1", "a2"]], ["Cata", ["c1"]]]);
+  assert.deepEqual(cargosAbiertos(estado).map((x) => `${x.hijo}:${x.cargo.id}`), ["Ana:a1", "Cata:c1", "Ana:a2"]);
+});
+
+test("la cobertura de un cargo: total, parcial o ninguna, en centavos exactos y con el porcentaje entero de la barra", () => {
+  assert.deepEqual(coberturaDeCargo("650.00", "650.00"), { estado: "total", aplica: "650.00", queda: "0.00", porcentaje: "100" });
+  assert.deepEqual(coberturaDeCargo("650.00", "300.00"), { estado: "parcial", aplica: "300.00", queda: "350.00", porcentaje: "46" });
+  assert.deepEqual(coberturaDeCargo("650.00", undefined), { estado: "ninguna", aplica: "0.00", queda: "650.00", porcentaje: "0" });
+  assert.equal(coberturaDeCargo("650.00", "0.00").estado, "ninguna");
+  // Un abono de un centavo llena al menos 1 %: la barra no se queda en blanco cuando el texto dice «se abonan».
+  assert.equal(coberturaDeCargo("1000.00", "0.01").porcentaje, "1");
+  // Lo que pasa del saldo no se sale de la barra.
+  assert.equal(coberturaDeCargo("100.00", "150.00").estado, "total");
+});
+
+test("el renglón bajo la barra dice qué pasa con ese cargo", () => {
+  const venc = { estatus_efectivo: "vencido", dias_de_atraso: 27 };
+  const pend = { estatus_efectivo: "pendiente", dias_de_atraso: 0 };
+  assert.equal(textoDeCobertura(coberturaDeCargo("650.00", "650.00"), venc), "Este pago lo cubre");
+  assert.equal(textoDeCobertura(coberturaDeCargo("650.00", "300.00"), pend), "Se abonan $300.00; quedan $350.00");
+  assert.equal(textoDeCobertura(coberturaDeCargo("650.00", undefined), venc), "Vencido 27 d");
+  assert.equal(textoDeCobertura(coberturaDeCargo("650.00", undefined), pend), "Pendiente");
+});
+
+test("los atajos: «Todo el saldo» siempre que haya saldo y «Solo lo vencido» solo si hay vencido distinto del saldo", () => {
+  assert.deepEqual(atajosDeMonto("2400.50", "650.00"), [{ clave: "todo", texto: "Todo el saldo", importe: "2400.50" }, { clave: "vencido", texto: "Solo lo vencido", importe: "650.00" }]);
+  assert.deepEqual(atajosDeMonto("650.00", "650.00").map((a) => a.clave), ["todo"], "todo vencido: un solo atajo");
+  assert.deepEqual(atajosDeMonto("650.00", "0.00").map((a) => a.clave), ["todo"], "nada vencido: un solo atajo");
+  assert.deepEqual(atajosDeMonto("0.00", "0.00"), []);
+});
+
+test("un monto mayor al saldo se dice con la cifra; uno igual o menor, no", () => {
+  assert.equal(mensajeDeExceso("4000.00", "3800.00"), "El monto es mayor que lo que adeuda ($3,800.00). Revisa la cantidad.");
+  assert.equal(mensajeDeExceso("3800.00", "3800.00"), undefined);
+  assert.equal(mensajeDeExceso("0.01", "3800.00"), undefined);
+  assert.equal(mensajeDeExceso(null, "3800.00"), undefined);
+});
+
+test("el folio es el identificador abreviado y siempre el mismo", () => {
+  assert.equal(folioDePago("3f9a12bc-1111-4222-8333-444455556666"), "P-3F9A12BC");
+  assert.equal(folioDePago("3f9a12bc-1111-4222-8333-444455556666"), folioDePago("3f9a12bc-1111-4222-8333-444455556666"));
+  assert.equal(detalleDelRecibo({ monto: "300.00", metodo: "Transferencia", referencia: "SPEI-1", id: "3f9a12bc-1111-4222-8333-444455556666" }), "$300.00 en transferencia · ref. SPEI-1 · folio P-3F9A12BC");
+  assert.equal(detalleDelRecibo({ monto: "1500.00", metodo: "Efectivo", referencia: null, id: "3f9a12bc-1111-4222-8333-444455556666" }), "$1,500.00 en efectivo · folio P-3F9A12BC");
 });

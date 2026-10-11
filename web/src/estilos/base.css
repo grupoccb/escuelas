@@ -102,6 +102,19 @@
   --sombra-panel-oscuro: 0 18px 40px -20px rgb(23 26 44 / 60%);
   --sombra-barra-seleccion: 0 16px 40px -8px rgb(23 26 44 / 45%);
   --sombra-aviso: 0 12px 32px rgb(23 26 44 / 28%);
+  /* R4a: la tarjeta «Nuevo pago» (la que se queda a la vista al desplazar), con su sombra de profundidad. */
+  --sombra-cobro: 0 1px 2px rgb(23 26 44 / 6%), 0 12px 28px -18px rgb(23 26 44 / 25%);
+  /* R4a (README «Registrar pago»): la caja del monto, el monograma de la familia, la etiqueta del hijo, la barra de cuánto cubre el pago y su ancho máximo. */
+  --alto-monto: 60px;
+  --avatar-familia-grande: 48px;
+  --alto-etiqueta-hijo: 36px;
+  --alto-barra-cubre: 6px;
+  --ancho-barra-cubre: 220px;
+  /* El ámbar de la barra cuando el pago solo abona (el verde de lo cubierto es --exito); el renglón de abajo lo dice con texto. */
+  --alerta-barra: #d9962b;
+  /* R4b (maestro): la tarjeta de la clase en «Hoy» y el anillo de la marca «Ahora». */
+  --sombra-clase: 0 1px 3px rgb(23 26 44 / 10%), 0 8px 20px -14px rgb(23 26 44 / 30%);
+  --primario-anillo: #dad8fa;
 
   /* Medidas */
   --radio: 10px;
@@ -552,9 +565,7 @@ table.tabla tbody tr:hover { background: var(--fondo); }
 @media (max-width: 899px) { .campo-busqueda { width: 100%; } }
 
 /* ───────── Pase de lista y registro ───────── */
-.alumno-pase { display: flex; flex-direction: column; gap: var(--e2); background: var(--superficie); border-radius: var(--radio-tarjeta); padding: 14px; box-shadow: var(--sombra-tarjeta); }
-.seccion-registro > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: var(--e2); cursor: pointer; font-weight: 700; font-size: 1rem; }
-.seccion-registro[open] > summary { margin-bottom: var(--e2); }
+.alumno-pase { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; background: var(--superficie); border-radius: var(--radio-indicador); padding: 12px 12px 12px 14px; box-shadow: var(--sombra-tarjeta); }
 .barra-guardado { position: sticky; bottom: calc(var(--alto-barra) + var(--e2)); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); padding: var(--e3) var(--e4); display: flex; gap: var(--e2); align-items: center; justify-content: space-between; box-shadow: var(--sombra-flotante); z-index: 5; animation: sube var(--t-entrada) var(--curva); }
 @media (min-width: 900px) { .barra-guardado { bottom: var(--e2); } }
 .barra-guardado-columna { flex-direction: column; align-items: stretch; max-height: 45dvh; overflow-y: auto; }
@@ -704,13 +715,11 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 
 /* Dos columnas en escritorio (lo que debe y los pagos a la izquierda, el formulario a la derecha); en celular, una debajo de otra. */
 .cobro, .ventas-rejilla { display: grid; gap: var(--e5); grid-template-columns: minmax(0, 1fr); align-items: start; grid-template-areas: "a" "b" "c"; }
-.cobro-con-recibo { grid-template-areas: "a" "c"; }
 .cobro-deuda, .area-a { grid-area: a; }
 .cobro-formulario, .area-b { grid-area: b; }
 .cobro-recientes, .area-c { grid-area: c; }
 @media (min-width: 1100px) {
   .cobro, .ventas-rejilla { grid-template-columns: minmax(0, 1.17fr) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "a b" "c b"; }
-  .cobro-con-recibo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "a c"; }
 }
 
 /* Filas planas dentro de un panel: separadas por una línea. */
@@ -731,14 +740,12 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .deuda-total { display: flex; flex-direction: column; gap: var(--e1); }
 
 /* Nuevo pago: el monto grande, «Todo el saldo» al lado y el reparto en un recuadro gris. */
-.monto-fila { display: flex; flex-wrap: wrap; gap: 10px; }
-.monto-caja { flex: 1 1 180px; display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 0 14px; background: var(--superficie); border: 2px solid var(--primario); border-radius: var(--radio-tarjeta); }
+.monto-caja { flex: none; display: flex; align-items: center; gap: 6px; min-height: var(--alto-monto); padding: 0 14px; background: var(--superficie); border: 2px solid var(--primario); border-radius: var(--radio-tarjeta); }
 .monto-caja:focus-within { outline: 2px solid var(--foco); outline-offset: 2px; }
 .campo-con-error .monto-caja { border-color: var(--peligro); }
 .monto-signo { font-family: var(--fuente-titulo); font-weight: 600; font-size: 1.375rem; color: var(--texto-suave); }
-.monto-caja input:not([type="checkbox"]):not([type="radio"]) { flex: 1; min-width: 0; min-height: 48px; padding: 0; border: 0; border-radius: 0; background: transparent; font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.625rem; font-variant-numeric: tabular-nums; }
+.monto-caja input:not([type="checkbox"]):not([type="radio"]) { flex: 1; min-width: 0; min-height: 48px; padding: 0; border: 0; border-radius: 0; background: transparent; font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.875rem; font-variant-numeric: tabular-nums; }
 .monto-caja input:focus-visible { outline: none; }
-.monto-fila .boton { min-height: 56px; padding: 0 var(--e4); border-radius: var(--radio-tarjeta); }
 /* Una sola caja con su anillo: el campo con caja propia (monto, búsquedas, clave) lleva el anillo en la caja, no en el input de adentro (esta regla pesa más que la del input). */
 .monto-caja input:not([type="checkbox"]):not([type="radio"]):focus-visible,
 .campo-busqueda input:not([type="checkbox"]):not([type="radio"]):focus-visible,
@@ -758,13 +765,10 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .resumen-total { margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--e3); padding: 14px var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); font-weight: 600; }
 .resumen-total .cifra-principal { font-size: 1.75rem; line-height: 2rem; }
 
-/* La confirmación y el recibo: el pago hecho es la cifra más grande; el saldo baja de tamaño. */
-.recibo-pago { gap: var(--e2); }
-.recibo-monto { color: inherit; }
+/* La confirmación y el recibo del pago registrado (el diseño de R4a está al final: «R4a: registrar pago»). */
 .recibo-detalle { margin: 0; font-weight: 600; }
 .recibo-reparto { margin: 0; padding-left: 1.2rem; }
 .recibo-titulo { margin: 0; }
-.cobro-con-recibo .cifra-principal { font-size: 1.75rem; line-height: 2rem; }
 
 /* Estado de cuenta y cierre del día. */
 .cuenta { display: flex; flex-direction: column; gap: var(--e5); }
@@ -816,10 +820,10 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
   .cobro > * + *, .ventas-rejilla > * + * { margin-top: var(--e3); }
   .seccion-tabla, .fila-dato, table.tabla tr { break-inside: avoid; }
   .corte-neto { background: var(--papel); border-color: var(--borde-impresion); }
-  .corte-neto .cifra-principal, .recibo-monto { color: var(--tinta); }
+  .corte-neto .cifra-principal { color: var(--tinta); }
   .corte-neto .cifras-formas > div { background: var(--papel); }
   /* Recibo: el pago hecho con su reparto; sin el título de la pantalla, ni el adeudo, ni los pagos recientes. */
-  .pagina:has(.recibo-pago) > .pagina-cabecera h1, .pagina:has(.recibo-pago) .cobro-con-recibo { display: none; }
+  .pagina:has(.cobro-recibo) > .pagina-cabecera h1, .pagina:has(.cobro-recibo) .cobro-con-recibo .cobro-deuda, .pagina:has(.cobro-recibo) .cobro-con-recibo .cobro-recientes { display: none; }
   .recibo-titulo { font-size: 1.5rem; line-height: 2rem; }
 }
 
@@ -843,8 +847,32 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .avisos-maestro [data-prueba="error-de-guardado"] { color: var(--texto); }
 .dia-clases { gap: var(--e3); }
 .dia-clases > h2 { color: var(--texto-medio); }
-.lista-clases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-.clase-tarjeta { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 18px; background: var(--superficie); border-radius: var(--radio-clase); box-shadow: var(--sombra); }
+/* R4b: línea de tiempo. Cada clase es una fila con su riel (punto y línea) y su tarjeta; la banda de 5 px de arriba lleva el color de la disciplina (`--disciplina`, puesto por `useDisciplina`). */
+.lista-clases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.clase-fila { display: flex; gap: 10px; min-width: 0; }
+.clase-riel { flex: none; width: 22px; display: flex; flex-direction: column; align-items: center; }
+.clase-riel::after { content: ""; flex: 1; width: 2px; margin-top: 4px; background: var(--borde); }
+.clase-fila:last-child .clase-riel::after { background: transparent; }
+.clase-punto { box-sizing: content-box; width: 10px; height: 10px; margin-top: 27px; border: 3px solid var(--fondo); border-radius: 50%; background: var(--lateral-suave); }
+.clase-fila[data-punto="ahora"] .clase-punto { background: var(--primario); }
+.clase-fila[data-punto="asistio"] .clase-punto { background: var(--exito); }
+.clase-fila[data-punto="no_asistio"] .clase-punto { background: var(--alerta); }
+.clase-tarjeta { flex: 1; min-width: 0; margin-bottom: 12px; overflow: hidden; background: var(--superficie); border-radius: var(--radio-clase); box-shadow: var(--sombra-clase); }
+.clase-banda { height: 5px; background: var(--disciplina, var(--borde-campo)); }
+.clase-cuerpo { display: flex; flex-direction: column; gap: 12px; padding: 14px var(--e4) var(--e4); }
+.clase-hora-linea { display: flex; align-items: baseline; gap: 6px; }
+.clase-ampm { font-weight: 700; color: var(--texto-medio); }
+.clase-grupo-linea { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--e2); }
+.clase-registro { margin: 0; color: var(--texto-suave); font-size: 0.8125rem; line-height: 1.125rem; }
+.clase-registro-estado { color: var(--texto-suave); }
+.clase-registro-borrador { color: var(--alerta); }
+.clase-registro-completo { color: var(--primario-fuerte); }
+.clase-registro-cerrado { color: var(--exito); }
+/* La marca «Ahora 4:20 pm · siguiente en 40 min» entre dos clases. */
+.linea-ahora { display: flex; align-items: center; gap: 10px; padding: 2px 0 12px; }
+.linea-ahora-punto { flex: none; box-sizing: content-box; width: 12px; height: 12px; margin-inline: 1px; border: 4px solid var(--primario-anillo); border-radius: 50%; background: var(--primario); }
+.linea-ahora-trazo { flex: 1; height: 2px; border-radius: var(--radio-trazo); background: var(--primario); }
+.linea-ahora-texto { flex: none; padding: 3px 10px; border-radius: var(--radio-pildora); background: var(--primario); color: var(--primario-texto); font-size: 0.8125rem; line-height: 1.125rem; font-weight: 700; }
 .clase-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--e3); }
 .clase-cabecera .insignia { flex: none; }
 .clase-alumno { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -855,27 +883,44 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .clase-acciones { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .clase-acciones > .boton-grande { width: 100%; }
 .clase-tarjeta .boton-secundario { border-color: var(--borde-campo); }
+.clase-tarjeta .boton-primario { border-color: var(--primario); }
 .clase-tarjeta .boton-secundario:hover:not(:disabled) { border-color: var(--texto-suave); }
 .hora-clase { margin: 0; }
 /* «Asistió» / «No asistió»: dos botones de 48 px y, debajo, por qué están apagados. */
 .asistencia { display: flex; flex-direction: column; gap: var(--e2); min-width: 0; }
 .asistencia-fila { display: flex; gap: 10px; }
-.asistencia-boton { flex: 1 1 0; min-height: 48px; padding: 0 var(--e3); border-radius: var(--radio-tarjeta); font-weight: 700; }
+.asistencia-boton { flex: 1 1 0; min-height: 48px; padding: 0 var(--e3); border-radius: var(--radio-tarjeta); border-color: var(--borde-campo); font-weight: 700; }
+.asistencia-boton.boton-elegido, .asistencia-boton.boton-elegido:disabled { border-width: 2px; }
+.asistencia-asistio, .asistencia-asistio:disabled { background: var(--exito-suave); border-color: var(--exito); color: var(--exito); }
+.asistencia-no_asistio, .asistencia-no_asistio:disabled { background: var(--alerta-suave); border-color: var(--alerta-borde); color: var(--alerta); }
+.asistencia-boton:disabled:not(.boton-elegido) { border-color: var(--borde); }
 .asistencia-ayuda { margin: 0; color: var(--texto-suave); font-size: 0.8125rem; line-height: 1.125rem; }
+.asistencia-ayuda-aviso { color: var(--alerta); font-weight: 600; }
 
 /* Pase de lista: un alumno por tarjeta con el selector segmentado de tres opciones; cada opción elegida lleva su tono además de su forma (blanca y en relieve) y su texto. */
-.pase-resumen { gap: var(--e2); }
-.pase-todos { display: flex; }
+.pase-resumen { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px var(--e4); padding: 14px var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.pase-conteo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--e4); }
+.pase-cifra { display: inline-flex; flex-direction: row-reverse; align-items: baseline; gap: 6px; color: var(--texto-medio); font-weight: 600; }
+.pase-cifra-valor { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.625rem; color: var(--texto); font-variant-numeric: tabular-nums; }
+.pase-cifra-presente .pase-cifra-valor { color: var(--exito); }
+.pase-cifra-falta .pase-cifra-valor { color: var(--peligro); }
+.pase-cifra-justificada .pase-cifra-valor { color: var(--primario-fuerte); }
 .lista-pase { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e3); }
-.alumno-pase { border: 1px solid var(--borde); }
-.alumno-pase .grupo-opciones { gap: 10px; }
-.alumno-pase .grupo-opciones legend { padding: 0; font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; color: var(--texto); }
-.alumno-pase .grupo-segmentado .grupo-opciones-fila { display: flex; width: 100%; }
-.alumno-pase .opcion { min-width: 0; padding: 0 var(--e2); }
+/* La fila del alumno: avatar con el tono de la disciplina y nombre a la izquierda; a la derecha tres botones separados (no una pista). El nombre accesible del grupo es el nombre del alumno (la leyenda queda solo para lectores). */
+.alumno-pase-identidad { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: var(--e3); }
+.alumno-pase-nombre { min-width: 0; font-weight: 700; font-size: 1rem; line-height: 1.375rem; overflow-wrap: anywhere; }
+.alumno-pase-nota { align-self: flex-start; padding: 1px var(--e2); border-radius: var(--radio-etiqueta); background: var(--etiqueta); color: var(--etiqueta-texto); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+.alumno-pase .grupo-opciones { flex: 1 1 300px; min-width: 0; }
+.alumno-pase .grupo-opciones legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.alumno-pase .grupo-segmentado .grupo-opciones-fila { display: flex; width: 100%; gap: 6px; padding: 0; background: transparent; border-radius: 0; }
+.alumno-pase .grupo-segmentado .opcion { min-width: 0; min-height: 48px; padding: 0 6px; border: 1px solid var(--borde-boton); border-radius: var(--radio-tarjeta); background: var(--superficie); color: var(--texto-medio); font-weight: 700; box-shadow: none; }
+.alumno-pase .grupo-segmentado .opcion:hover:not(.opcion-activa) { background: var(--fondo); color: var(--texto); }
 .alumno-pase .opcion-activa:has(input[value="presente"]) { background: var(--exito-suave); color: var(--exito); box-shadow: inset 0 0 0 2px var(--exito); }
 .alumno-pase .opcion-activa:has(input[value="falta"]) { background: var(--peligro-suave); color: var(--peligro); box-shadow: inset 0 0 0 2px var(--peligro); }
 .alumno-pase .opcion-activa:has(input[value="justificada"]) { background: var(--primario-suave); color: var(--primario-fuerte); box-shadow: inset 0 0 0 2px var(--primario); }
 .barra-guardado-texto { flex: 1; min-width: 0; color: var(--texto-medio); font-size: 0.875rem; line-height: 1.25rem; }
+.barra-guardado-sub { display: block; color: var(--texto-suave); font-weight: 600; }
+.barra-guardado-sub-listo { color: var(--exito); }
 .barra-guardado .boton-primario { flex: none; min-height: var(--alto-accion); }
 @media (max-height: 500px) { .barra-guardado .boton-primario { min-height: var(--alto-toque); } }
 
@@ -886,19 +931,18 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .registro-clase-separador { display: none; }
 .registro-clase-hora { font-family: var(--fuente-titulo); font-weight: 700; font-size: 2rem; line-height: 2.125rem; font-variant-numeric: tabular-nums; }
 .registro-clase-grupo { margin: 0; }
-.seccion-registro > summary { list-style: none; gap: var(--e3); }
+.seccion-registro > summary { list-style: none; min-height: 60px; gap: var(--e3); padding: 10px var(--e4); }
 .seccion-registro > summary::-webkit-details-marker { display: none; }
 .seccion-registro > summary::after { content: ""; flex: none; width: 8px; height: 8px; margin: 0 var(--e1) 0 var(--e1); border-right: 2px solid var(--texto-medio); border-bottom: 2px solid var(--texto-medio); transform: rotate(45deg); transition: transform var(--t-rapido) var(--curva); }
 .seccion-registro[open] > summary::after { transform: rotate(-135deg); }
-.seccion-titulo { flex: 1; min-width: 0; font-size: 1rem; line-height: 1.375rem; }
+.seccion-titulo { flex: 1; min-width: 0; font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
 .adulto-tarjeta { padding: var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .adulto-cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
 .pie-seccion { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2) var(--e3); }
-.pie-seccion .boton { flex: 1 1 auto; }
+.pie-seccion .boton { flex: 0 0 auto; }
 .pie-seccion-estado { flex: 1 1 100%; color: var(--texto-suave); font-size: 0.8125rem; line-height: 1.125rem; font-weight: 600; }
 
 /* Salud: los datos sensibles. La consulta pide un motivo antes; la ficha dice cuánto falta para ocultarse. */
-.salud-nota { margin: 0; }
 .salud-subtitulo { margin-top: var(--e2); }
 .salud-consulta { padding: var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
 .salud-cuenta { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); }
@@ -1049,8 +1093,8 @@ table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 .barra-guardado:has(.barra-guardado-error) { flex-direction: column; align-items: stretch; max-height: 45dvh; overflow-y: auto; }
 .barra-guardado-error { display: flex; align-items: flex-start; gap: var(--e2); padding: var(--e2) var(--e3); background: var(--peligro-suave); border: 1px solid var(--peligro); border-radius: var(--radio); color: var(--peligro); font-weight: 600; }
 .barra-guardado-error svg { flex: none; margin-top: 1px; }
-.seccion-registro { display: block; }
-.seccion-registro:not([open]) { padding-block: var(--e2); }
+.seccion-registro { display: block; overflow: hidden; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.seccion-registro[open] { border-color: var(--primario); }
 /* Un estado vacío suelto sobre el fondo de la página se ve como recuadro blanco con borde (el fondo del recuadro sería el mismo de la página). */
 .vacio-maestro .vacio { background: var(--superficie); border: 1px dashed var(--borde-campo); }
 
@@ -1284,7 +1328,6 @@ ul.lista-tarjetas:empty { display: none; }
 .seccion-registro .grupo-segmentado .grupo-opciones-fila { display: flex; width: 100%; }
 .seccion-registro .grupo-segmentado .opcion { min-width: 0; padding: 0 var(--e2); }
 /* El rótulo largo de «marcar presentes» cabe en dos renglones sin tocar el borde. */
-.pase-todos .boton { padding-block: 10px; line-height: 1.25rem; text-align: center; }
 /* En pantalla grande el diseño del celular no se estira: una columna de lectura. */
 .maestro-columna { display: flex; flex-direction: column; gap: var(--e5); width: 100%; max-width: 40rem; min-width: 0; }
 .maestro-columna.pila { gap: var(--e3); }
@@ -1956,3 +1999,100 @@ table.tabla-leads tr[data-seleccionado] { background: var(--primario-suave); }
 .comparativo-desercion-media { background: var(--alerta-suave); color: var(--alerta); }
 .comparativo-desercion-baja { background: var(--exito-suave); color: var(--exito); }
 .comparativo-desercion-sin { background: var(--etiqueta); color: var(--etiqueta-texto); }
+
+/* === R4b: maestro (Hoy, pase de lista y registro del alumno) === */
+/* Registro: el nombre del alumno en la tarjeta de la clase, la barra de avance y el acordeón de 6 secciones (número o palomita, título, estado y flecha). */
+.registro-clase-alumno { margin: 0; font-size: 1.1875rem; line-height: 1.625rem; font-weight: 700; overflow-wrap: anywhere; }
+.registro-avance { display: flex; flex-direction: column; gap: var(--e2); padding: 14px var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.registro-avance-texto { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--e1) var(--e3); }
+.registro-avance-guardado { color: var(--texto-suave); font-weight: 600; }
+.registro-avance-barra { appearance: none; width: 100%; height: 8px; border: 0; border-radius: var(--radio-marca); background: var(--columna); color: var(--primario); overflow: hidden; }
+.registro-avance-barra::-webkit-progress-bar { background: var(--columna); }
+.registro-avance-barra::-webkit-progress-value { background: var(--primario); border-radius: var(--radio-marca); transition: width var(--t-entrada) var(--curva); }
+.registro-avance-barra::-moz-progress-bar { background: var(--primario); border-radius: var(--radio-marca); }
+.seccion-numero { flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radio-pildora); background: var(--columna); color: var(--texto-medio); font-size: 0.8125rem; font-weight: 700; }
+.seccion-registro[data-estado="completa"] .seccion-numero { background: var(--exito); color: var(--primario-texto); }
+.seccion-estado { flex: none; padding: 3px 10px; border-radius: var(--radio-pildora); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; }
+.seccion-estado-completa { background: var(--exito-suave); color: var(--exito); }
+.seccion-estado-faltan, .seccion-estado-sucia { background: var(--alerta-suave); color: var(--alerta); }
+.seccion-cuerpo { gap: 14px; padding: 4px var(--e4) 18px; animation: aparece var(--t-entrada) var(--curva); }
+.salud-permiso { display: flex; gap: 10px; margin: 0; padding: 10px var(--e3); border-radius: var(--radio); background: var(--primario-suave); color: var(--primario-fuerte); font-size: 0.84375rem; line-height: 1.1875rem; }
+.salud-permiso svg { flex: none; }
+
+/* === R4a: registrar pago === */
+/* La tarjeta de la familia: monograma, nombre, teléfono y alumnos, y los hijos en etiquetas con el color de su disciplina (el dato `color_marca`; sin color, el neutro del sistema). */
+.tarjeta-familia { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: var(--e4) var(--e5); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.familia-elegida-grande { flex: 1 1 280px; gap: 14px; }
+.avatar-familia-grande { width: var(--avatar-familia-grande); height: var(--avatar-familia-grande); font-family: var(--fuente-titulo); font-size: 1.0625rem; }
+.familia-nombre-grande { font-family: var(--fuente-titulo); font-size: 1.3125rem; line-height: 1.625rem; letter-spacing: -0.01em; }
+.etiquetas-hijos { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--e2); }
+.etiqueta-hijo { display: inline-flex; align-items: center; gap: var(--e2); min-height: var(--alto-etiqueta-hijo); padding: 0 var(--e3); border-radius: var(--radio-pildora); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-weight: 700; }
+.etiqueta-hijo-punto { flex: none; width: 8px; height: 8px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.etiqueta-hijo-grupo { font-weight: 500; }
+
+/* Lo que adeuda: la cifra, lo vencido y los cargos por hijo; cada cargo con la barra de cuánto cubre el monto escrito. */
+.cobro { align-items: start; }
+@media (min-width: 1100px) { .cobro { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+.cobro-deuda { gap: var(--e4); }
+.cobro-deuda .cifra-principal { font-size: 2.5rem; line-height: 2.75rem; letter-spacing: -0.01em; }
+.cobro-deuda .insignia-alerta { padding: var(--e1) var(--e3); border-radius: var(--radio-pildora); font-size: 0.78125rem; line-height: 1rem; }
+.deuda-grupo { display: flex; flex-direction: column; }
+.deuda-grupo-titulo { display: flex; align-items: center; gap: var(--e2); padding: var(--e2) 0; border-top: 1px solid var(--borde); color: var(--texto-medio); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; }
+.deuda-grupo-punto { flex: none; width: 8px; height: 8px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.cargo-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cargo-fila { display: flex; align-items: center; justify-content: space-between; gap: var(--e4); padding: 10px 0 12px; }
+.cargo-datos { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.cargo-titulo-fila { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--e1) 10px; }
+.cargo-nombre { font-size: 0.9375rem; line-height: 1.375rem; }
+.cargo-fecha { color: var(--texto-suave); font-weight: 500; }
+.cargo-fecha-vencida { color: var(--peligro); font-weight: 700; }
+.cargo-cubre { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e1) 10px; }
+.cubre-barra { flex: 1 1 8rem; max-width: var(--ancho-barra-cubre); height: var(--alto-barra-cubre); border-radius: var(--radio-pildora); background: var(--columna); overflow: hidden; }
+.cubre-relleno { display: block; height: 100%; width: var(--p, 0%); border-radius: var(--radio-pildora); transition: width var(--t-entrada) var(--curva); }
+.cubre-total { background: var(--exito); }
+.cubre-parcial { background: var(--alerta-barra); }
+.cargo-estado { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; }
+.cargo-estado-total { color: var(--exito); }
+.cargo-estado-parcial { color: var(--alerta); }
+.cargo-estado-vencido { color: var(--peligro); }
+.cargo-importe { flex: none; font-size: 1rem; }
+
+/* Nuevo pago: la tarjeta se queda a la vista al desplazar (escritorio), con sombra de profundidad; el monto grande, los atajos debajo y el reparto en un recuadro gris. */
+.cobro-formulario { box-shadow: var(--sombra-cobro); gap: var(--e4); }
+@media (min-width: 1100px) { .cobro-formulario { position: sticky; top: var(--e4); } }
+.atajos-monto { display: flex; flex-wrap: wrap; gap: var(--e2); margin-top: var(--e1); }
+.atajo-monto { min-height: var(--alto-pildora); padding: 0 14px; border: 1px solid var(--borde-boton); border-radius: var(--radio-pildora); background: var(--superficie); color: var(--primario-fuerte); font: inherit; font-weight: 700; cursor: pointer; transition: background-color var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.atajo-monto:hover { background: var(--fondo); border-color: var(--borde-campo); }
+.atajo-monto[aria-pressed="true"] { background: var(--primario-suave); border-color: var(--primario); }
+.reparto-vacio { margin: 0; color: var(--texto-suave); }
+
+/* El pago registrado ocupa el lugar del formulario: sello, detalle con folio, lo aplicado, el saldo que queda y las acciones del mostrador. */
+.cobro-recibo { animation: aparece var(--t-entrada) var(--curva); }
+.recibo-sello { align-self: flex-start; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: var(--radio-pildora); background: var(--exito-suave); color: var(--exito); }
+.recibo-encabezado { display: flex; flex-direction: column; gap: var(--e1); }
+.recibo-titulo-pantalla { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.625rem; line-height: 1.875rem; }
+.cobro-recibo .recibo-detalle { color: var(--texto-medio); font-weight: 500; }
+.cobro-recibo .recibo-reparto { color: var(--texto-medio); }
+.recibo-resumen { display: grid; grid-template-columns: 1fr auto; gap: var(--e2) var(--e4); margin: 0; padding: 14px var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); }
+.recibo-resumen dd { margin: 0; font-weight: 700; }
+.recibo-saldo-cero { color: var(--exito); }
+.recibo-acciones { display: flex; flex-wrap: wrap; gap: var(--e2); }
+.boton-recibo { flex: 1 1 auto; min-height: 48px; border-radius: var(--radio-tarjeta); }
+
+/* Pagos recientes: una fila suave por pago, con su folio; el recién registrado va con «Nuevo» y el fondo de la marca. */
+.pagos-recientes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e2); }
+.pago-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e2) var(--e3); padding: var(--e3) 14px; border-radius: var(--radio-tarjeta); background: var(--fondo); }
+.pago-fila-nuevo { background: var(--primario-suave); }
+.pago-fila-fecha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2); }
+.pago-nuevo { padding: 2px var(--e2); border-radius: var(--radio-pildora); background: var(--primario); color: var(--primario-texto); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+.pago-fila-derecha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e3); }
+.pago-monto-cancelado { color: var(--texto-suave); text-decoration: line-through; }
+
+/* «Cambiar de familia»: el buscador dentro de un diálogo, con los resultados en filas de 64. */
+.buscador-familia-dialogo { max-width: none; gap: var(--e3); }
+.formulario-busqueda { display: flex; flex-direction: column; gap: var(--e2); }
+.buscador-familia-dialogo .lista-tarjetas > li { min-height: 64px; }
+
+@media print {
+  .cobro-formulario { position: static; box-shadow: none; }
+}

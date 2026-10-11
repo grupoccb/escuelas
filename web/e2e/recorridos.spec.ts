@@ -181,7 +181,7 @@ for (const vista of Object.keys(VISTAS) as Vista[]) {
       await m.goto("/pase");
       await m.getByLabel("Fecha de la clase").fill(fecha);
       for (const n of R.alumnosDelPase) await expect(m.getByRole("group", { name: n })).toBeVisible();
-      await m.getByRole("button", { name: /Marcar presentes a todos/ }).click();
+      await m.getByRole("button", { name: /Marcar a todos presentes/ }).click();
       await m.getByRole("group", { name: R.alumnosDelPase[1]! }).getByRole("radio", { name: "Falta" }).check();
       await expect(m.getByTestId("resumen-pase")).toContainText("Presentes 1");
       await expect(m.getByTestId("resumen-pase")).toContainText("Faltas 1");

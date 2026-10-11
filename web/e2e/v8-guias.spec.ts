@@ -313,9 +313,9 @@ test.describe("maestro", () => {
     await expect(page.getByRole("heading", { name: "Pase de lista" })).toBeVisible();
     await page.getByLabel("Grupo").selectOption(F.maestro.grupoPase);
     await expect(page.getByTestId(`alumno-${F.maestro.alumnos[0]!.id}`)).toBeVisible();
-    await page.getByRole("button", { name: "Marcar presentes a todos los que faltan por marcar" }).click();
+    await page.getByRole("button", { name: "Marcar a todos presentes" }).click();
     await page.getByTestId(`alumno-${F.maestro.alumnos[2]!.id}`).getByRole("radio", { name: "Falta" }).click();
-    await foto(page, "maestro-03-pase", { completa: true, resaltar: [page.getByRole("button", { name: "Marcar presentes a todos los que faltan por marcar" }), page.getByRole("button", { name: "Guardar pase de lista" })] });
+    await foto(page, "maestro-03-pase", { completa: true, resaltar: [page.getByRole("button", { name: "Marcar a todos presentes" }), page.getByRole("button", { name: "Guardar pase de lista" })] });
 
     // Sin señal: el aviso aparece junto al botón y lo marcado sigue ahí.
     await page.context().setOffline(true);

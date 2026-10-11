@@ -1,11 +1,12 @@
 // Reglamento y autorización de imagen con evidencia (D6): qué documento rige hoy, quién lo aceptó (o rechazó, o revocó), cuándo y por qué canal.
 // La evidencia (la huella del texto mostrado, la fecha, quién capturó) la pone el servidor; aquí solo se elige la versión vigente que la familia vio.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api/cliente.ts";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia } from "../../ui/basicos.tsx";
 import { CampoArea, CampoSelect, CampoTexto } from "../../ui/campos.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
+import { datosLegalesQueFaltan } from "./formulario.ts";
 import type { DocumentoVigente, EstadoLegal, TutorDeRegistro } from "./tipos.ts";
 
 interface Aceptaciones {
@@ -103,10 +104,17 @@ function TarjetaDeDocumento({ doc, estado, claseId, tutores, bloqueado, alCambia
   );
 }
 
-export function Aceptaciones({ claseId, tutores, bloqueado, alCambiar }: { claseId: string; tutores: readonly TutorDeRegistro[]; bloqueado: boolean; alCambiar: () => void }) {
+export function Aceptaciones({ claseId, tutores, bloqueado, alCambiar, alFaltantes }: { claseId: string; tutores: readonly TutorDeRegistro[]; bloqueado: boolean; alCambiar: () => void; alFaltantes?: (n: number | null) => void }) {
   const estado = useCarga((senal) => api.get<Aceptaciones>(`/api/clases-muestra/${claseId}/registro/aceptaciones`, undefined, senal), [claseId]);
   const verticalId = estado.datos?.vertical_id ?? null;
   const vigentes = useCarga((senal) => api.get<{ datos: DocumentoVigente[] }>("/api/documentos-legales/vigentes", { vertical_id: verticalId ?? undefined }, senal), [verticalId], estado.datos !== null);
+
+  // Le dice a la sección cuántos datos faltan (`null` mientras carga o si no se pudo leer), para su estado «Completa» / «Faltan N datos».
+  const tipos = (vigentes.datos?.datos ?? []).map((d) => d.tipo).join(",");
+  const faltan = estado.datos && vigentes.datos ? datosLegalesQueFaltan(tipos.split(","), estado.datos.estado) : null;
+  useEffect(() => {
+    alFaltantes?.(faltan);
+  }, [faltan, alFaltantes]);
 
   if (estado.error) return <ErrorDeCarga error={estado.error} alReintentar={estado.recargar} />;
   if (vigentes.error) return <ErrorDeCarga error={vigentes.error} alReintentar={vigentes.recargar} />;

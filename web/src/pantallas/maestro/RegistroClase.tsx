@@ -3,6 +3,8 @@
 //
 // Se guarda por secciones (cada una con su botón) o todo junto («Guardar borrador»). Lo que se escribe vive en la memoria de la página: si falla la red NO se pierde
 // (el aviso lo dice y se reintenta); no se guarda en el navegador y se avisa antes de salir con cambios sin guardar. La salud va aparte (src/salud/).
+// R4b (handoff v2): acordeón de 6 secciones (cada `<details>` con su número, su título y su estado «Completa» / «Faltan N datos»; con cambios sin guardar dice «Sin guardar»), barra de
+// avance «N de 6 secciones completas», errores «Falta: …» y la barra de abajo con «Guardar borrador». Las secciones se pueden abrir varias a la vez.
 
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -28,9 +30,12 @@ import {
   cuerpoDeAntecedentes,
   cuerpoDeObservacion,
   cuerpoDeTutores,
+  faltanDeSeccion,
+  guardadoHace,
   observacionDesde,
   tutorVacio,
   tutoresDesde,
+  textoDeFaltan,
   unirErrores,
   validarAlumno,
   validarAntecedentes,
@@ -40,7 +45,9 @@ import {
   type FormAntecedentes,
   type FormObservacion,
   type FormTutor,
+  type IdDeSeccion,
 } from "./formulario.ts";
+import { texto12 } from "./linea-de-tiempo.ts";
 import type { Registro } from "./tipos.ts";
 
 type NombreDeSeccion = "alumno" | "tutores" | "antecedentes" | "observacion";
@@ -61,7 +68,7 @@ function ListaDeFaltas({ error }: { error: ErrorDeApi | null }) {
     <Aviso tono="alerta" titulo={error.message}>
       {faltas.length > 0 ? (
         <ul>
-          {[...new Set(faltas.map((d) => etiquetaDeFaltante(d.campo ?? "", etiquetaDeSalud) + (d.mensaje && d.mensaje !== "Falta" ? `: ${d.mensaje}` : "")))].map((t) => (
+          {[...new Set(faltas.map((d) => (d.mensaje && d.mensaje !== "Falta" ? `${etiquetaDeFaltante(d.campo ?? "", etiquetaDeSalud)}: ${d.mensaje}` : `Falta: ${etiquetaDeFaltante(d.campo ?? "", etiquetaDeSalud)}`)))].map((t) => (
             <li key={t}>{t}</li>
           ))}
         </ul>
@@ -70,14 +77,19 @@ function ListaDeFaltas({ error }: { error: ErrorDeApi | null }) {
   );
 }
 
-function Seccion({ id, titulo, estado, abierta, children }: { id: string; titulo: string; estado?: string | undefined; abierta?: boolean; children: React.ReactNode }) {
+/** Una sección del acordeón: número (o palomita), título, estado y flecha. `faltan` es `null` mientras no se sabe; con cambios sin guardar dice «Sin guardar». */
+function Seccion({ id, numero, titulo, faltan, sucio = false, abierta, children }: { id: IdDeSeccion; numero: number; titulo: string; faltan: number | null; sucio?: boolean; abierta?: boolean; children: React.ReactNode }) {
+  const completa = faltan === 0;
   return (
-    <details className="tarjeta seccion-registro" open={abierta} data-prueba={`seccion-${id}`}>
+    <details className="seccion-registro" open={abierta} data-prueba={`seccion-${id}`} data-estado={sucio ? "sucia" : completa ? "completa" : "faltan"}>
       <summary>
+        <span className="seccion-numero" aria-hidden="true">
+          {completa ? <Icono nombre="exito" tamano={16} /> : numero}
+        </span>
         <span className="seccion-titulo">{titulo}</span>
-        {estado ? <Insignia tono={estado === "Sin guardar" ? "alerta" : "exito"}>{estado}</Insignia> : null}
+        {sucio ? <span className="seccion-estado seccion-estado-sucia">Sin guardar</span> : faltan !== null ? <span className={`seccion-estado ${completa ? "seccion-estado-completa" : "seccion-estado-faltan"}`}>{textoDeFaltan(faltan)}</span> : null}
       </summary>
-      <div className="pila">{children}</div>
+      <div className="seccion-cuerpo pila">{children}</div>
     </details>
   );
 }
@@ -114,6 +126,8 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
   const [guardadoA, setGuardadoA] = useState<Partial<Record<NombreDeSeccion, string>>>({});
   const [erroresDelCliente, setErroresDelCliente] = useState<Partial<Record<NombreDeSeccion, Errores>>>({});
   const [confirmaCierre, setConfirmaCierre] = useState(false);
+  /** Cuántos datos de «Reglamento e imagen» faltan (`null` mientras carga): lo reporta `Aceptaciones`, que es quien lee los documentos y las respuestas. */
+  const [faltanLegal, setFaltanLegal] = useState<number | null>(null);
   const aAlumno = useAccion();
   const aTutores = useAccion();
   const aAntecedentes = useAccion();
@@ -203,8 +217,24 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
     });
   }
 
-  const errs = (s: NombreDeSeccion): Errores => unirErrores(erroresDelCliente[s] ?? {}, acciones[s].error?.porCampo() ?? {});
-  const estadoDe = (s: NombreDeSeccion): string | undefined => (sucio[s] ? "Sin guardar" : guardadoA[s] ? "Guardado" : undefined);
+  // «Falta: …» junto al campo: lo que el servidor dijo que faltaba al intentar «Marcar registro como completo» y que todavía falta (al guardarlo, el aviso se quita solo).
+  const faltaAlCompletar: Errores = {};
+  for (const d of [...(completar.error?.detalles ?? []), ...(cerrar.error?.detalles ?? [])]) {
+    if (!d.campo || d.mensaje !== "Falta" || !registro.faltantes.includes(d.campo)) continue;
+    const donde = d.campo === "tutores.responsable_pago" ? "tutores" : d.campo;
+    faltaAlCompletar[donde] = `Falta: ${etiquetaDeFaltante(d.campo, etiquetaDeSalud)}.`;
+  }
+  const errs = (s: NombreDeSeccion): Errores => unirErrores(erroresDelCliente[s] ?? {}, { ...faltaAlCompletar, ...(acciones[s].error?.porCampo() ?? {}) });
+  // El estado de cada sección sale de lo GUARDADO (lo que el servidor dice que falta); con cambios sin escribir en el servidor la sección dice «Sin guardar».
+  const faltan: Record<IdDeSeccion, number | null> = {
+    alumno: faltanDeSeccion("alumno", registro),
+    tutores: faltanDeSeccion("tutores", registro),
+    salud: faltanDeSeccion("salud", registro),
+    antecedentes: faltanDeSeccion("antecedentes", registro),
+    observacion: faltanDeSeccion("observacion", registro),
+    legal: faltanLegal,
+  };
+  const completas = Object.values(faltan).filter((n) => n === 0).length;
 
   const cambiarTutor = (clave: string, cambio: Partial<FormTutor>) => setEd((a) => ({ ...a, tutores: (a.tutores ?? tutoresDesde(registro)).map((t) => (t.clave === clave ? { ...t, ...cambio } : t)) }));
   /** Responsable de pago y quien lo lleva son uno solo: marcar a uno desmarca al anterior. */
@@ -234,18 +264,22 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
           <strong className="registro-clase-cuando">
             <span className="registro-clase-fecha">{clase.sesion.fecha}</span>
             <span className="registro-clase-separador"> · </span>
-            <span className="registro-clase-hora">{clase.sesion.hora}</span>
+            <span className="registro-clase-hora">{texto12(clase.sesion.hora)}</span>
           </strong>
           <span className="fila">
             <Insignia tono={estatusClase.tono}>{estatusClase.texto}</Insignia>
             <Insignia tono={estatusRegistro.tono}>Registro: {estatusRegistro.texto}</Insignia>
           </span>
         </div>
+        <p className="registro-clase-alumno">
+          {clase.prospecto ?? "Alumno sin nombre"}
+          {clase.edad_declarada !== null ? <span className="clase-edad">{` · ${clase.edad_declarada} años`}</span> : null}
+        </p>
         <p className="muted registro-clase-grupo">
-          {clase.grupo} · {clase.programa} · {clase.sucursal}
+          Clase muestra · {clase.grupo} · {clase.programa} · {clase.sucursal}
         </p>
         {(clase.estatus === "agendada" || clase.estatus === "asistio" || clase.estatus === "no_asistio") && puede("clases_muestra:asistencia") ? (
-          <BotonesDeAsistencia estatus={clase.estatus} empezo={empezo} bloqueado={cerrado} procesando={asistencia.ocupado ? marcando : null} alMarcar={marcar} />
+          <BotonesDeAsistencia estatus={clase.estatus} empezo={empezo} bloqueado={cerrado} procesando={asistencia.ocupado ? marcando : null} alMarcar={marcar} alumno={clase.prospecto ?? "Alumno sin nombre"} horaDeLaClase={texto12(clase.sesion.hora)} />
         ) : null}
         <ErrorDeAccion error={asistencia.error} />
         {cerrado ? <Aviso tono="exito">Este registro está cerrado: ya no se edita.</Aviso> : null}
@@ -261,7 +295,15 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         ) : null}
       </div>
 
-      <Seccion id="alumno" titulo="Alumno" estado={estadoDe("alumno")} abierta>
+      <div className="registro-avance" data-prueba="avance-del-registro">
+        <div className="registro-avance-texto">
+          <strong>{completas} de 6 secciones completas</strong>
+          <span className="registro-avance-guardado">{haySinGuardar ? "Cambios sin guardar" : registro.actualizado_en ? `Guardado ${guardadoHace(registro.actualizado_en, ahora)}` : "Todavía sin guardar"}</span>
+        </div>
+        <progress className="registro-avance-barra" max={6} value={completas} aria-label="Secciones completas del registro" />
+      </div>
+
+      <Seccion id="alumno" numero={1} titulo="Alumno" faltan={faltan.alumno} sucio={sucio.alumno} abierta>
         <fieldset className="pila sin-borde" disabled={cerrado}>
           <CampoTexto etiqueta="Nombre" autoComplete="off" value={alumno.nombre} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, nombre: e.target.value } }))} error={errs("alumno")["alumno.nombre"]} requerido />
           <CampoTexto etiqueta="Apellidos" autoComplete="off" value={alumno.apellidos} onChange={(e) => setEd((a) => ({ ...a, alumno: { ...alumno, apellidos: e.target.value } }))} error={errs("alumno")["alumno.apellidos"]} requerido />
@@ -274,7 +316,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <PieDeSeccion accion={aAlumno} sucio={sucio.alumno} guardado={guardadoA.alumno} bloqueado={cerrado} alGuardar={() => void guardar("alumno")} />
       </Seccion>
 
-      <Seccion id="tutores" titulo="Adultos de la familia" estado={estadoDe("tutores")}>
+      <Seccion id="tutores" numero={2} titulo="Adultos" faltan={faltan.tutores} sucio={sucio.tutores}>
         <p className="muted">Un adulto por fila. Marca quién paga y quién lo lleva (uno solo de cada uno); agrega otra fila para el segundo adulto autorizado a recogerlo.</p>
         {errs("tutores")["tutores"] ? <p className="campo-error">{errs("tutores")["tutores"]}</p> : null}
         <fieldset className="pila sin-borde" disabled={cerrado}>
@@ -307,15 +349,11 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <PieDeSeccion accion={aTutores} sucio={sucio.tutores} guardado={guardadoA.tutores} bloqueado={cerrado} alGuardar={() => void guardar("tutores")} />
       </Seccion>
 
-      {puedeSalud ? (
-        <Seccion id="salud" titulo="Salud y seguridad">
-          <FormularioSalud registro={registro} bloqueado={cerrado} alGuardar={poner} />
-        </Seccion>
-      ) : (
-        <Aviso>La salud y seguridad del alumno la captura el maestro del grupo o el administrador.</Aviso>
-      )}
+      <Seccion id="salud" numero={3} titulo="Salud y seguridad" faltan={faltan.salud}>
+        {puedeSalud ? <FormularioSalud registro={registro} bloqueado={cerrado} alGuardar={poner} /> : <Aviso>La salud y seguridad del alumno la captura el maestro del grupo o el administrador.</Aviso>}
+      </Seccion>
 
-      <Seccion id="antecedentes" titulo="Antecedentes" estado={estadoDe("antecedentes")}>
+      <Seccion id="antecedentes" numero={4} titulo="Antecedentes" faltan={faltan.antecedentes} sucio={sucio.antecedentes}>
         <fieldset className="pila sin-borde" disabled={cerrado}>
           <GrupoDeOpciones
             segmentado
@@ -342,7 +380,7 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <PieDeSeccion accion={aAntecedentes} sucio={sucio.antecedentes} guardado={guardadoA.antecedentes} bloqueado={cerrado} alGuardar={() => void guardar("antecedentes")} />
       </Seccion>
 
-      <Seccion id="observacion" titulo="Observación del maestro" estado={estadoDe("observacion")}>
+      <Seccion id="observacion" numero={5} titulo="Observación del maestro" faltan={faltan.observacion} sucio={sucio.observacion}>
         <fieldset className="pila sin-borde" disabled={cerrado}>
           <CampoTexto etiqueta="Nivel observado en la clase" value={observacion.nivel_observado} onChange={(e) => setEd((a) => ({ ...a, observacion: { ...observacion, nivel_observado: e.target.value } }))} error={errs("observacion")["observacion.nivel_observado"]} />
           <CampoSelect etiqueta="Grupo recomendado" vacio="Sin recomendar" value={observacion.grupo_recomendado_id} onChange={(e) => setEd((a) => ({ ...a, observacion: { ...observacion, grupo_recomendado_id: e.target.value } }))} opciones={gruposDeLaVertical.map((g) => ({ valor: g.id, texto: g.nombre }))} error={errs("observacion")["observacion.grupo_recomendado_id"]} />
@@ -352,8 +390,8 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
         <PieDeSeccion accion={aObservacion} sucio={sucio.observacion} guardado={guardadoA.observacion} bloqueado={cerrado} alGuardar={() => void guardar("observacion")} />
       </Seccion>
 
-      <Seccion id="legal" titulo="Reglamento y autorización de imagen">
-        <Aceptaciones claseId={registro.clase_muestra_id} tutores={registro.tutores} bloqueado={cerrado} alCambiar={() => undefined} />
+      <Seccion id="legal" numero={6} titulo="Reglamento e imagen" faltan={faltan.legal}>
+        <Aceptaciones claseId={registro.clase_muestra_id} tutores={registro.tutores} bloqueado={cerrado} alCambiar={() => undefined} alFaltantes={setFaltanLegal} />
       </Seccion>
 
       <div className="tarjeta pila" data-prueba="cierre-del-registro">
@@ -409,9 +447,10 @@ function Cuerpo({ registro, clase, grupos, poner, recargarClase }: { registro: R
           ) : (
             <span className="barra-guardado-texto" role="status">
               {haySinGuardar ? "Tienes cambios sin guardar." : "Todo guardado."}
+              {!haySinGuardar ? <span className={`barra-guardado-sub${completas === 6 ? " barra-guardado-sub-listo" : ""}`}>{completas === 6 ? "Registro completo" : "Se puede guardar a medias"}</span> : null}
             </span>
           )}
-          <Boton variante="primario" disabled={!haySinGuardar} cargando={aTodo.ocupado} onClick={() => void guardarTodo()}>
+          <Boton variante="primario" grande disabled={!haySinGuardar} cargando={aTodo.ocupado} onClick={() => void guardarTodo()}>
             Guardar borrador
           </Boton>
         </div>

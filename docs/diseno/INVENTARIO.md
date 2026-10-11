@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1112**.
+Filas: **1138**.
 
 ## Acceso y cuenta (47)
 
@@ -856,7 +856,7 @@ Filas: **1112**.
 | `fuera-qr-png` | administrador | fuera-de-react | QR de una campaña servido como imagen PNG (`formato=png&escala=8`): lo que el navegador muestra |  | ✔ · ✔ | ✔ · ✔ |
 | `fuera-qr-url-json` | administrador | fuera-de-react | Datos del QR de una campaña (`formato=url`): el JSON con la dirección de la landing, el código y el código formateado, como texto |  | ✔ · ✔ | ✔ · ✔ |
 
-## Maestro (110)
+## Maestro (124)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -932,7 +932,7 @@ Filas: **1112**.
 | `maestro-registro-error-carga` | maestro | estado | Registro del alumno, con error de carga (y «Reintentar») | `/clases/:id/registro` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-pase-con-alumnos` | maestro | pantalla | Pase de lista de hoy, con los alumnos del grupo sin marcar | `/pase` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-pase-marcando` | maestro | estado | Pase de lista marcando: presente, falta y justificada (cambios sin guardar) | `/pase` | ✔ · ✔ | ✔ · ✔ |
-| `maestro-pase-todos-presentes` | maestro | estado | Pase de lista tras «Marcar presentes a todos los que faltan por marcar» | `/pase` | ✔ · ✔ | ✔ · ✔ |
+| `maestro-pase-todos-presentes` | maestro | estado | Pase de lista tras «Marcar a todos presentes» | `/pase` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-pase-guardado` | maestro | estado | Pase de lista guardado: aviso «Pase guardado» con el detalle y el aviso de faltas seguidas | `/pase` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-pase-ya-tomado` | maestro | estado | Pase de lista de un día ya tomado («Pase ya tomado», «Guardar» apagado hasta que haya cambios) | `/pase` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-pase-error-servidor` | maestro | estado | Pase de lista, el servidor rechaza el guardado (error dentro de la barra fija; «tus marcas siguen aquí») | `/pase` | ✔ · ✔ | ✔ · ✔ |
@@ -970,8 +970,22 @@ Filas: **1112**.
 | `maestro-salud-ajeno` | maestro | estado | Salud de un alumno que no es suyo por URL directa (no se encontró) | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-salud-cargando` | maestro | estado | Salud del alumno, cargando | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-salud-error-carga` | maestro | estado | Salud del alumno, con error de carga del alumno | `/alumnos/:id/salud` | ✔ · ✔ | ✔ · ✔ |
+| `maestro-hoy-linea-de-tiempo` | maestro | pantalla | Hoy, línea de tiempo: una clase ya marcada, la marca «Ahora … · siguiente en 40 min» y dos clases por venir (banda con el color de la disciplina) | `/hoy` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-hoy-ahora-antes-de-la-primera` | maestro | estado | Hoy, la primera clase todavía no empieza: la marca «Ahora … · siguiente en 15 min» va arriba de ella | `/hoy` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-hoy-estado-del-registro` | maestro | estado | Hoy, la línea «Registro del alumno: …» en cada estado (sin captura, completo, cerrado y borrador) con el color del estado | `/hoy` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-hoy-clase-futura` | maestro | estado | Hoy, clase de hoy que todavía no empieza: «Asistió» y «No asistió» apagados con «La asistencia se marca a partir de las …» | `/hoy` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-hoy-despues-de-asistio` | maestro | estado | Hoy, tras tocar «Asistió»: la tarjeta pasa a «Asistió» y aparece «Listo para cerrar la inscripción» | `/hoy` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-hoy-despues-de-no-asistio` | maestro | estado | Hoy, tras tocar «No asistió»: el aviso de que el asesor recibe una tarea para llamar a la familia | `/hoy` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-pase-conteo-en-vivo` | maestro | estado | Pase de lista, conteo en vivo: dos marcados y uno sin marcar (la barra de abajo dice «Faltan 1 por marcar») | `/pase` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-pase-barra-de-guardado` | maestro | estado | Pase de lista, la barra fija de guardado con todo marcado («3 de 3 marcados») y «Guardar pase de lista» de 52 px | `/pase` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-registro-acordeon-cerrado` | maestro | pantalla | Registro con datos, las seis secciones cerradas: «Completa» con palomita y «Faltan N datos», más la barra de avance | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-registro-acordeon-vacio` | maestro | estado | Registro sin nada capturado, secciones cerradas: todas «Faltan N datos» y la barra de avance en cero | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-registro-acordeon-abierto` | maestro | estado | Registro, una sección abierta (Antecedentes, con el borde del color primario) y las demás cerradas | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-registro-todo-completo` | maestro | estado | Registro con las seis secciones «Completa»: «6 de 6 secciones completas» y la barra «Registro completo» | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-registro-salud-aviso-de-permiso` | maestro | estado | Registro, Salud y seguridad abierta: el aviso de permiso («Solo lo ven quienes tienen permiso de salud…») | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
+| `maestro-registro-errores-falta` | maestro | estado | Registro, «Marcar registro como completo» con datos del alumno sin escribir: «Falta: …» junto a cada campo y la lista en el aviso | `/clases/:id/registro` | ✘ · ✘ | ✔ · ✔ |
 
-## Recepción (98)
+## Recepción (110)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -1001,6 +1015,12 @@ Filas: **1112**.
 | `recep-pagos-monto-varios-cargos` | recepcion | formulario | Formulario de pago: monto de $1,000 repartido entre varios cargos, listo para registrar |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-monto-todo-el-saldo` | recepcion | formulario | Formulario de pago: el monto cubre TODO el saldo de la familia; el reparto muestra «Saldo después del pago» en cero |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-monto-mayor-al-saldo` | recepcion | formulario | Formulario de pago: monto mayor a lo que la familia adeuda, aviso «El pago pasa de lo que la familia adeuda» |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-pagos-cobertura-total` | recepcion | formulario | Formulario de pago: el monto es justo el del cargo vencido; su barra se llena y dice «Este pago lo cubre», los demás cargos siguen «Pendiente» |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-atajo-todo-el-saldo` | recepcion | formulario | Formulario de pago: el atajo «Todo el saldo» llena el monto (queda marcado) y todas las barras de los cargos se llenan en verde |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-atajo-solo-lo-vencido` | recepcion | formulario | Formulario de pago: el atajo «Solo lo vencido» llena el monto con lo vencido (queda marcado) y el abono se reparte sin tocar lo que aún no vence |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-familia-disciplinas-color` | recepcion | paso | Registrar pago: los hijos en etiquetas con el color de su disciplina (distinta cada uno) y sus cargos agrupados bajo el punto de su color |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-familia-etiquetas-neutras` | recepcion | estado | Registrar pago cuando no se puede saber la disciplina de los hijos (inscripciones, programas o disciplinas no cargan): las etiquetas salen neutras, solo con el nombre, y la pantalla funciona igual |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-metodo-efectivo-sin-referencia` | recepcion | formulario | Formulario de pago en efectivo: no hay campo de referencia (solo aparece con tarjeta o transferencia); se escribió una referencia con tarjeta y al volver a efectivo no viaja |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-pagos-propuesta-cargando` | recepcion | estado | Formulario de pago mientras calcula el reparto: «Calculando el reparto…» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-propuesta-error` | recepcion | estado | Formulario de pago: error al calcular el reparto |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-fecha-futura` | recepcion | formulario | Formulario de pago: fecha de mañana, error «La fecha del pago no puede ser de mañana en adelante» |  | ✔ · ✔ | ✔ · ✔ |
@@ -1012,6 +1032,10 @@ Filas: **1112**.
 | `recep-pagos-reparto-a-mano-sobran` | recepcion | formulario | Reparto a mano que se pasa del monto: «sobran» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-sin-red` | recepcion | estado | Registrar pago sin conexión: error y la nota «el servidor reconoce la misma clave y NO lo duplica» |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-error-del-servidor` | recepcion | estado | Registrar pago: el servidor rechaza el pago y la pantalla muestra el error |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-pagos-cambiar-familia-dialogo` | recepcion | flotante | «Cambiar de familia»: el diálogo «Buscar familia» abierto y vacío, sobre la familia que se estaba atendiendo (hoja inferior en celular) |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-cambiar-familia-resultados` | recepcion | flotante | «Cambiar de familia»: el diálogo con resultados de la búsqueda y el botón «Elegir» de cada familia |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-cambiar-familia-sin-resultados` | recepcion | flotante | «Cambiar de familia»: el diálogo cuando la búsqueda no encuentra a nadie |  | ✘ · ✘ | ✔ · ✔ |
+| `recep-pagos-cambiar-familia-elegida` | recepcion | paso | «Cambiar de familia»: se elige otra familia desde el diálogo y la pantalla sigue con la nueva (la misma, aquí, para no depender de otros datos), sin el diálogo |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-pagos-cancelar-dialogo` | recepcion | flotante | Diálogo «Cancelar el pago» abierto y vacío (el botón de confirmar apagado) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-cancelar-dialogo-motivo` | recepcion | flotante | Diálogo «Cancelar el pago» con el motivo escrito, listo para confirmar |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-cancelar-dialogo-error` | recepcion | flotante | Diálogo «Cancelar el pago» con el error del servidor |  | ✔ · ✔ | ✔ · ✔ |
@@ -1066,10 +1090,12 @@ Filas: **1112**.
 | `recep-corte-con-devoluciones` | recepcion | estado | Cierre del día con un pago de otro día cancelado hoy: devoluciones, neto y pagos cancelados |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-impresion` | recepcion | impresion | Cierre del día en la vista de impresión |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-registrado` | recepcion | paso | Pago registrado con el reparto a mano entre dos hijos: recibo con lo aplicado, saldo restante y acciones |  | ✔ · ✔ | ✔ · ✔ |
+| `recep-pagos-pago-registrado-tarjeta` | recepcion | paso | Pago registrado con tarjeta y referencia: el detalle con «ref.» y folio, «Recibido», «Saldo después del pago» y el pago nuevo marcado en «Pagos recientes» |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-pagos-recibo-impresion` | recepcion | impresion | Recibo del pago en la vista de impresión («Imprimir recibo») |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-ya-estaba-registrado` | recepcion | estado | Aviso «Este pago ya estaba registrado: no se duplicó» (reintento con la misma clave tras un corte de red) |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-pagos-pago-cancelado` | recepcion | estado | Pagos recientes con un pago cancelado (queda con su motivo, sin borrarse) y el formulario de nuevo a la vista |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-cuenta-familia-tras-varios-pagos` | recepcion | estado | Estado de cuenta de la familia después de varios pagos, uno de ellos cancelado | `/cuenta/:tutorId` | ✔ · ✔ | ✔ · ✔ |
+| `recep-pagos-pago-registrado-saldo-cero` | recepcion | paso | Pago registrado que liquida todo el saldo: «Saldo después del pago» en cero, marcado en verde |  | ✘ · ✘ | ✔ · ✔ |
 | `recep-ventas-venta-registrada` | recepcion | paso | Venta registrada: aviso con el detalle y el botón «Cobrar ahora»; existencia y ventas recientes al día |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-ventas-venta-anulada` | recepcion | estado | Ventas recientes con una venta anulada (insignia «Anulada») y la pieza de vuelta en la existencia |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-con-cobros-y-cancelados` | recepcion | pantalla | Cierre del día con los cobros de recepción y de administración y un pago cobrado y cancelado hoy | `/corte` | ✔ · ✔ | ✔ · ✔ |

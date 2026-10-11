@@ -33,6 +33,15 @@ export function formatearFechaLarga(fecha: string | null | undefined): string {
   return `${DIAS_LARGOS[diaDeSemana(fecha!)] ?? ""} ${p.d} de ${MESES_LARGOS[p.m - 1] ?? "?"}`;
 }
 
+/** «2026-10-15» → «15 de octubre»; con otro año que el de `hoy`, «15 de octubre de 2025» (un vencimiento viejo no debe leerse como de este año). */
+export function formatearDiaYMes(fecha: string | null | undefined, hoy: string): string {
+  const p = fecha ? partes(fecha) : null;
+  if (!p) return "—";
+  const dePartes = partes(hoy);
+  const base = `${p.d} de ${MESES_LARGOS[p.m - 1] ?? "?"}`;
+  return dePartes && dePartes.a === p.a ? base : `${base} de ${p.a}`;
+}
+
 /** 0 = domingo … 6 = sábado, del día de calendario `AAAA-MM-DD`. */
 export function diaDeSemana(fecha: string): number {
   const p = partes(fecha);

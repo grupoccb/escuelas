@@ -394,7 +394,7 @@ test.describe("la mañana de Rita", () => {
     paso();
     const listo = page.getByTestId("pago-registrado");
     await expect(listo).toContainText(pesos(reparto));
-    await expect(listo).toContainText("Ahora la familia debe:");
+    await expect(listo).toContainText("Saldo después del pago");
     await foto(page, "pago-repartido-registrado");
     const repartido = (await pagosDe(F.baez.tutorId)).find((p) => p.monto === reparto && p.metodo === "transferencia")!;
     expect(repartido.aplicaciones.map((a) => `${a.alumno.nombre}:${a.monto}`).sort()).toEqual([`Inés:${aInes}`, `Ángel:${aAngel}`].sort());

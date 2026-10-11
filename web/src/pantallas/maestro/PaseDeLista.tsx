@@ -1,15 +1,17 @@
 // Pase de lista por grupo y fecha (maestro, recepción, administrador), pensado para el celular: un alumno por tarjeta con tres botones grandes
 // (Presente · Falta · Justificada), un resumen y UN guardado idempotente (guardar dos veces no duplica nada: el servidor responde «sin cambio»).
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, type Pagina } from "../../api/cliente.ts";
 import type { Grupo } from "../../api/tipos.ts";
 import { leerBorrador, ponerBorrador } from "../../lib/borradores.ts";
-import { formatearFechaLarga, hoyLocal } from "../../lib/fechas.ts";
+import { hoyLocal } from "../../lib/fechas.ts";
 import { useSesion } from "../../sesion/SesionContext.tsx";
 import { Aviso, Boton, Cargando, ErrorDeAccion, ErrorDeCarga, Insignia, Pagina as Marco, Vacio } from "../../ui/basicos.tsx";
 import { CampoSelect, CampoTexto, GrupoDeOpciones } from "../../ui/campos.tsx";
+import { AvatarDisciplina } from "../../ui/disciplina.tsx";
 import { useAccion, useCarga, useTitulo } from "../../ui/hooks.ts";
+import type { Vertical } from "../admin/tipos.ts";
 
 type Estatus = "presente" | "falta" | "justificada";
 const OPCIONES = [
@@ -47,7 +49,7 @@ interface ResultadoDelPase {
   lista: FilaDePase[];
 }
 
-function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: string; fecha: string; alCambiar: (p: Pase) => void }) {
+function Lista({ pase, grupoId, fecha, color, alCambiar }: { pase: Pase; grupoId: string; fecha: string; color: string | null; alCambiar: (p: Pase) => void }) {
   const { yo } = useSesion();
   const usuarioId = yo?.usuario.id ?? "";
   const claveDeBorrador = `pase:${grupoId}|${fecha}`;
@@ -82,12 +84,28 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
 
   return (
     <div className="pila">
-      <div className="fila pase-resumen" data-prueba="resumen-pase">
-        <Insignia tono="exito">Presentes {cuenta("presente")}</Insignia>
-        <Insignia tono="peligro">Faltas {cuenta("falta")}</Insignia>
-        <Insignia tono="info">Justificadas {cuenta("justificada")}</Insignia>
-        <Insignia tono={sinMarcar > 0 ? "alerta" : "neutro"}>Sin marcar {sinMarcar}</Insignia>
-        {pase.pase_tomado ? <Insignia>Pase ya tomado</Insignia> : null}
+      {/* El conteo en vivo: cada cifra se escribe con su nombre (el color nunca es la única señal). El nombre va primero en el texto y la cifra primero a la vista. */}
+      <div className="pase-resumen" data-prueba="resumen-pase">
+        <div className="pase-conteo">
+          <span className="pase-cifra pase-cifra-presente">
+            Presentes <span className="pase-cifra-valor">{cuenta("presente")}</span>
+          </span>
+          <span className="pase-cifra pase-cifra-falta">
+            Faltas <span className="pase-cifra-valor">{cuenta("falta")}</span>
+          </span>
+          <span className="pase-cifra pase-cifra-justificada">
+            Justificadas <span className="pase-cifra-valor">{cuenta("justificada")}</span>
+          </span>
+          <span className="pase-cifra">
+            Sin marcar <span className="pase-cifra-valor">{sinMarcar}</span>
+          </span>
+          {pase.pase_tomado ? <Insignia>Pase ya tomado</Insignia> : null}
+        </div>
+        {!bloqueado && activos.length > 0 ? (
+          <Boton variante="sutil" onClick={() => setEd((a) => ({ ...a, ...Object.fromEntries(activos.filter((f) => efectivo(f) === null).map((f) => [f.inscripcion_id, "presente" as const])) }))}>
+            Marcar a todos presentes
+          </Boton>
+        ) : null}
       </div>
       {pase.problema === "fecha_futura" ? <Aviso tono="alerta">La clase de ese día todavía no empieza: el pase se toma desde la hora de inicio.</Aviso> : null}
       {activos.length === 0 ? (
@@ -95,14 +113,14 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
           <Vacio titulo="No hay alumnos inscritos en este grupo para esa fecha">Elige otra fecha u otro grupo arriba. Si falta alguien, avisa a recepción para que lo inscriba.</Vacio>
         </div>
       ) : null}
-      {!bloqueado && activos.length > 0 ? (
-        <div className="pase-todos">
-          <Boton ancho onClick={() => setEd((a) => ({ ...a, ...Object.fromEntries(activos.filter((f) => efectivo(f) === null).map((f) => [f.inscripcion_id, "presente" as const])) }))}>Marcar presentes a todos los que faltan por marcar</Boton>
-        </div>
-      ) : null}
       <ul className="lista-pase">
         {pase.lista.map((f) => (
           <li key={f.inscripcion_id} className="alumno-pase" data-prueba={`alumno-${f.alumno_id}`}>
+            <div className="alumno-pase-identidad" aria-hidden="true">
+              <AvatarDisciplina nombre={f.alumno} color={color} grande />
+              <span className="alumno-pase-nombre">{f.alumno}</span>
+              {!f.activa ? <span className="alumno-pase-nota">Ya no está inscrito</span> : null}
+            </div>
             <GrupoDeOpciones etiqueta={f.alumno + (f.activa ? "" : " (ya no está inscrito)")} valor={efectivo(f) ?? ""} opciones={OPCIONES} segmentado alCambiar={(v) => (!bloqueado && (f.activa || ed[f.inscripcion_id] !== undefined || f.estatus !== null) ? setEd((a) => ({ ...a, [f.inscripcion_id]: v as Estatus })) : undefined)} />
           </li>
         ))}
@@ -119,9 +137,9 @@ function Lista({ pase, grupoId, fecha, alCambiar }: { pase: Pase; grupoId: strin
           <div className="barra-guardado-fila">
             <span className="barra-guardado-texto" role="status">
               {cambios > 0 ? `${cambios} ${cambios === 1 ? "cambio sin guardar" : "cambios sin guardar"}` : guardadoA ? `Pase guardado a las ${guardadoA}` : "Sin cambios por guardar"}
-              {sinMarcar > 0 ? ` · ${sinMarcar} sin marcar` : ""}
+              <span className={`barra-guardado-sub${sinMarcar === 0 ? " barra-guardado-sub-listo" : ""}`}>{sinMarcar > 0 ? `Faltan ${sinMarcar} por marcar` : `${activos.length} de ${activos.length} marcados`}</span>
             </span>
-            <Boton variante="primario" disabled={cambios === 0 && pase.pase_tomado} cargando={guardar.ocupado} onClick={() => void enviar()}>
+            <Boton variante="primario" grande disabled={cambios === 0 && pase.pase_tomado} cargando={guardar.ocupado} onClick={() => void enviar()}>
               Guardar pase de lista
             </Boton>
           </div>
@@ -155,10 +173,16 @@ export default function PaseDeLista() {
   const [fecha, setFecha] = useState(hoyLocal());
   const activos = (grupos.datos?.datos ?? []).filter((g) => g.activo);
   const grupoId = activos.some((g) => g.id === eleccion) ? eleccion : (activos[0]?.id ?? "");
+  // El color de la disciplina del grupo (`color_marca`) tiñe los avatares; sin él se ven neutros (la pantalla no depende de esto).
+  const verticales = useCarga((senal) => api.get<{ datos: Vertical[] }>("/api/verticales", undefined, senal).then((r) => r.datos).catch(() => [] as Vertical[]), []);
+  const colorDelGrupo = useMemo(() => {
+    const verticalId = activos.find((g) => g.id === grupoId)?.programa.vertical_id;
+    return (verticales.datos ?? []).find((v) => v.id === verticalId)?.color_marca ?? null;
+  }, [activos, grupoId, verticales.datos]);
   const pase = useCarga((senal) => api.get<Pase>(`/api/grupos/${grupoId}/pase`, { fecha }, senal), [grupoId, fecha], grupoId !== "" && /^\d{4}-\d{2}-\d{2}$/.test(fecha));
 
   return (
-    <Marco titulo="Pase de lista" subtitulo={fecha ? formatearFechaLarga(fecha) : undefined}>
+    <Marco titulo="Pase de lista" subtitulo="Un toque por alumno. Se guarda una sola vez al final.">
       <div className="maestro-columna">
       {grupos.error ? <ErrorDeCarga error={grupos.error} alReintentar={grupos.recargar} /> : null}
       {grupos.cargando && !grupos.datos ? <Cargando /> : null}
@@ -176,7 +200,7 @@ export default function PaseDeLista() {
       {pase.error ? <ErrorDeCarga error={pase.error} alReintentar={pase.recargar} /> : null}
       {pase.cargando && !pase.datos ? <Cargando texto="Cargando la lista…" /> : null}
       {pase.datos && !pase.datos.es_sesion ? <Aviso tono="alerta">Ese día este grupo no da clase. Elige otra fecha.</Aviso> : null}
-      {pase.datos && pase.datos.es_sesion ? <Lista key={`${grupoId}|${fecha}`} pase={pase.datos} grupoId={grupoId} fecha={fecha} alCambiar={pase.poner} /> : null}
+      {pase.datos && pase.datos.es_sesion ? <Lista key={`${grupoId}|${fecha}`} pase={pase.datos} grupoId={grupoId} fecha={fecha} color={colorDelGrupo} alCambiar={pase.poner} /> : null}
       </div>
     </Marco>
   );

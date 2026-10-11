@@ -13,7 +13,8 @@ import { pareceTelefono, soloTelefono } from "./telefono.ts";
 
 export { pareceTelefono };
 
-export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }) {
+/** `enDialogo` (R4a): dentro del diálogo «Buscar familia» de «Registrar pago»: sin la tarjeta ni el ancho máximo de la pantalla de búsqueda, con los resultados en filas de 64 px. */
+export function BuscadorDeFamilia({ alElegir, enDialogo = false }: { alElegir: (t: Tutor) => void; enDialogo?: boolean }) {
   const { sucursalId } = useSesion();
   const [escrito, setEscrito] = useState("");
   const [busqueda, setBusqueda] = useState<string | null>(null);
@@ -40,8 +41,8 @@ export function BuscadorDeFamilia({ alElegir }: { alElegir: (t: Tutor) => void }
   const ayuda = escrito.trim().length === 1 ? "Escribe al menos dos letras para buscar." : "Escribe el teléfono (con o sin +52, con espacios o guiones) o el nombre de la mamá o del niño. No importan los acentos ni las mayúsculas.";
 
   return (
-    <div className="pila buscador-familia" data-prueba="buscador-de-familia">
-      <form noValidate className="tarjeta" onSubmit={buscar} role="search">
+    <div className={`pila buscador-familia${enDialogo ? " buscador-familia-dialogo" : ""}`} data-prueba="buscador-de-familia">
+      <form noValidate className={enDialogo ? "formulario-busqueda" : "tarjeta"} onSubmit={buscar} role="search">
         <div className="busqueda-fila">
           <CampoBusqueda etiqueta="Teléfono o nombre de la familia" placeholder="Teléfono o nombre" autoComplete="off" inputMode="search" value={escrito} onChange={(e) => setEscrito(e.target.value)} aria-describedby="buscador-familia-ayuda" />
           <Boton type="submit" variante="primario" disabled={escrito.trim().length < 2}>

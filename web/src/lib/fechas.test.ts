@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diaDeSemana, diaEnZona, edadEn, esFechaReal, formatearFecha, formatearFechaLarga, horaDeMinutos, hoyLocal, mensajeDeFechaDePago, sumarDias } from "./fechas.ts";
+import { diaDeSemana, diaEnZona, edadEn, esFechaReal, formatearFecha, formatearDiaYMes, formatearFechaLarga, horaDeMinutos, hoyLocal, mensajeDeFechaDePago, sumarDias } from "./fechas.ts";
 
 test("formatos en español", () => {
   assert.equal(formatearFecha("2026-11-10"), "10 nov 2026");
@@ -39,4 +39,10 @@ test("V10: mensajeDeFechaDePago — vacía o de hoy hacia atrás está bien; el 
   assert.match(mensajeDeFechaDePago("2027-01-01", "2026-10-09") ?? "", /de mañana en adelante/);
   assert.match(mensajeDeFechaDePago("2026-02-31", "2026-10-09") ?? "", /no existe/);
   assert.match(mensajeDeFechaDePago("basura", "2026-10-09") ?? "", /no existe/);
+});
+
+test("el día y el mes en palabras; con otro año, el año también", () => {
+  assert.equal(formatearDiaYMes("2026-10-15", "2026-10-12"), "15 de octubre");
+  assert.equal(formatearDiaYMes("2025-12-01", "2026-10-12"), "1 de diciembre de 2025");
+  assert.equal(formatearDiaYMes(null, "2026-10-12"), "—");
 });
