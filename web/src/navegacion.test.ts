@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import type { ModuloId, Modulos, Rol } from "./api/tipos.ts";
-import { INICIO_POR_ROL, SECCIONES, inicioDe, seccionesDe } from "./navegacion.ts";
+import { GRUPOS, INICIO_POR_ROL, SECCIONES, agruparSecciones, inicioDe, seccionesDe } from "./navegacion.ts";
 
 const TODOS: Modulos = { captacion: true, cotizador: true, clase_muestra: true, inscripcion: true, operacion: true, finanzas: true, tableros: true };
 const SOLO_CAPTACION: Modulos = { captacion: true, cotizador: false, clase_muestra: false, inscripcion: false, operacion: false, finanzas: false, tableros: false };
@@ -53,6 +53,37 @@ test("nadie aterriza en una pantalla «No disponible»: el inicio es la sección
   assert.equal(inicioDe("recepcion", permisosDe("recepcion"), apagado("finanzas", "tableros")), "/familias");
   assert.equal(inicioDe("recepcion", ["pagos:registrar"], SOLO_CAPTACION), "/mas");
   assert.equal(inicioDe("asesor", PERMISOS_DE_TODO, SOLO_CAPTACION), "/embudo");
+});
+
+// ── La barra lateral agrupada (R1, handoff v2) ────────────────────────────────────────────────────────
+
+test("la barra lateral agrupa en Clases, Captación, Cobranza y Escuela, con las mismas secciones y el mismo orden que SECCIONES", () => {
+  const grupos = agruparSecciones(seccionesDe(PERMISOS_DE_TODO, TODOS));
+  assert.deepEqual(
+    grupos.map((g) => [g.etiqueta, g.secciones.map((s) => s.id)]),
+    [
+      ["Clases", ["hoy", "pase"]],
+      ["Captación", ["embudo", "tareas"]],
+      ["Cobranza", ["pagos", "cuenta", "uniformes", "ventas", "corte"]],
+      ["Escuela", ["tableros", "alumnos", "familias", "admin"]],
+    ],
+  );
+  assert.deepEqual(grupos.flatMap((g) => g.secciones.map((s) => s.id)), SECCIONES.map((s) => s.id), "agrupar no cambia el orden ni quita ni agrega secciones");
+});
+
+test("un grupo sin secciones visibles no se muestra (por permiso o por módulo apagado)", () => {
+  const maestro = agruparSecciones(seccionesDe(["clases_muestra:leer", "asistencia:registrar", "alumnos:leer"], TODOS));
+  assert.deepEqual(maestro.map((g) => g.etiqueta), ["Clases", "Escuela"]);
+  assert.deepEqual(maestro[1]!.secciones.map((s) => s.id), ["alumnos"]);
+  const sinFinanzas = agruparSecciones(seccionesDe(PERMISOS_DE_TODO, apagado("finanzas")));
+  assert.ok(!sinFinanzas.some((g) => g.id === "cobranza"));
+  assert.deepEqual(agruparSecciones(seccionesDe(PERMISOS_DE_TODO, SOLO_CAPTACION)).map((g) => g.id), ["captacion", "escuela"]);
+  assert.deepEqual(agruparSecciones([]), []);
+});
+
+test("toda sección pertenece a un grupo que existe", () => {
+  const ids = new Set(GRUPOS.map((g) => g.id));
+  for (const s of SECCIONES) assert.ok(ids.has(s.grupo), s.id);
 });
 
 // ── Las rutas del cliente ─────────────────────────────────────────────────────────────────────────────

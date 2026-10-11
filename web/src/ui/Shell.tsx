@@ -1,8 +1,9 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { formatearFecha, hoyLocal } from "../lib/fechas.ts";
-import { seccionesDe } from "../navegacion.ts";
+import { agruparSecciones, seccionesDe } from "../navegacion.ts";
 import { useSesion, useYo } from "../sesion/SesionContext.tsx";
+import { iniciales } from "./disciplina.ts";
 import { Icono } from "./Icono.tsx";
 
 const MAXIMO_EN_BARRA = 5;
@@ -111,15 +112,6 @@ function useListaDesplazable(ref: React.RefObject<HTMLElement | null>): void {
   }, [pathname, ref]);
 }
 
-const PALABRAS_MENORES = new Set(["de", "del", "la", "las", "los", "el", "y", "e"]);
-
-/** Las iniciales de un nombre (hasta dos): «Escuela de prueba» → «EP», «Adela Administradora» → «AA». */
-export function iniciales(nombre: string): string {
-  const palabras = nombre.split(/\s+/).filter((p) => p !== "" && !PALABRAS_MENORES.has(p.toLowerCase()));
-  const letras = (palabras.length > 0 ? palabras : nombre.split(/\s+/).filter(Boolean)).slice(0, 2).map((p) => p.charAt(0).toUpperCase());
-  return letras.join("") || "?";
-}
-
 function SelectorDeSucursal({ id }: { id: string }) {
   const yo = useYo();
   const { sucursalId, elegirSucursal } = useSesion();
@@ -145,6 +137,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const yo = useYo();
   const { salir } = useSesion();
   const secciones = seccionesDe(yo.permisos, yo.modulos);
+  const grupos = agruparSecciones(secciones);
   const enBarra = secciones.length > MAXIMO_EN_BARRA ? secciones.slice(0, MAXIMO_EN_BARRA - 1) : secciones;
   const hayMas = secciones.length > MAXIMO_EN_BARRA;
   const nombreEscuela = yo.organizacion?.nombre ?? "Gestión";
@@ -180,10 +173,18 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>
             ) : null}
             <div className="lateral-enlaces">
-              {secciones.map((s) => (
-                <NavLink key={s.id} to={s.ruta}>
-                  <Icono nombre={s.icono} /> {s.etiqueta}
-                </NavLink>
+              {/* R1: las secciones van en grupos con etiqueta; un grupo sin secciones visibles no se dibuja. */}
+              {grupos.map((g) => (
+                <div key={g.id} className="lateral-grupo" role="group" aria-labelledby={`lateral-grupo-${g.id}`}>
+                  <div className="lateral-grupo-etiqueta" id={`lateral-grupo-${g.id}`}>
+                    {g.etiqueta}
+                  </div>
+                  {g.secciones.map((s) => (
+                    <NavLink key={s.id} to={s.ruta}>
+                      <Icono nombre={s.icono} /> {s.etiqueta}
+                    </NavLink>
+                  ))}
+                </div>
               ))}
             </div>
           </nav>

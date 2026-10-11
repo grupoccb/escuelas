@@ -3,7 +3,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["node_modules/", "src/generated/", "coverage/", ".tmp/", "web/"] },
+  { ignores: ["node_modules/", "src/generated/", "coverage/", ".tmp/", "web/", "design_handoff_rediseno_escuela/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

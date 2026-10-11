@@ -95,6 +95,14 @@
   --sombra: 0 1px 2px rgb(23 26 44 / 10%);
   --sombra-flotante: 0 12px 32px rgb(23 26 44 / 18%);
 
+  /* R1 (handoff v2, README «Profundidad»): la tarjeta que se mueve y su hover, la tarjeta arrastrada (con anillo del primario), el panel oscuro, la barra flotante de selección y el aviso «ya quedó». */
+  --sombra-tarjeta: 0 1px 2px rgb(23 26 44 / 8%), 0 2px 6px -2px rgb(23 26 44 / 10%);
+  --sombra-tarjeta-hover: 0 10px 24px -8px rgb(23 26 44 / 30%);
+  --sombra-arrastre: 0 24px 48px -12px rgb(23 26 44 / 45%), 0 0 0 2px var(--primario);
+  --sombra-panel-oscuro: 0 18px 40px -20px rgb(23 26 44 / 60%);
+  --sombra-barra-seleccion: 0 16px 40px -8px rgb(23 26 44 / 45%);
+  --sombra-aviso: 0 12px 32px rgb(23 26 44 / 28%);
+
   /* Medidas */
   --radio: 10px;
   --radio-etiqueta: 6px;
@@ -107,6 +115,10 @@
   --radio-trazo: 1px;
   --radio-clase: 18px;
   --radio-aviso: 14px;
+  /* R1: el panel oscuro (héroe de tableros, cierre del día, «Para empezar») y la hoja inferior de los diálogos en celular miden 20; la barra flotante de selección, 16. La píldora ya es --radio-pildora (999). */
+  --radio-panel-oscuro: 20px;
+  --radio-hoja: 20px;
+  --radio-barra-seleccion: 16px;
   --e1: 4px;
   --e2: 8px;
   --e3: 12px;
@@ -117,6 +129,47 @@
   --ancho-lateral: 232px;
   --alto-toque: 44px;
   --alto-accion: 52px;
+  /* R1 (README «Medidas nuevas»): píldora de filtro, botón de ícono dentro de una tarjeta, columnas del tablero (mínimo, máximo y plegada), ficha lateral y enlace de la barra lateral. */
+  --alto-pildora: 44px;
+  --icono-tarjeta: 36px;
+  --icono-tarjeta-movil: 44px;
+  --columna-minima: 268px;
+  --columna-maxima: 340px;
+  --columna-plegada: 56px;
+  --ancho-ficha: 460px;
+  --alto-enlace-lateral: 40px;
+  --alto-enlace-lateral-bajo: 36px;
+
+  /* R1 (README «Tipografía»): título de pantalla 34/38 (-0.015em, escritorio y celular); titular del héroe 42 (32 en celular) con interlínea 1.08 y -0.02em; secciones numeradas (número 15, título 24/30);
+     cifra principal 36 y 40; etiqueta de grupo de la barra lateral 12/16, 700, 0.06em. */
+  --titulo-pantalla-tam: 2.125rem;
+  --titulo-pantalla-linea: 2.375rem;
+  --titulo-pantalla-espaciado: -0.015em;
+  --heroe-tam: 2.625rem;
+  --heroe-tam-movil: 2rem;
+  --heroe-linea: 1.08;
+  --heroe-espaciado: -0.02em;
+  --seccion-numero-tam: 0.9375rem;
+  --seccion-titulo-tam: 1.5rem;
+  --seccion-titulo-linea: 1.875rem;
+  --cifra-tam: 2.25rem;
+  --cifra-linea: 2.5rem;
+  --cifra-grande-tam: 2.5rem;
+  --cifra-grande-linea: 2.75rem;
+  --grupo-lateral-tam: 0.75rem;
+  --grupo-lateral-linea: 1rem;
+  --grupo-lateral-espaciado: 0.06em;
+
+  /* R1 (README «Mapa de calor y retención»): la escala del primario por porcentaje; el texto de cada nivel va con él. Sin clases: rayado --fondo / --etiqueta. */
+  --calor-1: #ecebfc;
+  --calor-2: #cfcdf6;
+  --calor-3: #8c87e6;
+  --calor-3-texto: var(--texto);
+  --calor-4: #3a32d1;
+  --calor-4-texto: #ffffff;
+  --calor-5: #2b2699;
+  --calor-5-texto: #ffffff;
+  --calor-5-borde: var(--alerta-borde);
 
   /* Movimiento (SISTEMA-VISUAL.md): 120 ms para hover y foco, 180 ms para entradas y salidas. */
   --t-rapido: 120ms;
@@ -138,8 +191,8 @@ body { margin: 0; background: var(--fondo); color: var(--texto); font-size: 0.87
 
 /* Títulos: Bricolage para el título de pantalla y las cifras; Figtree para lo demás. */
 h1, h2, h3, h4 { margin: 0; }
-h1 { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.875rem; line-height: 2.125rem; letter-spacing: -0.01em; }
-@media (max-width: 899px) { h1 { font-size: 2.125rem; line-height: 2.375rem; } }
+/* R1: el título de pantalla mide 34/38 con -0.015em, en escritorio y en celular (README «Tipografía»). */
+h1 { font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--titulo-pantalla-tam); line-height: var(--titulo-pantalla-linea); letter-spacing: var(--titulo-pantalla-espaciado); }
 h2 { font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
 h3, .titulo-menor { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; }
 p { margin: 0 0 var(--e2); }
@@ -167,7 +220,7 @@ strong { font-weight: 700; }
 .contenido > .pagina { flex: 1; }
 
 /* Celular: arriba, la escuela y la sucursal con la cuenta; abajo, la barra de secciones. */
-.cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); padding: var(--e4) var(--e4) 0; }
+.cabecera { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); padding: 14px var(--e4) 2px; }
 .cabecera-marca { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cabecera-escuela { color: var(--texto-suave); font-size: 0.8125rem; line-height: 1.125rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cabecera-cuenta { flex: none; display: flex; align-items: center; gap: var(--e1); }
@@ -208,7 +261,11 @@ strong { font-weight: 700; }
   .lateral-columna .selector-sucursal { width: 100%; max-width: none; min-height: var(--alto-toque); background: transparent; color: var(--lateral-texto); border-color: var(--lateral-linea); font-size: 0.78125rem; }
   .lateral-columna .selector-sucursal option { color: var(--texto); background: var(--superficie); }
   .lateral-enlaces { display: flex; flex-direction: column; gap: 0; }
-  .lateral-enlaces a { display: flex; align-items: center; gap: var(--e3); min-height: var(--alto-toque); padding: 0 var(--e3); border-radius: var(--radio); color: var(--lateral-texto); font-weight: 500; text-decoration: none; transition: background-color var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva); }
+  /* R1: las secciones van en grupos con etiqueta (Clases, Captación, Cobranza, Escuela); el grupo sin secciones visibles no se dibuja. */
+  .lateral-grupo { display: flex; flex-direction: column; }
+  .lateral-grupo-etiqueta { padding: 14px var(--e3) var(--e1); font-size: var(--grupo-lateral-tam); line-height: var(--grupo-lateral-linea); font-weight: 700; letter-spacing: var(--grupo-lateral-espaciado); text-transform: uppercase; color: var(--lateral-suave); }
+  .lateral-grupo:first-child .lateral-grupo-etiqueta { padding-top: 6px; }
+  .lateral-enlaces a { display: flex; align-items: center; gap: var(--e3); min-height: var(--alto-enlace-lateral); padding: 0 var(--e3); border-radius: var(--radio); color: var(--lateral-texto); font-weight: 500; text-decoration: none; transition: background-color var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva); }
   .lateral-enlaces a:hover { background: var(--lateral-linea); color: var(--primario-texto); }
   .lateral-enlaces a[aria-current="page"] { background: var(--lateral-activo); color: var(--primario-texto); font-weight: 700; }
   .lateral-columna :focus-visible { outline-color: var(--primario-texto); }
@@ -247,7 +304,7 @@ strong { font-weight: 700; }
 .tarjeta > p:last-child, .tarjeta > ul:last-child { margin-bottom: 0; }
 /* Tarjeta de lista: la que se mueve, con sombra leve. */
 .lista-tarjetas { display: flex; flex-direction: column; gap: var(--e3); list-style: none; margin: 0; padding: 0; }
-.lista-tarjetas > li:not(.ficha-lead) { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); padding: 14px; box-shadow: var(--sombra); }
+.lista-tarjetas > li:not(.ficha-lead) { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); padding: 14px; box-shadow: var(--sombra-tarjeta); }
 .fila { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e2) var(--e3); }
 .fila-entre { justify-content: space-between; }
 /* Paginador en celular: el contador arriba, centrado, y «Anterior» y «Siguiente» en una fila de dos botones iguales. */
@@ -361,6 +418,12 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primario); }
 .dialogo::backdrop { background: var(--velo); }
 .dialogo[open]::backdrop { animation: velo var(--t-entrada) var(--curva); }
 .dialogo-cuerpo { padding: var(--e5); display: flex; flex-direction: column; gap: var(--e4); }
+/* R1: en celular el diálogo es una hoja inferior (README «Medidas nuevas»): ancho completo, anclada abajo, esquinas de arriba de 20. En escritorio sigue centrado. */
+@media (max-width: 899px) {
+  .dialogo { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: var(--radio-hoja) var(--radio-hoja) 0 0; max-height: calc(100dvh - var(--e6)); }
+  .dialogo-cuerpo { padding-bottom: calc(var(--e5) + env(safe-area-inset-bottom)); }
+  .dialogo .formulario-acciones { margin-bottom: calc(-1 * (var(--e5) + env(safe-area-inset-bottom))); padding-bottom: calc(var(--e3) + env(safe-area-inset-bottom)); border-radius: 0; }
+}
 .dialogo-cuerpo > h2 { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; letter-spacing: -0.01em; }
 /* En un diálogo largo los botones de guardar se quedan a la vista al bajar. */
 .dialogo .formulario-acciones { position: sticky; bottom: 0; margin: 0 calc(-1 * var(--e5)) calc(-1 * var(--e5)); padding: var(--e3) var(--e5); background: var(--superficie); border-top: 1px solid var(--borde); border-radius: 0 0 var(--radio-panel) var(--radio-panel); z-index: 1; justify-content: flex-start; flex-direction: row-reverse; }
@@ -372,8 +435,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primario); }
 .avisos-vivos { position: fixed; top: auto; left: 0; right: 0; bottom: calc(var(--alto-barra) + var(--e4)); z-index: 60; display: flex; justify-content: center; width: auto; height: auto; margin: 0; border: 0; background: transparent; color: inherit; overflow: visible; padding: 0 var(--e3); pointer-events: none; }
 /* Es un popover manual: en la capa superior del navegador, para que se vea también encima de un diálogo modal (antes quedaba detrás del velo). */
 .avisos-vivos[popover]:not(:popover-open) { display: none; }
-.aviso-global { pointer-events: auto; display: flex; align-items: center; gap: var(--e3); max-width: 40rem; padding: var(--e2) var(--e2) var(--e2) var(--e4); background: var(--lateral); color: var(--primario-texto); border-radius: var(--radio-tarjeta); box-shadow: var(--sombra-flotante); animation: sube var(--t-entrada) var(--curva); }
-.aviso-global .boton { min-height: var(--alto-toque); padding: 0 var(--e3); }
+.aviso-global { pointer-events: auto; display: flex; align-items: center; gap: var(--e3); width: max-content; max-width: min(40rem, 100%); padding: var(--e2) var(--e2) var(--e2) var(--e4); background: var(--lateral); color: var(--primario-texto); border-radius: var(--radio-tarjeta); box-shadow: var(--sombra-aviso); animation: sube var(--t-entrada) var(--curva); }
+.aviso-global > svg { flex: none; stroke-width: 2; }
+.aviso-global > span { min-width: 0; text-wrap: pretty; }
+.aviso-global .boton { flex: none; min-height: var(--alto-toque); padding: 0 var(--e3); border-radius: var(--radio-segmento); }
 @media (min-width: 900px) { .avisos-vivos { bottom: var(--e4); } }
 @media print { .avisos-vivos { display: none; } }
 
@@ -401,7 +466,7 @@ table.tabla tbody tr:hover { background: var(--fondo); }
   table.tabla.tabla-apilada, .tabla-apilada table.tabla, .tabla-apilada table.tabla tbody, .tabla-apilada table.tabla tr, .tabla-apilada table.tabla td { display: block; }
   .tabla-apilada table.tabla thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .tabla-apilada table.tabla tbody { display: flex; flex-direction: column; gap: var(--e3); }
-  .tabla-apilada table.tabla tr { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); padding: var(--e2) 14px; box-shadow: var(--sombra); }
+  .tabla-apilada table.tabla tr { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); padding: var(--e2) 14px; box-shadow: var(--sombra-tarjeta); }
   .tabla-apilada table.tabla td { border-bottom: 0; padding: var(--e1) 0; display: flex; gap: var(--e3); justify-content: space-between; text-align: right; }
   .tabla-apilada table.tabla td::before { content: attr(data-etiqueta); color: var(--texto-suave); font-size: 0.78125rem; line-height: 1.25rem; font-weight: 600; text-align: left; flex: none; }
   .tabla-apilada table.tabla td:not([data-etiqueta])::before { content: none; }
@@ -437,8 +502,8 @@ table.tabla tbody tr:hover { background: var(--fondo); }
 .columna { flex: 1 1 250px; min-width: 250px; scroll-snap-align: start; background: var(--columna); border-radius: var(--radio-panel); padding: 10px; display: flex; flex-direction: column; gap: 10px; }
 .columna h2 { font-size: 0.875rem; line-height: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: var(--e2); padding: var(--e1) 6px 0; }
 .columna h2 .insignia { min-width: 28px; padding: 2px var(--e2); text-align: center; background: var(--superficie); color: var(--texto); border-radius: var(--radio-pildora); font-size: 0.78125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.ficha-lead { background: var(--superficie); border-radius: var(--radio-tarjeta); padding: 14px 14px 10px; box-shadow: var(--sombra); display: flex; flex-direction: column; gap: var(--e1); transition: box-shadow var(--t-rapido) var(--curva), transform var(--t-rapido) var(--curva); }
-.ficha-lead:hover { box-shadow: var(--sombra-flotante); }
+.ficha-lead { background: var(--superficie); border-radius: var(--radio-tarjeta); padding: 14px 14px 10px; box-shadow: var(--sombra-tarjeta); display: flex; flex-direction: column; gap: var(--e1); transition: box-shadow var(--t-rapido) var(--curva), transform var(--t-rapido) var(--curva); }
+.ficha-lead:hover { box-shadow: var(--sombra-tarjeta-hover); transform: translateY(-1px); }
 .ficha-lead a.titulo { color: var(--texto); font-weight: 700; font-size: 0.9375rem; line-height: 1.375rem; text-decoration: none; }
 .ficha-lead a.titulo:hover { color: var(--primario); }
 .ficha-lead-nombre { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--e2); }
@@ -457,7 +522,7 @@ table.tabla tbody tr:hover { background: var(--fondo); }
 @media (max-width: 899px) { .campo-busqueda { width: 100%; } }
 
 /* ───────── Pase de lista y registro ───────── */
-.alumno-pase { display: flex; flex-direction: column; gap: var(--e2); background: var(--superficie); border-radius: var(--radio-tarjeta); padding: 14px; box-shadow: var(--sombra); }
+.alumno-pase { display: flex; flex-direction: column; gap: var(--e2); background: var(--superficie); border-radius: var(--radio-tarjeta); padding: 14px; box-shadow: var(--sombra-tarjeta); }
 .seccion-registro > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: var(--e2); cursor: pointer; font-weight: 700; font-size: 1rem; }
 .seccion-registro[open] > summary { margin-bottom: var(--e2); }
 .barra-guardado { position: sticky; bottom: calc(var(--alto-barra) + var(--e2)); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); padding: var(--e3) var(--e4); display: flex; gap: var(--e2); align-items: center; justify-content: space-between; box-shadow: var(--sombra-flotante); z-index: 5; animation: sube var(--t-entrada) var(--curva); }
@@ -1299,3 +1364,51 @@ select { text-overflow: ellipsis; }
 .sin-javascript { padding: var(--e4); }
 @media (min-width: 900px) { .sin-javascript { padding: var(--e6); } }
 .sin-javascript .aviso { margin: 0; }
+
+/* === R1: tokens y marco === */
+/* Color por disciplina (README «Tokens»; mecanismo en web/src/ui/disciplina.tsx). `--disciplina` es el hex del dato `vertical.color`; el tono suave (fondo de etiquetas y avatares) y la tinta (texto sobre el suave, AA) se derivan
+   de él con oklch relativo. Sin color, `data-disciplina="neutra"` toma los neutros del sistema. Estos bloques `[data-…]` son los únicos donde `check:estilo` deja funciones de color fuera de `:root`. */
+[data-disciplina] {
+  --disciplina-suave: oklch(from var(--disciplina) 0.95 0.035 h);
+  --disciplina-tinta: oklch(from var(--disciplina) 0.44 0.13 h);
+}
+[data-disciplina="neutra"] {
+  --disciplina: var(--borde-campo);
+  --disciplina-suave: var(--etiqueta);
+  --disciplina-tinta: var(--etiqueta-texto);
+}
+/* Etiqueta de disciplina: punto + nombre, esquinas de 6. Sin `data-disciplina` en un ancestro, los `var()` caen al neutro. */
+.etiqueta-disciplina { display: inline-flex; align-items: center; gap: 6px; padding: 2px var(--e2); border-radius: var(--radio-etiqueta); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
+.etiqueta-disciplina-punto { flex: none; width: 7px; height: 7px; border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+/* Avatar de iniciales con el tono de la disciplina: 32 (40 el grande). */
+.avatar-disciplina { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--radio-pildora); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-size: 0.75rem; line-height: 1rem; font-weight: 700; letter-spacing: 0.02em; }
+.avatar-disciplina-grande { width: 40px; height: 40px; font-size: 0.875rem; line-height: 1.25rem; }
+
+/* Tarjeta que se mueve: sombra de profundidad y, al pasar el ratón, se levanta 1 px. (La que se arrastra lleva `--sombra-arrastre`.) Las tarjetas de lista de arriba usan la misma sombra. */
+.tarjeta-movil { background: var(--superficie); border-radius: var(--radio-tarjeta); box-shadow: var(--sombra-tarjeta); transition: box-shadow var(--t-rapido) var(--curva), transform var(--t-rapido) var(--curva); }
+.tarjeta-movil:hover { box-shadow: var(--sombra-tarjeta-hover); transform: translateY(-1px); }
+
+/* Píldora de filtro (disciplina, etapa): botón con `aria-pressed`; la activa va en --lateral con texto blanco. El punto de color (opcional) lleva un anillo del color del fondo para que se lea sobre el oscuro. */
+.pildora-filtro { --pildora-fondo: var(--superficie); flex: none; display: inline-flex; align-items: center; gap: var(--e2); min-height: var(--alto-pildora); padding: 0 14px; border: 1px solid var(--borde-boton); border-radius: var(--radio-pildora); background: var(--pildora-fondo); color: var(--texto); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.pildora-filtro:hover:not([aria-pressed="true"]) { --pildora-fondo: var(--fondo); border-color: var(--borde-campo); }
+.pildora-filtro[aria-pressed="true"] { --pildora-fondo: var(--lateral); border-color: var(--lateral); color: var(--primario-texto); }
+.pildora-filtro-punto { flex: none; box-sizing: content-box; width: 9px; height: 9px; border: 2px solid var(--pildora-fondo); border-radius: var(--radio-pildora); background: var(--disciplina, var(--borde-campo)); }
+.pildora-filtro-cuenta { font-variant-numeric: tabular-nums; font-weight: 700; opacity: 0.8; }
+
+/* Botón de ícono dentro de una tarjeta: 36 en escritorio, 44 en celular. */
+.boton-icono-tarjeta { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--icono-tarjeta); height: var(--icono-tarjeta); padding: 0; border: 0; border-radius: var(--radio-segmento); background: transparent; color: var(--texto-medio); cursor: pointer; transition: background-color var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva); }
+.boton-icono-tarjeta:hover:not(:disabled) { background: var(--columna); color: var(--texto); }
+@media (max-width: 899px) { .boton-icono-tarjeta { width: var(--icono-tarjeta-movil); height: var(--icono-tarjeta-movil); } }
+
+/* Con un aviso «ya quedó» y una hoja inferior abiertos a la vez (celular), la hoja sube y se acorta para no taparse con el aviso: queda flotando, con las cuatro esquinas redondas. */
+@media (max-width: 899px) {
+  body:has(dialog.dialogo[open] .dialogo-cuerpo):has(.aviso-global) dialog.dialogo[open] { width: calc(100% - var(--e4)); max-width: calc(100% - var(--e4)); margin-inline: auto; border-radius: var(--radio-hoja); }
+  body:has(dialog.dialogo[open] .dialogo-cuerpo):has(.aviso-global) dialog.dialogo[open] .formulario-acciones { border-radius: 0 0 var(--radio-hoja) var(--radio-hoja); }
+}
+
+/* Pantalla baja (1366 × 768): con las etiquetas de grupo, las 13 secciones del administrador ya no caben con enlaces de 40; aquí miden 36 (con ratón sobra) y las etiquetas se aprietan. Va después de las reglas de la barra. */
+@media (min-width: 900px) and (max-height: 820px) {
+  .lateral-enlaces a { min-height: var(--alto-enlace-lateral-bajo); }
+  .lateral-grupo-etiqueta { padding-top: var(--e2); padding-bottom: 2px; }
+  .lateral-grupo:first-child .lateral-grupo-etiqueta { padding-top: var(--e1); }
+}

@@ -4,6 +4,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Boton } from "./basicos.tsx";
+import { Icono } from "./Icono.tsx";
 
 const TIEMPO_EN_PANTALLA_MS = 9000;
 
@@ -46,6 +47,7 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
       <div className="avisos-vivos" ref={caja} role="status" aria-live="polite" {...{ popover: "manual" }}>
         {aviso ? (
           <div key={aviso.numero} className="aviso-global" data-prueba="aviso-global">
+            <Icono nombre="exito" tamano={18} />
             <span>{aviso.texto}</span>
             <Boton variante="fantasma" onClick={() => setAviso(null)} aria-label="Cerrar este aviso">
               Entendido

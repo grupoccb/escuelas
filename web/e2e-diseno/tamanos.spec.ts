@@ -64,7 +64,9 @@ async function revisar(browser: Browser, baseURL: string, p: (typeof PANTALLAS)[
         if (e instanceof HTMLInputElement && (e.type === "checkbox" || e.type === "radio")) continue; // su zona táctil es la etiqueta
         if (e.tagName === "A" && e.closest("p, li, dd, td, .muted") && !e.classList.contains("boton") && !e.closest("nav")) continue; // enlace dentro de un texto
         if (e.classList.contains("solo-lectores") || e.closest(".solo-lectores") || e.matches(".salto")) continue;
-        if (r.height < 43.5) problemas.push(`${nombre(e)} mide ${Math.round(r.height)} px de alto`);
+        // R1 (handoff v2): los enlaces de la barra lateral de ESCRITORIO miden 40 px (36 en una pantalla de menos de 820 px de alto, para que quepan las 13 secciones del administrador); el de 44 es para el toque, o sea el celular.
+        const enLateral = e.tagName === "A" && e.closest(".lateral-enlaces") !== null && window.innerWidth >= 900;
+        if (r.height < (enLateral ? 35.5 : 43.5)) problemas.push(`${nombre(e)} mide ${Math.round(r.height)} px de alto`);
       }
       return problemas;
     }, !ampliado);

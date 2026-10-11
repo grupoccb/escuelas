@@ -51,6 +51,16 @@ export type NombreDeIcono =
   | "archivo"
   | "cambiar";
 
+/** Los grupos de la barra lateral (R1, handoff v2): cada sección pertenece a uno. El orden de los grupos es el de `GRUPOS`; el de las secciones, el de `SECCIONES`. */
+export type GrupoId = "clases" | "captacion" | "cobranza" | "escuela";
+
+export const GRUPOS: readonly { id: GrupoId; etiqueta: string }[] = [
+  { id: "clases", etiqueta: "Clases" },
+  { id: "captacion", etiqueta: "Captación" },
+  { id: "cobranza", etiqueta: "Cobranza" },
+  { id: "escuela", etiqueta: "Escuela" },
+];
+
 export interface Seccion {
   id: string;
   ruta: string;
@@ -60,23 +70,30 @@ export interface Seccion {
   permiso: string;
   /** El módulo al que pertenece; apagado, la sección no aparece. */
   modulo: ModuloId;
+  /** El grupo de la barra lateral donde se muestra (la barra inferior del celular no agrupa). */
+  grupo: GrupoId;
 }
 
 export const SECCIONES: readonly Seccion[] = [
-  { id: "hoy", ruta: "/hoy", etiqueta: "Hoy", icono: "hoy", permiso: "clases_muestra:leer", modulo: "clase_muestra" },
-  { id: "pase", ruta: "/pase", etiqueta: "Pase de lista", icono: "lista", permiso: "asistencia:registrar", modulo: "operacion" },
-  { id: "embudo", ruta: "/embudo", etiqueta: "Embudo", icono: "embudo", permiso: "leads:escribir", modulo: "captacion" },
-  { id: "tareas", ruta: "/tareas", etiqueta: "Tareas", icono: "tareas", permiso: "tareas:leer", modulo: "captacion" },
-  { id: "pagos", ruta: "/pagos", etiqueta: "Registrar pago", icono: "pagos", permiso: "pagos:registrar", modulo: "finanzas" },
-  { id: "cuenta", ruta: "/cuenta", etiqueta: "Estado de cuenta", icono: "cuenta", permiso: "estado_cuenta:leer", modulo: "finanzas" },
-  { id: "uniformes", ruta: "/uniformes", etiqueta: "Uniformes", icono: "uniforme", permiso: "beneficios:entregar", modulo: "finanzas" },
-  { id: "ventas", ruta: "/ventas", etiqueta: "Ventas", icono: "ventas", permiso: "ventas:registrar", modulo: "finanzas" },
-  { id: "corte", ruta: "/corte", etiqueta: "Cierre del día", icono: "corte", permiso: "pagos:registrar", modulo: "finanzas" },
-  { id: "tableros", ruta: "/tableros", etiqueta: "Tableros", icono: "tableros", permiso: "reportes:clases_muestra", modulo: "tableros" },
-  { id: "alumnos", ruta: "/alumnos", etiqueta: "Alumnos", icono: "alumnos", permiso: "alumnos:leer", modulo: "inscripcion" },
-  { id: "familias", ruta: "/familias", etiqueta: "Familias", icono: "familias", permiso: "tutores:leer", modulo: "inscripcion" },
-  { id: "admin", ruta: "/admin", etiqueta: "Administración", icono: "admin", permiso: "catalogo:escribir", modulo: "captacion" },
+  { id: "hoy", ruta: "/hoy", etiqueta: "Hoy", icono: "hoy", permiso: "clases_muestra:leer", modulo: "clase_muestra", grupo: "clases" },
+  { id: "pase", ruta: "/pase", etiqueta: "Pase de lista", icono: "lista", permiso: "asistencia:registrar", modulo: "operacion", grupo: "clases" },
+  { id: "embudo", ruta: "/embudo", etiqueta: "Embudo", icono: "embudo", permiso: "leads:escribir", modulo: "captacion", grupo: "captacion" },
+  { id: "tareas", ruta: "/tareas", etiqueta: "Tareas", icono: "tareas", permiso: "tareas:leer", modulo: "captacion", grupo: "captacion" },
+  { id: "pagos", ruta: "/pagos", etiqueta: "Registrar pago", icono: "pagos", permiso: "pagos:registrar", modulo: "finanzas", grupo: "cobranza" },
+  { id: "cuenta", ruta: "/cuenta", etiqueta: "Estado de cuenta", icono: "cuenta", permiso: "estado_cuenta:leer", modulo: "finanzas", grupo: "cobranza" },
+  { id: "uniformes", ruta: "/uniformes", etiqueta: "Uniformes", icono: "uniforme", permiso: "beneficios:entregar", modulo: "finanzas", grupo: "cobranza" },
+  { id: "ventas", ruta: "/ventas", etiqueta: "Ventas", icono: "ventas", permiso: "ventas:registrar", modulo: "finanzas", grupo: "cobranza" },
+  { id: "corte", ruta: "/corte", etiqueta: "Cierre del día", icono: "corte", permiso: "pagos:registrar", modulo: "finanzas", grupo: "cobranza" },
+  { id: "tableros", ruta: "/tableros", etiqueta: "Tableros", icono: "tableros", permiso: "reportes:clases_muestra", modulo: "tableros", grupo: "escuela" },
+  { id: "alumnos", ruta: "/alumnos", etiqueta: "Alumnos", icono: "alumnos", permiso: "alumnos:leer", modulo: "inscripcion", grupo: "escuela" },
+  { id: "familias", ruta: "/familias", etiqueta: "Familias", icono: "familias", permiso: "tutores:leer", modulo: "inscripcion", grupo: "escuela" },
+  { id: "admin", ruta: "/admin", etiqueta: "Administración", icono: "admin", permiso: "catalogo:escribir", modulo: "captacion", grupo: "escuela" },
 ];
+
+/** Las secciones agrupadas para la barra lateral: solo los grupos con alguna sección (los demás no se dibujan), en el orden de `GRUPOS`, y dentro de cada uno en el orden de `SECCIONES`. */
+export function agruparSecciones(secciones: readonly Seccion[]): { id: GrupoId; etiqueta: string; secciones: Seccion[] }[] {
+  return GRUPOS.map((g) => ({ ...g, secciones: secciones.filter((s) => s.grupo === g.id) })).filter((g) => g.secciones.length > 0);
+}
 
 /** A dónde llega cada rol al iniciar sesión (la primera de SUS secciones). */
 export const INICIO_POR_ROL: Record<Rol, string> = { maestro: "/hoy", asesor: "/embudo", recepcion: "/pagos", administrador: "/embudo" };

@@ -29,6 +29,8 @@ export const ARCHIVO_TERMINOS = join("config", "terminos-prohibidos.txt");
 /** Rutas (relativas a la raíz, con "/"), archivo o carpeta, que no se escanean. Ruta exacta. */
 const RUTAS_EXCLUIDAS = new Set([
   "docs",
+  // Prototipos de diseño del handoff (datos de ejemplo con nombres de disciplinas): material de referencia, como docs/.
+  "design_handoff_rediseno_escuela",
   "src/generated",
   ARCHIVO_TERMINOS.split(sep).join("/"),
   // Describen las reglas: citan los términos a propósito.
