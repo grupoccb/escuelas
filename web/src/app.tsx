@@ -56,7 +56,7 @@ const AdminCatalogo = lazy(() => import("./pantallas/admin/CargarCatalogo.tsx"))
  */
 function RequierePermiso({ permiso, modulo, children }: { permiso: string; modulo: ModuloId; children: ReactNode }) {
   const { puede, moduloEncendido } = useSesion();
-  if (!moduloEncendido(modulo)) return <NoDisponible />;
+  if (!moduloEncendido(modulo)) return <NoDisponible modulo={modulo} />;
   return puede(permiso) ? <>{children}</> : <SinAcceso />;
 }
 
@@ -115,9 +115,23 @@ function Rutas() {
   );
 }
 
+/** «Abriendo la aplicación…» (README «Estados»): la marca y un giro mientras se comprueba la sesión. Aún no se sabe de qué escuela es, así que la marca es la del producto. */
+function PantallaDeCarga() {
+  return (
+    <div className="carga-inicial">
+      <div className="carga-inicial-contenido">
+        <span className="monograma monograma-grande" aria-hidden="true">
+          G
+        </span>
+        <Cargando texto="Abriendo la aplicación…" />
+      </div>
+    </div>
+  );
+}
+
 function Raiz() {
   const { estado } = useSesion();
-  if (estado.fase === "cargando") return <div className="carga-inicial"><Cargando texto="Abriendo la aplicación…" /></div>;
+  if (estado.fase === "cargando") return <PantallaDeCarga />;
   if (estado.fase === "anonima") return <Acceso motivo={estado.motivo} />;
   return (
     <AvisosProvider>

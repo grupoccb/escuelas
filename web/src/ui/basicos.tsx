@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Link, type LinkProps } from "react-router-dom";
-import { MENSAJE_NO_ENCONTRADO, type ErrorDeApi } from "../api/cliente.ts";
+import type { ErrorDeApi } from "../api/cliente.ts";
 import type { NombreDeIcono } from "../navegacion.ts";
 import { Icono } from "./Icono.tsx";
 
@@ -12,13 +12,15 @@ interface PropsBoton extends ButtonHTMLAttributes<HTMLButtonElement> {
   ancho?: boolean;
   /** La acción principal del celular y la que cierra un formulario de dinero: 52 px de alto. */
   grande?: boolean;
+  /** Lo que dice el botón mientras `cargando` («Entrando…»); por omisión «Procesando…». */
+  textoCargando?: string;
 }
 
 /** Botón de al menos 44 px de alto. `cargando` lo desactiva y lo dice con texto (no solo con un giro). */
-export function Boton({ variante = "secundario", cargando = false, ancho = false, grande = false, children, disabled, className, type = "button", ...resto }: PropsBoton) {
+export function Boton({ variante = "secundario", cargando = false, ancho = false, grande = false, textoCargando = "Procesando…", children, disabled, className, type = "button", ...resto }: PropsBoton) {
   return (
     <button {...resto} type={type} disabled={disabled || cargando} aria-busy={cargando || undefined} className={["boton", `boton-${variante}`, ancho ? "boton-ancho" : "", grande ? "boton-grande" : "", className ?? ""].join(" ").trim()}>
-      {cargando ? "Procesando…" : children}
+      {cargando ? textoCargando : children}
     </button>
   );
 }
@@ -97,22 +99,31 @@ export function Vacio({ children, titulo, icono = "vacio" }: { children?: ReactN
   );
 }
 
-/** El error de una carga, con el mensaje de la API y un botón para reintentar. */
+/**
+ * El error de una carga (README «Estados»): un recuadro con el ícono, qué pasó y el botón «Reintentar» a la derecha (en celular, debajo). Un «no se encontró» (404) no se arregla
+ * reintentando: es el recuadro ámbar con «Ir a mi inicio» (V7).
+ */
 export function ErrorDeCarga({ error, alReintentar }: { error: ErrorDeApi; alReintentar?: () => void }) {
+  const noExiste = error.estado === 404;
   return (
-    <Aviso tono="peligro" titulo="No se pudo cargar">
-      <p>{error.estado === 404 ? MENSAJE_NO_ENCONTRADO : error.message}</p>
-      {/* Un «no se encontró» no se arregla reintentando: se ofrece volver al inicio (V7). */}
-      {error.estado === 404 ? (
-        <EnlaceBoton to="/" variante="secundario">
+    <div className={`error-carga${noExiste ? " error-carga-no-existe" : ""}`} role="alert">
+      <span className="error-carga-icono">
+        <Icono nombre="alerta" tamano={22} />
+      </span>
+      <div className="error-carga-cuerpo">
+        <p className="error-carga-titulo">{noExiste ? "No se encontró lo que buscas" : "No se pudo cargar"}</p>
+        <p className="error-carga-detalle">{noExiste ? "Puede que no sea de tus grupos o de tu sucursal, o que ya no exista. Nada se borró de tu lado." : error.message}</p>
+      </div>
+      {noExiste ? (
+        <EnlaceBoton to="/" variante="secundario" className="error-carga-accion">
           Ir a mi inicio
         </EnlaceBoton>
       ) : alReintentar ? (
-        <Boton variante="secundario" onClick={alReintentar}>
+        <Boton variante="secundario" className="error-carga-accion" onClick={alReintentar}>
           Reintentar
         </Boton>
       ) : null}
-    </Aviso>
+    </div>
   );
 }
 
@@ -155,14 +166,17 @@ export function ErrorDeAccion({ error, enCampos }: { error: ErrorDeApi | null; e
   );
 }
 
-/** `encima` (R5a): lo que va sobre el título, como el enlace «Volver…» de la ficha del lead y de la inscripción. */
-export function Pagina({ titulo, subtitulo, acciones, encima, children }: { titulo: string; subtitulo?: ReactNode; acciones?: ReactNode; encima?: ReactNode; children: ReactNode }) {
+/** `nombreCorto`: el nombre con que la pantalla se llama en la navegación cuando el título dice otra cosa («Más» → «Mi cuenta»); se anuncia primero a un lector de pantalla. `encima` (R5a): lo que va sobre el título, como el enlace «Volver…» de la ficha del lead y de la inscripción. */
+export function Pagina({ titulo, nombreCorto, subtitulo, acciones, encima, children }: { titulo: string; nombreCorto?: string; subtitulo?: ReactNode; acciones?: ReactNode; encima?: ReactNode; children: ReactNode }) {
   return (
     <div className="pagina">
       <header className="pagina-cabecera">
         <div>
           {encima}
-          <h1>{titulo}</h1>
+          <h1>
+            {nombreCorto ? <span className="solo-lectores">{nombreCorto}: </span> : null}
+            {titulo}
+          </h1>
           {subtitulo ? <p className="muted">{subtitulo}</p> : null}
         </div>
         {acciones ? <div className="pagina-acciones">{acciones}</div> : null}

@@ -46,7 +46,7 @@ test.describe("Hoy", () => {
 
   test("un maestro no abre la clase de otro grupo ni por URL directa", async ({ page }) => {
     await page.goto(`/clases/${claseAjena.id}/registro`);
-    await expect(page.getByRole("alert").filter({ hasText: "No se pudo cargar" })).toContainText(/No se encontr/);
+    await expect(page.getByRole("alert").filter({ hasText: "No se encontr" })).toContainText(/No se encontr/);
   });
 });
 

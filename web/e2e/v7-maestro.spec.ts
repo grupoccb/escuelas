@@ -727,7 +727,7 @@ test.describe("consultar alumnos", () => {
 
   test("20. un alumno que NO es suyo: se niega con un mensaje claro y un camino de regreso (no un «Reintentar» que no sirve)", async ({ page }) => {
     await page.goto(`/alumnos/${mundo.familia.rivera.hijos[0]!.alumnoId}`);
-    const aviso = page.getByRole("alert").filter({ hasText: "No se pudo cargar" });
+    const aviso = page.getByRole("alert").filter({ hasText: "No se encontr" });
     await expect(aviso).toContainText("No se encontr");
     await foto(page, "alumno-ajeno");
     // Sin datos de la familia ni del alumno ajeno a la vista.
@@ -741,7 +741,7 @@ test.describe("consultar alumnos", () => {
     }
     // Y la clase muestra de otro grupo, por su dirección.
     await page.goto(`/clases/${mundo.maestro.claseAjena.id}/registro`);
-    await expect(page.getByRole("alert").filter({ hasText: "No se pudo cargar" })).toContainText(/No se encontr/);
+    await expect(page.getByRole("alert").filter({ hasText: "No se encontr" })).toContainText(/No se encontr/);
   });
 });
 

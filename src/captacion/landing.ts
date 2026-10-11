@@ -19,7 +19,7 @@ import { type BaseDatos, type Consultas, altaConAlcance, conAlcance } from "../d
 import { transaccionConBloqueo } from "../datos/bloqueos.ts";
 import type { PrismaRaiz } from "../datos/prisma.ts";
 import type { ValorJson } from "../datos/tipos.ts";
-import { resolverVerticalPublica } from "../datos/sistema.ts";
+import { datosPublicosDeOrganizacion, resolverVerticalPublica } from "../datos/sistema.ts";
 import { etapaInicialDeLeads } from "../embudo/etapas.ts";
 import { registrarAltaDeLead } from "../embudo/historial.ts";
 import { type DocumentoLegal, documentoVigente } from "../legal/documentos.ts";
@@ -48,7 +48,28 @@ export interface Landing {
   sucursales: { id: string; nombre: string }[];
   /** El aviso de privacidad vigente de la vertical; null = la página no se puede publicar (no habría evidencia de consentimiento). */
   aviso: DocumentoLegal | null;
+  /** R8b: nombre de la escuela y su identificador (para los enlaces entre disciplinas). Solo presentación. */
+  organizacionNombre?: string;
+  organizacionSlug?: string | null;
+  /** R8b: las disciplinas PUBLICABLES de la escuela (activas y con aviso de privacidad vigente: las mismas que tienen su propia página), la de esta página incluida. */
+  disciplinas?: DisciplinaPublica[];
+  /** R8b: las sucursales donde se ofrece alguna de esas disciplinas, con su dirección (cabecera y pie de la página). */
+  sedes?: { nombre: string; direccion: string | null }[];
 }
+
+/** Lo que una tarjeta de disciplina muestra de la página pública: todo sale de las tablas (vertical, programas, sucursales). */
+export interface DisciplinaPublica {
+  slug: string;
+  nombre: string;
+  colorMarca: string | null;
+  esActual: boolean;
+  /** Rango de edades de sus programas activos (años cumplidos); null si no tiene programas. */
+  edadMin: number | null;
+  edadMax: number | null;
+  sucursales: string[];
+}
+
+const SLUG_PUBLICO = /^[a-z0-9][a-z0-9-]{0,60}$/;
 
 export function colorValido(c: string | null | undefined): string | null {
   return c && COLOR.test(c) ? c.toLowerCase() : null;
@@ -76,7 +97,56 @@ export async function cargarLanding(prisma: PrismaRaiz, slugVertical: string, sl
     select: { sucursal: { select: { id: true, nombre: true } } },
   });
   const sucursales = filas.map((f) => f.sucursal).sort((a, b) => a.nombre.localeCompare(b.nombre, "es-MX") || a.id.localeCompare(b.id));
-  return { organizacionId: r.organizacion_id, verticalId: r.vertical_id, nombre: vertical.nombre, colorMarca: colorValido(vertical.color_marca), logoUrl: logoValido(vertical.logo_url), sucursales, aviso: await documentoVigente(db, "aviso_privacidad", r.vertical_id, ahora) };
+  const aviso = await documentoVigente(db, "aviso_privacidad", r.vertical_id, ahora);
+  const organizacion = await datosPublicosDeOrganizacion(prisma, r.organizacion_id);
+  // Sin aviso la página no se publica (404): no hace falta armar lo demás.
+  const extra = aviso ? await disciplinasPublicas(prisma, r.organizacion_id, r.vertical_id, ahora) : null;
+  return {
+    organizacionId: r.organizacion_id,
+    verticalId: r.vertical_id,
+    nombre: vertical.nombre,
+    colorMarca: colorValido(vertical.color_marca),
+    logoUrl: logoValido(vertical.logo_url),
+    sucursales,
+    aviso,
+    ...(organizacion ? { organizacionNombre: organizacion.nombre, organizacionSlug: organizacion.slug } : {}),
+    ...(extra ? { disciplinas: extra.disciplinas, sedes: extra.sedes } : {}),
+  };
+}
+
+/**
+ * R8b: las disciplinas de la escuela que tienen página pública (activas, vivas, con slug válido y aviso de privacidad vigente) con lo que su tarjeta enseña:
+ * nombre y color de la vertical, rango de edades de sus programas activos y sucursales donde se ofrece. Solo lectura, filtrada por la organización; la
+ * disciplina de esta página va siempre. Una vertical sin aviso no aparece (su URL responde 404, así que no se anuncia).
+ */
+async function disciplinasPublicas(prisma: PrismaRaiz, organizacionId: string, verticalActualId: string, ahora: Date): Promise<{ disciplinas: DisciplinaPublica[]; sedes: { nombre: string; direccion: string | null }[] }> {
+  const db = conAlcance(prisma, organizacionId);
+  const verticales = await db.vertical.findMany({ where: { activo: true, eliminado_en: null }, select: { id: true, nombre: true, slug: true, color_marca: true } });
+  const publicables: typeof verticales = [];
+  for (const v of verticales) {
+    if (v.id === verticalActualId || (SLUG_PUBLICO.test(v.slug) && (await documentoVigente(db, "aviso_privacidad", v.id, ahora)))) publicables.push(v);
+  }
+  const ids = publicables.map((v) => v.id);
+  const programas = await db.programa.findMany({ where: { vertical_id: { in: ids }, activo: true, eliminado_en: null, sucursal: { activo: true, eliminado_en: null } }, select: { vertical_id: true, edad_min: true, edad_max: true } });
+  const ofrecidas = await db.sucursal_vertical.findMany({ where: { vertical_id: { in: ids }, activo: true, sucursal: { activo: true, eliminado_en: null } }, select: { vertical_id: true, sucursal: { select: { id: true, nombre: true, direccion: true } } } });
+  const porNombre = (a: string, b: string): number => a.localeCompare(b, "es-MX");
+  const disciplinas = publicables
+    .map((v): DisciplinaPublica => {
+      const suyos = programas.filter((p) => p.vertical_id === v.id);
+      return {
+        slug: v.slug,
+        nombre: v.nombre,
+        colorMarca: colorValido(v.color_marca),
+        esActual: v.id === verticalActualId,
+        edadMin: suyos.length > 0 ? Math.min(...suyos.map((p) => p.edad_min)) : null,
+        edadMax: suyos.length > 0 ? Math.max(...suyos.map((p) => p.edad_max)) : null,
+        sucursales: ofrecidas.filter((o) => o.vertical_id === v.id).map((o) => o.sucursal.nombre).sort(porNombre),
+      };
+    })
+    .sort((a, b) => porNombre(a.nombre, b.nombre) || a.slug.localeCompare(b.slug));
+  const sedes = new Map<string, { nombre: string; direccion: string | null }>();
+  for (const o of ofrecidas) sedes.set(o.sucursal.id, { nombre: o.sucursal.nombre, direccion: o.sucursal.direccion });
+  return { disciplinas, sedes: [...sedes.values()].sort((a, b) => porNombre(a.nombre, b.nombre)) };
 }
 
 // ── Parámetros de la URL (campaña, sucursal, utm) ──────────────────────────────────────────────────────

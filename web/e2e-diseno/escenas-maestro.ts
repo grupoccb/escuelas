@@ -1620,13 +1620,13 @@ const ESCENAS_BASE: Escena[] = [
     id: "maestro-expediente-operativo",
     rol: "maestro",
     grupo: G,
-    titulo: "Expediente de un alumno propio, pestaña Operativo (asistencia y eventos)",
+    titulo: "Expediente de un alumno propio, pestaña Asistencia (asistencia y eventos)",
     tipo: "estado",
     ruta: "/alumnos/:id",
     fuentes: EXPEDIENTE,
     ir: async (c) => {
       await irA(c, `/alumnos/${alumnoPropio(c).alumnoId}`);
-      await c.page.getByRole("tab", { name: "Operativo" }).click();
+      await c.page.getByRole("tab", { name: "Asistencia" }).click();
       await reposo(c.page);
     },
   },

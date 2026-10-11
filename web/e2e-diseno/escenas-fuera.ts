@@ -94,13 +94,50 @@ async function servir(c: Contexto, ruta: string, estado: number, armar: (nonce: 
   const html = await armar(nonce);
   await c.page.route(
     (u) => u.pathname === ruta,
-    (r: Route) => r.fulfill({ status: estado, contentType: "text/html; charset=utf-8", headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'`, "Cache-Control": "no-store" }, body: html }),
+    (r: Route) => r.fulfill({ status: estado, contentType: "text/html; charset=utf-8", headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; font-src 'self'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'`, "Cache-Control": "no-store" }, body: html }),
   );
 }
 
 async function modulo(): Promise<typeof import("../../src/http/landing-html.ts")> {
   return import("../../src/http/landing-html.ts");
 }
+
+interface DisciplinaSimulada {
+  nombre: string;
+  color: string | null;
+  edades: [number, number] | null;
+  sucursales: string[];
+}
+
+/**
+ * SIMULADO: la página con VARIAS disciplinas. El mundo de pruebas tiene una sola vertical (y esta escena no escribe en la base), así que se arma la página con el mismo
+ * `paginaDeFormulario` del servidor, con los datos reales de la página abierta (nombre, sucursales, aviso) y disciplinas inventadas con nombres genéricos. El servidor real
+ * arma las tarjetas con las mismas tablas (lo prueba `src/http/landing.itest.ts`).
+ */
+async function servirConDisciplinas(c: Contexto, lista: DisciplinaSimulada[], actual: number, valores: Record<string, string> = {}): Promise<void> {
+  await irA(c, rutaLanding(c));
+  const { paginaDeFormulario } = await modulo();
+  const sucursales = await c.page.locator("#sucursal_id option[value]:not([value=''])").evaluateAll((os) => os.map((o) => ({ id: (o as HTMLOptionElement).value, nombre: o.textContent ?? "" })));
+  const aviso = { id: await c.page.locator("input[name=documento_id]").inputValue(), version: Number(await c.page.locator("input[name=version]").inputValue()), titulo: (await c.page.locator("summary").textContent()) ?? "Aviso de privacidad", texto: (await c.page.locator("details .texto").textContent()) ?? "" };
+  const escuela = (await c.page.locator(".marca-texto strong").textContent()) ?? "Escuela";
+  const disciplinas = lista.map((d, i) => ({ slug: `disciplina-${i + 1}`, nombre: d.nombre, colorMarca: d.color, esActual: i === actual, edadMin: d.edades?.[0] ?? null, edadMax: d.edades?.[1] ?? null, sucursales: d.sucursales }));
+  const nonce = "bm9uY2UtZGUtcHJ1ZWJh";
+  const landing = { organizacionId: "", verticalId: "", nombre: lista[actual]!.nombre, colorMarca: lista[actual]!.color, logoUrl: null, sucursales, aviso, organizacionNombre: escuela, organizacionSlug: null, disciplinas, sedes: sucursales.map((s) => ({ nombre: s.nombre, direccion: null })) };
+  await c.page.route(
+    (u) => u.pathname === rutaLanding(c),
+    (r: Route) => {
+      if (r.request().method() !== "GET") return r.fallback();
+      return r.fulfill({ status: 200, contentType: "text/html; charset=utf-8", headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; font-src 'self'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'`, "Cache-Control": "no-store" }, body: paginaDeFormulario(landing as never, { codigo: null, sucursalId: null, utm: {} }, { nonce }, null, valores) });
+    },
+  );
+  await irA(c, rutaLanding(c));
+}
+
+const TRES_DISCIPLINAS: DisciplinaSimulada[] = [
+  { nombre: "Disciplina uno", color: "#c4532a", edades: [3, 17], sucursales: ["Norte", "Sur"] },
+  { nombre: "Disciplina dos", color: "#c24a7e", edades: [3, 12], sucursales: ["Norte"] },
+  { nombre: "Disciplina tres", color: "#1f9a8c", edades: [16, 70], sucursales: ["Sur"] },
+];
 
 /** Lo que el navegador muestra al abrir una dirección que no es una página (JSON, texto, imagen, una página en blanco). */
 async function verCruda(c: Contexto, ruta: string): Promise<void> {
@@ -176,7 +213,7 @@ const ESCENAS_ANONIMAS: Escena[] = [
       const color = "#7b2d8b";
       await reescribirLanding(
         c,
-        (html) => html.replace(/--marca: #[0-9a-fA-F]{6}; --sobre-marca: #[0-9a-fA-F]{6};/, `--marca: ${color}; --sobre-marca: ${colorSobre(color)};`).replace(/<header><span class="monograma"[^>]*>[^<]*<\/span>/, `<header><img src="/logo-simulado.svg" alt="">`),
+        (html) => html.replace(/--marca: #[0-9a-fA-F]{6}; --sobre-marca: #[0-9a-fA-F]{6};/, `--marca: ${color}; --sobre-marca: ${colorSobre(color)};`).replace(/<span class="monograma"[^>]*>[^<]*<\/span>/, `<img src="/logo-simulado.svg" alt="">`),
         (csp) => csp.replace("img-src https:", "img-src 'self' https:"),
       );
       await irA(c, rutaLanding(c));
@@ -196,6 +233,69 @@ const ESCENAS_ANONIMAS: Escena[] = [
       const color = "#f2c230";
       await reescribirLanding(c, (html) => html.replace(/--marca: #[0-9a-fA-F]{6}; --sobre-marca: #[0-9a-fA-F]{6};/, `--marca: ${color}; --sobre-marca: ${colorSobre(color)};`));
       await irA(c, rutaLanding(c));
+    },
+  },
+  {
+    id: "fuera-landing-disciplinas",
+    rol: "anonimo",
+    grupo: GRUPO,
+    titulo: "Landing de una escuela con TRES disciplinas (SIMULADO con `paginaDeFormulario`, datos reales de la página): franjas del héroe, una tarjeta por disciplina con su color (la elegida marcada «Esta es tu elección»), edades y sucursales, y el selector «Disciplina» del formulario",
+    tipo: "fuera-de-react",
+    ruta: "/l/:vertical",
+    fuentes: [LANDING_HTML, LANDING],
+    ir: (c) => servirConDisciplinas(c, TRES_DISCIPLINAS, 0),
+  },
+  {
+    id: "fuera-landing-disciplinas-otra",
+    rol: "anonimo",
+    grupo: GRUPO,
+    titulo: "Landing de la SEGUNDA de tres disciplinas (SIMULADO): el color de marca del botón y la elegida cambian; la marca no depende de un nombre, sale del dato de cada disciplina",
+    tipo: "fuera-de-react",
+    ruta: "/l/:vertical",
+    fuentes: [LANDING_HTML],
+    ir: (c) => servirConDisciplinas(c, TRES_DISCIPLINAS, 1),
+  },
+  {
+    id: "fuera-landing-disciplinas-sin-datos",
+    rol: "anonimo",
+    grupo: GRUPO,
+    titulo: "Landing con disciplinas SIN color ni programas (SIMULADO): las tarjetas caen al neutro del sistema y no muestran edades; la elegida toma el color de marca de la página",
+    tipo: "fuera-de-react",
+    ruta: "/l/:vertical",
+    fuentes: [LANDING_HTML],
+    ir: (c) =>
+      servirConDisciplinas(c, [
+        { nombre: "Disciplina uno", color: null, edades: null, sucursales: [] },
+        { nombre: "Disciplina dos", color: null, edades: null, sucursales: [] },
+      ], 0),
+  },
+  {
+    id: "fuera-landing-disciplinas-foco",
+    rol: "anonimo",
+    grupo: GRUPO,
+    titulo: "Landing con varias disciplinas y el foco del teclado en la primera tarjeta (SIMULADO: anillo de foco de 2 px)",
+    tipo: "fuera-de-react",
+    ruta: "/l/:vertical",
+    fuentes: [LANDING_HTML],
+    ir: async (c) => {
+      await servirConDisciplinas(c, TRES_DISCIPLINAS, 0);
+      for (let i = 0; i < 3; i++) await c.page.keyboard.press("Tab");
+      await quieta(c);
+    },
+  },
+  {
+    id: "fuera-landing-para-mi",
+    rol: "anonimo",
+    grupo: GRUPO,
+    titulo: "Landing con «Para mí» elegido: el campo «Tu nombre» se esconde, la ayuda del nombre pasa a «Escribe tu nombre» y el segmento elegido lleva palomita (no se envía)",
+    tipo: "fuera-de-react",
+    ruta: "/l/:vertical",
+    fuentes: [LANDING_HTML],
+    ir: async (c) => {
+      await irA(c, rutaLanding(c));
+      await c.page.getByRole("radio", { name: "Para mí" }).check();
+      await llenar(c, { alumno: "Persona de prueba", edad: "34", telefono: telefono(c) });
+      await quieta(c);
     },
   },
   {
@@ -333,7 +433,7 @@ const ESCENAS_ANONIMAS: Escena[] = [
           if (r.request().method() !== "POST") return r.fallback();
           const nonce = "bm9uY2UtZGUtcHJ1ZWJh";
           const html = paginaDeFormulario({ organizacionId: "", verticalId: "", nombre, colorMarca: null, logoUrl: null, sucursales: [norte, sur], aviso } as never, { codigo: null, sucursalId: null, utm: {} }, { nonce }, { campos: {}, general: "No pudimos registrar tu solicitud. Escríbenos por WhatsApp o inténtalo de nuevo más tarde." }, {});
-          return r.fulfill({ status: 422, contentType: "text/html; charset=utf-8", headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'` }, body: html });
+          return r.fulfill({ status: 422, contentType: "text/html; charset=utf-8", headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; font-src 'self'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'` }, body: html });
         },
       );
       await enviar(c);
@@ -379,8 +479,8 @@ const ESCENAS_ANONIMAS: Escena[] = [
           return r.fulfill({
             status: 200,
             contentType: "text/html; charset=utf-8",
-            headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'` },
-            body: paginaDeGracias({ organizacionId: "", verticalId: "", nombre, colorMarca: null, logoUrl: null, sucursales: [], aviso: null }, { nonce }),
+            headers: { "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; font-src 'self'; script-src 'nonce-${nonce}'; img-src https:; frame-ancestors 'none'; base-uri 'none'` },
+            body: paginaDeGracias({ organizacionId: "", verticalId: "", nombre, colorMarca: null, logoUrl: null, sucursales: [], aviso: null }, { nonce }, "Familia de prueba"),
           });
         },
       );

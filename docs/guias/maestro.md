@@ -33,7 +33,7 @@ La salud del niño se escribe solo en su sección del registro. Nunca la mandes 
 | Lo que ves | Qué hacer |
 |---|---|
 | “No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.” | Busca señal y toca otra vez el botón que usabas. |
-| “Tu sesión terminó. Inicia sesión de nuevo para continuar donde estabas.” | Entra otra vez; lo que tenías escrito sigue ahí. |
+| “Tu sesión terminó. Entra otra vez para seguir donde te quedaste.” | Entra otra vez con tu correo y tu contraseña. |
 | “La clase de ese día todavía no empieza: el pase se toma desde la hora de inicio.” | Espera a la hora de la clase. |
 | “Ese día este grupo no da clase. Elige otra fecha.” | Cambia la «Fecha de la clase». |
 | “No se encontró lo que buscas…” | Ese alumno no es de tus grupos. Toca «Ir a mi inicio». |

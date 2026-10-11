@@ -30,7 +30,8 @@ export const EXCEPCIONES: { archivo: string; contiene: string; motivo: string }[
   { archivo: "src/http/landing-html.ts", contiene: "@font-face", motivo: "declaración de las fuentes del sistema, desde el propio origen" },
   { archivo: "src/http/landing-html.ts", contiene: "`:root { color-scheme: light; --marca:", motivo: "las variables de color de la página pública" },
   { archivo: "src/http/landing-html.ts", contiene: "const COLOR_POR_OMISION", motivo: "el primario del sistema, si la escuela no tiene color de marca" },
-  { archivo: "src/http/landing-html.ts", contiene: 'return luminancia > 0.4 ? "#111111" : "#ffffff"', motivo: "texto sobre el color de marca (WCAG)" },
+  { archivo: "src/http/landing-html.ts", contiene: '? "#ffffff" : "#111111"', motivo: "texto sobre el color de marca: el de mayor contraste (WCAG)" },
+  { archivo: "src/http/landing-html.ts", contiene: "oklch(from var(--disciplina)", motivo: "tono suave y tinta de cada disciplina, derivados de su color de marca (README «Color por disciplina»; como `[data-disciplina]` en base.css)" },
   { archivo: "src/http/landing-html.ts", contiene: "ESTILOS(COLOR_POR_OMISION,", motivo: "página de error con la marca por omisión" },
 ];
 

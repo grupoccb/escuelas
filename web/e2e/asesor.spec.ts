@@ -55,7 +55,7 @@ test.describe("embudo", () => {
 
   test("la ficha de un lead de otra sucursal no se abre ni por URL directa", async ({ page }) => {
     await page.goto(`/leads/${delta.leadId}`);
-    await expect(page.getByRole("alert").filter({ hasText: "No se pudo cargar" })).toContainText(/No se encontr/);
+    await expect(page.getByRole("alert").filter({ hasText: "No se encontr" })).toContainText(/No se encontr/);
   });
 });
 

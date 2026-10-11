@@ -4,14 +4,15 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1209**.
+Filas: **1218**.
 
-## Acceso y cuenta (47)
+## Acceso y cuenta (51)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
 | `acceso-inicio-de-sesion` | anonimo | pantalla | Inicio de sesión | `/` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-inicio-de-sesion-con-datos` | anonimo | estado | Inicio de sesión con el correo y la contraseña escritos (el botón «Entrar» habilitado) |  | ✔ · ✔ | ✔ · ✔ |
+| `acceso-inicio-de-sesion-clave-visible` | anonimo | estado | Inicio de sesión con la contraseña a la vista (el botón dice «Ocultar») |  | ✘ · ✘ | ✔ · ✔ |
 | `acceso-inicio-de-sesion-entrando` | anonimo | estado | Inicio de sesión con el botón «Entrar» ocupado (esperando al servidor) |  | ✔ · ✔ | ✔ · ✔ |
 | `acceso-inicio-de-sesion-error-401` | anonimo | estado | Inicio de sesión con error 401: «Correo o contraseña incorrectos.» |  | ✔ · ✔ | ✔ · ✔ |
 | `acceso-inicio-de-sesion-error-429-minutos` | anonimo | estado | Inicio de sesión bloqueado por demasiados intentos (429): «Espera 10 minutos» |  | ✔ · ✔ | ✔ · ✔ |
@@ -37,6 +38,8 @@ Filas: **1209**.
 | `acceso-no-encontrada-recepcion` | recepcion | estado | «Página no encontrada» (dirección que no existe) del recepción | `*` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-error-de-carga-500` | asesor | estado | Error de carga genérico (500) con el botón «Reintentar» (ejemplo: Tareas) |  | ✔ · ✔ | ✔ · ✔ |
 | `acceso-error-de-carga-404` | asesor | estado | Error de carga «No se encontró lo que buscas» (404) con el botón «Ir a mi inicio» (ejemplo: Tareas) |  | ✔ · ✔ | ✔ · ✔ |
+| `acceso-error-de-carga-sin-conexion` | asesor | estado | Error de carga sin conexión con el servidor («No hay conexión…») con el botón «Reintentar» (ejemplo: Tareas) |  | ✘ · ✘ | ✔ · ✔ |
+| `acceso-cargando` | asesor | estado | Pantalla cargando («Cargando…» con su giro; ejemplo: Tareas) |  | ✘ · ✘ | ✔ · ✔ |
 | `acceso-mas-administrador` | administrador | pantalla | «Más» / mi cuenta del administrador: sus secciones y su sesión | `/mas` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-mas-asesor` | asesor | pantalla | «Más» / mi cuenta del asesor: sus secciones y su sesión | `/mas` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-mas-maestro` | maestro | pantalla | «Más» / mi cuenta del maestro: sus secciones y su sesión | `/mas` | ✔ · ✔ | ✔ · ✔ |
@@ -46,6 +49,7 @@ Filas: **1209**.
 | `acceso-cambiar-contrasena-validacion` | asesor | flotante | Diálogo «Cambiar mi contraseña» con errores de validación (nueva corta, repetición distinta) | `/mas` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-cambiar-contrasena-vacia-enviada` | asesor | flotante | Diálogo «Cambiar mi contraseña» enviado vacío («Escribe tu contraseña actual») | `/mas` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-cambiar-contrasena-error-servidor` | asesor | flotante | Diálogo «Cambiar mi contraseña» con el error del servidor («La contraseña actual no es correcta») | `/mas` | ✔ · ✔ | ✔ · ✔ |
+| `acceso-cambiar-contrasena-igual-a-la-actual` | asesor | flotante | Diálogo «Cambiar mi contraseña» con la nueva igual a la actual («Tiene que ser distinta de la actual.») | `/mas` | ✘ · ✘ | ✔ · ✔ |
 | `acceso-cambiar-contrasena-demasiados-intentos` | asesor | flotante | Diálogo «Cambiar mi contraseña» bloqueado por demasiados intentos (429, «Intenta de nuevo en 600 s») | `/mas` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-cambiar-contrasena-sin-conexion` | asesor | flotante | Diálogo «Cambiar mi contraseña» sin conexión («No hay conexión con el servidor…») | `/mas` | ✔ · ✔ | ✔ · ✔ |
 | `acceso-marco-administrador` | administrador | global | Marco del administrador: muchas secciones (barra lateral larga; en celular, barra inferior de cuatro secciones y «Más»), contenido corto | `/tareas` | ✔ · ✔ | ✔ · ✔ |
@@ -864,7 +868,7 @@ Filas: **1209**.
 | `familia-ficha-hijos-en-baja` | recepcion | estado | Ficha de la familia con los dos hijos ya en baja (tras las bajas de arriba) | `/familias/:tutorId` | ✔ · ✔ | ✔ · ✔ |
 | `familia-alumnos-lista-bajas-reales` | recepcion | estado | Alumnos filtrada por «Bajas», con los dos hijos que se dieron de baja | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 
-## Fuera de React (39)
+## Fuera de React (44)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
@@ -874,6 +878,11 @@ Filas: **1209**.
 | `fuera-landing-una-sucursal` | anonimo | fuera-de-react | Landing de una vertical con UNA sola sucursal (SIMULADO: el mundo tiene dos; se quita el selector de la respuesta real, como lo arma el servidor: la sucursal viaja oculta) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-marca` | anonimo | fuera-de-react | Landing con el logo y el color de marca de la vertical (SIMULADO: color #7b2d8b y un logo propio; el botón y la línea de la cabecera toman el color, el texto del botón se elige por contraste) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-marca-clara` | anonimo | fuera-de-react | Landing con un color de marca CLARO (SIMULADO: #f2c230): el texto del botón se vuelve casi negro por contraste | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
+| `fuera-landing-disciplinas` | anonimo | fuera-de-react | Landing de una escuela con TRES disciplinas (SIMULADO con `paginaDeFormulario`, datos reales de la página): franjas del héroe, una tarjeta por disciplina con su color (la elegida marcada «Esta es tu elección»), edades y sucursales, y el selector «Disciplina» del formulario | `/l/:vertical` | ✘ · ✘ | ✔ · ✔ |
+| `fuera-landing-disciplinas-otra` | anonimo | fuera-de-react | Landing de la SEGUNDA de tres disciplinas (SIMULADO): el color de marca del botón y la elegida cambian; la marca no depende de un nombre, sale del dato de cada disciplina | `/l/:vertical` | ✘ · ✘ | ✔ · ✔ |
+| `fuera-landing-disciplinas-sin-datos` | anonimo | fuera-de-react | Landing con disciplinas SIN color ni programas (SIMULADO): las tarjetas caen al neutro del sistema y no muestran edades; la elegida toma el color de marca de la página | `/l/:vertical` | ✘ · ✘ | ✔ · ✔ |
+| `fuera-landing-disciplinas-foco` | anonimo | fuera-de-react | Landing con varias disciplinas y el foco del teclado en la primera tarjeta (SIMULADO: anillo de foco de 2 px) | `/l/:vertical` | ✘ · ✘ | ✔ · ✔ |
+| `fuera-landing-para-mi` | anonimo | fuera-de-react | Landing con «Para mí» elegido: el campo «Tu nombre» se esconde, la ayuda del nombre pasa a «Escribe tu nombre» y el segmento elegido lleva palomita (no se envía) | `/l/:vertical` | ✘ · ✘ | ✔ · ✔ |
 | `fuera-landing-llena` | anonimo | fuera-de-react | Landing con el formulario completo y válido, listo para enviar (el aviso aceptado; no se envía) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-aviso-desplegado` | anonimo | fuera-de-react | Landing con el aviso de privacidad desplegado (el `<details>` abierto con su texto, con scroll si es largo) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
 | `fuera-landing-foco-visible` | anonimo | fuera-de-react | Landing con el foco del teclado en el primer campo (anillo de foco de 3 px con el color de marca) | `/l/:vertical` | ✔ · ✔ | ✔ · ✔ |
@@ -1007,7 +1016,7 @@ Filas: **1209**.
 | `maestro-alumnos-cargando` | maestro | estado | Alumnos, cargando | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-alumnos-error` | maestro | estado | Alumnos, con error de carga | `/alumnos` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-expediente-trayectoria` | maestro | pantalla | Expediente de un alumno propio, pestaña Trayectoria (sin pestañas de dinero ni comercial; con el botón «Salud») | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
-| `maestro-expediente-operativo` | maestro | estado | Expediente de un alumno propio, pestaña Operativo (asistencia y eventos) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
+| `maestro-expediente-operativo` | maestro | estado | Expediente de un alumno propio, pestaña Asistencia (asistencia y eventos) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-expediente-ajeno` | maestro | estado | Expediente de un alumno que no es suyo por URL directa (no se encontró, con camino de regreso) | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-expediente-cargando` | maestro | estado | Expediente, cargando | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |
 | `maestro-expediente-error` | maestro | estado | Expediente, con error de carga | `/alumnos/:id` | ✔ · ✔ | ✔ · ✔ |

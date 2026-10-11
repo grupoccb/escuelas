@@ -7,11 +7,13 @@ interface Base {
   ayuda?: ReactNode;
   error?: string | undefined;
   requerido?: boolean;
+  /** Marcado como inválido (borde rojo y `aria-invalid`) cuando el mensaje ya lo dice otra parte de la pantalla, como el aviso de «Correo o contraseña incorrectos». */
+  invalido?: boolean | undefined;
 }
 
-function Envoltura({ id, etiqueta, ayuda, error, requerido, children }: Base & { id: string; children: ReactNode }) {
+function Envoltura({ id, etiqueta, ayuda, error, invalido, requerido, children }: Base & { id: string; children: ReactNode }) {
   return (
-    <div className={`campo${error ? " campo-con-error" : ""}`}>
+    <div className={`campo${error || invalido ? " campo-con-error" : ""}`}>
       <label htmlFor={id}>
         {etiqueta}
         {requerido ? <span className="requerido" aria-hidden="true"> *</span> : null}
@@ -34,11 +36,11 @@ function Envoltura({ id, etiqueta, ayuda, error, requerido, children }: Base & {
 
 const describe = (id: string, ayuda: unknown, error: unknown): string | undefined => [ayuda ? `${id}-ayuda` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined;
 
-export function CampoTexto({ etiqueta, ayuda, error, requerido, ...resto }: Base & Omit<InputHTMLAttributes<HTMLInputElement>, "required">) {
+export function CampoTexto({ etiqueta, ayuda, error, invalido, requerido, ...resto }: Base & Omit<InputHTMLAttributes<HTMLInputElement>, "required">) {
   const id = useId();
   return (
-    <Envoltura id={id} etiqueta={etiqueta} ayuda={ayuda} error={error} requerido={requerido}>
-      <input {...resto} id={id} required={requerido} aria-invalid={error ? true : undefined} aria-describedby={describe(id, ayuda, error)} />
+    <Envoltura id={id} etiqueta={etiqueta} ayuda={ayuda} error={error} invalido={invalido} requerido={requerido}>
+      <input {...resto} id={id} required={requerido} aria-invalid={error || invalido ? true : undefined} aria-describedby={describe(id, ayuda, error)} />
     </Envoltura>
   );
 }
@@ -129,13 +131,13 @@ export function CampoBusqueda({ etiqueta, ...resto }: { etiqueta: string } & Omi
 }
 
 /** Contraseña con «Mostrar» / «Ocultar» dentro de la caja del campo. El botón no lleva etiqueta propia con la palabra «contraseña»: la etiqueta del campo sigue apuntando solo al campo. */
-export function CampoClave({ etiqueta, ayuda, error, requerido, ...resto }: Base & Omit<InputHTMLAttributes<HTMLInputElement>, "required" | "type">) {
+export function CampoClave({ etiqueta, ayuda, error, invalido, requerido, ...resto }: Base & Omit<InputHTMLAttributes<HTMLInputElement>, "required" | "type">) {
   const id = useId();
   const [visible, setVisible] = useState(false);
   return (
-    <Envoltura id={id} etiqueta={etiqueta} ayuda={ayuda} error={error} requerido={requerido}>
+    <Envoltura id={id} etiqueta={etiqueta} ayuda={ayuda} error={error} invalido={invalido} requerido={requerido}>
       <div className="campo-clave">
-        <input {...resto} id={id} type={visible ? "text" : "password"} required={requerido} aria-invalid={error ? true : undefined} aria-describedby={describe(id, ayuda, error)} />
+        <input {...resto} id={id} type={visible ? "text" : "password"} required={requerido} aria-invalid={error || invalido ? true : undefined} aria-describedby={describe(id, ayuda, error)} />
         <button type="button" className="boton" aria-pressed={visible} onClick={() => setVisible((v) => !v)}>
           {visible ? "Ocultar" : "Mostrar"}
         </button>

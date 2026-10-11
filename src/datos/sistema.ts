@@ -168,6 +168,12 @@ export async function resolverVerticalPublica(raiz: PrismaRaiz, slugVertical: st
   return una ? { organizacion_id: una.organizacion_id, vertical_id: una.id } : null;
 }
 
+/** R8b: lo público de la escuela para la landing (su nombre y su identificador). null si la organización no existe o está dada de baja. */
+export async function datosPublicosDeOrganizacion(raiz: PrismaRaiz, organizacionId: string): Promise<{ nombre: string; slug: string | null } | null> {
+  const o = await clienteSinAlcance(raiz).organizacion.findFirst({ where: { id: organizacionId, eliminado_en: null }, select: { nombre: true, slug: true } });
+  return o ? { nombre: o.nombre, slug: o.slug } : null;
+}
+
 export interface EventoInesperadoSinOrganizacion {
   origen: "chatwoot" | "twilio_entrante" | "twilio_estado" | "landing" | "barrido_twilio";
   clave: string;

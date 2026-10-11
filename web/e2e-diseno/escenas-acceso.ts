@@ -4,7 +4,7 @@
 // NO tocan la base ni revocan la sesión guardada del rol, así que ninguna escena de este archivo cambia lo que ven las de las demás áreas.
 
 import type { Route } from "@playwright/test";
-import { conError, conModuloApagado, conVacio, cortarLaRed, esperarListo, fallarLaSiguienteEscritura, irA, type Contexto, type Escena, type RolEscena } from "./escenas.ts";
+import { conCargando, conError, conModuloApagado, conVacio, cortarLaRed, esperarListo, fallarLaSiguienteEscritura, irA, type Contexto, type Escena, type RolEscena } from "./escenas.ts";
 
 const GRUPO = "Acceso y cuenta";
 const ACCESO = "web/src/pantallas/acceso/Acceso.tsx";
@@ -115,6 +115,21 @@ export const ESCENAS: Escena[] = [
       await c.page.getByLabel("Correo").fill(CORREO);
       await c.page.getByLabel(/^Contraseña/).fill(CONTRASENA_VIEJA);
       await c.page.getByLabel("Escuela (opcional)").fill("mi-escuela");
+    },
+  },
+  {
+    id: "acceso-inicio-de-sesion-clave-visible",
+    rol: "anonimo",
+    grupo: GRUPO,
+    titulo: "Inicio de sesión con la contraseña a la vista (el botón dice «Ocultar»)",
+    tipo: "estado",
+    fuentes: [ACCESO, "web/src/ui/campos.tsx"],
+    ir: async (c) => {
+      await irA(c, "/");
+      await c.page.getByLabel("Correo").fill(CORREO);
+      await c.page.getByLabel(/^Contraseña/).fill(CONTRASENA_VIEJA);
+      await c.page.getByRole("button", { name: "Mostrar" }).click();
+      await c.page.getByRole("button", { name: "Ocultar" }).waitFor();
     },
   },
   {
@@ -364,6 +379,33 @@ export const ESCENAS: Escena[] = [
     ir: (c) => conError(c, "/tareas", 404),
   },
 
+  {
+    id: "acceso-error-de-carga-sin-conexion",
+    rol: "asesor",
+    grupo: GRUPO,
+    titulo: "Error de carga sin conexión con el servidor («No hay conexión…») con el botón «Reintentar» (ejemplo: Tareas)",
+    tipo: "estado",
+    fuentes: [BASICOS],
+    ir: async (c) => {
+      await c.page.route(
+        (u) => u.pathname.startsWith("/api/") && u.pathname !== "/api/yo",
+        (r) => (r.request().method() === "GET" ? r.abort("connectionfailed") : r.continue()),
+      );
+      await c.page.goto("/tareas");
+      await c.page.getByText("No hay conexión con el servidor").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "acceso-cargando",
+    rol: "asesor",
+    grupo: GRUPO,
+    titulo: "Pantalla cargando («Cargando…» con su giro; ejemplo: Tareas)",
+    tipo: "estado",
+    fuentes: [BASICOS],
+    ir: (c) => conCargando(c, "/tareas"),
+  },
+
   // Más / mi cuenta
   ...ROLES_CON_SESION.map(
     ({ rol, etiqueta }): Escena => ({
@@ -409,7 +451,7 @@ export const ESCENAS: Escena[] = [
       await abrirCambiarContrasena(c);
       await llenarContrasenas(c, CONTRASENA_VIEJA, "corta", "otra");
       await enviarCambioDeContrasena(c);
-      await c.page.getByText("Debe tener al menos 10 caracteres").waitFor();
+      await c.page.getByText("La nueva necesita al menos 10 caracteres.").waitFor();
       await esperarListo(c.page);
     },
   },
@@ -424,7 +466,7 @@ export const ESCENAS: Escena[] = [
     ir: async (c) => {
       await abrirCambiarContrasena(c);
       await enviarCambioDeContrasena(c);
-      await c.page.getByText("Escribe tu contraseña actual").waitFor();
+      await c.page.getByText("Escribe tu contraseña actual.").waitFor();
       await esperarListo(c.page);
     },
   },
@@ -442,6 +484,22 @@ export const ESCENAS: Escena[] = [
       await llenarContrasenas(c, CONTRASENA_VIEJA, CONTRASENA_NUEVA, CONTRASENA_NUEVA);
       await enviarCambioDeContrasena(c);
       await c.page.getByText("La contraseña actual no es correcta.").first().waitFor();
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "acceso-cambiar-contrasena-igual-a-la-actual",
+    rol: "asesor",
+    grupo: GRUPO,
+    titulo: "Diálogo «Cambiar mi contraseña» con la nueva igual a la actual («Tiene que ser distinta de la actual.»)",
+    tipo: "flotante",
+    ruta: "/mas",
+    fuentes: [MAS, DIALOGO],
+    ir: async (c) => {
+      await abrirCambiarContrasena(c);
+      await llenarContrasenas(c, CONTRASENA_VIEJA, CONTRASENA_VIEJA, CONTRASENA_VIEJA);
+      await enviarCambioDeContrasena(c);
+      await c.page.getByText("Tiene que ser distinta de la actual.").waitFor();
       await esperarListo(c.page);
     },
   },

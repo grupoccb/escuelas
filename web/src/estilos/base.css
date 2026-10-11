@@ -404,10 +404,19 @@ strong { font-weight: 700; }
 .lista-enlaces li:last-child { border-bottom: 0; }
 .enlace-seccion { display: flex; align-items: center; gap: var(--e3); min-height: var(--alto-toque); color: var(--texto); font-weight: 600; text-decoration: none; }
 .enlace-seccion:hover { color: var(--primario); }
-.pantalla-aparte { display: flex; flex-direction: column; align-items: flex-start; gap: var(--e4); max-width: 34rem; padding: var(--e5); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
-.pantalla-aparte-icono { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: var(--radio-panel); background: var(--primario-suave); color: var(--primario-fuerte); }
-.pantalla-aparte-texto p { margin: 0 0 var(--e2); font-size: 1rem; line-height: 1.5rem; }
-.pantalla-aparte-texto p:last-child { margin-bottom: 0; }
+/* «Sin acceso», «No disponible» y «Página no encontrada» (R8a): un panel centrado con el ícono del tono, el título, el texto y las salidas. */
+.pantalla-aparte-marco { display: flex; align-items: center; justify-content: center; min-height: min(32rem, 70dvh); }
+.pantalla-aparte { width: 100%; max-width: var(--ancho-aparte); display: flex; flex-direction: column; align-items: flex-start; gap: var(--e4); padding: var(--padding-aparte); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-aparte); }
+.pantalla-aparte-icono { display: flex; align-items: center; justify-content: center; width: var(--icono-aparte); height: var(--icono-aparte); border-radius: var(--radio-panel); background: var(--primario-suave); color: var(--primario-fuerte); }
+.pantalla-aparte-icono-peligro { background: var(--peligro-suave); color: var(--peligro); }
+.pantalla-aparte-icono-neutro { background: var(--etiqueta); color: var(--texto-medio); }
+.pantalla-aparte-texto { display: flex; flex-direction: column; gap: var(--e2); }
+.pantalla-aparte-texto h1 { font-size: var(--titulo-aparte-tam); line-height: var(--titulo-aparte-linea); letter-spacing: -0.01em; }
+.pantalla-aparte-texto p { margin: 0; color: var(--texto-medio); font-size: 1rem; line-height: 1.5rem; text-wrap: pretty; }
+.pantalla-aparte-acciones { display: flex; flex-wrap: wrap; gap: var(--e2); }
+.pantalla-aparte-acciones .boton { min-height: var(--alto-boton-cuenta); padding: 0 20px; border-radius: var(--radio-tarjeta); }
+@media (max-width: 899px) { .pantalla-aparte-acciones .boton-primario { min-height: var(--alto-accion); } }
+@media (max-width: 479px) { .pantalla-aparte { padding: var(--e5); } .pantalla-aparte-acciones { flex-direction: column; align-self: stretch; } }
 
 .pagina { display: flex; flex-direction: column; gap: var(--e5); }
 .pagina-cabecera { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--e4); }
@@ -513,16 +522,20 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primario); }
 .aviso-peligro { background: var(--peligro-suave); border-color: var(--peligro); color: var(--peligro); }
 .aviso a { color: inherit; font-weight: 700; }
 .carga-inicial { min-height: 100dvh; display: flex; align-items: center; justify-content: center; }
+.carga-inicial-contenido { display: flex; flex-direction: column; align-items: center; gap: var(--e4); }
+.carga-inicial .cargando { padding: 0; gap: 10px; color: var(--texto-medio); font-weight: 600; }
+.carga-inicial .giro { width: 18px; height: 18px; }
+.monograma-grande { width: var(--icono-aparte); height: var(--icono-aparte); border-radius: var(--radio-panel); font-size: 1.3125rem; }
 .cargando { color: var(--texto-suave); display: flex; align-items: center; gap: var(--e2); padding: var(--e4) 0; margin: 0; }
 .giro { width: 16px; height: 16px; border: 2px solid var(--borde); border-top-color: var(--primario); border-radius: 50%; animation: gira 0.8s linear infinite; }
 @keyframes gira { to { transform: rotate(360deg); } }
 /* Estado vacío: recuadro --fondo con ícono, qué pasó y cuál es el siguiente paso. */
-.vacio { display: flex; align-items: flex-start; gap: var(--e3); padding: 14px var(--e4); background: var(--fondo); border-radius: var(--radio-tarjeta); color: var(--texto-suave); }
+.vacio { display: flex; align-items: flex-start; gap: var(--e3); padding: var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-aviso); color: var(--texto-suave); }
 .vacio-icono { flex: none; color: var(--texto-suave); margin-top: 1px; }
 .vacio-texto { min-width: 0; }
 .vacio-titulo { font-weight: 700; color: var(--texto); margin: 0; }
 .vacio-detalle { margin-top: 2px; }
-.tarjeta .vacio, .columna .vacio { background: var(--fondo); }
+.tarjeta .vacio, .columna .vacio { background: var(--fondo); border-color: transparent; }
 /* Etiquetas: la neutra (fuente, sucursal) lleva esquinas de 6; las de estado son píldoras con su par suave y fuerte; la de alerta lleva borde. */
 .insignia { display: inline-block; padding: 2px var(--e2); border-radius: var(--radio-etiqueta); font-size: 0.75rem; line-height: 1rem; font-weight: 600; background: var(--etiqueta); color: var(--etiqueta-texto); white-space: nowrap; }
 .insignia-info, .insignia-exito, .insignia-peligro { padding: var(--e1) 10px; border-radius: var(--radio-pildora); font-size: 0.78125rem; font-weight: 700; }
@@ -595,7 +608,11 @@ table.tabla tbody tr:hover { background: var(--fondo); }
 
 /* ───────── Inicio de sesión ───────── */
 .acceso { min-height: 100dvh; display: flex; flex-wrap: wrap; background: var(--fondo); }
-.acceso-marca { flex: 1 1 420px; background: var(--lateral); color: var(--primario-texto); padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; }
+.acceso-marca { flex: 1 1 420px; background: var(--lateral); color: var(--primario-texto); padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px; }
+.acceso-marca-franjas { display: flex; gap: var(--e2); }
+.acceso-marca-franjas span { width: var(--franja-ancho); height: var(--franja-alto); border-radius: var(--radio-muestra); background: var(--franja-1); }
+.acceso-marca-franjas span:nth-child(2) { background: var(--franja-2); }
+.acceso-marca-franjas span:nth-child(3) { background: var(--franja-3); }
 .acceso-marca-cabeza { display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: 1.125rem; }
 .acceso-marca .monograma { width: 48px; height: 48px; border-radius: var(--radio-indicador); font-size: 1.1875rem; display: flex; align-items: center; justify-content: center; background: var(--primario); color: var(--primario-texto); font-family: var(--fuente-titulo); font-weight: 700; flex: none; }
 .acceso-marca-lema { display: flex; flex-direction: column; gap: var(--e4); max-width: 440px; }
@@ -2755,3 +2772,48 @@ input.corte-dia:not([type="checkbox"]):not([type="radio"]) { width: auto; font-w
   .barra-avance-fina { border: 1px solid var(--borde-impresion); background: var(--papel); }
   .barra-avance-fina-relleno { background: var(--tinta); }
 }
+
+/* === R8a: acceso, mi cuenta y estados === */
+/* Las tres franjas de la marca del acceso son un adorno: aún no se sabe de qué escuela es quien entra, así que no vienen del color de una disciplina (esas traen el suyo en sus datos). */
+:root {
+  --franja-1: oklch(0.6 0.16 35);
+  --franja-2: oklch(0.6 0.16 355);
+  --franja-3: oklch(0.6 0.11 190);
+  --franja-ancho: 36px;
+  --franja-alto: 6px;
+  --ancho-aparte: 560px;
+  --padding-aparte: 28px;
+  --radio-aparte: 20px;
+  --icono-aparte: 56px;
+  --titulo-aparte-tam: 1.875rem;
+  --titulo-aparte-linea: 2.125rem;
+  --alto-boton-cuenta: 48px;
+  --ancho-cuenta: 640px;
+}
+/* Mi cuenta: quién es, todas sus secciones y las dos acciones de la sesión. */
+.pagina:has(.cuenta-identidad) { width: 100%; max-width: var(--ancho-cuenta); margin-inline: auto; }
+.cuenta-identidad { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.cuenta-avatar { flex: none; display: flex; align-items: center; justify-content: center; width: var(--avatar-ficha); height: var(--avatar-ficha); border-radius: 50%; background: var(--lateral); color: var(--primario-texto); font-weight: 700; font-size: 1.125rem; }
+.cuenta-identidad-texto { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.cuenta-identidad-texto strong { font-size: 1.125rem; line-height: 1.5rem; }
+.cuenta-identidad-texto span { color: var(--texto-suave); }
+.cuenta-secciones { padding: 6px var(--e4); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.cuenta-secciones .enlace-seccion { min-height: var(--alto-accion); }
+.cuenta-secciones .enlace-seccion span { flex: 1; min-width: 0; }
+.cuenta-secciones .enlace-seccion > svg:last-child { color: var(--texto-suave); }
+.cuenta-acciones { display: flex; flex-wrap: wrap; gap: var(--e2); }
+.cuenta-acciones .boton { min-height: var(--alto-boton-cuenta); padding: 0 18px; border-radius: var(--radio-tarjeta); }
+/* El error de una carga (README «Estados»): el ícono, qué pasó y «Reintentar» a la derecha; con un «no se encontró», el recuadro ámbar con «Ir a mi inicio». */
+.error-carga { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--e3); padding: var(--e4); background: var(--peligro-suave); border: 1px solid var(--peligro); border-radius: var(--radio-aviso); color: var(--peligro); }
+.error-carga-icono { flex: none; display: flex; margin-top: 1px; }
+.error-carga-cuerpo { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.error-carga-titulo, .error-carga-detalle { margin: 0; }
+.error-carga-titulo { font-weight: 700; }
+.error-carga-detalle { color: var(--texto-medio); }
+.error-carga-accion { flex: none; }
+.error-carga .boton.error-carga-accion { border-color: var(--peligro); color: var(--peligro); font-weight: 700; }
+.error-carga .boton.error-carga-accion:hover:not(:disabled) { background: var(--fondo); border-color: var(--peligro); color: var(--peligro); }
+.error-carga-no-existe { background: var(--alerta-suave); border-color: var(--alerta-borde); color: var(--alerta-fuerte); }
+.error-carga-no-existe .error-carga-detalle { color: var(--alerta-fuerte); }
+.error-carga-no-existe .boton.error-carga-accion, .error-carga-no-existe .boton.error-carga-accion:hover:not(:disabled) { border-color: var(--alerta-borde); color: var(--alerta-fuerte); }
+@media (max-width: 479px) { .error-carga-accion { width: 100%; } }

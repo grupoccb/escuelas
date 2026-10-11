@@ -16,16 +16,8 @@ export const EVENTOS: Record<string, { titulo: string; sentido: "antes" | "despu
   clase_muestra_cancelada: { titulo: "Aviso de clase muestra cancelada", sentido: "despues", ayuda: "Minutos después de que una persona cancela la clase (0 = enseguida, dentro del horario de envío). Si ya no alcanza a llegar antes de la clase, no sale y queda una tarea.", modulo: "clase_muestra" },
 };
 
-/** El nombre del módulo, para decirle a la escuela por qué una automatización está en pausa. */
-export const NOMBRE_DE_MODULO: Record<ModuloId, string> = {
-  captacion: "Captación",
-  cotizador: "Cotizador",
-  clase_muestra: "Clase muestra",
-  inscripcion: "Inscripción",
-  operacion: "Operación diaria",
-  finanzas: "Finanzas",
-  tableros: "Tableros",
-};
+/** El nombre del módulo (vive en `navegacion.ts`: también lo usa la pantalla «No disponible»). */
+export { NOMBRE_DE_MODULO } from "../../navegacion.ts";
 
 export const tituloDeEvento = (e: string): string => EVENTOS[e]?.titulo ?? e.replace(/_/g, " ");
 

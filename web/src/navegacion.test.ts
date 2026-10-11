@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import type { ModuloId, Modulos, Rol } from "./api/tipos.ts";
-import { GRUPOS, INICIO_POR_ROL, SECCIONES, agruparSecciones, inicioDe, seccionesDe } from "./navegacion.ts";
+import { GRUPOS, INICIO_POR_ROL, SECCIONES, agruparSecciones, inicioDe, seccionDeRuta, seccionesDe, seccionesDeUnModulo } from "./navegacion.ts";
 
 const TODOS: Modulos = { captacion: true, cotizador: true, clase_muestra: true, inscripcion: true, operacion: true, finanzas: true, tableros: true };
 const SOLO_CAPTACION: Modulos = { captacion: true, cotizador: false, clase_muestra: false, inscripcion: false, operacion: false, finanzas: false, tableros: false };
@@ -117,4 +117,22 @@ test("las rutas de un módulo apagado: de alumnos y familias a inscripción, pag
   assert.equal(de("/leads/:id"), "captacion");
   assert.equal(de("/admin/modulos"), "captacion", "la pantalla de módulos nunca se apaga");
   assert.equal(de("/admin/usuarios"), "captacion");
+});
+
+test("R8a: la sección a la que pertenece una dirección (para decir qué pantalla no se puede ver): la propia, sus hijas y las que viven bajo otra ruta", () => {
+  assert.equal(seccionDeRuta("/embudo")?.id, "embudo");
+  assert.equal(seccionDeRuta("/cuenta/abc")?.id, "cuenta");
+  assert.equal(seccionDeRuta("/alumnos/abc/salud")?.id, "alumnos");
+  assert.equal(seccionDeRuta("/admin/usuarios")?.id, "admin");
+  assert.equal(seccionDeRuta("/leads/abc/convertir")?.id, "embudo", "la ficha y la inscripción de un lead son del embudo");
+  assert.equal(seccionDeRuta("/clases/abc/registro")?.id, "hoy");
+  assert.equal(seccionDeRuta("/embudo/")?.id, "embudo", "con diagonal final");
+  assert.equal(seccionDeRuta("/embudoextra"), undefined, "un prefijo a medias no cuenta");
+  assert.equal(seccionDeRuta("/esto/no/existe"), undefined);
+});
+test("R8a: lo que «no está disponible» con un módulo apagado son las secciones de ese módulo que el usuario tendría (por permiso)", () => {
+  assert.deepEqual(seccionesDeUnModulo("finanzas", PERMISOS_DE_TODO), ["registrar pago", "estado de cuenta", "uniformes", "ventas", "cierre del día"]);
+  assert.deepEqual(seccionesDeUnModulo("finanzas", ["estado_cuenta:leer"]), ["estado de cuenta"]);
+  assert.deepEqual(seccionesDeUnModulo("finanzas", ["leads:escribir"]), []);
+  assert.deepEqual(seccionesDeUnModulo("cotizador", PERMISOS_DE_TODO), [], "un módulo sin secciones propias");
 });

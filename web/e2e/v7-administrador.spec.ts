@@ -819,7 +819,7 @@ test.describe("un día normal", () => {
       await c.page.getByLabel("Contraseña").fill(CONTRASENA);
       await c.page.getByRole("button", { name: "Entrar" }).click();
       await expect(c.page.getByText("Correo o contraseña incorrectos")).toBeVisible();
-      await expect(c.page.getByText(/administra el sistema/)).toBeVisible();
+      await expect(c.page.getByText(/administra la escuela/)).toBeVisible();
       await foto(c.page, "acceso-no-puedo-entrar");
       await c.cerrar();
     });
@@ -861,7 +861,7 @@ test.describe("un día normal", () => {
       await d.getByLabel("Contraseña actual").fill(CONTRASENA);
       await d.getByLabel("Repite la contraseña nueva").fill("otra-distinta-1234");
       await d.getByRole("button", { name: "Cambiar contraseña" }).click();
-      await expect(d).toContainText("no es igual");
+      await expect(d).toContainText("No coincide con la nueva");
       await foto(p, "mi-cuenta-contrasena");
       await d.getByLabel("Repite la contraseña nueva").fill("Contrasena-propia-v7-3");
       await d.getByRole("button", { name: "Cambiar contraseña" }).click();

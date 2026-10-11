@@ -113,3 +113,33 @@ export function inicioDe(rol: Rol, permisos: readonly string[], modulos: Modulos
   if (disponibles.some((s) => s.ruta === preferida)) return preferida;
   return disponibles[0]?.ruta ?? "/mas";
 }
+
+/** El nombre de cada módulo, para decirle a la persona por qué una pantalla «no está disponible» (y a la administración, por qué una automatización está en pausa). */
+export const NOMBRE_DE_MODULO: Record<ModuloId, string> = {
+  captacion: "Captación",
+  cotizador: "Cotizador",
+  clase_muestra: "Clase muestra",
+  inscripcion: "Inscripción",
+  operacion: "Operación diaria",
+  finanzas: "Finanzas",
+  tableros: "Tableros",
+};
+
+/** El rol como se lee en una frase («Tu usuario de maestro…») y como título («Maestro»). */
+export const NOMBRE_DE_ROL: Record<Rol, string> = { administrador: "Administrador", asesor: "Asesor", maestro: "Maestro", recepcion: "Recepción" };
+
+/** Las direcciones que no son la de su sección pero pertenecen a ella (la ficha de un lead es del embudo; el registro de una clase, de «Hoy»). */
+const SECCION_DE_PREFIJO: Record<string, string> = { "/leads": "embudo", "/clases": "hoy" };
+
+/** La sección a la que pertenece una dirección (`/cuenta/abc` → «Estado de cuenta»); `undefined` si ninguna. Sirve para decir QUÉ pantalla no se puede ver. */
+export function seccionDeRuta(ruta: string): Seccion | undefined {
+  const limpia = ruta.replace(/\/+$/, "") || "/";
+  const alias = Object.entries(SECCION_DE_PREFIJO).find(([prefijo]) => limpia === prefijo || limpia.startsWith(`${prefijo}/`));
+  if (alias) return SECCIONES.find((s) => s.id === alias[1]);
+  return SECCIONES.find((s) => limpia === s.ruta || limpia.startsWith(`${s.ruta}/`));
+}
+
+/** Las etiquetas (en minúscula) de las secciones de un módulo que este usuario tendría con él encendido: lo que «no está disponible» mientras esté apagado. */
+export function seccionesDeUnModulo(modulo: ModuloId, permisos: readonly string[]): string[] {
+  return SECCIONES.filter((s) => s.modulo === modulo && permisos.includes(s.permiso)).map((s) => s.etiqueta.toLowerCase());
+}

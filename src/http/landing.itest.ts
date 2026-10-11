@@ -711,3 +711,77 @@ test("EE-09 (X14): el lead de la landing nace en la primera etapa ABIERTA, aunqu
   await r.text();
   assert.equal((await m.db.lead.findFirstOrThrow()).etapa_id, abierta.id);
 });
+
+// R8b: la página es un héroe + una tarjeta por disciplina de la escuela (datos de las tablas, nunca nombres escritos en el código) + el formulario de siempre.
+test("R8b GET: una tarjeta por disciplina PUBLICABLE de la escuela (nombre, color, edades de sus programas, sucursales); la de esta página marcada; las inactivas y las sin aviso no salen", async () => {
+  const m = await mundo();
+  const slugOtra = `o-${randomBytes(4).toString("hex")}`;
+  const otra = await prisma.vertical.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Otra <Disciplina>", slug: slugOtra, color_marca: "#1f8a70" } });
+  await prisma.sucursal_vertical.create({ data: { organizacion_id: m.org.organizacionId, sucursal_id: m.org.sucursales[0]!.id, vertical_id: otra.id } });
+  for (const [nombre, min, max] of [["Chicos", 4, 9], ["Grandes", 10, 17]] as const) await prisma.programa.create({ data: { organizacion_id: m.org.organizacionId, vertical_id: otra.id, sucursal_id: m.org.sucursales[0]!.id, nombre, edad_min: min, edad_max: max } });
+  const apagada = await prisma.vertical.create({ data: { organizacion_id: m.org.organizacionId, nombre: "Apagada Disciplina", slug: `a-${randomBytes(4).toString("hex")}`, activo: false } });
+  const html = await (await fetch(`${api.base}${m.ruta}?utm_source=anuncio&c=ABCD2345&s=${m.org.sucursales[0]!.id}`)).text();
+  // Dos tarjetas (la de esta página y la otra), con sus nombres escapados y su color como variable de la tarjeta.
+  assert.equal((html.match(/class="tarjeta-disc /g) ?? []).length, 2);
+  assert.match(html, /<h2>Otra &lt;Disciplina&gt;<\/h2>/);
+  assert.ok(!html.includes("<Disciplina>"), "nada sin escapar");
+  assert.ok(!html.includes(apagada.nombre), "una disciplina inactiva no se anuncia");
+  assert.match(html, /\.d-\d+ \{ --disciplina: #7a1fa2; \}/);
+  assert.match(html, /\.d-\d+ \{ --disciplina: #1f8a70; \}/);
+  assert.match(html, /oklch\(from var\(--disciplina\) 0\.95 0\.035 h\)/, "suave y tinta derivados del color, sin mapa por nombre");
+  assert.match(html, /De 4 a 17 años/, "las edades salen de los programas activos");
+  assert.match(html, /En Norte/);
+  // La de esta página lleva aria-current; la otra es un enlace a SU página, con el código de campaña y los utm pero sin la sucursal sugerida.
+  assert.equal((html.match(/class="tarjeta-disc [^"]*" href="#pide" aria-current="true"/g) ?? []).length, 1);
+  const enlace = new RegExp(`class="tarjeta-disc [^"]*" href="/l/${slugOtra}\\?org=${m.org.slug}&amp;c=ABCD2345&amp;utm_source=anuncio#pide"`);
+  assert.match(html, enlace);
+  // El selector «Disciplina» del formulario ofrece las mismas (enlaces, no controles: cada disciplina tiene su aviso y sus sucursales).
+  assert.equal((html.match(/class="chip /g) ?? []).length, 2);
+  assert.match(html, /<span class="etiqueta" id="etiqueta-disciplina">Disciplina<\/span>/);
+  // La página de la otra disciplina existe y es la suya.
+  const suya = await fetch(`${api.base}/l/${slugOtra}?org=${m.org.slug}`);
+  assert.equal(suya.status, 200);
+  assert.match(await suya.text(), /<h1>Otra &lt;Disciplina&gt;<\/h1>/);
+  // Una disciplina sin aviso de privacidad vigente no tiene página (404): tampoco se anuncia. (Aquí solo la de esta página tiene aviso propio y no hay uno general.)
+  const n = await mundo({ sinDocumentos: true });
+  const texto = "Aviso propio.";
+  await prisma.documento_legal.create({ data: { organizacion_id: n.org.organizacionId, vertical_id: n.org.verticalId, tipo: "aviso_privacidad", version: 1, titulo: "Aviso propio", texto, texto_hash: "0".repeat(64), vigente_desde: new Date("2020-01-01T00:00:00Z") } });
+  const sinAviso = await prisma.vertical.create({ data: { organizacion_id: n.org.organizacionId, nombre: "Sin aviso Disciplina", slug: `s-${randomBytes(4).toString("hex")}` } });
+  const soloUna = await (await fetch(`${api.base}${n.ruta}`)).text();
+  assert.equal((soloUna.match(/class="tarjeta-disc /g) ?? []).length, 1);
+  assert.ok(!soloUna.includes(sinAviso.nombre) && !soloUna.includes('class="chip '), "con una sola disciplina no hay selector ni otras tarjetas");
+  assert.equal((await fetch(`${api.base}/l/${sinAviso.slug}?org=${n.org.slug}`).then(async (x) => (await x.text(), x.status))), 404);
+});
+
+test("R8b GET: la escuela (nombre y sucursales en la cabecera; direcciones en el pie), el salto «Para quién es la clase» y las fotos como marcadores sin imágenes", async () => {
+  const m = await mundo();
+  await prisma.sucursal.update({ where: { id: m.org.sucursales[0]!.id }, data: { direccion: "Calle <Uno> 12" } });
+  const org = await prisma.organizacion.findFirstOrThrow({ where: { id: m.org.organizacionId } });
+  const html = await (await fetch(`${api.base}${m.ruta}`)).text();
+  assert.match(html, new RegExp(`<strong>${org.nombre}</strong><span>Norte · Sur</span>`));
+  assert.match(html, /<footer class="pie">[^<]*Calle &lt;Uno&gt; 12/);
+  assert.ok(!html.includes("<img"), "las fotos son espacios marcados, sin imágenes");
+  assert.equal((html.match(/class="foto-marcador" role="img" aria-label="Espacio para una foto/g) ?? []).length, 2, "héroe y una tarjeta");
+  assert.match(html, /<input type="radio" id="para_quien_hijo" name="para_quien" value="hijo" checked>/);
+  assert.match(html, /<input type="radio" id="para_quien_yo" name="para_quien" value="yo">/);
+  assert.match(html, /<a class="boton-principal" href="#pide">Quiero mi clase muestra<\/a>/);
+  // Con un solo envío fallido, la elección «para mí» se conserva y el contacto sigue oculto.
+  const mal = await (await enviar(api.base, m.ruta, campos(m, { nombre_alumno: "", para_quien: "yo" }))).text();
+  assert.match(mal, /<input type="radio" id="para_quien_yo" name="para_quien" value="yo" checked>/);
+  assert.match(mal, /id="campo-contacto" hidden/);
+  // Y con el envío bueno «para mí» el contacto queda con el nombre dado (aquí, vacío: no se inventa nada en el servidor).
+  const bien = await enviar(api.base, m.ruta, campos(m, { para_quien: "yo", nombre_contacto: undefined }));
+  assert.equal(bien.status, 303);
+  await bien.text();
+  assert.equal((await m.db.lead.findFirstOrThrow()).nombre_contacto, null);
+});
+
+test("R8b: la página de gracias saluda por el primer nombre (escapado) y no lleva el enlace «Pide tu clase muestra»", async () => {
+  const m = await mundo({ numero: null });
+  const r = await enviar(api.base, m.ruta, campos(m, { nombre_contacto: "Rosa María" }));
+  const html = await r.text();
+  assert.equal(r.status, 200);
+  assert.match(html, /<h1>Listo, Rosa<\/h1>/);
+  assert.match(html, /role="status"/);
+  assert.ok(!html.includes('href="#pide"'));
+});

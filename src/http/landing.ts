@@ -203,6 +203,7 @@ export function rutasDeLanding(deps: DepsLanding): Router {
         ...(typeof cuerpo["sucursal_id"] === "string" ? { sucursal_id: cuerpo["sucursal_id"].slice(0, 60) } : {}),
         ...(typeof cuerpo["telefono"] === "string" ? { telefono: cuerpo["telefono"].slice(0, 40) } : {}),
         ...(typeof cuerpo["nombre_contacto"] === "string" ? { nombre_contacto: cuerpo["nombre_contacto"].slice(0, 200) } : {}),
+        ...(cuerpo["para_quien"] === "hijo" || cuerpo["para_quien"] === "yo" ? { para_quien: cuerpo["para_quien"] } : {}),
       };
       res.status(422).send(paginaDeFormulario(landing, parametros, { nonce }, validacion.errores, valores));
       return;
@@ -222,7 +223,7 @@ export function rutasDeLanding(deps: DepsLanding): Router {
       return;
     }
     politica(res, nonce);
-    res.status(200).send(paginaDeGracias(landing, { nonce }));
+    res.status(200).send(paginaDeGracias(landing, { nonce }, validacion.datos.nombreContacto));
   }));
 
   return r;
