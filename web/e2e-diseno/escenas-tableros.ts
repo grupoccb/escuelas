@@ -1,31 +1,38 @@
-// Escenas del área Tableros (`/tableros`): clases muestra, costo por campaña (con su diálogo «Gastos de la campaña») y ejecutivo, con sus filtros, estados y gráficas de barras.
-// Prefijo de ids: `tabl-`.
+// Escenas del área Tableros (`/tableros`): una sola página narrativa (héroe oscuro, pestañas fijas y ocho secciones numeradas). Prefijo de ids: `tabl-`.
 //
-// Ninguna escena escribe en la base. Los estados que el mundo de datos no trae (vacío, muchos datos, gastos capturados, un mes sin historia…) se arman parchando la respuesta real de la
-// API desde el navegador, y las escrituras del diálogo de gastos (capturar, dar de baja) se SIMULAN con una lista de gastos que vive solo en la página de la escena: así lo que se
-// ve no depende de lo que otra escena haya hecho, ni cambia el costo que ven las demás.
+// Ninguna escena escribe en la base. Los estados que el mundo de datos no trae (vacío, muchos datos, gastos capturados, un mes sin historia, doce meses de historia…) se arman parchando la
+// respuesta real de la API desde el navegador, y las escrituras del diálogo de gastos (capturar, dar de baja) se SIMULAN con una lista de gastos que vive solo en la página de la escena:
+// así lo que se ve no depende de lo que otra escena haya hecho, ni cambia el costo que ven las demás.
+//
+// Dos bloques: `// === R3b-A ===` (héroe, pestañas y secciones 01 a 04, con el costo por campaña y su diálogo de gastos) y `// === R3b-B ===` (secciones 05 a 08).
 
 import type { Route } from "@playwright/test";
 import { conCargando, conError, cortarLaRed, esperarListo, fallarLaSiguienteEscritura, irA, type Contexto, type Escena, type RolEscena } from "./escenas.ts";
+import { conCartera, conCohortes, conComparativo, conIngreso, conMapa, CARTERA_EN_CERO, GRAFICAS_B, LEYENDA_CALOR, multiplicarGrupos, parchearGet as parchearGetB, seccionB, SECCION_COMPARATIVO, SECCION_INGRESO, SECCION_MAPA, SECCION_RETENCION, soloSeccion } from "./ayudas-tableros-b.ts";
 
 const GRUPO = "Tableros";
-const TABLEROS = "web/src/pantallas/tableros/Tableros.tsx";
-const CLASES = "web/src/pantallas/tableros/ClasesMuestra.tsx";
-const COSTO = "web/src/pantallas/tableros/CostoPorCampana.tsx";
-const EJECUTIVO = "web/src/pantallas/tableros/Ejecutivo.tsx";
-const FILTROS = "web/src/pantallas/tableros/Filtros.tsx";
-const BARRAS = "web/src/pantallas/tableros/Barras.tsx";
+const CARPETA = "web/src/pantallas/tableros";
+const TABLEROS = `${CARPETA}/Tableros.tsx`;
+const HEROE = `${CARPETA}/Heroe.tsx`;
+const NAVEGACION = `${CARPETA}/NavegacionDeSecciones.tsx`;
+const FILTROS = `${CARPETA}/FiltrosDelTablero.tsx`;
+const EMBUDO = `${CARPETA}/SeccionEmbudo.tsx`;
+const FUENTES = `${CARPETA}/SeccionFuentes.tsx`;
+const CLASES = `${CARPETA}/SeccionClases.tsx`;
+const ALTAS = `${CARPETA}/SeccionAltasYBajas.tsx`;
+const COSTO = `${CARPETA}/CostoPorCampana.tsx`;
+const CARGA = `${CARPETA}/CargaDeSeccion.tsx`;
+const BARRAS = `${CARPETA}/Barras.tsx`;
+const NUMERADA = `${CARPETA}/SeccionNumerada.tsx`;
 const DIALOGO = "web/src/ui/Dialogo.tsx";
 const AVISOS = "web/src/ui/avisos.tsx";
 const BASICOS = "web/src/ui/basicos.tsx";
 
-const RUTA_CLASES = "/tableros";
-const RUTA_COSTO = "/tableros?vista=costo";
-const RUTA_EJECUTIVO = "/tableros?vista=ejecutivo";
+const RUTA = "/tableros";
 
 // ─── Ayudas propias ──────────────────────────────────────────────────────────────────────────
 
-type Json = any;  
+type Json = any;
 const esApi = (u: URL): boolean => u.pathname.startsWith("/api/");
 const esReporte = (parte: string) => (u: URL): boolean => u.pathname === `/api/reportes/${parte}`;
 const esGastos = (u: URL): boolean => /^\/api\/campanas\/[^/]+\/gastos(\/[^/]+)?$/.test(u.pathname);
@@ -33,6 +40,15 @@ const esGastos = (u: URL): boolean => /^\/api\/campanas\/[^/]+\/gastos(\/[^/]+)?
 /** `AAAA-MM-DD` de hace `dias` días (hora de la zona de las sucursales de prueba). */
 function fechaMx(dias: number): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - dias * 86_400_000));
+}
+
+/** Los 12 meses que terminan en el mes en curso, `AAAA-MM`. */
+function docePasado(): string[] {
+  const [a, m] = fechaMx(0).split("-").map(Number) as [number, number];
+  return Array.from({ length: 12 }, (_, i) => {
+    const idx = a * 12 + (m - 1) - (11 - i);
+    return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
+  });
 }
 
 /** Parcha la respuesta (JSON) de las peticiones GET que cumplan `coincide`. */
@@ -68,39 +84,183 @@ function multiplicar(valor: Json, veces: number, copia = 0): Json {
   return valor;
 }
 
-async function conMuchos(c: Contexto, parte: string, ruta: string): Promise<void> {
-  await parchearGet(c, esReporte(parte), (cuerpo) => multiplicar(cuerpo, 8));
-  await irA(c, ruta);
+const tablero = (c: Contexto, id: string) => c.page.getByTestId(id);
+const seccion = (c: Contexto, id: string) => c.page.locator(`[data-seccion="${id}"]`);
+
+/**
+ * Deja a la vista UNA sección tal como la ve la persona: la ventana se alarga hasta el alto de la sección (más las pestañas fijas) y la sección queda arriba, bajo las pestañas.
+ * Se captura la ventana, no la página entera.
+ */
+async function verSeccion(c: Contexto, id: string): Promise<void> {
+  const sec = seccion(c, id);
+  await sec.waitFor();
+  const ancho = c.page.viewportSize()?.width ?? 1366;
+  const alto = await sec.evaluate((el) => Math.ceil(el.getBoundingClientRect().height));
+  await c.page.setViewportSize({ width: ancho, height: Math.min(Math.max(alto + 140, 600), 4000) });
+  await sec.evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await c.page.waitForTimeout(300);
 }
+
+/** Va a la página, espera a que cargue y deja a la vista la sección `id`. */
+async function irASeccion(c: Contexto, id: string, antes?: () => Promise<void>): Promise<void> {
+  if (antes) await antes();
+  await irA(c, RUTA);
+  await verSeccion(c, id);
+}
+
+/** Como `irASeccion`, pero con las respuestas parchadas antes de cargar la página. */
+async function conParche(c: Contexto, id: string, parte: string, parche: (cuerpo: Json) => Json): Promise<void> {
+  await irASeccion(c, id, () => parchearGet(c, esReporte(parte), parche));
+}
+
+/** La pantalla carga con red; después se corta, se pide otra cosa (`pedir`) y se espera el error de carga «No hay conexión…». */
+async function sinConexion(c: Contexto, pedir: () => Promise<void>): Promise<void> {
+  await irA(c, RUTA);
+  await cortarLaRed(c);
+  await pedir();
+  await c.page.getByText(/No hay conexión/).first().waitFor();
+  await c.page.context().setOffline(false);
+  await esperarListo(c.page);
+}
+
+// ─── Datos de ejemplo para ver las gráficas con doce meses de historia ───────────────────────
+
+const ALTAS_12 = [24, 19, 11, 38, 26, 21, 16, 14, 12, 8, 22, 41];
+const BAJAS_12 = [9, 11, 18, 10, 9, 12, 14, 13, 19, 26, 18, 17];
+const ACTIVOS_12 = [251, 259, 252, 280, 297, 306, 308, 309, 302, 284, 288, 312];
+const INGRESO_12 = [177500, 183100, 178200, 198000, 210000, 216400, 217800, 218500, 213500, 200800, 203600, 220700];
+
+/** La evolución con doce meses de historia (las cohortes que trae la API real se dejan como están). */
+const evolucionRica = (cuerpo: Json): Json => ({
+  ...cuerpo,
+  meses: docePasado().map((mes, i) => ({ mes, altas: ALTAS_12[i], bajas: BAJAS_12[i], activos: ACTIVOS_12[i], inscripciones_activas: ACTIVOS_12[i]! + 18, ingreso_mensual_recurrente: `${INGRESO_12[i]}.00` })),
+});
+
+/** Una evolución de la escuela sin nadie: doce meses en ceros. */
+const evolucionVacia = (cuerpo: Json): Json => ({
+  ...cuerpo,
+  meses: docePasado().map((mes) => ({ mes, altas: 0, bajas: 0, activos: 0, inscripciones_activas: 0, ingreso_mensual_recurrente: "0.00" })),
+  cohortes: [],
+  promedio: [],
+});
+
+const decimas = (a: number, b: number): string => (b === 0 ? "0.0" : (Math.round((a * 1000) / b) / 10).toFixed(1));
+
+/** El embudo con la forma del ejemplo: 236 leads que se van quedando en el camino (las etapas y sus nombres son los de la escuela de prueba). */
+const embudoRico = (cuerpo: Json): Json => {
+  const base = [236, 189, 104, 79, 56, 41, 38, 36];
+  const etapas = (cuerpo.etapas as Json[]).map((e, i) => ({ ...e, alcanzaron: Math.max(1, base[i] ?? 36 - (i - 7)) }));
+  let mayor = -1;
+  let caidaMayor = 0;
+  const conCaida = etapas.map((e, i) => {
+    const previa = i > 0 ? etapas[i - 1].alcanzaron : e.alcanzaron;
+    const caida = i > 0 ? previa - e.alcanzaron : 0;
+    if (caida > caidaMayor) {
+      caidaMayor = caida;
+      mayor = i;
+    }
+    return { ...e, caida, caida_porcentaje: i > 0 ? decimas(caida, previa) : null, porcentaje: decimas(e.alcanzaron, 236) };
+  });
+  const ultima = conCaida[conCaida.length - 1]?.alcanzaron ?? 0;
+  return {
+    ...cuerpo,
+    llegaron: 236,
+    etapas: conCaida.map((e, i) => ({ ...e, es_mayor_caida: i === mayor })),
+    inscritos: ultima,
+    conversion: decimas(ultima, 236),
+    perdidos: { total: 128, por_motivo: [["No contestó", 41], ["Horario", 29], ["Precio", 24], ["Distancia", 14], ["Eligió otra escuela", 11], ["Sin motivo", 9]].map(([nombre, leads], i) => ({ motivo: i === 5 ? null : { id: `motivo-ejemplo-${i}`, nombre }, leads })) },
+  };
+};
+
+/** Un embudo en el que nadie llegó en el rango. */
+const embudoSinLeads = (cuerpo: Json): Json => ({
+  ...cuerpo,
+  llegaron: 0,
+  etapas: (cuerpo.etapas as Json[]).map((e) => ({ ...e, alcanzaron: 0, porcentaje: null, caida: 0, caida_porcentaje: null, es_mayor_caida: false })),
+  inscritos: 0,
+  conversion: null,
+  perdidos: { total: 0, por_motivo: [] },
+});
+
+/** Las fuentes del ejemplo: siete filas, con gasto solo si quien pregunta puede verlo (administrador). */
+const fuentesRicas = (cuerpo: Json): Json => {
+  const conGasto: boolean = cuerpo.incluye_gasto;
+  const filas = (
+    [
+      ["facebook", "Regreso a clases", 72, 12, 6840],
+      ["instagram", "Temporada", 48, 7, 5180],
+      ["tiktok", "Sin pareja", 39, 6, 2460],
+      ["google", "Búsqueda local", 22, 3, 2850],
+      ["referido", null, 26, 8, 0],
+      ["presencial", "Cartel en recepción", 17, 4, 0],
+      ["landing", null, 12, 1, 0],
+    ] as [string, string | null, number, number, number][]
+  ).map(([fuente, campana, leads, inscritos, gasto]) => ({
+    clave: campana ? `campana-${fuente}` : `fuente-${fuente}`,
+    fuente,
+    campana: campana ? { id: `campana-ejemplo-${fuente}`, nombre: campana } : null,
+    leads,
+    inscritos,
+    conversion: decimas(inscritos, leads),
+    gasto: conGasto ? `${gasto}.00` : null,
+    costo_por_alumno: conGasto && gasto > 0 ? `${(Math.round((gasto * 100) / inscritos) / 100).toFixed(2)}` : null,
+    es_mas_barato: false,
+  }));
+  const masBarato = filas.filter((f) => f.costo_por_alumno !== null).sort((a, b) => Number(a.costo_por_alumno) - Number(b.costo_por_alumno))[0];
+  if (masBarato) masBarato.es_mas_barato = true;
+  const inscritos = filas.reduce((a, f) => a + f.inscritos, 0);
+  const leads = filas.reduce((a, f) => a + f.leads, 0);
+  const pagados = filas.filter((f) => f.gasto !== null && Number(f.gasto) > 0);
+  const gastoTotal = pagados.reduce((a, f) => a + Number(f.gasto), 0);
+  const inscritosPagados = pagados.reduce((a, f) => a + f.inscritos, 0);
+  return {
+    ...cuerpo,
+    filas,
+    total: {
+      leads,
+      inscritos,
+      conversion: decimas(inscritos, leads),
+      gasto: conGasto ? `${gastoTotal}.00` : null,
+      inscritos_con_gasto: conGasto ? inscritosPagados : null,
+      inscritos_sin_costo: conGasto ? inscritos - inscritosPagados : null,
+      costo_por_alumno: conGasto && inscritosPagados > 0 ? (Math.round((gastoTotal * 100) / inscritosPagados) / 100).toFixed(2) : null,
+    },
+  };
+};
+
+const fuentesVacias = (cuerpo: Json): Json => ({ ...cuerpo, filas: [], total: { ...cuerpo.total, leads: 0, inscritos: 0, conversion: null, gasto: cuerpo.incluye_gasto ? "0.00" : null, inscritos_con_gasto: cuerpo.incluye_gasto ? 0 : null, inscritos_sin_costo: cuerpo.incluye_gasto ? 0 : null, costo_por_alumno: null } });
 
 const CLASES_EN_CERO = { agendadas: 0, asistidas: 0, no_asistidas: 0, canceladas: 0, pendientes: 0, inscritas: 0, inscritas_a_mano: 0, conversion: null };
 
-async function clasesVacio(c: Contexto): Promise<void> {
-  await parchearGet(c, esReporte("clases-muestra"), (r) => ({ ...r, total: { ...r.total, ...CLASES_EN_CERO }, por_fuente: [], por_vertical: [], por_sucursal: [] }));
-  await irA(c, RUTA_CLASES);
-}
+const clasesVacio = (r: Json): Json => ({ ...r, total: { ...r.total, ...CLASES_EN_CERO }, por_fuente: [], por_vertical: [], por_sucursal: [] });
 
-async function costoVacio(c: Contexto): Promise<void> {
-  await parchearGet(c, esReporte("costo-por-alumno"), (r) => ({
-    ...r,
-    filas: [],
-    total: { ...r.total, gasto: "0.00", leads: 0, clases_muestra: 0, clases_asistidas: 0, inscripciones_activas: 0, inscritos_a_mano: 0, alumnos_inscritos: 0, costo_por_lead_texto: "—", costo_por_clase_muestra_texto: "—", costo_por_alumno_texto: "—" },
-  }));
-  await irA(c, RUTA_COSTO);
-}
-
-/** Todas las campañas con gasto capturado y algunos inscritos a mano: sin el aviso de «campañas sin gasto» y con la nota de los inscritos a mano. */
-async function costoConGastoEnTodas(c: Contexto): Promise<void> {
-  await parchearGet(c, esReporte("costo-por-alumno"), (r) => {
-    const filas = (r.filas as Json[]).map((f) => ({ ...f, gasto: "1500.00", inscritos_a_mano: 1, alumnos_inscritos: f.inscripciones_activas + 1, costo_por_lead_texto: f.leads > 0 ? "375.00" : "—", costo_por_clase_muestra_texto: f.clases_muestra > 0 ? "375.00" : "—", costo_por_alumno_texto: "750.00" }));
-    return { ...r, filas, total: { ...r.total, gasto: `${1500 * filas.length}.00`, inscritos_a_mano: filas.length, costo_por_lead_texto: "375.00", costo_por_clase_muestra_texto: "375.00", costo_por_alumno_texto: "750.00" } };
+/** Tres disciplinas con su color: la real y dos de ejemplo (el color es el DATO `color_marca`; aquí se le pone a la de prueba y se agregan dos). */
+const COLORES_DE_EJEMPLO = ["#c8502a", "#c4437a", "#1f8a86"];
+async function conDisciplinasConColor(c: Contexto): Promise<void> {
+  await parchearGet(c, (u) => u.pathname === "/api/verticales", (r) => {
+    const base = (r.datos as Json[])[0];
+    const extra = [1, 2].map((i) => ({ ...base, id: `vertical-ejemplo-${i}`, nombre: `Disciplina de ejemplo ${i + 1}`, slug: `disciplina-ejemplo-${i + 1}`, color_marca: COLORES_DE_EJEMPLO[i] }));
+    return { ...r, datos: [{ ...base, color_marca: COLORES_DE_EJEMPLO[0] }, ...extra, ...(r.datos as Json[]).slice(1)] };
   });
-  await irA(c, RUTA_COSTO);
 }
 
-async function ejecutivoVacio(c: Contexto): Promise<void> {
+/** Clases muestra de las tres disciplinas de ejemplo (la primera es la real del mundo de pruebas, para que su color venga del dato). */
+const clasesRicas = (r: Json): Json => {
+  const real = (r.por_vertical as Json[])[0]?.clave ?? "vertical-real";
+  const filas = [
+    [real, "Disciplina de ejemplo 1", 46, 37, 22, 4],
+    ["vertical-ejemplo-1", "Disciplina de ejemplo 2", 33, 24, 11, 2],
+    ["vertical-ejemplo-2", "Disciplina de ejemplo 3", 25, 18, 8, 1],
+  ].map(([clave, nombre, agendadas, asistidas, inscritas, pendientes]) => ({ clave, nombre, agendadas, asistidas, no_asistidas: (agendadas as number) - (asistidas as number) - (pendientes as number), canceladas: 0, pendientes, inscritas, inscritas_a_mano: 0, conversion: decimas(inscritas as number, asistidas as number) }));
+  const suma = (k: string): number => filas.reduce((a, f) => a + (f as Json)[k], 0);
+  const total = { clave: "total", nombre: "Total", agendadas: suma("agendadas"), asistidas: suma("asistidas"), no_asistidas: suma("no_asistidas"), canceladas: 0, pendientes: suma("pendientes"), inscritas: suma("inscritas"), inscritas_a_mano: 0, conversion: decimas(suma("inscritas"), suma("asistidas")) };
+  return { ...r, total, por_vertical: filas, por_sucursal: [{ ...total, clave: "sucursal-ejemplo", nombre: "Sucursal de ejemplo" }] };
+};
+
+/** El ejecutivo de una escuela sin alumnos ni grupos (los campos de siempre y los de las gráficas, en cero). */
+const ejecutivoVacio = (r: Json): Json => {
   const cero = "0.00";
-  await parchearGet(c, esReporte("ejecutivo"), (r) => ({
+  return {
     ...r,
     activos: { total_alumnos: 0, total_inscripciones: 0, por_vertical_y_sucursal: [] },
     altas_del_mes: 0,
@@ -109,24 +269,29 @@ async function ejecutivoVacio(c: Contexto): Promise<void> {
     desercion: null,
     desercion_texto: "—",
     ingreso_mensual_recurrente: cero,
-    cartera_vencida: { total: cero, antiguedad: { de_0_a_30: cero, de_31_a_60: cero, de_61_a_90: cero, mas_de_90: cero } },
+    cartera_vencida: { total: cero, antiguedad: { de_0_a_30: cero, de_31_a_60: cero, de_61_a_90: cero, mas_de_90: cero }, familias: 0, familias_por_tramo: { de_0_a_30: 0, de_31_a_60: 0, de_61_a_90: 0, mas_de_90: 0 } },
     ocupacion_por_grupo: [],
-  }));
-  await irA(c, RUTA_EJECUTIVO);
-}
+    mapa_ocupacion: [],
+    bajas_por_motivo: [],
+    comparativo: [],
+  };
+};
 
-/** La pantalla carga con red; después se corta, se pide otra cosa (`pedir`) y se espera el error de carga «No hay conexión…». */
-async function sinConexion(c: Contexto, ruta: string, pedir: () => Promise<void>): Promise<void> {
-  await irA(c, ruta);
-  await cortarLaRed(c);
-  await pedir();
-  await c.page.getByText(/No hay conexión/).first().waitFor();
-  await c.page.context().setOffline(false);
-  await esperarListo(c.page);
-}
+/** El ejecutivo con un grupo lleno y una cartera con atraso, para ver las tres frases y el indicador de alerta del héroe aunque el mundo de pruebas no los tenga. */
+const ejecutivoConGrupoLleno = (r: Json): Json => {
+  const primero = (r.ocupacion_por_grupo as Json[])[0];
+  const lleno = primero ? { ...primero, ocupados: primero.cupo_maximo, ocupacion: "100.0", estado: "a_reventar" } : null;
+  return {
+    ...r,
+    ocupacion_por_grupo: lleno ? [lleno, ...(r.ocupacion_por_grupo as Json[]).slice(1)] : r.ocupacion_por_grupo,
+    bajas_por_motivo: r.bajas_por_motivo?.length ? r.bajas_por_motivo : [{ motivo: { id: "motivo-baja-ejemplo", nombre: "Horario" }, bajas: 8 }],
+  };
+};
 
-const tablero = (c: Contexto, id: string) => c.page.getByTestId(id);
+/** Hover o foco sobre un mes de la gráfica de altas y bajas (por posición: 0 = el más antiguo). */
+const mesDeLaGrafica = (c: Contexto, i: number) => c.page.locator(".tendencia-meses button").nth(i);
 
+// ─── El diálogo «Gastos de la campaña» ───────────────────────────────────────────────────────
 // ─── El diálogo «Gastos de la campaña» ───────────────────────────────────────────────────────
 
 interface Gasto {
@@ -173,8 +338,9 @@ async function simularGastos(c: Contexto, inicial: Gasto[]): Promise<void> {
 /** Abre «Gastos de la campaña» de la campaña del mundo de tableros. `antes` prepara la API (rutas simuladas) antes de cargar la pantalla. */
 async function abrirGastos(c: Contexto, antes?: (c: Contexto) => Promise<void>, esperarLista = true): Promise<void> {
   if (antes) await antes(c);
-  await irA(c, RUTA_COSTO);
+  await irA(c, RUTA);
   const fila = tablero(c, `costo-${c.mundo.tableros.campana.id}`);
+  await fila.scrollIntoViewIfNeeded();
   await fila.getByRole("button", { name: "Capturar o ver gastos" }).click();
   await c.page.locator("dialog[open]").waitFor();
   if (esperarLista) await c.page.getByTestId("gasto-total").waitFor();
@@ -186,339 +352,733 @@ const capturarElGasto = (c: Contexto) => dialogo(c).getByRole("button", { name: 
 
 // ─── Escenas ─────────────────────────────────────────────────────────────────────────────────
 
-/** Las tres pestañas son del administrador; el asesor ve «Clases muestra» y «Ejecutivo» (sin dinero de marketing). */
+/** El administrador ve todo; el asesor ve lo mismo sin el dinero de marketing (gasto y costo). */
 const ROL_ASESOR: RolEscena = "asesor";
 
 export const ESCENAS: Escena[] = [
-  // ── Clases muestra ──
+  // === R3b-A ===
+
+  // ── La página entera y el héroe ──
   {
-    id: "tabl-clases-con-datos",
+    id: "tabl-pagina-administrador",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "Tableros, pestaña «Clases muestra» del administrador: filtros, indicadores, barras por fuente, disciplina y sucursal, y tablas",
+    titulo: "Tableros del administrador: encabezado con mes y descargas, filtros, pestañas fijas, héroe oscuro y las ocho secciones (datos reales del mundo de pruebas)",
     tipo: "pantalla",
-    ruta: "/tableros",
-    fuentes: [TABLEROS, CLASES, FILTROS, BARRAS],
-    ir: (c) => irA(c, RUTA_CLASES),
+    ruta: RUTA,
+    fuentes: [TABLEROS, HEROE, NAVEGACION, FILTROS, EMBUDO, FUENTES, CLASES, ALTAS, NUMERADA, BARRAS],
+    ir: (c) => irA(c, RUTA),
   },
   {
-    id: "tabl-clases-asesor",
+    id: "tabl-pagina-asesor",
     rol: ROL_ASESOR,
     grupo: GRUPO,
-    titulo: "Tableros, pestaña «Clases muestra» del asesor (solo «Clases muestra» y «Ejecutivo»; sin «Costo por campaña»)",
+    titulo: "Tableros del asesor: las mismas secciones sin el dinero de marketing (la sección 02 sin gasto ni costo y sin el costo por campaña)",
     tipo: "pantalla",
-    ruta: "/tableros",
-    fuentes: [TABLEROS, CLASES],
-    ir: (c) => irA(c, RUTA_CLASES),
+    ruta: RUTA,
+    fuentes: [TABLEROS, FUENTES],
+    ir: (c) => irA(c, RUTA),
   },
   {
-    id: "tabl-clases-asesor-pide-costo",
+    id: "tabl-pagina-datos-de-ejemplo",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros con doce meses de historia, un embudo de 236 leads, siete fuentes y tres disciplinas con color (respuestas parchadas con datos de ejemplo)",
+    tipo: "estado",
+    fuentes: [TABLEROS, HEROE, EMBUDO, FUENTES, CLASES, ALTAS],
+    ir: async (c) => {
+      await conDisciplinasConColor(c);
+      await parchearGet(c, esReporte("evolucion"), evolucionRica);
+      await parchearGet(c, esReporte("embudo"), embudoRico);
+      await parchearGet(c, esReporte("fuentes"), fuentesRicas);
+      await parchearGet(c, esReporte("clases-muestra"), clasesRicas);
+      await parchearGet(c, esReporte("ejecutivo"), ejecutivoConGrupoLleno);
+      await irA(c, RUTA);
+    },
+  },
+  {
+    id: "tabl-pagina-vacia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros de una escuela sin alumnos, sin leads y sin clases (todo en cero; sin frases ni indicadores de más)",
+    tipo: "estado",
+    fuentes: [TABLEROS, HEROE, EMBUDO, FUENTES, CLASES, ALTAS, BASICOS],
+    ir: async (c) => {
+      await parchearGet(c, esReporte("evolucion"), evolucionVacia);
+      await parchearGet(c, esReporte("ejecutivo"), ejecutivoVacio);
+      await parchearGet(c, esReporte("embudo"), embudoSinLeads);
+      await parchearGet(c, esReporte("fuentes"), fuentesVacias);
+      await parchearGet(c, esReporte("clases-muestra"), clasesVacio);
+      await irA(c, RUTA);
+    },
+  },
+  {
+    id: "tabl-pagina-cargando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros cargando: encabezado, filtros y pestañas ya puestos; el héroe y cada sección con su «Cargando…»",
+    tipo: "estado",
+    fuentes: [TABLEROS, HEROE, CARGA, BASICOS],
+    ir: (c) => conCargando(c, RUTA, "Tableros"),
+  },
+  {
+    id: "tabl-pagina-error",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros con error de carga (500): el héroe y cada sección dicen que no se pudo cargar y ofrecen «Reintentar»",
+    tipo: "estado",
+    fuentes: [TABLEROS, HEROE, CARGA, BASICOS],
+    ir: (c) => conError(c, RUTA),
+  },
+  {
+    id: "tabl-heroe-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Héroe oscuro con datos: titular, tres frases (mes, mayor caída del embudo, grupo a reventar) y seis indicadores, con la cartera en alerta",
+    tipo: "estado",
+    fuentes: [HEROE],
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("evolucion"), evolucionRica);
+      await parchearGet(c, esReporte("embudo"), embudoRico);
+      await parchearGet(c, esReporte("ejecutivo"), ejecutivoConGrupoLleno);
+      await irASeccion(c, "resumen");
+    },
+  },
+  {
+    id: "tabl-heroe-asesor",
     rol: ROL_ASESOR,
     grupo: GRUPO,
-    titulo: "El asesor abre /tableros?vista=costo: no hay esa pestaña y se queda en «Clases muestra»",
+    titulo: "Héroe del asesor (mismas cifras que el administrador: no trae dinero de marketing)",
     tipo: "estado",
-    ruta: "/tableros",
-    fuentes: [TABLEROS],
-    ir: (c) => irA(c, RUTA_COSTO),
+    fuentes: [HEROE],
+    completa: false,
+    ir: (c) => irASeccion(c, "resumen"),
   },
   {
-    id: "tabl-clases-muchos-datos",
+    id: "tabl-heroe-vacio",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Clases muestra» con muchos datos (cada lista repetida ocho veces: barras y tablas largas)",
+    titulo: "Héroe de una escuela sin alumnos: titular «0 alumnos activos…», sin frases y con los indicadores en cero y deserción «—»",
     tipo: "estado",
-    fuentes: [CLASES, BARRAS],
-    ir: (c) => conMuchos(c, "clases-muestra", RUTA_CLASES),
-  },
-  {
-    id: "tabl-clases-vacio",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» vacía: indicadores en cero, aviso «No hay clases muestra en este rango.» y barras sin datos",
-    tipo: "estado",
-    fuentes: [CLASES, BARRAS, BASICOS],
-    ir: clasesVacio,
-  },
-  {
-    id: "tabl-clases-cargando",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» cargando (filtros y descarga ya puestos; el reporte todavía no llega)",
-    tipo: "estado",
-    fuentes: [CLASES, BASICOS],
-    ir: (c) => conCargando(c, RUTA_CLASES, "Tableros"),
-  },
-  {
-    id: "tabl-clases-error",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» con error de carga (500) y botón «Reintentar»",
-    tipo: "estado",
-    fuentes: [CLASES, BASICOS],
-    ir: (c) => conError(c, RUTA_CLASES),
-  },
-  {
-    id: "tabl-clases-sin-conexion",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» sin conexión: al cambiar un filtro el error dice «No hay conexión…» sobre los datos que ya estaban",
-    tipo: "estado",
-    fuentes: [CLASES, BASICOS],
-    ir: (c) => sinConexion(c, RUTA_CLASES, () => tablero(c, "tablero-clases-muestra").getByLabel("Desde").fill(fechaMx(30))),
-  },
-  {
-    id: "tabl-clases-filtro-sucursal",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» filtrada por una sucursal sin clases (la sur): ceros y el aviso de rango sin clases",
-    tipo: "estado",
-    fuentes: [CLASES, FILTROS],
+    fuentes: [HEROE],
+    completa: false,
     ir: async (c) => {
-      await irA(c, RUTA_CLASES);
-      await tablero(c, "tablero-clases-muestra").getByLabel("Sucursal").selectOption({ label: c.mundo.sucursales.sur.nombre });
-      await c.page.getByText("No hay clases muestra en este rango.").waitFor();
-      await esperarListo(c.page);
+      await parchearGet(c, esReporte("evolucion"), evolucionVacia);
+      await parchearGet(c, esReporte("ejecutivo"), ejecutivoVacio);
+      await parchearGet(c, esReporte("embudo"), embudoSinLeads);
+      await irASeccion(c, "resumen");
     },
   },
   {
-    id: "tabl-clases-filtro-disciplina",
+    id: "tabl-heroe-cargando",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Clases muestra» filtrada por una disciplina (la primera de la lista)",
+    titulo: "Héroe cargando («Armando el resumen…»)",
     tipo: "estado",
-    fuentes: [CLASES, FILTROS],
-    ir: async (c) => {
-      await irA(c, RUTA_CLASES);
-      await tablero(c, "tablero-clases-muestra").getByLabel("Disciplina").selectOption({ index: 1 });
-      await esperarListo(c.page);
-    },
+    fuentes: [HEROE, BASICOS],
+    completa: false,
+    ir: (c) => conCargando(c, RUTA, "Tableros"),
   },
   {
-    id: "tabl-clases-filtro-rango",
+    id: "tabl-heroe-error",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Clases muestra» con rango de fechas elegido (últimos 30 días, con «Desde» y «Hasta» escritos)",
+    titulo: "Héroe con error de carga (500) y «Reintentar» dentro del panel oscuro",
     tipo: "estado",
-    fuentes: [CLASES, FILTROS],
+    fuentes: [HEROE, BASICOS],
+    completa: false,
     ir: async (c) => {
-      await irA(c, RUTA_CLASES);
-      await tablero(c, "tablero-clases-muestra").getByLabel("Desde").fill(fechaMx(30));
-      await tablero(c, "tablero-clases-muestra").getByLabel("Hasta").fill(fechaMx(0));
-      await esperarListo(c.page);
-    },
-  },
-  {
-    id: "tabl-clases-filtro-rango-invertido",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» con el rango al revés («Hasta» anterior a «Desde»): el servidor lo rechaza y se ve el error de carga",
-    tipo: "estado",
-    fuentes: [CLASES, FILTROS, BASICOS],
-    ir: async (c) => {
-      await irA(c, RUTA_CLASES);
-      await tablero(c, "tablero-clases-muestra").getByLabel("Hasta").fill("2026-01-01");
-      await c.page.getByRole("button", { name: "Reintentar" }).waitFor();
-      await esperarListo(c.page);
-    },
-  },
-  {
-    id: "tabl-clases-filtro-rango-sin-fechas",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Clases muestra» con «Desde» borrado (sin ninguna fecha: todo el historial)",
-    tipo: "estado",
-    fuentes: [CLASES, FILTROS],
-    ir: async (c) => {
-      await irA(c, RUTA_CLASES);
-      await tablero(c, "tablero-clases-muestra").getByLabel("Desde").fill("");
-      await esperarListo(c.page);
+      await conError(c, RUTA);
+      await verSeccion(c, "resumen");
     },
   },
 
-  // ── Costo por campaña ──
+  // ── Pestañas fijas ──
+  {
+    id: "tabl-pestanas-seccion-activa",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Pestañas fijas con la sección 03 marcada (se llegó con un clic en «Clases muestra»: la página se desplazó y la pestaña quedó con `aria-current`)",
+    tipo: "estado",
+    fuentes: [NAVEGACION],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await c.page.getByRole("navigation", { name: "Secciones del tablero" }).getByRole("button", { name: "Clases muestra" }).click();
+      await c.page.waitForTimeout(1200);
+      await esperarListo(c.page);
+    },
+  },
+  {
+    id: "tabl-pestanas-foco-teclado",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Pestañas fijas con el foco del teclado en una de ellas (anillo de foco visible)",
+    tipo: "estado",
+    fuentes: [NAVEGACION],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await c.page.getByRole("navigation", { name: "Secciones del tablero" }).getByRole("button", { name: "Fuentes y costo" }).focus();
+      await c.page.keyboard.press("Tab");
+      await c.page.waitForTimeout(150);
+    },
+  },
+
+  // ── Filtros ──
+  {
+    id: "tabl-filtro-disciplina",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros filtrados por una disciplina (la píldora activa va oscura, con su punto de color; el héroe lo dice en su encabezado)",
+    tipo: "estado",
+    fuentes: [FILTROS, TABLEROS],
+    completa: false,
+    ir: async (c) => {
+      await conDisciplinasConColor(c);
+      await irA(c, RUTA);
+      await c.page.getByRole("group", { name: "Disciplina" }).getByRole("button").nth(1).click();
+      await esperarListo(c.page);
+      await verSeccion(c, "resumen");
+    },
+  },
+  {
+    id: "tabl-filtro-sucursal",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros filtrados por una sucursal sin clases (la sur): la sección 03 queda en ceros y el gasto de la sección 02 lleva su aviso de aproximación",
+    tipo: "estado",
+    fuentes: [FILTROS, TABLEROS, FUENTES],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await tablero(c, "filtros-del-tablero").getByLabel("Sucursal").selectOption({ label: c.mundo.sucursales.sur.nombre });
+      await esperarListo(c.page);
+      await verSeccion(c, "fuentes");
+    },
+  },
+  {
+    id: "tabl-filtro-rango",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros con un rango de fechas elegido (últimos 30 días): las secciones 01 a 03 hablan de ese rango en lugar del mes",
+    tipo: "estado",
+    fuentes: [FILTROS, TABLEROS, EMBUDO],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await c.page.getByLabel("Desde").fill(fechaMx(30));
+      await c.page.getByLabel("Hasta").fill(fechaMx(0));
+      await esperarListo(c.page);
+      await verSeccion(c, "embudo");
+    },
+  },
+  {
+    id: "tabl-filtro-rango-invertido",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros con el rango al revés («Hasta» antes de «Desde»): el mensaje junto al campo y las secciones 01 a 03 piden corregir las fechas",
+    tipo: "estado",
+    fuentes: [FILTROS, TABLEROS, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await c.page.getByLabel("Desde").fill(fechaMx(0));
+      await c.page.getByLabel("Hasta").fill("2026-01-01");
+      await c.page.getByText("La fecha «Desde» debe ser anterior a «Hasta».").first().waitFor();
+      await esperarListo(c.page);
+      await verSeccion(c, "embudo");
+    },
+  },
+  {
+    id: "tabl-filtro-mes-sin-historia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros con un mes sin historia (enero de 2020): altas y bajas en cero, deserción «—» y secciones de captación vacías",
+    tipo: "estado",
+    fuentes: [TABLEROS, HEROE],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await c.page.getByLabel("Mes", { exact: true }).fill("2020-01");
+      await esperarListo(c.page);
+      await verSeccion(c, "resumen");
+    },
+  },
+  {
+    id: "tabl-filtro-sin-conexion",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros sin conexión: al cambiar el mes el error dice «No hay conexión…» en el héroe y en las secciones",
+    tipo: "estado",
+    fuentes: [TABLEROS, HEROE, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await sinConexion(c, () => c.page.getByLabel("Mes", { exact: true }).fill("2026-08"));
+      await verSeccion(c, "resumen");
+    },
+  },
+  {
+    id: "tabl-descargas",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Encabezado con el menú «Más descargas» abierto (activos por disciplina y ocupación por grupo, en CSV)",
+    tipo: "estado",
+    fuentes: [TABLEROS],
+    completa: false,
+    ir: async (c) => {
+      await irA(c, RUTA);
+      await c.page.getByText("Más descargas").click();
+      await c.page.waitForTimeout(150);
+    },
+  },
+
+  // ── 01 Embudo ──
+  {
+    id: "tabl-embudo-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 01 con un embudo de 236 leads: barras por etapa con su cifra, la caída entre etapas (la mayor en ámbar y con «la mayor caída») y «Por qué se pierden»",
+    tipo: "estado",
+    fuentes: [EMBUDO],
+    completa: false,
+    ir: (c) => conParche(c, "embudo", "embudo", embudoRico),
+  },
+  {
+    id: "tabl-embudo-datos-reales",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 01 con los leads reales del mundo de pruebas (el mes en curso)",
+    tipo: "estado",
+    fuentes: [EMBUDO],
+    completa: false,
+    ir: (c) => irASeccion(c, "embudo"),
+  },
+  {
+    id: "tabl-embudo-vacia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 01 sin leads en el rango: «Ningún lead llegó en este rango.»",
+    tipo: "estado",
+    fuentes: [EMBUDO, BASICOS],
+    completa: false,
+    ir: (c) => conParche(c, "embudo", "embudo", embudoSinLeads),
+  },
+  {
+    id: "tabl-embudo-sin-perdidos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 01 con leads que ninguno se ha perdido («Ninguno de estos leads se ha perdido.»)",
+    tipo: "estado",
+    fuentes: [EMBUDO],
+    completa: false,
+    ir: (c) => conParche(c, "embudo", "embudo", (b) => ({ ...embudoRico(b), perdidos: { total: 0, por_motivo: [] } })),
+  },
+  {
+    id: "tabl-embudo-cargando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 01 cargando",
+    tipo: "estado",
+    fuentes: [EMBUDO, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conCargando(c, RUTA, "Tableros");
+      await verSeccion(c, "embudo");
+    },
+  },
+  {
+    id: "tabl-embudo-error",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 01 con error de carga (500) y «Reintentar»",
+    tipo: "estado",
+    fuentes: [EMBUDO, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conError(c, RUTA);
+      await verSeccion(c, "embudo");
+    },
+  },
+
+  // ── 02 Fuentes y campañas ──
+  {
+    id: "tabl-fuentes-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 02 del administrador con siete fuentes: indicadores de gasto y costo, tabla con barras, conversión destacada, «Lo más barato» y el costo por campaña",
+    tipo: "estado",
+    fuentes: [FUENTES, COSTO],
+    completa: false,
+    ir: (c) => conParche(c, "fuentes", "fuentes", fuentesRicas),
+  },
+  {
+    id: "tabl-fuentes-datos-reales",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 02 con las fuentes reales del mundo de pruebas (campañas sin gasto y con él)",
+    tipo: "estado",
+    fuentes: [FUENTES],
+    completa: false,
+    ir: (c) => irASeccion(c, "fuentes"),
+  },
+  {
+    id: "tabl-fuentes-asesor",
+    rol: ROL_ASESOR,
+    grupo: GRUPO,
+    titulo: "Sección 02 del asesor: leads, inscritos y conversión, SIN gasto ni costo (la API los manda vacíos) y sin el costo por campaña",
+    tipo: "estado",
+    fuentes: [FUENTES],
+    completa: false,
+    ir: (c) => conParche(c, "fuentes", "fuentes", fuentesRicas),
+  },
+  {
+    id: "tabl-fuentes-vacia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 02 sin leads en el rango: «No llegó ningún lead en este rango.»",
+    tipo: "estado",
+    fuentes: [FUENTES, BASICOS],
+    completa: false,
+    ir: (c) => conParche(c, "fuentes", "fuentes", fuentesVacias),
+  },
+  {
+    id: "tabl-fuentes-cargando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 02 cargando",
+    tipo: "estado",
+    fuentes: [FUENTES, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conCargando(c, RUTA, "Tableros");
+      await verSeccion(c, "fuentes");
+    },
+  },
+  {
+    id: "tabl-fuentes-error",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 02 con error de carga (500) y «Reintentar»",
+    tipo: "estado",
+    fuentes: [FUENTES, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conError(c, RUTA);
+      await verSeccion(c, "fuentes");
+    },
+  },
+
+  // ── Costo por campaña (dentro de la 02, solo administrador) ──
   {
     id: "tabl-costo-con-datos",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "Tableros, pestaña «Costo por campaña» del administrador: indicadores, aviso de campañas sin gasto, barras de gasto y tabla con «Capturar o ver gastos»",
-    tipo: "pantalla",
-    ruta: "/tableros",
-    fuentes: [TABLEROS, COSTO, FILTROS, BARRAS, BASICOS],
-    ir: (c) => irA(c, RUTA_COSTO),
+    titulo: "Costo por campaña (dentro de la sección 02): indicadores, aviso de campañas sin gasto y tabla con «Capturar o ver gastos»",
+    tipo: "estado",
+    fuentes: [COSTO, FUENTES, BASICOS],
+    completa: false,
+    ir: (c) => irASeccion(c, "fuentes"),
   },
   {
     id: "tabl-costo-con-gasto-en-todas",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Costo por campaña» con gasto en todas las campañas y con inscritos a mano (sin aviso de campañas sin gasto; con la nota de inscritos a mano; respuesta ajustada)",
+    titulo: "Costo por campaña con gasto en todas las campañas y con inscritos a mano (sin aviso de campañas sin gasto; con la nota de inscritos a mano; respuesta ajustada)",
     tipo: "estado",
     fuentes: [COSTO],
-    ir: costoConGastoEnTodas,
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("costo-por-alumno"), (r) => {
+        const filas = (r.filas as Json[]).map((f) => ({ ...f, gasto: "1500.00", inscritos_a_mano: 1, alumnos_inscritos: f.inscripciones_activas + 1, costo_por_lead_texto: f.leads > 0 ? "375.00" : "—", costo_por_clase_muestra_texto: f.clases_muestra > 0 ? "375.00" : "—", costo_por_alumno_texto: "750.00" }));
+        return { ...r, filas, total: { ...r.total, gasto: `${1500 * filas.length}.00`, inscritos_a_mano: filas.length, costo_por_lead_texto: "375.00", costo_por_clase_muestra_texto: "375.00", costo_por_alumno_texto: "750.00" } };
+      });
+      await irASeccion(c, "fuentes");
+    },
   },
   {
     id: "tabl-costo-muchos-datos",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Costo por campaña» con muchos datos (campañas repetidas ocho veces: barras y tabla largas)",
+    titulo: "Costo por campaña con muchos datos (campañas repetidas ocho veces: tabla larga)",
     tipo: "estado",
-    fuentes: [COSTO, BARRAS],
-    ir: (c) => conMuchos(c, "costo-por-alumno", RUTA_COSTO),
+    fuentes: [COSTO],
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("costo-por-alumno"), (cuerpo) => multiplicar(cuerpo, 8));
+      await irASeccion(c, "fuentes");
+    },
   },
   {
     id: "tabl-costo-vacio",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Costo por campaña» sin campañas: aviso «Todavía no hay campañas…», barras y tabla vacías",
+    titulo: "Costo por campaña sin campañas: aviso «Todavía no hay campañas…» y tabla vacía",
     tipo: "estado",
-    fuentes: [COSTO, BARRAS, BASICOS],
-    ir: costoVacio,
+    fuentes: [COSTO, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("costo-por-alumno"), (r) => ({
+        ...r,
+        filas: [],
+        total: { ...r.total, gasto: "0.00", leads: 0, clases_muestra: 0, clases_asistidas: 0, inscripciones_activas: 0, inscritos_a_mano: 0, alumnos_inscritos: 0, costo_por_lead_texto: "—", costo_por_clase_muestra_texto: "—", costo_por_alumno_texto: "—" },
+      }));
+      await irASeccion(c, "fuentes");
+    },
   },
   {
     id: "tabl-costo-cargando",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Costo por campaña» cargando",
+    titulo: "Costo por campaña cargando (el resto de la sección 02 ya llegó)",
     tipo: "estado",
     fuentes: [COSTO, BASICOS],
-    ir: (c) => conCargando(c, RUTA_COSTO, "Tableros"),
+    completa: false,
+    ir: async (c) => {
+      await c.page.route(esReporte("costo-por-alumno"), () => new Promise<void>(() => undefined));
+      await c.page.goto(RUTA);
+      await c.page.getByRole("heading", { name: "Gasto y costo por campaña" }).waitFor();
+      await c.page.waitForTimeout(600);
+      await verSeccion(c, "fuentes");
+    },
   },
   {
     id: "tabl-costo-error",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Costo por campaña» con error de carga (500) y botón «Reintentar»",
+    titulo: "Costo por campaña con error de carga (500) y «Reintentar»",
     tipo: "estado",
     fuentes: [COSTO, BASICOS],
-    ir: (c) => conError(c, RUTA_COSTO),
-  },
-  {
-    id: "tabl-costo-sin-conexion",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Costo por campaña» sin conexión: al cambiar el rango el error dice «No hay conexión…»",
-    tipo: "estado",
-    fuentes: [COSTO, BASICOS],
-    ir: (c) => sinConexion(c, RUTA_COSTO, () => tablero(c, "tablero-costo").getByLabel("Desde").fill(fechaMx(30))),
-  },
-  {
-    id: "tabl-costo-filtro-rango",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Costo por campaña» con rango de fechas elegido (últimos 30 días; este tablero no tiene filtro de sucursal ni de disciplina)",
-    tipo: "estado",
-    fuentes: [COSTO, FILTROS],
+    completa: false,
     ir: async (c) => {
-      await irA(c, RUTA_COSTO);
-      await tablero(c, "tablero-costo").getByLabel("Desde").fill(fechaMx(30));
-      await tablero(c, "tablero-costo").getByLabel("Hasta").fill(fechaMx(0));
-      await esperarListo(c.page);
-    },
-  },
-  {
-    id: "tabl-costo-filtro-rango-invertido",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Costo por campaña» con el rango al revés: el servidor lo rechaza y se ve el error de carga",
-    tipo: "estado",
-    fuentes: [COSTO, FILTROS, BASICOS],
-    ir: async (c) => {
-      await irA(c, RUTA_COSTO);
-      await tablero(c, "tablero-costo").getByLabel("Hasta").fill("2026-01-01");
-      await c.page.getByRole("button", { name: "Reintentar" }).waitFor();
-      await esperarListo(c.page);
+      await c.page.route(esReporte("costo-por-alumno"), (r: Route) => r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { codigo: "interno", mensaje: "Algo salió mal en el servidor. Inténtalo de nuevo." } }) }));
+      await irA(c, RUTA);
+      await verSeccion(c, "fuentes");
     },
   },
 
-  // ── Ejecutivo ──
+  // ── 03 Clases muestra ──
   {
-    id: "tabl-ejecutivo-con-datos",
+    id: "tabl-clases-con-datos",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "Tableros, pestaña «Ejecutivo» del administrador: mes, descargas, seis indicadores, barras de activos, cartera y ocupación, y tabla de ocupación",
-    tipo: "pantalla",
-    ruta: "/tableros",
-    fuentes: [TABLEROS, EJECUTIVO, BARRAS, BASICOS],
-    ir: (c) => irA(c, RUTA_EJECUTIVO),
-  },
-  {
-    id: "tabl-ejecutivo-asesor",
-    rol: ROL_ASESOR,
-    grupo: GRUPO,
-    titulo: "Tableros, pestaña «Ejecutivo» del asesor (mismas cifras que el administrador; solo dos pestañas)",
-    tipo: "pantalla",
-    ruta: "/tableros",
-    fuentes: [TABLEROS, EJECUTIVO],
-    ir: (c) => irA(c, RUTA_EJECUTIVO),
-  },
-  {
-    id: "tabl-ejecutivo-muchos-datos",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Ejecutivo» con muchos datos (disciplinas y grupos repetidos ocho veces)",
+    titulo: "Sección 03 con tres disciplinas de color: tarjetas con asistencia y cierre, tres barras con su cifra, totales, descarga de CSV y el desglose por fuente y sucursal",
     tipo: "estado",
-    fuentes: [EJECUTIVO, BARRAS],
-    ir: (c) => conMuchos(c, "ejecutivo", RUTA_EJECUTIVO),
-  },
-  {
-    id: "tabl-ejecutivo-vacio",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Ejecutivo» vacío (escuela sin alumnos ni grupos): indicadores en cero, deserción «—», barras con «Todavía no hay…»",
-    tipo: "estado",
-    fuentes: [EJECUTIVO, BARRAS, BASICOS],
-    ir: ejecutivoVacio,
-  },
-  {
-    id: "tabl-ejecutivo-cargando",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Ejecutivo» cargando",
-    tipo: "estado",
-    fuentes: [EJECUTIVO, BASICOS],
-    ir: (c) => conCargando(c, RUTA_EJECUTIVO, "Tableros"),
-  },
-  {
-    id: "tabl-ejecutivo-error",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Ejecutivo» con error de carga (500) y botón «Reintentar»",
-    tipo: "estado",
-    fuentes: [EJECUTIVO, BASICOS],
-    ir: (c) => conError(c, RUTA_EJECUTIVO),
-  },
-  {
-    id: "tabl-ejecutivo-sin-conexion",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Ejecutivo» sin conexión: al cambiar el mes el error dice «No hay conexión…»",
-    tipo: "estado",
-    fuentes: [EJECUTIVO, BASICOS],
-    ir: (c) => sinConexion(c, RUTA_EJECUTIVO, () => c.page.getByLabel("Mes").fill("2026-08")),
-  },
-  {
-    id: "tabl-ejecutivo-mes-sin-historia",
-    rol: "administrador",
-    grupo: GRUPO,
-    titulo: "«Ejecutivo» con un mes sin historia (enero de 2020): altas y bajas en cero y deserción «—»",
-    tipo: "estado",
-    fuentes: [EJECUTIVO],
+    fuentes: [CLASES, BARRAS],
+    completa: false,
     ir: async (c) => {
-      await irA(c, RUTA_EJECUTIVO);
-      await c.page.getByLabel("Mes").fill("2020-01");
-      await esperarListo(c.page);
+      await conDisciplinasConColor(c);
+      await conParche(c, "clases", "clases-muestra", clasesRicas);
     },
   },
   {
-    id: "tabl-ejecutivo-mes-futuro",
+    id: "tabl-clases-datos-reales",
     rol: "administrador",
     grupo: GRUPO,
-    titulo: "«Ejecutivo» con un mes futuro escrito a mano (el campo lo limita al mes actual; lo que responda el servidor se ve)",
+    titulo: "Sección 03 con las clases reales del mundo de pruebas (una disciplina, sin color de marca: punto y banda neutros)",
     tipo: "estado",
-    fuentes: [EJECUTIVO, BASICOS],
+    fuentes: [CLASES],
+    completa: false,
+    ir: (c) => irASeccion(c, "clases"),
+  },
+  {
+    id: "tabl-clases-detalle-abierto",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 03 con «Ver por fuente y por sucursal» abierto (barras de asistidas contra agendadas, con la conversión de cada fila)",
+    tipo: "estado",
+    fuentes: [CLASES, BARRAS],
+    completa: false,
     ir: async (c) => {
-      await irA(c, RUTA_EJECUTIVO);
-      await c.page.getByLabel("Mes").fill("2031-01");
-      await esperarListo(c.page);
+      await conDisciplinasConColor(c);
+      await parchearGet(c, esReporte("clases-muestra"), clasesRicas);
+      await irA(c, RUTA);
+      await seccion(c, "clases").getByText("Ver por fuente y por sucursal").click();
+      await verSeccion(c, "clases");
+    },
+  },
+  {
+    id: "tabl-clases-asesor",
+    rol: ROL_ASESOR,
+    grupo: GRUPO,
+    titulo: "Sección 03 del asesor (mismas cifras que el administrador)",
+    tipo: "estado",
+    fuentes: [CLASES],
+    completa: false,
+    ir: (c) => irASeccion(c, "clases"),
+  },
+  {
+    id: "tabl-clases-muchos-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 03 con muchos datos (cada lista repetida ocho veces: ocho tarjetas por disciplina)",
+    tipo: "estado",
+    fuentes: [CLASES, BARRAS],
+    completa: false,
+    ir: (c) => conParche(c, "clases", "clases-muestra", (cuerpo) => multiplicar(cuerpo, 8)),
+  },
+  {
+    id: "tabl-clases-vacio",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 03 vacía: indicadores en cero y «No hay clases muestra en este rango.»",
+    tipo: "estado",
+    fuentes: [CLASES, BASICOS],
+    completa: false,
+    ir: (c) => conParche(c, "clases", "clases-muestra", clasesVacio),
+  },
+  {
+    id: "tabl-clases-cargando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 03 cargando",
+    tipo: "estado",
+    fuentes: [CLASES, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conCargando(c, RUTA, "Tableros");
+      await verSeccion(c, "clases");
+    },
+  },
+  {
+    id: "tabl-clases-error",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 03 con error de carga (500) y «Reintentar»",
+    tipo: "estado",
+    fuentes: [CLASES, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conError(c, RUTA);
+      await verSeccion(c, "clases");
+    },
+  },
+  {
+    id: "tabl-clases-sin-conexion",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 03 sin conexión: al cambiar el rango el error dice «No hay conexión…» sobre los datos que ya estaban",
+    tipo: "estado",
+    fuentes: [CLASES, CARGA, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await sinConexion(c, () => c.page.getByLabel("Desde").fill(fechaMx(30)));
+      await verSeccion(c, "clases");
+    },
+  },
+
+  // ── 04 Altas y bajas ──
+  {
+    id: "tabl-altas-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 con doce meses de historia: barras divergentes (altas arriba, bajas abajo, cada una con su cifra), la línea de activos y el mes elegido (el último)",
+    tipo: "estado",
+    fuentes: [ALTAS],
+    completa: false,
+    ir: (c) => conParche(c, "altas-y-bajas", "evolucion", evolucionRica),
+  },
+  {
+    id: "tabl-altas-datos-reales",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 con la historia real del mundo de pruebas (casi todo en el mes en curso)",
+    tipo: "estado",
+    fuentes: [ALTAS],
+    completa: false,
+    ir: (c) => irASeccion(c, "altas-y-bajas"),
+  },
+  {
+    id: "tabl-altas-mes-elegido",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 con el cursor sobre un mes (julio): la columna se resalta y sus cifras salen arriba",
+    tipo: "estado",
+    fuentes: [ALTAS],
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("evolucion"), evolucionRica);
+      await irASeccion(c, "altas-y-bajas");
+      if (c.vista === "escritorio") await mesDeLaGrafica(c, 9).hover();
+      else await mesDeLaGrafica(c, 9).click();
+      await c.page.waitForTimeout(200);
+    },
+  },
+  {
+    id: "tabl-altas-teclado",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 con el foco del teclado en un mes (el anillo de foco y las cifras de ese mes; los botones «Mes anterior» y «Mes siguiente» sirven en el celular)",
+    tipo: "estado",
+    fuentes: [ALTAS],
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("evolucion"), evolucionRica);
+      await irASeccion(c, "altas-y-bajas");
+      await mesDeLaGrafica(c, 3).focus();
+      await c.page.waitForTimeout(200);
+    },
+  },
+  {
+    id: "tabl-altas-tabla-abierta",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 con la tabla de las cifras de los doce meses abierta (la alternativa en texto de la gráfica)",
+    tipo: "estado",
+    fuentes: [ALTAS],
+    completa: false,
+    ir: async (c) => {
+      await parchearGet(c, esReporte("evolucion"), evolucionRica);
+      await irA(c, RUTA);
+      await seccion(c, "altas-y-bajas").getByText(/Ver las cifras de los 12 meses/).click();
+      await verSeccion(c, "altas-y-bajas");
+    },
+  },
+  {
+    id: "tabl-altas-vacia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 de una escuela sin historia: doce meses en cero, sin barras (las cifras «0» escritas) y la línea plana",
+    tipo: "estado",
+    fuentes: [ALTAS],
+    completa: false,
+    ir: (c) => conParche(c, "altas-y-bajas", "evolucion", evolucionVacia),
+  },
+  {
+    id: "tabl-altas-sin-meses",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 sin ningún mes en la respuesta: «Todavía no hay historia que mostrar.»",
+    tipo: "estado",
+    fuentes: [ALTAS, BASICOS],
+    completa: false,
+    ir: (c) => conParche(c, "altas-y-bajas", "evolucion", (cuerpo) => ({ ...cuerpo, meses: [], cohortes: [], promedio: [] })),
+  },
+  {
+    id: "tabl-altas-cargando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 cargando",
+    tipo: "estado",
+    fuentes: [ALTAS, TABLEROS, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conCargando(c, RUTA, "Tableros");
+      await verSeccion(c, "altas-y-bajas");
+    },
+  },
+  {
+    id: "tabl-altas-error",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 04 con error de carga (500) y «Reintentar»",
+    tipo: "estado",
+    fuentes: [ALTAS, TABLEROS, BASICOS],
+    completa: false,
+    ir: async (c) => {
+      await conError(c, RUTA);
+      await verSeccion(c, "altas-y-bajas");
     },
   },
 
@@ -808,5 +1368,181 @@ export const ESCENAS: Escena[] = [
       await c.page.getByTestId("aviso-global").waitFor();
       await c.page.waitForTimeout(300);
     },
+  },
+
+  // === R3b-B ===
+  // Secciones 05 a 08 de la página narrativa (`/tableros`). Cada escena esconde las demás secciones (con un estilo puesto desde la escena, no desde la aplicación) para que la captura
+  // muestre la sección completa dentro de la página real. Los datos salen de la API real; lo que el mundo de datos no trae (cohortes con historia, cartera, mapa con muchas celdas,
+  // parejas sin alumnos) se arma parchando la respuesta de `evolucion` y `ejecutivo`.
+  {
+    id: "tabl-retencion-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Tableros, sección 05 «¿Cuántos siguen después de inscribirse?»: 12 cohortes con la escala de calor, celdas rayadas «todavía no pasa», fila de promedio y leyenda",
+    tipo: "pantalla",
+    ruta: "/tableros",
+    fuentes: [SECCION_RETENCION, LEYENDA_CALOR, GRAFICAS_B],
+    ir: (c) => seccionB(c, "retencion", { evolucion: conCohortes }),
+  },
+  {
+    id: "tabl-retencion-vacia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 05 sin inscripciones en los últimos 12 meses: «Todavía no hay inscripciones que medir»",
+    tipo: "estado",
+    fuentes: [SECCION_RETENCION, BASICOS],
+    ir: (c) => seccionB(c, "retencion", { evolucion: (e) => ({ ...e, cohortes: [], promedio: [] }) }),
+  },
+  {
+    id: "tabl-seccion-b-error",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Secciones 05 a 08 con error de carga (500): el aviso con «Reintentar» en el lugar de la sección",
+    tipo: "estado",
+    fuentes: [SECCION_RETENCION, BASICOS],
+    ir: async (c) => {
+      await conError(c, "/tableros");
+      await soloSeccion(c, "retencion");
+    },
+  },
+  {
+    id: "tabl-seccion-b-cargando",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Secciones 05 a 08 cargando",
+    tipo: "estado",
+    fuentes: [SECCION_RETENCION, BASICOS],
+    ir: async (c) => {
+      await conCargando(c, "/tableros", "Tableros");
+      await soloSeccion(c, "retencion");
+    },
+  },
+  {
+    id: "tabl-ingreso-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 06 «Ingreso recurrente y cartera vencida»: área de 12 meses con su cifra y cambio, cartera por antigüedad con familias por tramo y «Ver las familias con atraso»",
+    tipo: "pantalla",
+    ruta: "/tableros",
+    fuentes: [SECCION_INGRESO, GRAFICAS_B],
+    ir: (c) => seccionB(c, "ingreso", { evolucion: conIngreso, ejecutivo: conCartera }),
+  },
+  {
+    id: "tabl-ingreso-cifras-abiertas",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 06 con «Ver la cifra de cada mes» abierto: la tabla de 12 meses",
+    tipo: "estado",
+    fuentes: [SECCION_INGRESO],
+    ir: async (c) => {
+      await seccionB(c, "ingreso", { evolucion: conIngreso, ejecutivo: conCartera });
+      await c.page.getByText("Ver la cifra de cada mes").click();
+      await c.page.waitForTimeout(150);
+    },
+  },
+  {
+    id: "tabl-ingreso-sin-cartera",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 06 sin saldo vencido: «Nadie tiene saldo vencido» y sin botón de familias",
+    tipo: "estado",
+    fuentes: [SECCION_INGRESO],
+    ir: (c) => seccionB(c, "ingreso", { evolucion: conIngreso, ejecutivo: (e) => ({ ...e, cartera_vencida: CARTERA_EN_CERO }) }),
+  },
+  {
+    id: "tabl-ingreso-sin-historia",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 06 sin meses en la serie: «Todavía no hay meses con ingreso que dibujar»",
+    tipo: "estado",
+    fuentes: [SECCION_INGRESO],
+    ir: (c) => seccionB(c, "ingreso", { evolucion: (e) => ({ ...e, meses: [], cohortes: [], promedio: [] }), ejecutivo: (e) => ({ ...e, cartera_vencida: CARTERA_EN_CERO }) }),
+  },
+  {
+    id: "tabl-ingreso-baja",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 06 con el ingreso del último mes por debajo del anterior: el cambio sale en rojo suave con su signo («-5.0 % vs …») y la frase dice «bajó»",
+    tipo: "estado",
+    fuentes: [SECCION_INGRESO],
+    ir: (c) => seccionB(c, "ingreso", { evolucion: (e) => ({ ...e, meses: (e.meses as Json[]).map((m, i, todos) => ({ ...m, ingreso_mensual_recurrente: i === todos.length - 1 ? "190000.00" : "200000.00" })) }), ejecutivo: conCartera }),
+  },
+  {
+    id: "tabl-ingreso-igual",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 06 con el mismo ingreso que el mes anterior: el cambio sale neutro («0.0 % vs …») y la frase dice «se mantuvo igual»",
+    tipo: "estado",
+    fuentes: [SECCION_INGRESO],
+    ir: (c) => seccionB(c, "ingreso", { evolucion: (e) => ({ ...e, meses: (e.meses as Json[]).map((m) => ({ ...m, ingreso_mensual_recurrente: "200000.00" })) }), ejecutivo: conCartera }),
+  },
+  {
+    id: "tabl-mapa-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 07 «¿Cuándo están llenos los salones?»: mapa de calor día × hora con el porcentaje en cada celda, rayado «sin clases», leyenda, «A reventar» y «Con lugares»",
+    tipo: "pantalla",
+    ruta: "/tableros",
+    fuentes: [SECCION_MAPA, LEYENDA_CALOR, GRAFICAS_B],
+    ir: (c) => seccionB(c, "mapa", { ejecutivo: conMapa }),
+  },
+  {
+    id: "tabl-mapa-muchos-grupos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 07 con más de seis grupos a reventar y con lugares: la lista se corta y dice «Y N grupos más»",
+    tipo: "estado",
+    fuentes: [SECCION_MAPA],
+    ir: (c) => seccionB(c, "mapa", { ejecutivo: (e) => conMapa({ ...e, ocupacion_por_grupo: multiplicarGrupos(e.ocupacion_por_grupo) }) }),
+  },
+  {
+    id: "tabl-mapa-vacio",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 07 sin grupos con horario: «No hay grupos con horario» y las dos listas vacías",
+    tipo: "estado",
+    fuentes: [SECCION_MAPA, BASICOS],
+    ir: (c) => seccionB(c, "mapa", { ejecutivo: (e) => ({ ...e, mapa_ocupacion: [], ocupacion_por_grupo: [] }) }),
+  },
+  {
+    id: "tabl-comparativo-con-datos",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 08 «Por disciplina y sucursal»: una tarjeta por pareja con el color de su disciplina, alumnos, ingreso, ocupación y deserción; incluye una pareja con grupos y sin alumnos y otra sin grupos",
+    tipo: "pantalla",
+    ruta: "/tableros",
+    fuentes: [SECCION_COMPARATIVO, GRAFICAS_B],
+    ir: (c) => seccionB(c, "comparativo", { ejecutivo: conComparativo }),
+  },
+  {
+    id: "tabl-comparativo-colores",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 08 con tres disciplinas de color distinto (el punto y la barra toman su `color_marca`; cada tarjeta escribe el nombre de la disciplina)",
+    tipo: "estado",
+    fuentes: [SECCION_COMPARATIVO],
+    ir: async (c) => {
+      await parchearGetB(c, (u) => u.pathname === "/api/verticales", (r) => {
+        const base = (r.datos as Json[])[0];
+        return base ? { ...r, datos: [{ ...base, color_marca: "#d9531e" }, { ...base, id: `${base.id}-2`, nombre: "Disciplina B", color_marca: "#c43c78" }, { ...base, id: `${base.id}-3`, nombre: "Disciplina C", color_marca: "#1f8f8f" }] } : r;
+      });
+      await seccionB(c, "comparativo", {
+        ejecutivo: (e) => {
+          const base = (e.comparativo as Json[])[0];
+          if (!base) return e;
+          const fila = (n: string, v: string, alumnos: number, oc: string, des: string): Json => ({ ...base, vertical: { id: v, nombre: n }, alumnos, inscripciones: alumnos, ingreso_mensual_recurrente: `${alumnos * 650}.00`, ocupados: Math.round(Number(oc)), cupo_maximo: 100, ocupacion: `${oc}.0`, desercion: des, desercion_texto: `${des} %` });
+          return { ...e, comparativo: [fila("Vertical Prueba", base.vertical.id, 61, "78", "4.1"), fila("Disciplina B", `${base.vertical.id}-2`, 55, "88", "5.2"), fila("Disciplina C", `${base.vertical.id}-3`, 28, "52", "9.4")] };
+        },
+      });
+    },
+  },
+  {
+    id: "tabl-comparativo-vacio",
+    rol: "administrador",
+    grupo: GRUPO,
+    titulo: "Sección 08 sin parejas: «Todavía no hay nada que comparar»",
+    tipo: "estado",
+    fuentes: [SECCION_COMPARATIVO, BASICOS],
+    ir: (c) => seccionB(c, "comparativo", { ejecutivo: (e) => ({ ...e, comparativo: [] }) }),
   },
 ];

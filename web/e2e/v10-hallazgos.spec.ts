@@ -230,9 +230,9 @@ test.describe("pestañas accesibles", () => {
     });
   }
 
-  test("tareas, embudo, tableros y expediente: pestañas enlazadas con su panel", async ({ page }) => {
+  test("tareas, embudo y expediente: pestañas enlazadas con su panel (Tableros ya no tiene pestañas: sus secciones son un índice de la misma página, R3b-A)", async ({ page }) => {
     const alumno = (await json<{ datos: { id: string }[] }>(admin, "/api/alumnos?limite=1")).datos[0]!;
-    for (const ruta of ["/tareas", "/embudo", "/tableros", `/alumnos/${alumno.id}`]) {
+    for (const ruta of ["/tareas", "/embudo", `/alumnos/${alumno.id}`]) {
       await page.goto(ruta);
       await expect(page.locator('[role="tab"]').first()).toBeVisible();
       expect(await page.locator('[role="tablist"]').count(), `${ruta}: tiene pestañas`).toBeGreaterThan(0);

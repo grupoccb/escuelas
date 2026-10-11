@@ -59,6 +59,7 @@ import { rutasDeProductos } from "./rutas/finanzas-productos.ts";
 import { rutasDeReporteDeClasesMuestra } from "./rutas/reportes-clases-muestra.ts";
 import { rutasDeCostoPorCampana } from "./rutas/reportes-costos.ts";
 import { rutasDeReporteEjecutivo } from "./rutas/reportes-ejecutivo.ts";
+import { rutasDeReportesDelTablero } from "./rutas/reportes-tablero.ts";
 import { rutasDeExportaciones } from "./rutas/reportes-exportaciones.ts";
 import { rutasDeBeneficios } from "./rutas/finanzas-beneficios.ts";
 import { rutasDeEstadoDeCuenta } from "./rutas/finanzas-cuenta.ts";
@@ -196,6 +197,7 @@ export function crearApiRouter(entrada: ApiDepsEntrada): Router {
   api.use(rutasDeReporteDeClasesMuestra(deps));
   api.use(rutasDeCostoPorCampana(deps));
   api.use(rutasDeReporteEjecutivo(deps));
+  api.use(rutasDeReportesDelTablero(deps));
   api.use(rutasDeExportaciones(deps));
   api.use(rutasDeBeneficios(deps));
   api.use(rutasDeEstadoDeCuenta(deps));

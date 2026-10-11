@@ -310,15 +310,16 @@ for (const vista of Object.keys(VISTAS) as Vista[]) {
         expect(descarga.suggestedFilename()).toMatch(/\.csv$/);
         return readFileSync((await descarga.path())!, "utf8");
       };
+      // R3b-A: los tableros son una sola página; las tres pantallas de antes (clases muestra, costo por campaña y ejecutivo) son ahora la sección 03, el costo por campaña dentro de la 02 y el héroe y las secciones 04 a 08.
       await t.goto("/tableros");
-      const api = await json<{ total: { agendadas: number; asistidas: number; conversion: string | null } }>(admin, "/api/reportes/clases-muestra");
+      await t.getByTestId("filtros-del-tablero").getByLabel("Desde").fill("2020-01-01");
+      const api = await json<{ total: { agendadas: number; asistidas: number; conversion: string | null } }>(admin, "/api/reportes/clases-muestra?desde=2020-01-01");
       await expect(t.getByTestId("ind-agendadas")).toContainText(String(api.total.agendadas));
       await cap(t, "recorrido-5-tableros-01-clases-muestra");
       const csvClases = await descargar(t.getByTestId("descargar-clases"));
       expect(csvClases.startsWith("﻿")).toBe(true);
 
       // El gasto de la campaña se captura a mano; el costo por lead se divide al centavo. Se da de baja al terminar para dejar el tablero como estaba.
-      await t.goto("/tableros?vista=costo");
       const fila = t.getByTestId(`costo-${mundo.tableros.campana.id}`);
       await fila.getByRole("button", { name: "Gastos" }).click();
       const dialogo = t.getByRole("dialog");
@@ -339,7 +340,6 @@ for (const vista of Object.keys(VISTAS) as Vista[]) {
       await expect(t.getByRole("dialog").getByTestId("gasto-total")).toHaveText("$0.00");
       await t.getByRole("dialog").getByRole("button", { name: "Cerrar" }).click();
 
-      await t.goto("/tableros?vista=ejecutivo");
       const ej = await json<{ ingreso_mensual_recurrente: string; cartera_vencida: { total: string } }>(admin, "/api/reportes/ejecutivo");
       await expect(t.getByTestId("ind-ingreso")).toContainText(pesos(ej.ingreso_mensual_recurrente));
       await expect(t.getByTestId("ind-cartera")).toContainText(pesos(ej.cartera_vencida.total));

@@ -411,7 +411,8 @@ test.describe("administrador", () => {
 
     await irPorLaBarra(page, "Tableros", "/tableros");
     await expect(page.getByRole("heading", { name: "Tableros" })).toBeVisible();
-    for (const solapa of ["Clases muestra", "Costo por campaña", "Ejecutivo"]) await expect(page.getByRole("tab", { name: solapa })).toBeVisible();
+    // R3b-A: una sola página con pestañas fijas que saltan a cada sección (Resumen, Captación, Fuentes y costo, Clases muestra, Altas y bajas, Retención, Dinero, Ocupación y Comparativo).
+    for (const seccion of ["Resumen", "Captación", "Fuentes y costo", "Clases muestra"]) await expect(page.getByRole("navigation", { name: "Secciones del tablero" }).getByRole("button", { name: seccion })).toBeVisible();
     await foto(page, "administrador-06-tableros");
   });
 });

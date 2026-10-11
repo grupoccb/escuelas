@@ -240,7 +240,8 @@ test("el administrador ve el desglose «a mano» en el costo por campaña y en l
     await prisma.configuracion_organizacion.updateMany({ where: { organizacion_id: org.organizacionId }, data: SOLO_CAPTACION });
     expect((await api.patch(`/api/leads/${leadId}/etapa`, { data: { etapa_id: etapas["inscrito"], nota: NOTA } })).status()).toBe(200);
     await prisma.configuracion_organizacion.updateMany({ where: { organizacion_id: org.organizacionId }, data: TODO_ENCENDIDO });
-    await page.goto("/tableros?vista=costo");
+    await page.goto("/tableros");
+    await page.getByTestId("filtros-del-tablero").getByLabel("Desde").fill("2020-01-01");
     await expect(page.getByTestId("ind-costo-alumno")).toContainText("$900.00");
     await expect(page.getByTestId("ind-costo-alumno")).toContainText("1 inscrito a mano");
     await expect(page.getByTestId("nota-inscritos-a-mano")).toContainText("1 familia marcada a mano como inscrita");

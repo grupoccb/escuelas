@@ -23,7 +23,7 @@ Los pasos 1 a 5 se pueden hacer de una sola vez desde Excel: «Cargar catálogo�
 
 ## Tu día en 5 pasos
 
-1. Revisa «Tableros»: «Clases muestra», «Costo por campaña» y «Ejecutivo».
+1. Revisa «Tableros»: una sola página con pestañas fijas («Resumen», «Captación», «Fuentes y costo», donde capturas el gasto, «Clases muestra» y más).
 2. «Usuarios y roles»: «Nuevo usuario» (elige el rol; la contraseña se la das en persona), «Restablecer contraseña» o «Desactivar» a quien ya no trabaja aquí. A cada asesor, «Agente de Chatwoot» y «Vincular».
 3. Precios: en «Precios» elige el programa y toca «Nueva vigencia»; rige desde la fecha que elijas y no cambia lo ya cobrado. Grupos: «Grupos y horarios», «Nuevo grupo».
 4. «Módulos»: la casilla «Encendido» prende o apaga una parte (captación siempre está prendida). Al apagar, confirmas; nada se borra y lo guardado se conserva, pero mientras esté apagado no se generan cobros ni avisos de esa parte y al encenderlo no se recupera lo de ese tiempo.

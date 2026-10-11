@@ -4,7 +4,7 @@ Se genera de las escenas de `web/e2e-diseno/escenas-*.ts` con `npm run diseno:in
 contra cada uso de diálogo, aviso y barra de guardado, y contra las clases de `base.css`. Las capturas están en `docs/diseno/capturas/antes/` y `docs/diseno/capturas/despues/`
 (`<id>-escritorio.jpg`, 1366 px, y `<id>-celular.jpg`, 390 px). ✔ = existe la captura; · = no aplica a esa vista; ✘ = falta.
 
-Filas: **1071**.
+Filas: **1112**.
 
 ## Acceso y cuenta (47)
 
@@ -1074,41 +1074,66 @@ Filas: **1071**.
 | `recep-ventas-venta-anulada` | recepcion | estado | Ventas recientes con una venta anulada (insignia «Anulada») y la pieza de vuelta en la existencia |  | ✔ · ✔ | ✔ · ✔ |
 | `recep-corte-con-cobros-y-cancelados` | recepcion | pantalla | Cierre del día con los cobros de recepción y de administración y un pago cobrado y cancelado hoy | `/corte` | ✔ · ✔ | ✔ · ✔ |
 
-## Tableros (48)
+## Tableros (89)
 
 | id | rol | tipo | qué se ve | ruta | antes (esc · cel) | después (esc · cel) |
 |---|---|---|---|---|---|---|
-| `tabl-clases-con-datos` | administrador | pantalla | Tableros, pestaña «Clases muestra» del administrador: filtros, indicadores, barras por fuente, disciplina y sucursal, y tablas | `/tableros` | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-asesor` | asesor | pantalla | Tableros, pestaña «Clases muestra» del asesor (solo «Clases muestra» y «Ejecutivo»; sin «Costo por campaña») | `/tableros` | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-asesor-pide-costo` | asesor | estado | El asesor abre /tableros?vista=costo: no hay esa pestaña y se queda en «Clases muestra» | `/tableros` | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-muchos-datos` | administrador | estado | «Clases muestra» con muchos datos (cada lista repetida ocho veces: barras y tablas largas) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-vacio` | administrador | estado | «Clases muestra» vacía: indicadores en cero, aviso «No hay clases muestra en este rango.» y barras sin datos |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-cargando` | administrador | estado | «Clases muestra» cargando (filtros y descarga ya puestos; el reporte todavía no llega) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-error` | administrador | estado | «Clases muestra» con error de carga (500) y botón «Reintentar» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-sin-conexion` | administrador | estado | «Clases muestra» sin conexión: al cambiar un filtro el error dice «No hay conexión…» sobre los datos que ya estaban |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-filtro-sucursal` | administrador | estado | «Clases muestra» filtrada por una sucursal sin clases (la sur): ceros y el aviso de rango sin clases |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-filtro-disciplina` | administrador | estado | «Clases muestra» filtrada por una disciplina (la primera de la lista) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-filtro-rango` | administrador | estado | «Clases muestra» con rango de fechas elegido (últimos 30 días, con «Desde» y «Hasta» escritos) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-filtro-rango-invertido` | administrador | estado | «Clases muestra» con el rango al revés («Hasta» anterior a «Desde»): el servidor lo rechaza y se ve el error de carga |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-clases-filtro-rango-sin-fechas` | administrador | estado | «Clases muestra» con «Desde» borrado (sin ninguna fecha: todo el historial) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-con-datos` | administrador | pantalla | Tableros, pestaña «Costo por campaña» del administrador: indicadores, aviso de campañas sin gasto, barras de gasto y tabla con «Capturar o ver gastos» | `/tableros` | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-con-gasto-en-todas` | administrador | estado | «Costo por campaña» con gasto en todas las campañas y con inscritos a mano (sin aviso de campañas sin gasto; con la nota de inscritos a mano; respuesta ajustada) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-muchos-datos` | administrador | estado | «Costo por campaña» con muchos datos (campañas repetidas ocho veces: barras y tabla largas) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-vacio` | administrador | estado | «Costo por campaña» sin campañas: aviso «Todavía no hay campañas…», barras y tabla vacías |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-cargando` | administrador | estado | «Costo por campaña» cargando |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-error` | administrador | estado | «Costo por campaña» con error de carga (500) y botón «Reintentar» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-sin-conexion` | administrador | estado | «Costo por campaña» sin conexión: al cambiar el rango el error dice «No hay conexión…» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-filtro-rango` | administrador | estado | «Costo por campaña» con rango de fechas elegido (últimos 30 días; este tablero no tiene filtro de sucursal ni de disciplina) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-costo-filtro-rango-invertido` | administrador | estado | «Costo por campaña» con el rango al revés: el servidor lo rechaza y se ve el error de carga |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-con-datos` | administrador | pantalla | Tableros, pestaña «Ejecutivo» del administrador: mes, descargas, seis indicadores, barras de activos, cartera y ocupación, y tabla de ocupación | `/tableros` | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-asesor` | asesor | pantalla | Tableros, pestaña «Ejecutivo» del asesor (mismas cifras que el administrador; solo dos pestañas) | `/tableros` | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-muchos-datos` | administrador | estado | «Ejecutivo» con muchos datos (disciplinas y grupos repetidos ocho veces) |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-vacio` | administrador | estado | «Ejecutivo» vacío (escuela sin alumnos ni grupos): indicadores en cero, deserción «—», barras con «Todavía no hay…» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-cargando` | administrador | estado | «Ejecutivo» cargando |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-error` | administrador | estado | «Ejecutivo» con error de carga (500) y botón «Reintentar» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-sin-conexion` | administrador | estado | «Ejecutivo» sin conexión: al cambiar el mes el error dice «No hay conexión…» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-mes-sin-historia` | administrador | estado | «Ejecutivo» con un mes sin historia (enero de 2020): altas y bajas en cero y deserción «—» |  | ✔ · ✔ | ✔ · ✔ |
-| `tabl-ejecutivo-mes-futuro` | administrador | estado | «Ejecutivo» con un mes futuro escrito a mano (el campo lo limita al mes actual; lo que responda el servidor se ve) |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-pagina-administrador` | administrador | pantalla | Tableros del administrador: encabezado con mes y descargas, filtros, pestañas fijas, héroe oscuro y las ocho secciones (datos reales del mundo de pruebas) | `/tableros` | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pagina-asesor` | asesor | pantalla | Tableros del asesor: las mismas secciones sin el dinero de marketing (la sección 02 sin gasto ni costo y sin el costo por campaña) | `/tableros` | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pagina-datos-de-ejemplo` | administrador | estado | Tableros con doce meses de historia, un embudo de 236 leads, siete fuentes y tres disciplinas con color (respuestas parchadas con datos de ejemplo) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pagina-vacia` | administrador | estado | Tableros de una escuela sin alumnos, sin leads y sin clases (todo en cero; sin frases ni indicadores de más) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pagina-cargando` | administrador | estado | Tableros cargando: encabezado, filtros y pestañas ya puestos; el héroe y cada sección con su «Cargando…» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pagina-error` | administrador | estado | Tableros con error de carga (500): el héroe y cada sección dicen que no se pudo cargar y ofrecen «Reintentar» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-heroe-con-datos` | administrador | estado | Héroe oscuro con datos: titular, tres frases (mes, mayor caída del embudo, grupo a reventar) y seis indicadores, con la cartera en alerta |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-heroe-asesor` | asesor | estado | Héroe del asesor (mismas cifras que el administrador: no trae dinero de marketing) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-heroe-vacio` | administrador | estado | Héroe de una escuela sin alumnos: titular «0 alumnos activos…», sin frases y con los indicadores en cero y deserción «—» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-heroe-cargando` | administrador | estado | Héroe cargando («Armando el resumen…») |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-heroe-error` | administrador | estado | Héroe con error de carga (500) y «Reintentar» dentro del panel oscuro |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pestanas-seccion-activa` | administrador | estado | Pestañas fijas con la sección 03 marcada (se llegó con un clic en «Clases muestra»: la página se desplazó y la pestaña quedó con `aria-current`) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-pestanas-foco-teclado` | administrador | estado | Pestañas fijas con el foco del teclado en una de ellas (anillo de foco visible) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-filtro-disciplina` | administrador | estado | Tableros filtrados por una disciplina (la píldora activa va oscura, con su punto de color; el héroe lo dice en su encabezado) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-filtro-sucursal` | administrador | estado | Tableros filtrados por una sucursal sin clases (la sur): la sección 03 queda en ceros y el gasto de la sección 02 lleva su aviso de aproximación |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-filtro-rango` | administrador | estado | Tableros con un rango de fechas elegido (últimos 30 días): las secciones 01 a 03 hablan de ese rango en lugar del mes |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-filtro-rango-invertido` | administrador | estado | Tableros con el rango al revés («Hasta» antes de «Desde»): el mensaje junto al campo y las secciones 01 a 03 piden corregir las fechas |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-filtro-mes-sin-historia` | administrador | estado | Tableros con un mes sin historia (enero de 2020): altas y bajas en cero, deserción «—» y secciones de captación vacías |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-filtro-sin-conexion` | administrador | estado | Tableros sin conexión: al cambiar el mes el error dice «No hay conexión…» en el héroe y en las secciones |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-descargas` | administrador | estado | Encabezado con el menú «Más descargas» abierto (activos por disciplina y ocupación por grupo, en CSV) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-embudo-con-datos` | administrador | estado | Sección 01 con un embudo de 236 leads: barras por etapa con su cifra, la caída entre etapas (la mayor en ámbar y con «la mayor caída») y «Por qué se pierden» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-embudo-datos-reales` | administrador | estado | Sección 01 con los leads reales del mundo de pruebas (el mes en curso) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-embudo-vacia` | administrador | estado | Sección 01 sin leads en el rango: «Ningún lead llegó en este rango.» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-embudo-sin-perdidos` | administrador | estado | Sección 01 con leads que ninguno se ha perdido («Ninguno de estos leads se ha perdido.») |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-embudo-cargando` | administrador | estado | Sección 01 cargando |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-embudo-error` | administrador | estado | Sección 01 con error de carga (500) y «Reintentar» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-fuentes-con-datos` | administrador | estado | Sección 02 del administrador con siete fuentes: indicadores de gasto y costo, tabla con barras, conversión destacada, «Lo más barato» y el costo por campaña |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-fuentes-datos-reales` | administrador | estado | Sección 02 con las fuentes reales del mundo de pruebas (campañas sin gasto y con él) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-fuentes-asesor` | asesor | estado | Sección 02 del asesor: leads, inscritos y conversión, SIN gasto ni costo (la API los manda vacíos) y sin el costo por campaña |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-fuentes-vacia` | administrador | estado | Sección 02 sin leads en el rango: «No llegó ningún lead en este rango.» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-fuentes-cargando` | administrador | estado | Sección 02 cargando |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-fuentes-error` | administrador | estado | Sección 02 con error de carga (500) y «Reintentar» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-costo-con-datos` | administrador | estado | Costo por campaña (dentro de la sección 02): indicadores, aviso de campañas sin gasto y tabla con «Capturar o ver gastos» |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-costo-con-gasto-en-todas` | administrador | estado | Costo por campaña con gasto en todas las campañas y con inscritos a mano (sin aviso de campañas sin gasto; con la nota de inscritos a mano; respuesta ajustada) |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-costo-muchos-datos` | administrador | estado | Costo por campaña con muchos datos (campañas repetidas ocho veces: tabla larga) |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-costo-vacio` | administrador | estado | Costo por campaña sin campañas: aviso «Todavía no hay campañas…» y tabla vacía |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-costo-cargando` | administrador | estado | Costo por campaña cargando (el resto de la sección 02 ya llegó) |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-costo-error` | administrador | estado | Costo por campaña con error de carga (500) y «Reintentar» |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-con-datos` | administrador | estado | Sección 03 con tres disciplinas de color: tarjetas con asistencia y cierre, tres barras con su cifra, totales, descarga de CSV y el desglose por fuente y sucursal |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-datos-reales` | administrador | estado | Sección 03 con las clases reales del mundo de pruebas (una disciplina, sin color de marca: punto y banda neutros) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-clases-detalle-abierto` | administrador | estado | Sección 03 con «Ver por fuente y por sucursal» abierto (barras de asistidas contra agendadas, con la conversión de cada fila) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-clases-asesor` | asesor | estado | Sección 03 del asesor (mismas cifras que el administrador) |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-muchos-datos` | administrador | estado | Sección 03 con muchos datos (cada lista repetida ocho veces: ocho tarjetas por disciplina) |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-vacio` | administrador | estado | Sección 03 vacía: indicadores en cero y «No hay clases muestra en este rango.» |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-cargando` | administrador | estado | Sección 03 cargando |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-error` | administrador | estado | Sección 03 con error de carga (500) y «Reintentar» |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-clases-sin-conexion` | administrador | estado | Sección 03 sin conexión: al cambiar el rango el error dice «No hay conexión…» sobre los datos que ya estaban |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-altas-con-datos` | administrador | estado | Sección 04 con doce meses de historia: barras divergentes (altas arriba, bajas abajo, cada una con su cifra), la línea de activos y el mes elegido (el último) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-datos-reales` | administrador | estado | Sección 04 con la historia real del mundo de pruebas (casi todo en el mes en curso) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-mes-elegido` | administrador | estado | Sección 04 con el cursor sobre un mes (julio): la columna se resalta y sus cifras salen arriba |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-teclado` | administrador | estado | Sección 04 con el foco del teclado en un mes (el anillo de foco y las cifras de ese mes; los botones «Mes anterior» y «Mes siguiente» sirven en el celular) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-tabla-abierta` | administrador | estado | Sección 04 con la tabla de las cifras de los doce meses abierta (la alternativa en texto de la gráfica) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-vacia` | administrador | estado | Sección 04 de una escuela sin historia: doce meses en cero, sin barras (las cifras «0» escritas) y la línea plana |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-sin-meses` | administrador | estado | Sección 04 sin ningún mes en la respuesta: «Todavía no hay historia que mostrar.» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-cargando` | administrador | estado | Sección 04 cargando |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-altas-error` | administrador | estado | Sección 04 con error de carga (500) y «Reintentar» |  | ✘ · ✘ | ✔ · ✔ |
 | `tabl-gastos-vacio` | administrador | flotante | Diálogo «Gastos de la campaña» de una campaña sin gastos: total $0.00, lista vacía y formulario «Capturar un gasto» | `/tableros` | ✔ · ✔ | ✔ · ✔ |
 | `tabl-gastos-con-gastos` | administrador | flotante | Diálogo «Gastos de la campaña» con tres gastos capturados (uno sin nota) y su total |  | ✔ · ✔ | ✔ · ✔ |
 | `tabl-gastos-cargando` | administrador | flotante | Diálogo «Gastos de la campaña» cargando la lista de gastos («Cargando…») |  | ✔ · ✔ | ✔ · ✔ |
@@ -1126,4 +1151,20 @@ Filas: **1071**.
 | `tabl-gastos-baja-error-servidor` | administrador | flotante | Diálogo «Gastos de la campaña» con error del servidor al dar de baja un gasto (500) |  | ✔ · ✔ | ✔ · ✔ |
 | `tabl-gastos-aviso-capturado` | administrador | flotante | Aviso global «ya quedó» al capturar un gasto («Se capturó el gasto de $1,500.50 …: el costo ya está recalculado.») sobre el diálogo, con el gasto nuevo en la lista | `/tableros` | ✔ · ✔ | ✔ · ✔ |
 | `tabl-gastos-aviso-quitado` | administrador | flotante | Aviso global «ya quedó» al dar de baja un gasto («Se quitó el gasto de … : el costo ya está recalculado.») sobre el diálogo |  | ✔ · ✔ | ✔ · ✔ |
+| `tabl-retencion-con-datos` | administrador | pantalla | Tableros, sección 05 «¿Cuántos siguen después de inscribirse?»: 12 cohortes con la escala de calor, celdas rayadas «todavía no pasa», fila de promedio y leyenda | `/tableros` | ✘ · ✘ | ✔ · ✔ |
+| `tabl-retencion-vacia` | administrador | estado | Sección 05 sin inscripciones en los últimos 12 meses: «Todavía no hay inscripciones que medir» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-seccion-b-error` | administrador | estado | Secciones 05 a 08 con error de carga (500): el aviso con «Reintentar» en el lugar de la sección |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-seccion-b-cargando` | administrador | estado | Secciones 05 a 08 cargando |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-ingreso-con-datos` | administrador | pantalla | Sección 06 «Ingreso recurrente y cartera vencida»: área de 12 meses con su cifra y cambio, cartera por antigüedad con familias por tramo y «Ver las familias con atraso» | `/tableros` | ✘ · ✘ | ✔ · ✔ |
+| `tabl-ingreso-cifras-abiertas` | administrador | estado | Sección 06 con «Ver la cifra de cada mes» abierto: la tabla de 12 meses |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-ingreso-sin-cartera` | administrador | estado | Sección 06 sin saldo vencido: «Nadie tiene saldo vencido» y sin botón de familias |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-ingreso-sin-historia` | administrador | estado | Sección 06 sin meses en la serie: «Todavía no hay meses con ingreso que dibujar» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-ingreso-baja` | administrador | estado | Sección 06 con el ingreso del último mes por debajo del anterior: el cambio sale en rojo suave con su signo («-5.0 % vs …») y la frase dice «bajó» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-ingreso-igual` | administrador | estado | Sección 06 con el mismo ingreso que el mes anterior: el cambio sale neutro («0.0 % vs …») y la frase dice «se mantuvo igual» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-mapa-con-datos` | administrador | pantalla | Sección 07 «¿Cuándo están llenos los salones?»: mapa de calor día × hora con el porcentaje en cada celda, rayado «sin clases», leyenda, «A reventar» y «Con lugares» | `/tableros` | ✘ · ✘ | ✔ · ✔ |
+| `tabl-mapa-muchos-grupos` | administrador | estado | Sección 07 con más de seis grupos a reventar y con lugares: la lista se corta y dice «Y N grupos más» |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-mapa-vacio` | administrador | estado | Sección 07 sin grupos con horario: «No hay grupos con horario» y las dos listas vacías |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-comparativo-con-datos` | administrador | pantalla | Sección 08 «Por disciplina y sucursal»: una tarjeta por pareja con el color de su disciplina, alumnos, ingreso, ocupación y deserción; incluye una pareja con grupos y sin alumnos y otra sin grupos | `/tableros` | ✘ · ✘ | ✔ · ✔ |
+| `tabl-comparativo-colores` | administrador | estado | Sección 08 con tres disciplinas de color distinto (el punto y la barra toman su `color_marca`; cada tarjeta escribe el nombre de la disciplina) |  | ✘ · ✘ | ✔ · ✔ |
+| `tabl-comparativo-vacio` | administrador | estado | Sección 08 sin parejas: «Todavía no hay nada que comparar» |  | ✘ · ✘ | ✔ · ✔ |
 

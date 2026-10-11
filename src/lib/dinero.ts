@@ -121,6 +121,15 @@ export function dividir(c: Centavos, n: number): Centavos {
   return dividirRedondeando(c, BigInt(n));
 }
 
+/**
+ * La fracción `parte / total` de un importe, al centavo MÁS CERCANO (la mitad alejándose de cero): el gasto de una campaña que le toca a la parte de sus leads que cae en un filtro.
+ * `total` >= 1 y 0 <= `parte` <= `total`; enteros (conteos). No hay flotantes.
+ */
+export function proporcion(c: Centavos, parte: number, total: number): Centavos {
+  if (!Number.isInteger(parte) || !Number.isInteger(total) || total < 1 || parte < 0 || parte > total) throw new ErrorDeDinero(`Proporción inválida: ${parte}/${total}`);
+  return dividirRedondeando(c * BigInt(parte), BigInt(total));
+}
+
 /** Reparte `total` en `partes` partes iguales sin perder ni inventar centavos: el resto, de uno en uno a las primeras. */
 export function repartir(total: Centavos, partes: number): Centavos[] {
   if (!Number.isInteger(partes) || partes < 1) throw new ErrorDeDinero(`Partes inválidas: ${partes}`);

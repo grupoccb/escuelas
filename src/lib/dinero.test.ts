@@ -18,6 +18,7 @@ import {
   noNegativo,
   porcentaje,
   porcentajeABasisPoints,
+  proporcion,
   repartir,
   restar,
   sumar,
@@ -191,4 +192,17 @@ test("dividir: costo promedio al centavo más cercano, la mitad alejándose de c
   assert.throws(() => dividir(100n, 0), ErrorDeDinero);
   assert.throws(() => dividir(100n, -1), ErrorDeDinero);
   assert.throws(() => dividir(100n, 1.5), ErrorDeDinero);
+});
+
+test("proporcion: la fracción parte/total de un importe al centavo más cercano (la mitad alejándose de cero); sin total no hay fracción", () => {
+  assert.equal(proporcion(133333n, 1, 3), 44444n, "444.4433 → 444.44");
+  assert.equal(proporcion(133333n, 2, 3), 88889n, "888.8866 → 888.89");
+  assert.equal(proporcion(133333n, 1, 2), 66667n, "666.665 → 666.67");
+  assert.equal(proporcion(133333n, 3, 3), 133333n);
+  assert.equal(proporcion(133333n, 0, 7), 0n);
+  assert.equal(proporcion(5n, 1, 2), 3n, "0.025 → 0.03");
+  assert.throws(() => proporcion(100n, 1, 0), ErrorDeDinero);
+  assert.throws(() => proporcion(100n, 4, 3), ErrorDeDinero, "una parte no puede pasar del total");
+  assert.throws(() => proporcion(100n, -1, 3), ErrorDeDinero);
+  assert.throws(() => proporcion(100n, 1.5, 3), ErrorDeDinero);
 });

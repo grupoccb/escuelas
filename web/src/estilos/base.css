@@ -181,6 +181,38 @@
   --calor-5-texto: #ffffff;
   --calor-5-borde: var(--alerta-borde);
 
+  /* R3 (tableros B): los cuatro tramos de la cartera vencida (de ámbar claro a café: más viejo, más oscuro; cada uno escribe su cifra), el hover del botón de atraso y las medidas de
+     las secciones 05 a 08 (celdas de la retención y del mapa, columnas de la rejilla, alto del área de ingreso, ancho mínimo de una tarjeta del comparativo). */
+  --cartera-1: var(--alerta-borde);
+  --cartera-2: #d9962b;
+  --cartera-3: #a86412;
+  --cartera-4: var(--alerta);
+  --alerta-hover: #ffe6b3;
+  --radio-cartera: 9px;
+  --radio-muestra: 3px;
+  --alto-celda-retencion: 40px;
+  --alto-celda-mapa: 38px;
+  --ancho-col-cohorte: 120px;
+  --ancho-col-altas: 70px;
+  --ancho-min-retencion: 560px;
+  --ancho-eje-hora: 52px;
+  --alto-area: 190px;
+  --ancho-min-comparativo: 300px;
+
+  /* R3 (tableros A): el héroe oscuro (tinta de lo bueno, fondo de cada indicador), las barras de bajas (rojo suave de la maqueta, con su tinta de texto) y las medidas del embudo y del tablero. */
+  --heroe-bien: #8fd8a8;
+  --heroe-kpi-fondo: rgb(255 255 255 / 6%);
+  --serie-baja: #c4544a;
+  --serie-baja-texto: #9a3a31;
+  --radio-barra: 8px;
+  --alto-barra-embudo: 36px;
+  --alto-barra-motivo: 10px;
+  --ancho-etiqueta-embudo: 190px;
+  --ancho-etiqueta-embudo-movil: 96px;
+  --separacion-nav-tablero: 4px;
+  --radio-leyenda: 3px;
+  --ancho-minimo-tendencia: 528px;
+
   /* Movimiento (SISTEMA-VISUAL.md): 120 ms para hover y foco, 180 ms para entradas y salidas. */
   --t-rapido: 120ms;
   --t-entrada: 180ms;
@@ -600,36 +632,13 @@ html { scroll-padding-top: 4.5rem; scroll-padding-bottom: 9rem; }
 .indicador-cifra-accion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--e2); }
 .indicador-cifra-accion a { display: inline-flex; align-items: center; min-height: var(--alto-toque); }
 @media (max-width: 899px) { .indicador-principal { flex-basis: 100%; } }
-/* Filtros del tablero: los campos a la izquierda y las descargas a la derecha (en celular, una debajo de otra). */
+/* Filtros de los tableros: los campos en fila (en la página de Tableros, las píldoras y el rango van en el bloque «R3: tableros A», al final). */
 .filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--e4); }
 .filtros > .campo { flex: 1 1 9.5rem; max-width: 20rem; }
-.filtros-tablero { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--e3) var(--e4); }
-.filtros-tablero > .filtros { align-items: flex-start; }
-.filtros-tablero > .filtros { flex: 1 1 auto; }
-/* Los campos pueden crecer hacia abajo (ayuda, error): todo se alinea arriba y las descargas bajan lo que mide la etiqueta, para quedar a la altura de la caja del campo. */
-.filtros-acciones { display: flex; flex-wrap: wrap; gap: var(--e2); margin-top: calc(1rem + 6px); }
-@media (max-width: 899px) {
-  .filtros-tablero { flex-direction: column; align-items: stretch; }
-  .filtros-acciones { flex-direction: column; }
-  .filtros-acciones { margin-top: 0; }
-  /* En celular el dato va primero: campos, indicadores, descargas y luego lo demás. */
-  .pila[data-prueba^="tablero-"] > * { order: 3; }
-  .pila[data-prueba^="tablero-"] > .filtros-tablero { display: contents; order: 0; }
-  .pila[data-prueba^="tablero-"] > .filtros-tablero > .filtros { order: 0; }
-  .pila[data-prueba^="tablero-"] > .indicadores { order: 1; }
-  .pila[data-prueba^="tablero-"] > .filtros-tablero > .filtros-acciones { order: 2; }
-  .tableros-pestanas .pestanas button { flex: 1 1 0; min-width: 0; padding: 6px var(--e1); white-space: normal; line-height: 1.2; text-align: center; }
-}
 /* Tablas del tablero: en celular cada fila es una tarjeta (el nombre arriba, cada cifra con su etiqueta, la acción al pie). */
-.tabla-grupo { display: flex; flex-direction: column; gap: var(--e2); }
 table.tabla td.celda-titulo { font-weight: 600; }
 table.tabla td.celda-accion { text-align: right; vertical-align: middle; white-space: nowrap; }
 table.tabla td.celda-accion .boton, .gasto .boton { white-space: nowrap; }
-/* Las tres tablas de clases comparten las mismas columnas: las cifras alinean de una tabla a otra. */
-.tabla-grupo table.tabla { table-layout: fixed; }
-.tabla-grupo table.tabla th { white-space: normal; overflow-wrap: anywhere; }
-.tabla-grupo table.tabla th:first-child { width: 28%; }
-.tabla-grupo table.tabla th:last-child { width: auto; }
 table.tabla[data-prueba="tabla-de-costo"] td { vertical-align: middle; }
 @media (max-width: 899px) {
   .tarjeta .tabla-apilada table.tabla tr { background: var(--fondo); box-shadow: none; border-color: transparent; }
@@ -1367,11 +1376,13 @@ select { text-overflow: ellipsis; }
 [data-disciplina] {
   --disciplina-suave: oklch(from var(--disciplina) 0.95 0.035 h);
   --disciplina-tinta: oklch(from var(--disciplina) 0.44 0.13 h);
+  --disciplina-medio: oklch(from var(--disciplina) 0.82 0.08 h);
 }
 [data-disciplina="neutra"] {
   --disciplina: var(--borde-campo);
   --disciplina-suave: var(--etiqueta);
   --disciplina-tinta: var(--etiqueta-texto);
+  --disciplina-medio: var(--borde-boton);
 }
 /* Etiqueta de disciplina: punto + nombre, esquinas de 6. Sin `data-disciplina` en un ancestro, los `var()` caen al neutro. */
 .etiqueta-disciplina { display: inline-flex; align-items: center; gap: 6px; padding: 2px var(--e2); border-radius: var(--radio-etiqueta); background: var(--disciplina-suave, var(--etiqueta)); color: var(--disciplina-tinta, var(--etiqueta-texto)); font-size: 0.75rem; line-height: 1rem; font-weight: 700; }
@@ -1627,3 +1638,321 @@ table.tabla-leads tr[data-seleccionado] { background: var(--primario-suave); }
 .montos-dialogo strong { font-variant-numeric: tabular-nums; }
 .montos-dialogo .monto-total { padding-top: var(--e2); border-top: 1px solid var(--borde-boton); font-weight: 700; }
 .monto-total strong { font-family: var(--fuente-titulo); font-size: 1.25rem; line-height: 1.5rem; }
+
+/* === R3: tableros A === */
+/* Sección numerada de la página de Tableros (README «Tipografía»): número 15 en --primario, título 24/30 y una frase de contexto. La usan las ocho secciones (A: 01 a 04, B: 05 a 08).
+   `scroll-margin-top` deja la sección bajo las pestañas fijas al saltar a ella. */
+.seccion-numerada { display: flex; flex-direction: column; gap: 14px; min-width: 0; scroll-margin-top: calc(var(--alto-toque) + var(--e4)); }
+.seccion-numerada-cabeza { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: var(--e1) var(--e3); }
+.seccion-numerada-numero { font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--seccion-numero-tam); line-height: var(--seccion-titulo-linea); color: var(--primario); font-variant-numeric: tabular-nums; }
+.seccion-numerada-titulo { margin: 0; font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--seccion-titulo-tam); line-height: var(--seccion-titulo-linea); letter-spacing: -0.01em; text-wrap: balance; }
+.seccion-numerada-descripcion { grid-column: 1 / -1; margin: 0; max-width: 72ch; color: var(--texto-medio); text-wrap: pretty; }
+
+/* Encabezado: el mes y las descargas a la derecha (en celular, apiladas a lo ancho). «Más descargas» es un menú plegable que flota bajo su botón. */
+.tablero-acciones { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--e2) var(--e3); }
+.tablero-acciones .campo { min-width: 10rem; }
+.menu-descargas { position: relative; }
+.menu-descargas > summary { display: inline-flex; align-items: center; min-height: var(--alto-toque); padding: 0 var(--e4); border: 1px solid var(--borde-boton); border-radius: var(--radio); background: var(--superficie); color: var(--texto); font-weight: 600; cursor: pointer; list-style: none; transition: background-color var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.menu-descargas > summary::-webkit-details-marker { display: none; }
+.menu-descargas > summary:hover { background: var(--fondo); border-color: var(--borde-campo); }
+.menu-descargas-lista { position: absolute; right: 0; top: calc(100% + var(--e1)); z-index: 6; display: flex; flex-direction: column; gap: var(--e2); min-width: 16rem; padding: var(--e3); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); box-shadow: var(--sombra-flotante); }
+@media (max-width: 899px) { .tablero-acciones { width: 100%; } .tablero-acciones > * { flex: 1 1 100%; } .tablero-acciones .campo { min-width: 0; } .menu-descargas-lista { position: static; box-shadow: none; margin-top: var(--e2); } }
+
+/* Filtros: las píldoras de disciplina (con su punto de color), la sucursal y, para las secciones 01 a 03, el rango de fechas. */
+.tablero-filtros { display: flex; flex-direction: column; gap: var(--e3); }
+.tablero-pildoras { display: flex; flex-wrap: wrap; gap: var(--e2); }
+.tablero-campos { align-items: flex-start; }
+.tablero-nota { margin: 0; font-size: 0.78125rem; line-height: 1rem; }
+
+/* Pestañas fijas: un índice de la misma página. En celular son una tira que se desplaza hacia los lados. */
+.tablero-pestanas { position: sticky; top: 0; z-index: 5; margin-inline: calc(-1 * var(--separacion-nav-tablero)); padding-inline: var(--separacion-nav-tablero); background: var(--fondo); border-bottom: 1px solid var(--borde); }
+.tablero-pestanas ul { display: flex; gap: var(--separacion-nav-tablero); margin: 0; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; }
+.tablero-pestanas ul::-webkit-scrollbar { display: none; }
+.tablero-pestanas li { flex: none; }
+.tablero-pestanas button { min-height: var(--alto-toque); padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--texto-medio); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color var(--t-rapido) var(--curva), border-color var(--t-rapido) var(--curva); }
+.tablero-pestanas button:hover { color: var(--texto); }
+.tablero-pestanas button[aria-current="true"] { border-bottom-color: var(--primario); color: var(--primario-fuerte); font-weight: 700; }
+.tablero-secciones { display: flex; flex-direction: column; gap: var(--e6); }
+.tablero-seccion { min-width: 0; scroll-margin-top: calc(var(--alto-toque) + var(--e3)); }
+
+/* Tarjeta de gráfica (figure con borde, sin sombra: los paneles fijos llevan borde). */
+.tablero-tarjeta { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--e3); padding: var(--e5); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.tablero-tarjeta-cabeza { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--e1) var(--e3); }
+.tablero-tarjeta-titulo { font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.tablero-tarjeta-nota { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1.375rem; }
+.detalle-tablero > summary { display: flex; align-items: center; min-height: var(--alto-toque); color: var(--primario-fuerte); font-weight: 600; cursor: pointer; }
+.detalle-tablero-cuerpo { display: flex; flex-direction: column; gap: var(--e4); margin-top: var(--e2); }
+.detalle-tablero th[scope="row"] { color: var(--texto); font-size: inherit; line-height: inherit; font-weight: 600; }
+
+/* Héroe oscuro (README «Profundidad»): el titular, tres frases calculadas y seis indicadores. */
+.heroe { display: flex; flex-wrap: wrap; gap: 28px; padding: 28px 30px; background: var(--lateral); color: var(--primario-texto); border-radius: var(--radio-panel-oscuro); box-shadow: var(--sombra-panel-oscuro); }
+.heroe-texto { flex: 1.2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.heroe-ojo { margin: 0; color: var(--lateral-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; letter-spacing: var(--grupo-lateral-espaciado); text-transform: uppercase; }
+.heroe-titular { margin: 0; font-family: var(--fuente-titulo); font-weight: 700; font-size: var(--heroe-tam); line-height: var(--heroe-linea); letter-spacing: var(--heroe-espaciado); text-wrap: balance; }
+.heroe .cargando { color: var(--lateral-texto); }
+.heroe-frases { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.heroe-frase { display: flex; gap: 10px; color: var(--lateral-texto); font-size: 0.9375rem; line-height: 1.375rem; text-wrap: pretty; }
+.heroe-frase-punto { flex: none; width: 6px; height: 6px; margin-top: 8px; border-radius: var(--radio-pildora); background: var(--lateral-suave); }
+.heroe-frase-bien .heroe-frase-punto { background: var(--heroe-bien); }
+.heroe-frase-atencion .heroe-frase-punto { background: var(--alerta-borde); }
+.heroe-indicadores { flex: 1 1 320px; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-content: start; }
+.heroe-indicador { min-width: 0; display: flex; flex-direction: column; gap: var(--e1); padding: 14px var(--e4); background: var(--heroe-kpi-fondo); border: 1px solid var(--lateral-linea); border-radius: var(--radio-indicador); }
+.heroe-indicador-etiqueta { display: flex; align-items: center; gap: 6px; color: var(--lateral-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.heroe-indicador-valor { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.625rem; line-height: 2rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.heroe-indicador-nota { color: var(--lateral-texto); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.heroe-indicador-nota-bien { color: var(--heroe-bien); }
+.heroe-indicador-alerta { background: var(--alerta-suave); border-color: var(--alerta-borde); }
+.heroe-indicador-alerta .heroe-indicador-etiqueta, .heroe-indicador-alerta .heroe-indicador-nota { color: var(--alerta); }
+.heroe-indicador-alerta .heroe-indicador-valor { color: var(--alerta-fuerte); }
+@media (max-width: 899px) {
+  .heroe { padding: 22px 20px; }
+  .heroe-titular { font-size: var(--heroe-tam-movil); }
+  .heroe-indicadores { gap: var(--e2); }
+  .heroe-indicador { padding: var(--e3); }
+  .heroe-indicador-valor { font-size: 1.25rem; line-height: 1.75rem; }
+}
+
+/* 01 Embudo: etiqueta, barra con su cifra dentro y porcentaje; entre una etapa y otra, la caída (la mayor, en ámbar y con la frase «la mayor caída»). */
+.embudo-cuerpo { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--e4); }
+.embudo-figura { flex: 2 1 460px; }
+.motivos-figura { flex: 1 1 280px; gap: 14px; }
+.embudo-etapas { display: flex; flex-direction: column; gap: var(--e1); margin: 0; padding: 0; list-style: none; }
+.embudo-etapa { display: flex; flex-direction: column; gap: var(--e1); }
+.embudo-fila { display: grid; grid-template-columns: var(--ancho-etiqueta-embudo) minmax(0, 1fr) 52px; gap: var(--e3); align-items: center; }
+.embudo-nombre { font-weight: 600; text-wrap: pretty; overflow-wrap: anywhere; }
+.embudo-barra { display: block; width: 100%; height: var(--alto-barra-embudo); }
+.embudo-riel { fill: var(--fondo); }
+.embudo-valor { fill: var(--primario); }
+.embudo-valor-ganado { fill: var(--exito); }
+.embudo-cifra { fill: var(--primario-texto); font-family: var(--fuente-texto); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.embudo-cifra-cero { fill: var(--texto-medio); }
+.embudo-pct { text-align: right; color: var(--texto-medio); font-weight: 700; white-space: nowrap; }
+.embudo-caida { display: inline-flex; align-items: center; gap: 6px; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.embudo-caida-mayor { color: var(--alerta); font-weight: 700; }
+.motivos { display: flex; flex-direction: column; gap: var(--e3); margin: 0; padding: 0; list-style: none; }
+.motivos li { display: flex; flex-direction: column; gap: 6px; }
+.motivo-texto { display: flex; justify-content: space-between; gap: var(--e3); }
+.motivo-nombre { font-weight: 600; }
+.motivo-barra { display: block; width: 100%; height: var(--alto-barra-motivo); }
+.motivo-riel { fill: var(--columna); }
+.motivo-valor { fill: var(--texto-medio); }
+@media (max-width: 899px) { .embudo-fila { grid-template-columns: var(--ancho-etiqueta-embudo-movil) minmax(0, 1fr) 52px; gap: var(--e2); } .embudo-figura, .motivos-figura { flex-basis: 100%; padding: var(--e4); } }
+
+/* 02 Fuentes: la tabla con barras de adorno (la cifra siempre escrita) y, abajo, el costo por campaña de siempre. */
+.tabla-fuentes table.tabla td { vertical-align: middle; }
+.fuente-nombre, .fuente-campana { display: block; }
+.fuente-nombre { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 700; }
+.fuente-campana { color: var(--texto-suave); }
+.fuente-medida { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tabla-fuentes td:nth-child(2) .fuente-medida { max-width: 16rem; }
+.fuente-medida strong { flex: none; min-width: 2ch; text-align: right; }
+.fuente-barra { flex: 1 1 0; min-width: 2rem; height: 10px; }
+.fuente-riel { fill: var(--columna); }
+.fuente-valor { fill: var(--primario); }
+.fuente-valor-alto { fill: var(--peligro); }
+.fuente-costo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.fuente-costo .fuente-medida { flex: 1 1 9rem; }
+.fuente-costo .fuente-medida strong { white-space: nowrap; }
+.fuente-sin-costo { color: var(--texto-suave); }
+.fuentes-costo { display: flex; flex-direction: column; gap: var(--e3); margin-top: var(--e3); }
+.fuentes-costo h3 { font-size: 1.0625rem; line-height: 1.375rem; }
+.costo-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e3); }
+.costo-cabeza p { margin: 0; max-width: 60ch; }
+@media (max-width: 899px) { .tabla-fuentes .fuente-medida { flex: 1 1 auto; justify-content: flex-end; } }
+
+/* 03 Clases muestra: una tarjeta por disciplina con su banda de color (el dato `color_marca`), dos cifras grandes y tres barras (lleno, medio y contorno), cada una con su cifra. */
+.clasemu-acciones { display: flex; justify-content: flex-end; }
+.clasemu-tarjetas { display: flex; flex-wrap: wrap; gap: var(--e4); }
+.clasemu-tarjeta { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; margin: 0; overflow: hidden; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); }
+.clasemu-banda { height: 6px; background: var(--disciplina, var(--borde-campo)); }
+.clasemu-cuerpo { display: flex; flex-direction: column; gap: 14px; padding: 18px var(--e5) var(--e5); }
+.clasemu-titulo { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e2); }
+.clasemu-nombre { font-size: 1.0625rem; line-height: 1.375rem; font-weight: 700; }
+.clasemu-agendadas { color: var(--texto-suave); font-size: 0.78125rem; }
+.clasemu-cifras { display: flex; gap: var(--e5); }
+.clasemu-cifras > div { display: flex; flex-direction: column; }
+.clasemu-cifra { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.875rem; line-height: 2.125rem; color: var(--disciplina-tinta, var(--texto)); font-variant-numeric: tabular-nums; }
+.clasemu-cifra-nombre { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.clasemu-barras { display: flex; flex-direction: column; gap: var(--e2); }
+.clasemu-barra { display: grid; grid-template-columns: 112px minmax(0, 1fr) 34px; gap: 10px; align-items: center; }
+.clasemu-barra-nombre { color: var(--texto-medio); font-size: 0.8125rem; }
+.clasemu-barra > strong { text-align: right; font-variant-numeric: tabular-nums; }
+.clasemu-barra-svg { display: block; width: 100%; height: 14px; }
+.clasemu-riel { fill: var(--fondo); }
+.clasemu-valor-agendadas { fill: var(--disciplina-suave, var(--etiqueta)); stroke: var(--disciplina, var(--borde-campo)); stroke-width: 1.5; }
+.clasemu-valor-asistieron { fill: var(--disciplina-medio, var(--borde-boton)); stroke: var(--disciplina-medio, var(--borde-boton)); stroke-width: 1.5; }
+.clasemu-valor-inscritas { fill: var(--disciplina, var(--primario)); stroke: var(--disciplina, var(--primario)); stroke-width: 1.5; }
+
+/* 04 Altas y bajas: el SVG se dibuja al ancho real de la caja; encima, doce botones transparentes (uno por mes) que reciben el cursor, el toque y el foco. */
+.tendencia-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px var(--e5); }
+.tendencia-seleccion { display: flex; flex-wrap: wrap; gap: 6px var(--e4); font-size: 0.8125rem; line-height: 1.125rem; }
+.tendencia-dato { display: inline-flex; align-items: center; gap: 6px; }
+.tendencia-marca { flex: none; display: inline-block; }
+.tendencia-marca-altas, .tendencia-marca-bajas { width: 10px; height: 10px; border-radius: var(--radio-leyenda); }
+.tendencia-marca-altas { background: var(--primario); }
+.tendencia-marca-bajas { background: var(--serie-baja); }
+.tendencia-marca-activos { width: 14px; height: 0; border-top: 2.5px solid var(--texto); }
+.tendencia-pasos { display: none; }
+.tendencia-caja { width: 100%; overflow-x: auto; }
+.tendencia-lienzo { position: relative; min-width: var(--ancho-minimo-tendencia); }
+.tendencia-svg { display: block; max-width: none; }
+.tendencia-meses { position: absolute; inset: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.tendencia-meses li { min-width: 0; }
+.tendencia-mes-boton { display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: var(--radio-segmento); background: transparent; cursor: default; }
+.tendencia-mes-boton:focus-visible { outline: 2px solid var(--foco); outline-offset: -2px; }
+.tendencia-columna { fill: var(--fondo); }
+.tendencia-eje { stroke: var(--borde-boton); stroke-width: 1; }
+.tendencia-linea { fill: none; stroke: var(--texto); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.tendencia-punto { fill: var(--superficie); stroke: var(--texto); stroke-width: 2.5; }
+.tendencia-barra-alta { fill: var(--primario); }
+.tendencia-barra-baja { fill: var(--serie-baja); }
+.tendencia-cifra { font-family: var(--fuente-texto); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tendencia-cifra-alta { fill: var(--primario-fuerte); }
+.tendencia-cifra-baja { fill: var(--serie-baja-texto); }
+.tendencia-mes { fill: var(--texto-suave); font-family: var(--fuente-texto); font-size: 12.5px; font-weight: 500; }
+.tendencia-mes-elegido { fill: var(--texto); font-weight: 700; }
+.tendencia-leyenda { display: flex; flex-wrap: wrap; gap: 6px var(--e4); margin: 0; padding: 0; list-style: none; color: var(--texto-medio); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.tendencia-leyenda li { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 899px) { .tendencia-pasos { display: flex; justify-content: flex-end; gap: var(--e2); } .tendencia-figura { padding: var(--e4); } }
+
+/* === R3: tableros B === */
+/* Secciones 05 a 08 de Tableros: retención por cohortes, ingreso recurrente y cartera, mapa de calor y comparativo. Texto primero: toda cifra se escribe; el color es un refuerzo. */
+.panel-b { position: relative; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--e3); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); padding: var(--e5); }
+.panel-b-cabeza { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--e2); }
+.panel-b-cabeza-cifra { align-items: baseline; }
+.panel-b-cabeza-columna { flex-direction: column; justify-content: flex-start; gap: 6px; }
+.panel-b-titulo { margin: 0; font-size: 1rem; line-height: 1.375rem; font-weight: 700; }
+.panel-b-titulo-icono { display: flex; align-items: center; gap: var(--e2); }
+.panel-b-nota { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1.375rem; }
+.panel-b-cabeza-columna .panel-b-nota { line-height: 1rem; }
+.seccion-b-fila { display: flex; flex-wrap: wrap; align-items: stretch; gap: 16px; }
+.panel-b-ingreso, .panel-b-mapa { flex: 1.6 1 420px; }
+.panel-b-cartera { flex: 1 1 300px; gap: 14px; }
+
+/* La escala de calor (README «Mapa de calor y retención»): del claro al oscuro con el porcentaje escrito en cada celda. `.calor-sin` es el rayado de «sin dato» / «sin clases». */
+.calor-1 { background: var(--calor-1); color: var(--primario-fuerte); }
+.calor-2 { background: var(--calor-2); color: var(--primario-fuerte); }
+.calor-3 { background: var(--calor-3); color: var(--calor-3-texto); }
+.calor-4 { background: var(--calor-4); color: var(--calor-4-texto); }
+.calor-5 { background: var(--calor-5); color: var(--calor-5-texto); box-shadow: inset 0 0 0 2px var(--calor-5-borde); }
+.calor-sin { background: repeating-linear-gradient(135deg, var(--fondo) 0 6px, var(--etiqueta) 6px 12px); color: var(--texto-suave); }
+.leyenda-calor { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--texto-medio); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.leyenda-calor li { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda-calor-muestra { flex: none; width: 16px; height: 12px; border-radius: var(--radio-muestra); }
+.leyenda-calor-muestra.calor-sin { background: repeating-linear-gradient(135deg, var(--fondo) 0 4px, var(--etiqueta) 4px 8px); box-shadow: inset 0 0 0 1px var(--borde); }
+
+/* 05 Retención: tabla de cohortes × meses. En pantallas angostas la tabla se desplaza de lado dentro de su recuadro (la página no). */
+.retencion-desplazable { position: relative; overflow-x: auto; margin: 0 calc(-1 * var(--e1)); }
+.retencion-desplazable:focus-visible { outline-offset: -2px; }
+.retencion { width: 100%; min-width: var(--ancho-min-retencion); table-layout: fixed; border-collapse: separate; border-spacing: var(--e1); }
+.retencion-col-mes { width: var(--ancho-col-cohorte); }
+.retencion-col-altas { width: var(--ancho-col-altas); }
+.retencion-encabezado { padding: var(--e1) 0; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; text-align: left; }
+.retencion-encabezado-derecha { text-align: right; }
+.retencion-encabezado-centro { text-align: center; }
+.retencion-cohorte { padding: 10px 0; text-align: left; font-weight: 600; }
+.retencion-cohorte-promedio { font-weight: 800; }
+.retencion-altas { padding: 10px 0; text-align: right; color: var(--texto-medio); font-variant-numeric: tabular-nums; }
+.retencion-celda { height: var(--alto-celda-retencion); padding: 0; text-align: center; border-radius: var(--radio-barra); font-weight: 700; font-variant-numeric: tabular-nums; }
+.retencion-celda-promedio { background: var(--superficie); color: var(--texto); box-shadow: inset 0 0 0 2px var(--texto); }
+/* En celular la tabla cabe entera: la columna de alumnos se oculta y su cifra pasa bajo el mes de inscripción; 6 meses en ~37 px cada uno, letra de 12; el encabezado «Mes N» puede pasar a dos renglones. */
+.retencion-cohorte-altas { display: none; }
+@media (max-width: 899px) {
+  .panel-b { padding: var(--e4) 14px; }
+  .retencion-desplazable { margin: 0; }
+  .retencion { min-width: 0; border-spacing: 3px; }
+  .retencion-col-mes { width: 84px; }
+  .retencion-col-altas, .retencion-encabezado-derecha, .retencion-altas { display: none; }
+  .retencion-cohorte-altas { display: block; color: var(--texto-suave); font-size: 0.6875rem; line-height: 0.875rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .retencion-celda { font-size: 0.75rem; border-radius: var(--radio-etiqueta); }
+  .retencion-encabezado { font-size: 0.6875rem; line-height: 0.875rem; }
+  .retencion-cohorte { padding: 6px 0; font-size: 0.8125rem; line-height: 1rem; }
+}
+
+/* 06 Ingreso recurrente: área y línea de SVG propio (se estira con preserveAspectRatio="none"; los trazos no se deforman) y cifra de cada mes en una tabla desplegable. */
+.ingreso-cifra { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--e2); }
+.ingreso-valor { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.625rem; line-height: 1.875rem; }
+.ingreso-cambio { padding: 2px var(--e2); border-radius: var(--radio-pildora); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; }
+.ingreso-cambio-sube { background: var(--exito-suave); color: var(--exito); }
+.ingreso-cambio-baja { background: var(--peligro-suave); color: var(--peligro); }
+.ingreso-cambio-neutro { background: var(--etiqueta); color: var(--etiqueta-texto); }
+.area { position: relative; height: var(--alto-area); }
+.area-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.area-base { stroke: var(--borde); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.area-relleno { fill: var(--primario); fill-opacity: 0.1; }
+.area-linea { fill: none; stroke: var(--primario); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.area-halo { fill: none; stroke: var(--primario-suave); stroke-width: 20; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.area-punto { fill: none; stroke: var(--primario); stroke-width: 12; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.area-eje { position: absolute; left: 0; color: var(--texto-suave); font-size: 0.75rem; line-height: 1rem; font-variant-numeric: tabular-nums; }
+.area-eje-alto { top: 0; }
+.area-eje-bajo { bottom: 14px; }
+.area-meses { display: flex; list-style: none; margin: 0; padding: 0; }
+.area-meses li { flex: 1 1 0; min-width: 0; text-align: center; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 500; }
+.area-meses .area-mes-actual { color: var(--texto); font-weight: 700; }
+.area-cifras summary { display: flex; align-items: center; min-height: var(--alto-toque); color: var(--primario-fuerte); font-weight: 600; cursor: pointer; }
+.tabla-cifras { width: 100%; border-collapse: collapse; }
+.tabla-cifras th, .tabla-cifras td { padding: var(--e2) 0; border-top: 1px solid var(--borde); text-align: left; font-weight: 500; }
+.tabla-cifras thead th { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; }
+.tabla-cifras .tabla-cifras-derecha { text-align: right; }
+.tabla-cifras td { font-weight: 600; }
+.tabla-cifras tbody th::first-letter { text-transform: uppercase; }
+
+/* 06 Cartera vencida: total, barra apilada por antigüedad (decorativa) y un renglón por tramo con sus familias y su monto. */
+.cartera-total { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.875rem; line-height: 2.125rem; color: var(--alerta-fuerte); font-variant-numeric: tabular-nums; }
+.cartera-barra { display: block; width: 100%; height: 18px; overflow: hidden; border-radius: var(--radio-cartera); background: var(--columna); }
+.cartera-tramo { stroke: var(--superficie); stroke-width: 2; }
+.cartera-tramo-1 { fill: var(--cartera-1); background: var(--cartera-1); }
+.cartera-tramo-2 { fill: var(--cartera-2); background: var(--cartera-2); }
+.cartera-tramo-3 { fill: var(--cartera-3); background: var(--cartera-3); }
+.cartera-tramo-4 { fill: var(--cartera-4); background: var(--cartera-4); }
+.cartera-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cartera-lista li { display: flex; align-items: center; gap: 10px; }
+.cartera-marca { flex: none; width: 12px; height: 12px; border-radius: var(--radio-marca); }
+.cartera-nombre { flex: 1; min-width: 0; }
+.cartera-lista strong { font-variant-numeric: tabular-nums; }
+.cartera-sin { display: flex; align-items: center; gap: var(--e2); margin: 0; color: var(--exito); font-weight: 600; }
+.boton.cartera-accion { align-self: flex-start; background: var(--alerta-suave); border-color: var(--alerta-borde); color: var(--alerta-fuerte); font-weight: 700; }
+.boton.cartera-accion:hover { background: var(--alerta-hover); border-color: var(--alerta-borde); color: var(--alerta-fuerte); }
+
+/* 07 Mapa de calor: tabla de hora × día con el porcentaje escrito en cada celda; a la derecha, los grupos a reventar y con lugares. */
+.mapa { width: calc(100% + var(--e2)); margin: calc(-1 * var(--e1)); table-layout: fixed; border-collapse: separate; border-spacing: var(--e1); }
+.mapa-esquina, .mapa-hora { width: var(--ancho-eje-hora); }
+.mapa-dia { padding: 0 0 2px; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 700; text-align: center; }
+.mapa-hora { color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; font-weight: 600; text-align: left; font-variant-numeric: tabular-nums; }
+.mapa-celda { height: var(--alto-celda-mapa); padding: 0; text-align: center; border-radius: var(--radio-barra); font-size: 0.78125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mapa-columna { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.mapa-icono-alerta { display: flex; color: var(--alerta); }
+.mapa-grupos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.mapa-grupos li { display: flex; justify-content: space-between; gap: var(--e3); padding: 10px var(--e3); border-radius: var(--radio); }
+.mapa-grupos-llenos li { background: var(--alerta-suave); }
+.mapa-grupos-vacios li { background: var(--fondo); }
+.mapa-grupo-texto { min-width: 0; display: flex; flex-direction: column; }
+.mapa-grupo-nombre { font-weight: 700; overflow-wrap: anywhere; }
+.mapa-grupos-llenos .mapa-grupo-detalle { color: var(--alerta); }
+.mapa-grupos-vacios .mapa-grupo-detalle { color: var(--texto-suave); }
+.mapa-grupo-cupo { flex: none; font-variant-numeric: tabular-nums; }
+.mapa-grupos-llenos .mapa-grupo-cupo { color: var(--alerta-fuerte); }
+.mapa-grupos-mas { margin: 0; }
+
+/* 08 Comparativo: una tarjeta por disciplina × sucursal. `--disciplina` lo pone ConDisciplina con el color de marca (neutro si no tiene). */
+.comparativo-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--ancho-min-comparativo)), 1fr)); gap: 16px; }
+.comparativo-tarjeta { min-width: 0; display: flex; flex-direction: column; gap: var(--e3); background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio-panel); padding: 18px var(--e5); }
+.comparativo-cabeza { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
+.comparativo-disciplina { min-width: 0; display: inline-flex; align-items: center; gap: var(--e2); font-size: 0.9375rem; line-height: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+.comparativo-punto { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--disciplina, var(--borde-campo)); }
+.comparativo-sucursal { flex: none; padding: 2px var(--e2); background: var(--etiqueta); color: var(--etiqueta-texto); border-radius: var(--radio-etiqueta); font-size: 0.75rem; line-height: 1rem; font-weight: 600; }
+.comparativo-alumnos { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--e2); }
+.comparativo-cifra { font-family: var(--fuente-titulo); font-weight: 700; font-size: 1.875rem; line-height: 2.125rem; }
+.comparativo-detalle { color: var(--texto-suave); }
+.comparativo-medida { display: flex; flex-direction: column; gap: 6px; }
+.comparativo-fila { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); font-size: 0.8125rem; line-height: 1.25rem; color: var(--texto-medio); }
+.comparativo-fila strong { color: var(--texto); font-variant-numeric: tabular-nums; }
+.comparativo-barra { display: block; width: 100%; height: 10px; overflow: hidden; border-radius: var(--radio-marca); }
+.comparativo-barra-riel { fill: var(--columna); }
+.comparativo-barra-valor { fill: var(--disciplina, var(--borde-campo)); }
+.comparativo-nota { margin: 0; color: var(--texto-suave); font-size: 0.78125rem; line-height: 1rem; }
+.comparativo-desercion { display: inline-flex; align-items: center; gap: var(--e1); padding: 2px var(--e2); border-radius: var(--radio-pildora); font-weight: 700; font-variant-numeric: tabular-nums; }
+.comparativo-desercion-alta { background: var(--peligro-suave); color: var(--peligro); }
+.comparativo-desercion-media { background: var(--alerta-suave); color: var(--alerta); }
+.comparativo-desercion-baja { background: var(--exito-suave); color: var(--exito); }
+.comparativo-desercion-sin { background: var(--etiqueta); color: var(--etiqueta-texto); }

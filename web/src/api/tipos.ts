@@ -211,3 +211,153 @@ export interface ProgramaCotizado {
   grupos: GrupoCotizado[];
   promociones: PromocionesCotizadas | null;
 }
+
+// ── Datos de las gráficas del tablero (R3a): `GET /api/reportes/{ejecutivo,embudo,fuentes,evolucion}`. Los importes son TEXTO decimal exacto; los porcentajes, texto con un decimal («42.9»). ──
+// Clases muestra por disciplina: sigue siendo `GET /api/reportes/clases-muestra` (tipos en `pantallas/tableros/tipos.ts`, `por_vertical`). Los filtros `sucursal_id` y `vertical_id` son opcionales.
+
+export type TramoDeAntiguedad = "de_0_a_30" | "de_31_a_60" | "de_61_a_90" | "mas_de_90";
+export type EstadoDeOcupacion = "a_reventar" | "vacio" | "normal";
+
+/** Una franja semanal de un grupo. `dia_semana`: 0 = domingo … 6 = sábado; los minutos son desde la medianoche local de la sucursal. */
+export interface FranjaDeGrupo {
+  dia_semana: number;
+  hora_inicio_min: number;
+  hora_fin_min: number;
+}
+
+export interface OcupacionDeGrupo {
+  grupo: { id: string; nombre: string };
+  programa: string;
+  vertical: { id: string; nombre: string };
+  sucursal: { id: string; nombre: string };
+  ocupados: number;
+  cupo_maximo: number;
+  ocupacion: string;
+  estado: EstadoDeOcupacion;
+  horarios: FranjaDeGrupo[];
+  /** «lunes y miércoles de 16:00 a 17:00». */
+  horario_texto: string;
+}
+
+/** Una celda del mapa de calor: día de la semana × hora de INICIO (0 a 23). Solo vienen las celdas con clases; las demás son «sin clases». */
+export interface CeldaDeMapaDeOcupacion {
+  dia_semana: number;
+  hora: number;
+  grupos: number;
+  ocupados: number;
+  cupo_maximo: number;
+  ocupacion: string;
+  estado: EstadoDeOcupacion;
+}
+
+export interface FilaDeComparativo {
+  vertical: { id: string; nombre: string };
+  sucursal: { id: string; nombre: string };
+  alumnos: number;
+  inscripciones: number;
+  ingreso_mensual_recurrente: string;
+  ocupados: number;
+  cupo_maximo: number;
+  /** null: la disciplina no tiene grupos activos en esa sucursal. */
+  ocupacion: string | null;
+  altas_del_mes: number;
+  bajas_del_mes: number;
+  base_al_inicio_del_mes: number;
+  desercion: string | null;
+  desercion_texto: string;
+}
+
+/** `GET /api/reportes/ejecutivo?mes=AAAA-MM&sucursal_id=&vertical_id=`: el reporte ejecutivo de siempre con los campos nuevos (`familias*`, `mapa_ocupacion`, `bajas_por_motivo`, `comparativo`, horarios por grupo). */
+export interface EjecutivoDelTablero {
+  mes: string;
+  activos: { total_alumnos: number; total_inscripciones: number; por_vertical_y_sucursal: { vertical: { id: string; nombre: string }; sucursal: { id: string; nombre: string }; alumnos: number; inscripciones: number; ingreso_mensual_recurrente: string }[] };
+  altas_del_mes: number;
+  bajas_del_mes: number;
+  base_al_inicio_del_mes: number;
+  desercion: string | null;
+  desercion_texto: string;
+  ingreso_mensual_recurrente: string;
+  cartera_vencida: {
+    total: string;
+    antiguedad: Record<TramoDeAntiguedad, string>;
+    /** Familias (tutores distintos) con saldo vencido, en total y por tramo. */
+    familias: number;
+    familias_por_tramo: Record<TramoDeAntiguedad, number>;
+  };
+  ocupacion_por_grupo: OcupacionDeGrupo[];
+  mapa_ocupacion: CeldaDeMapaDeOcupacion[];
+  /** Las bajas del mes por motivo, de más a menos; `motivo: null` = sin motivo. */
+  bajas_por_motivo: { motivo: { id: string; nombre: string } | null; bajas: number }[];
+  comparativo: FilaDeComparativo[];
+}
+
+/** `GET /api/reportes/embudo?desde=&hasta=&sucursal_id=&vertical_id=`: la cohorte de leads que llegaron en el rango. */
+export interface EtapaDelEmbudo {
+  etapa: { id: string; nombre: string; tipo_sistema: string | null; es_ganado: boolean };
+  orden: number;
+  /** Cuántos llegaron a esta etapa o a una posterior. */
+  alcanzaron: number;
+  /** alcanzaron / llegaron. null si no llegó ningún lead. */
+  porcentaje: string | null;
+  /** Cuántos de la etapa anterior no llegaron a esta (0 en la primera). */
+  caida: number;
+  caida_porcentaje: string | null;
+  es_mayor_caida: boolean;
+}
+export interface ReporteDeEmbudo {
+  desde: string | null;
+  hasta: string | null;
+  llegaron: number;
+  etapas: EtapaDelEmbudo[];
+  /** Los que hoy están en una etapa ganada. */
+  inscritos: number;
+  conversion: string | null;
+  perdidos: { total: number; por_motivo: { motivo: { id: string; nombre: string } | null; leads: number }[] };
+}
+
+/** `GET /api/reportes/fuentes?desde=&hasta=&sucursal_id=&vertical_id=`. `gasto` y `costo_por_alumno` son null para quien no tiene el permiso de costos (`incluye_gasto: false`). */
+export interface FilaDeFuente {
+  clave: string;
+  /** Origen de la campaña (`facebook`, `referido`, `presencial`…) o, sin campaña, `landing`, `codigo`, `anuncio` o `directo`. */
+  fuente: string;
+  campana: { id: string; nombre: string } | null;
+  leads: number;
+  inscritos: number;
+  conversion: string | null;
+  gasto: string | null;
+  costo_por_alumno: string | null;
+  es_mas_barato: boolean;
+}
+export interface ReporteDeFuentes {
+  desde: string | null;
+  hasta: string | null;
+  incluye_gasto: boolean;
+  filas: FilaDeFuente[];
+  total: { leads: number; inscritos: number; conversion: string | null; gasto: string | null; inscritos_con_gasto: number | null; inscritos_sin_costo: number | null; costo_por_alumno: string | null };
+}
+
+/** `GET /api/reportes/evolucion?mes=AAAA-MM&sucursal_id=&vertical_id=`: 12 meses que terminan en `mes` y la retención por cohortes. */
+export interface PuntoMensual {
+  mes: string;
+  altas: number;
+  bajas: number;
+  /** Alumnos distintos con una inscripción activa al corte del mes (el del mes en curso es hoy). */
+  activos: number;
+  inscripciones_activas: number;
+  ingreso_mensual_recurrente: string;
+}
+export interface SeguimientoDeCohorte {
+  /** 1 a 6: meses después del mes de inscripción. */
+  mes_n: number;
+  /** null: todavía no pasa ese tiempo. */
+  siguen: number | null;
+  porcentaje: string | null;
+}
+export interface ReporteDeEvolucion {
+  mes: string;
+  /** Fecha de corte del último punto (`AAAA-MM-DD`; hoy si `mes` es el mes en curso). */
+  hasta: string;
+  meses: PuntoMensual[];
+  cohortes: { mes: string; altas: number; seguimiento: SeguimientoDeCohorte[] }[];
+  promedio: { mes_n: number; siguen: number; altas: number; porcentaje: string | null }[];
+}

@@ -1,5 +1,6 @@
-// Costo por alumno inscrito por campaña (I2). Solo el administrador. El gasto de cada campaña se captura a mano; el costo sale de dividir ese gasto entre lo que produjo
-// (leads, clases muestra, alumnos inscritos), al centavo, y «—» cuando no hay divisor. Los importes son texto exacto: nada pasa por números flotantes.
+// Costo por alumno inscrito por campaña (I2), dentro de la sección 02 de Tableros. Solo el administrador. El gasto de cada campaña se captura a mano (diálogo «Gastos de la campaña»); el costo
+// sale de dividir ese gasto entre lo que produjo (leads, clases muestra, alumnos inscritos), al centavo, y «—» cuando no hay divisor. Los importes son texto exacto: nada pasa por números
+// flotantes. Va en el rango de fechas de la sección (no tiene filtro de sucursal ni de disciplina: el gasto se captura por campaña).
 
 import { useRef, useState } from "react";
 import { api, armarConsulta } from "../../api/cliente.ts";
@@ -13,8 +14,7 @@ import { Icono } from "../../ui/Icono.tsx";
 import { Dialogo } from "../../ui/Dialogo.tsx";
 import { useAccion, useCarga } from "../../ui/hooks.ts";
 import { claveParaEnvio } from "../recepcion/reparto.ts";
-import { Barras, Indicador } from "./Barras.tsx";
-import { Filtros, type ValoresDeFiltro } from "./Filtros.tsx";
+import { Indicador } from "./Barras.tsx";
 import type { FilaDeCosto, GastoDeCampana, ReporteDeCosto } from "./tipos.ts";
 
 const texto = (t: string): string => (t === "—" ? "—" : formatear(t));
@@ -133,24 +133,20 @@ function Gastos({ campana, alCambiar, alCerrar }: { campana: FilaDeCosto["campan
   );
 }
 
-export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFiltro; alCambiar: (v: ValoresDeFiltro) => void }) {
-  const consulta = { desde: filtros.desde, hasta: filtros.hasta };
-  const carga = useCarga((senal) => api.get<ReporteDeCosto>("/api/reportes/costo-por-alumno", consulta, senal), [filtros.desde, filtros.hasta]);
+export function CostoPorCampana({ desde, hasta, alCambiar }: { desde: string; hasta: string; alCambiar?: () => void }) {
+  const consulta = { desde, hasta };
+  const carga = useCarga((senal) => api.get<ReporteDeCosto>("/api/reportes/costo-por-alumno", consulta, senal), [desde, hasta]);
   const [gastos, setGastos] = useState<FilaDeCosto["campana"] | null>(null);
   const r = carga.datos;
   return (
-    <div className="pila" data-prueba="tablero-costo">
-      <Filtros
-        valores={filtros}
-        alCambiar={alCambiar}
-        conSucursalYVertical={false}
-        acciones={
-          <a className="boton" href={`/api/reportes/costo-por-alumno${armarConsulta({ ...consulta, formato: "csv" })}`} download data-prueba="descargar-costo">
-            <Icono nombre="descargar" tamano={18} />
-            Descargar CSV
-          </a>
-        }
-      />
+    <div className="pila" data-prueba="detalle-de-costo">
+      <div className="costo-cabeza">
+        <p className="muted">Lo que gastaste en cada campaña, dividido entre lo que produjo. El gasto se captura aquí, campaña por campaña.</p>
+        <a className="boton" href={`/api/reportes/costo-por-alumno${armarConsulta({ ...consulta, formato: "csv" })}`} download data-prueba="descargar-costo">
+          <Icono nombre="descargar" tamano={18} />
+          Descargar CSV
+        </a>
+      </div>
       {carga.error ? <ErrorDeCarga error={carga.error} alReintentar={carga.recargar} /> : null}
       {carga.cargando && !r ? <Cargando /> : null}
       {r ? (
@@ -176,14 +172,6 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
             </Aviso>
           ) : null}
           <Tarjeta>
-            <Barras
-              serie={2}
-              titulo="Gasto por campaña"
-              filas={r.filas.map((f) => ({ clave: f.campana.id, etiqueta: f.campana.nombre, valor: aCentavos(f.gasto), texto: formatear(f.gasto), nota: `${cantidad(f.leads, "lead", "leads")} · ${cantidad(f.clases_muestra, "clase muestra", "clases muestra")} · ${cantidad(f.alumnos_inscritos, "alumno inscrito", "alumnos inscritos")}${f.inscritos_a_mano > 0 ? ` (${f.inscritos_a_mano} a mano)` : ""}` }))}
-              vacio="Todavía no hay campañas."
-            />
-          </Tarjeta>
-          <Tarjeta titulo="Costo por campaña">
             <div className="tabla-scroll tabla-apilada">
               <table className="tabla" data-prueba="tabla-de-costo">
                 <thead>
@@ -224,7 +212,7 @@ export function CostoPorCampana({ filtros, alCambiar }: { filtros: ValoresDeFilt
         </>
       ) : null}
       <Dialogo abierto={gastos !== null} titulo="Gastos de la campaña" alCerrar={() => setGastos(null)}>
-        {gastos ? <Gastos campana={gastos} alCambiar={carga.recargar} alCerrar={() => setGastos(null)} /> : null}
+        {gastos ? <Gastos campana={gastos} alCambiar={() => { carga.recargar(); alCambiar?.(); }} alCerrar={() => setGastos(null)} /> : null}
       </Dialogo>
     </div>
   );

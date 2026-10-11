@@ -408,7 +408,7 @@ test.describe("el primer día de una escuela nueva", () => {
     expect(await publica.text()).toContain(DISCIPLINA);
     // Y la disciplina aparece sola donde se filtra (tableros) y en la lista de pasos.
     await page.goto("/tableros");
-    await expect(page.getByLabel("Disciplina")).toContainText(DISCIPLINA);
+    await expect(page.getByRole("group", { name: "Disciplina", exact: true })).toContainText(DISCIPLINA);
     await page.goto("/admin");
     await corregido("la lista de primeros pasos no refleja que ya hay disciplina, sucursal, programa, precio y grupo", async () => {
       for (const id of ["disciplinas", "sucursales", "programas", "grupos"]) await expect(page.getByTestId(`paso-${id}`)).toContainText("Listo");
@@ -881,7 +881,8 @@ test.describe("un día normal", () => {
     ids.campana = ((await creada.json()) as { id: string }).id;
     await page.goto("/tableros");
     await foto(page, "tablero-clases");
-    await page.getByRole("tab", { name: "Costo por campaña" }).click();
+    // R3b-A: el costo por campaña ya no es una pestaña: vive dentro de la sección 02 de la página de tableros.
+    await page.getByRole("navigation", { name: "Secciones del tablero" }).getByRole("button", { name: "Fuentes y costo" }).click();
     paso();
     const fila = page.getByTestId(`costo-${ids.campana}`);
     await expect(fila).toBeVisible();
@@ -923,8 +924,9 @@ test.describe("un día normal", () => {
       });
     });
     expect(texto).toContain("1500.50");
-    await page.getByRole("tab", { name: "Ejecutivo" }).click();
-    await expect(page.getByTestId("indicador-alumnos-activos").or(page.getByText("Alumnos activos").first())).toBeVisible();
+    // R3b-A: el ejecutivo es ahora el héroe (arriba de la página) y las secciones 04 a 08.
+    await page.getByRole("navigation", { name: "Secciones del tablero" }).getByRole("button", { name: "Resumen" }).click();
+    await expect(page.getByTestId("heroe").getByTestId("ind-activos")).toContainText("alumno");
     await foto(page, "tablero-ejecutivo", true);
     await corregido("el tablero ejecutivo dice «1 inscripciones» o «Descargar resumen (CSV)» sin explicar", async () => {
       expect(await leer(page)).not.toMatch(/\b1 (inscripciones|leads|alumnos)\b/);
